@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.idea/
+.vscode/
+# Données locales : jamais de données d'association dans le dépôt
+/data/
+/storage/
+/backups/
+*.ofx
+.claude/settings.local.json
