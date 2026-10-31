@@ -24,7 +24,7 @@ Points à trancher ou à ne pas perdre de vue avant de découper plus finement :
 
 ## 3. Lots et epics proposés
 
-### Lot 0 — Conception (aucun code applicatif)
+### Lot 0 — Conception (aucun code applicatif) — brouillons dans [docs/lot0](lot0/README.md)
 
 | Epic | Livrable | Sortie |
 | --- | --- | --- |
