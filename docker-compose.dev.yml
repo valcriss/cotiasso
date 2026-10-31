@@ -1,4 +1,6 @@
-# Environnement de développement : PostgreSQL seul. L'image de production viendra avec le lot 1.7.
+# Développement local : PostgreSQL seul (npm run db:up). Les images de production viendront avec le lot 1.7.
+name: cotiasso-dev
+
 services:
   db:
     image: postgres:17-alpine

@@ -14,7 +14,7 @@ Node épinglé dans `mise.toml` (26.12.1) ; gestionnaire de paquets : npm (works
 - `npm test` : lance les tests de tous les workspaces ; `npm run test:watch` en continu.
 - `npm run typecheck` : vérification des types.
 - `npm run clean` : supprime les sorties de build.
-- `cp .env.example .env` (première fois), puis `npm run db:up` : démarre PostgreSQL en Docker (port 5433) ; `npm run db:down` l'arrête.
+- `cp .env.example .env` (première fois), puis `npm run db:up` : démarre PostgreSQL en Docker via `docker-compose.dev.yml` (projet `cotiasso-dev`, port 5433) ; `npm run db:down` l'arrête (le volume de données est conservé). Après un `db:up` sur base vierge, appliquer les migrations avec `npm run db:migrate`.
 - `npm run db:generate` (client Prisma, requis après `npm install` et tout changement de schéma) ; `npm run db:migrate` crée/applique une migration.
 - `npm run test:integration` : tests sur la vraie base (nécessite `db:up` et les migrations appliquées). `npm test` n'a pas besoin de base.
 
