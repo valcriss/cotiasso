@@ -11,7 +11,7 @@ Suivi des livrables. Aucun code applicatif dans ce lot. Tous les documents sont 
 | 0.5 | [Modèle de données](05-modele-de-donnees.md) | v0.2 — 4 points tranchés, conceptuel, pas de SQL |
 | 0.6 | Inventaire de reprise | En attente du trésorier (Q11) |
 | 0.7 | Gouvernance : nom, copyright, LICENSE | En attente (Q12) |
-| 0.8 | Maquettes | À faire après relecture de 0.4 et 0.5 |
+| 0.8 | [Maquettes](08-maquettes.md) | v0.2 — panneau latéral retenu, écrans 1 à 3 maquettés, écran 4 décrit |
 
 ## Avertissement
 
