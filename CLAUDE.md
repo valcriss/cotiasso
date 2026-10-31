@@ -2,7 +2,15 @@
 
 Application web de gestion associative et de comptabilité en partie double, en marque blanche, licence MIT. Une installation = une association (pas de multi-tenant).
 
-**État du projet : phase de cadrage. Aucun code n'existe encore. Ne pas coder tant que le lot 0 n'est pas validé par l'utilisateur.**
+**État du projet : lot 0 (conception) en brouillons dans `docs/lot0/`, non validés par le trésorier du pilote ; implémentation du lot 1 démarrée sur décision de l'utilisateur (31 octobre 2026). Les livrables du lot 0 restent la référence fonctionnelle mais peuvent évoluer à la validation.**
+
+## Commandes
+
+Outils épinglés dans `mise.toml` (Node 26.12.1, pnpm 12.16.1) : préfixer par `mise exec --` si les shims ne sont pas actifs.
+
+- `pnpm install` : installe le monorepo.
+- `pnpm -r typecheck` / `pnpm -r test` / `pnpm -r build` : vérifie, teste, compile tous les paquets.
+- Paquets : `packages/accounting-domain` (TypeScript pur, Vitest). Les apps `apps/api` et `apps/web` restent à créer.
 
 ## Documents de référence
 
