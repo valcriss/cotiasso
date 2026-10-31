@@ -1,0 +1,23 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Journal d'audit en ajout seul : les UPDATE et DELETE sont refusés par un déclencheur (voir la migration).
+model AuditEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  occurredAt    DateTime @default(now()) @db.Timestamptz(3)
+  actorId       String?  @db.Uuid
+  action        String
+  objectType    String
+  objectId      String?
+  justification String?
+  details       Json?
+
+  @@index([objectType, objectId])
+  @@index([occurredAt])
+}

@@ -14,7 +14,20 @@ Node épinglé dans `mise.toml` (26.12.1) ; gestionnaire de paquets : npm (works
 - `npm test` : lance les tests de tous les workspaces ; `npm run test:watch` en continu.
 - `npm run typecheck` : vérification des types.
 - `npm run clean` : supprime les sorties de build.
-- Paquets : `packages/accounting-domain` (TypeScript pur, Vitest). Les apps `apps/api` et `apps/web` restent à créer.
+- `cp .env.example .env` (première fois), puis `npm run db:up` : démarre PostgreSQL en Docker (port 5433) ; `npm run db:down` l'arrête.
+- `npm run db:generate` (client Prisma, requis après `npm install` et tout changement de schéma) ; `npm run db:migrate` crée/applique une migration.
+- `npm run test:integration` : tests sur la vraie base (nécessite `db:up` et les migrations appliquées). `npm test` n'a pas besoin de base.
+
+Workspaces :
+- `packages/accounting-domain` : TypeScript pur, Vitest.
+- `apps/api` : NestJS 12 + Fastify (ESM), Prisma 7 (adaptateur `pg`). `GET /health` vérifie la base. L'API écoute sur `API_HOST:API_PORT` (3000 par défaut).
+- `apps/web` : à créer (Angular).
+
+Conventions de l'API :
+- Injection explicite avec `@Inject(TOKEN)` partout : le code est exécuté par tsx/esbuild, qui n'émet pas `emitDecoratorMetadata`.
+- Imports relatifs avec extension `.js` (ESM NodeNext).
+- Le client Prisma généré (`apps/api/src/generated/`) n'est pas versionné.
+- Les garanties comptables critiques s'écrivent en SQL dans les migrations (ex. `AuditEvent` en ajout seul par déclencheur), avec un test d'intégration.
 
 ## Documents de référence
 
