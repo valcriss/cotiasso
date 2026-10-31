@@ -6,10 +6,14 @@ Application web de gestion associative et de comptabilité en partie double, en 
 
 ## Commandes
 
-Outils épinglés dans `mise.toml` (Node 26.12.1, pnpm 12.16.1) : préfixer par `mise exec --` si les shims ne sont pas actifs.
+Node épinglé dans `mise.toml` (26.12.1) ; gestionnaire de paquets : npm (workspaces). Préfixer par `mise exec --` si les shims ne sont pas actifs. Toutes les commandes se lancent à la racine :
 
-- `pnpm install` : installe le monorepo.
-- `pnpm -r typecheck` / `pnpm -r test` / `pnpm -r build` : vérifie, teste, compile tous les paquets.
+- `npm install` : installe le monorepo.
+- `npm run dev` : mode développement (watch) de chaque workspace qui en définit un.
+- `npm run build` : compile tous les workspaces.
+- `npm test` : lance les tests de tous les workspaces ; `npm run test:watch` en continu.
+- `npm run typecheck` : vérification des types.
+- `npm run clean` : supprime les sorties de build.
 - Paquets : `packages/accounting-domain` (TypeScript pur, Vitest). Les apps `apps/api` et `apps/web` restent à créer.
 
 ## Documents de référence
@@ -20,7 +24,7 @@ Outils épinglés dans `mise.toml` (Node 26.12.1, pnpm 12.16.1) : préfixer par 
 
 ## Stack (validée — voir [ADR 0001](docs/decisions/0001-stack-technique.md))
 
-Node.js, NestJS + Fastify, PostgreSQL, Prisma + SQL brut pour les zones critiques, Angular + Angular Material, pg-boss, monorepo pnpm. Monolithe modulaire, domaine comptable (`packages/accounting-domain`) indépendant de HTTP et de Prisma. Distribution Docker / Compose.
+Node.js, NestJS + Fastify, PostgreSQL, Prisma + SQL brut pour les zones critiques, Angular + Angular Material, pg-boss, monorepo npm workspaces. Monolithe modulaire, domaine comptable (`packages/accounting-domain`) indépendant de HTTP et de Prisma. Distribution Docker / Compose.
 
 ## Règles non négociables du domaine
 

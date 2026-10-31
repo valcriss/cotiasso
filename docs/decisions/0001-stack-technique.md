@@ -13,7 +13,7 @@ Statut : accepté — 31 octobre 2026
 | Tâches de fond | pg-boss (file dans PostgreSQL, pas de Redis) |
 | Authentification | Comptes locaux, argon2, sessions par cookie, MFA TOTP ; OIDC reporté |
 | Tests | Vitest + Testcontainers (PostgreSQL réel) |
-| Dépôt | Monorepo pnpm : `api`, `web`, `packages/accounting-domain` |
+| Dépôt | Monorepo npm workspaces (remplace pnpm, décision du 31 octobre 2026) : `apps/api`, `apps/web`, `packages/accounting-domain` |
 
 ## Contraintes qui en découlent
 
