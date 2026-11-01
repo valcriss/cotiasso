@@ -138,6 +138,7 @@ describe('EntryPage', () => {
   it('comptabilise : enregistre puis comptabilise, et affiche le numéro attribué', async () => {
     await create(['entries:view', 'entries:create', 'entries:post']);
     await click('Comptabiliser');
+    await ui.click('Comptabiliser');
 
     controller.expectOne((r) => r.method === 'PUT' && r.url === '/api/entries/e1').flush(entry());
     await settle();
@@ -149,9 +150,20 @@ describe('EntryPage', () => {
     expect(root.querySelector('input[formcontrolname="label"]')).toBeNull();
   });
 
+  it('explique les conséquences avant de comptabiliser et ne fait rien si on renonce', async () => {
+    await create(['entries:view', 'entries:create', 'entries:post']);
+    await click('Comptabiliser');
+    expect(ui.text).toContain('ne peut plus être modifiée');
+    expect(ui.text).toContain('contrepasser');
+    await ui.click('Annuler');
+    controller.expectNone((r) => r.method === 'PUT');
+    expect(ui.isOpen).toBe(false);
+  });
+
   it('affiche les motifs de refus de la comptabilisation (422)', async () => {
     await create(['entries:view', 'entries:create', 'entries:post']);
     await click('Comptabiliser');
+    await ui.click('Comptabiliser');
     controller.expectOne((r) => r.method === 'PUT').flush(entry());
     await settle();
     controller

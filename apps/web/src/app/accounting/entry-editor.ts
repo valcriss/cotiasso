@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Component, ElementRef, computed, effect, inject, input, output, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -16,6 +16,7 @@ import {
 } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
+import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from './amount';
 
@@ -297,6 +298,8 @@ export class EntryEditor {
   private readonly api = inject(AdminApiService);
   private readonly auth = inject(AuthService);
   private readonly notifier = inject(Notifier);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly dialogs = inject(Dialogs);
   private readonly fb = inject(FormBuilder).nonNullable;
 
   /** Identifiant de l'écriture à ouvrir, ou `null` pour une nouvelle. */
@@ -423,6 +426,15 @@ export class EntryEditor {
   }
 
   protected async saveAndPost(): Promise<void> {
+    // Une écriture équilibrée va être figée : on montre la conséquence avant (sinon l'enregistrement signalera ce qui manque).
+    if (this.totals().balanced) {
+      const confirmed = await this.dialogs.confirm({
+        title: 'Comptabiliser cette écriture ?',
+        message: `Total : ${this.totals().debit} € au débit et au crédit. Une fois comptabilisée, l’écriture reçoit son numéro et ne peut plus être modifiée ni supprimée. En cas d’erreur, vous pourrez la contrepasser (l’annuler par une écriture inverse) puis en saisir une nouvelle.`,
+        confirmLabel: 'Comptabiliser',
+      });
+      if (!confirmed) return;
+    }
     const saved = await this.save();
     if (!saved) return;
     await this.run(async () => {
@@ -595,5 +607,7 @@ export class EntryEditor {
     const described = describeHttpError(failure, fallback);
     this.error.set(described.message);
     this.details.set(described.details);
+    // Le formulaire est long : le bouton d'action est en bas, le message en haut. On amène le message à l'écran.
+    setTimeout(() => this.host.nativeElement.querySelector('[role="alert"]')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }));
   }
 }
