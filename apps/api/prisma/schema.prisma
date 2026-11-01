@@ -287,8 +287,9 @@ model Journal {
   createdAt DateTime    @default(now()) @db.Timestamptz(3)
   createdBy String?     @db.Uuid
 
-  entries  JournalEntry[]
-  counters EntryCounter[]
+  entries          JournalEntry[]
+  counters         EntryCounter[]
+  financialAccount FinancialAccount?
 }
 
 // Compte du plan comptable. Le numéro est définitif ; un compte se désactive, il ne se supprime jamais.
@@ -302,7 +303,9 @@ model Account {
   createdAt  DateTime @default(now()) @db.Timestamptz(3)
   createdBy  String?  @db.Uuid
 
-  lines JournalLine[]
+  lines                   JournalLine[]
+  financialAccount        FinancialAccount?
+  proposedForTransactions Transaction[]
 }
 
 enum EntryStatus {
@@ -405,8 +408,9 @@ model Project {
   createdAt   DateTime      @default(now()) @db.Timestamptz(3)
   createdBy   String?       @db.Uuid
 
-  manager     User?                  @relation("ProjectManager", fields: [managerId], references: [id], onDelete: Restrict)
-  allocations AnalyticalAllocation[]
+  manager      User?                  @relation("ProjectManager", fields: [managerId], references: [id], onDelete: Restrict)
+  allocations  AnalyticalAllocation[]
+  transactions Transaction[]
 }
 
 // Ventilation analytique d'une ligne de charge ou de produit : une ou plusieurs parts de projet dont le total égale
@@ -422,4 +426,81 @@ model AnalyticalAllocation {
 
   @@unique([lineId, projectId])
   @@index([projectId])
+}
+
+enum FinancialAccountType {
+  BANK
+  CASH
+}
+
+// Compte bancaire ou caisse. Rattaché à un compte de trésorerie (classe 5) et à un journal propres, définitifs. Le solde
+// initial est une information datée (il ne crée pas d'écriture) ; un compte utilisé s'archive, il ne se supprime pas.
+model FinancialAccount {
+  id             String               @id @default(uuid()) @db.Uuid
+  name           String
+  type           FinancialAccountType
+  currency       String               @default("EUR")
+  // Référence utile (ex. fin d'IBAN, agence) ; jamais de secret bancaire.
+  reference      String?
+  accountId      String               @unique @db.Uuid
+  journalId      String               @unique @db.Uuid
+  openedOn       DateTime             @db.Date
+  openingBalance Decimal              @default(0) @db.Decimal(14, 2)
+  archivedOn     DateTime?            @db.Date
+  createdAt      DateTime             @default(now()) @db.Timestamptz(3)
+  createdBy      String?              @db.Uuid
+
+  account      Account         @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  journal      Journal         @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  transactions Transaction[]
+  statements   BankStatement[]
+}
+
+// Solde fourni par un relevé à une date : sert de preuve et de point de contrôle, en ajout seul. Un solde non contrôlé
+// n'est jamais présenté comme rapproché.
+model BankStatement {
+  id                 String   @id @default(uuid()) @db.Uuid
+  financialAccountId String   @db.Uuid
+  periodStart        DateTime @db.Date
+  periodEnd          DateTime @db.Date
+  closingBalance     Decimal  @db.Decimal(14, 2)
+  createdAt          DateTime @default(now()) @db.Timestamptz(3)
+  createdBy          String?  @db.Uuid
+
+  financialAccount FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Restrict)
+
+  @@index([financialAccountId, periodEnd])
+}
+
+enum TransactionOrigin {
+  MANUAL
+  IMPORT
+}
+
+// Mouvement financier (≠ écriture comptable) : montant signé (encaissement positif, décaissement négatif). Les statuts
+// de présence sur relevé, qualification, comptabilisation et rapprochement sont des dimensions distinctes.
+model Transaction {
+  id                   String            @id @default(uuid()) @db.Uuid
+  financialAccountId   String            @db.Uuid
+  operationDate        DateTime          @db.Date
+  valueDate            DateTime?         @db.Date
+  amount               Decimal           @db.Decimal(14, 2)
+  label                String
+  reference            String?
+  origin               TransactionOrigin @default(MANUAL)
+  // Identifiant fourni par la banque et sa source : garantit l'idempotence des imports.
+  source               String?
+  externalId           String?
+  // Qualification : projet et compte de contrepartie proposés (préremplissent l'écriture, ne la créent pas).
+  projectId            String?           @db.Uuid
+  counterpartAccountId String?           @db.Uuid
+  version              Int               @default(1)
+  createdAt            DateTime          @default(now()) @db.Timestamptz(3)
+  createdBy            String?           @db.Uuid
+
+  financialAccount   FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Restrict)
+  project            Project?         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  counterpartAccount Account?         @relation(fields: [counterpartAccountId], references: [id], onDelete: Restrict)
+
+  @@index([financialAccountId, operationDate])
 }

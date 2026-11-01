@@ -59,8 +59,8 @@ Points à trancher ou à ne pas perdre de vue avant de découper plus finement :
 
 ### Lot 2b — Trésorerie
 
-2b.1 Comptes financiers et caisses, soldes initial/calculé/relevé
-2b.2 Transactions : saisie manuelle, ventilation, statuts distincts (§9.2)
+2b.1 Comptes financiers et caisses, soldes initial/calculé/relevé — **fait** ([ADR 0014](decisions/0014-tresorerie-comptes-financiers-et-transactions.md))
+2b.2 Transactions : saisie manuelle, ventilation, statuts distincts (§9.2) — **fait** pour la saisie manuelle, les filtres et la qualification ; **reste** : ventilation d'une transaction, statuts de comptabilisation et de rapprochement (avec 2b.4 et 2b.5)
 2b.3 Import OFX : analyse sans validation, doublons, idempotence (CA-01, CA-02), parseur sûr
 2b.4 Virements internes (CA-05), liaison transaction → écriture (TreasuryMatch)
 2b.5 Rapprochement bancaire avec relevé

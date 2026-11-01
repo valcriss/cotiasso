@@ -1,4 +1,5 @@
 @use '@angular/material' as mat;
+@use './app-ui';
 
 html {
   // Clair par défaut, sombre si le système le demande ; le choix de l'utilisateur (classes theme-light / theme-dark,

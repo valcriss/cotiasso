@@ -250,6 +250,63 @@ export interface JournalBookEntryInfo {
   totalCredit: string;
 }
 
+export interface BalanceInfo {
+  opening: string;
+  computed: string;
+  accounting: string;
+  lastStatement: { periodEnd: string; closingBalance: string; computedAtEnd: string; gap: string } | null;
+}
+
+export interface FinancialAccountInfo {
+  id: string;
+  name: string;
+  type: 'BANK' | 'CASH';
+  currency: string;
+  reference: string | null;
+  accountId: string;
+  accountNumber: string;
+  journalId: string;
+  journalCode: string;
+  openedOn: string;
+  archivedOn: string | null;
+  balances: BalanceInfo;
+}
+
+export interface TransactionInfo {
+  id: string;
+  financialAccountId: string;
+  operationDate: string;
+  valueDate: string | null;
+  amount: string;
+  label: string;
+  reference: string | null;
+  origin: 'MANUAL' | 'IMPORT';
+  externalId: string | null;
+  projectId: string | null;
+  projectCode: string | null;
+  counterpartAccountId: string | null;
+  counterpartAccountNumber: string | null;
+  qualified: boolean;
+  version: number;
+}
+
+export interface TransactionBody {
+  operationDate: string;
+  amount: string;
+  label: string;
+  reference: string | null;
+  projectId: string | null;
+  counterpartAccountId: string | null;
+}
+
+export interface TransactionFilters {
+  from?: string;
+  to?: string;
+  q?: string;
+  qualified?: 'true' | 'false';
+  after?: string;
+}
+
 export interface ReportParams {
   fiscalYearId: string;
   from?: string;
@@ -561,6 +618,49 @@ export class AdminApiService {
 
   journalBook(params: ReportParams): Promise<{ entries: JournalBookEntryInfo[] }> {
     return firstValueFrom(this.http.get<{ entries: JournalBookEntryInfo[] }>('/api/reports/journal', { params: this.reportParams(params) }));
+  }
+
+  listFinancialAccounts(): Promise<FinancialAccountInfo[]> {
+    return firstValueFrom(this.http.get<FinancialAccountInfo[]>('/api/financial-accounts'));
+  }
+
+  createFinancialAccount(body: {
+    name: string;
+    type: 'BANK' | 'CASH';
+    reference: string | null;
+    accountId: string;
+    openedOn: string;
+    openingBalance: string;
+  }): Promise<FinancialAccountInfo> {
+    return firstValueFrom(this.http.post<FinancialAccountInfo>('/api/financial-accounts', body));
+  }
+
+  archiveFinancialAccount(id: string): Promise<FinancialAccountInfo> {
+    return firstValueFrom(this.http.patch<FinancialAccountInfo>(`/api/financial-accounts/${id}`, { archived: true }));
+  }
+
+  recordStatement(id: string, body: { periodStart: string; periodEnd: string; closingBalance: string }): Promise<unknown> {
+    return firstValueFrom(this.http.post<unknown>(`/api/financial-accounts/${id}/statements`, body));
+  }
+
+  listTransactions(accountId: string, filters: TransactionFilters = {}): Promise<{ transactions: TransactionInfo[]; next: string | null }> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(filters)) if (value) params = params.set(key, value);
+    return firstValueFrom(
+      this.http.get<{ transactions: TransactionInfo[]; next: string | null }>(`/api/financial-accounts/${accountId}/transactions`, { params }),
+    );
+  }
+
+  createTransaction(accountId: string, body: TransactionBody): Promise<TransactionInfo> {
+    return firstValueFrom(this.http.post<TransactionInfo>(`/api/financial-accounts/${accountId}/transactions`, body));
+  }
+
+  updateTransaction(id: string, body: Partial<TransactionBody> & { version: number }): Promise<TransactionInfo> {
+    return firstValueFrom(this.http.patch<TransactionInfo>(`/api/transactions/${id}`, body));
+  }
+
+  deleteTransaction(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/transactions/${id}`));
   }
 
   listProjects(): Promise<ProjectInfo[]> {

@@ -100,7 +100,7 @@ interface Identity {
 
     <form class="panel" [formGroup]="brandingForm" (ngSubmit)="saveBranding()" novalidate>
       <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">palette</mat-icon><span>Apparence</span></h3>
-      <p class="muted">Le nom et les couleurs du menu s'appliquent à toute l'interface, y compris la page de connexion.</p>
+      <p class="muted">Le nom, les couleurs du menu et l'accent s'appliquent à toute l'interface, y compris la page de connexion.</p>
       <mat-form-field appearance="outline">
         <mat-label>Nom affiché</mat-label>
         <input matInput formControlName="appName" required />
@@ -108,50 +108,66 @@ interface Identity {
           <mat-error>Saisissez le nom affiché.</mat-error>
         }
       </mat-form-field>
-      <div class="row">
-        <div class="color">
-          <label for="bg-color">Fond du menu</label>
-          <input id="bg-color" type="color" formControlName="sidebarBackground" />
-          <code>{{ brandingForm.controls.sidebarBackground.value }}</code>
-        </div>
-        <div class="color">
-          <label for="text-color">Texte du menu</label>
-          <input id="text-color" type="color" formControlName="sidebarText" />
-          <code>{{ brandingForm.controls.sidebarText.value }}</code>
-        </div>
-      </div>
-      <div class="row">
-        <div class="color">
-          <label for="accent-color">Couleur d'accent</label>
-          <input id="accent-color" type="color" formControlName="accentColor" />
-          <code>{{ brandingForm.controls.accentColor.value }}</code>
-          <button mat-button type="button" (click)="resetAccent()">Par défaut</button>
-        </div>
-        <span class="accent-sample" [style.background]="accent()">Boutons et liens</span>
-      </div>
-      @if (lowAccentContrast()) {
-        <p class="alert" role="alert">
-          Accent trop clair ({{ accentRatio() }} sur {{ minContrast }} requis) : le texte blanc des boutons serait illisible.
-        </p>
-      } @else {
-        <p class="muted">Contraste du texte blanc sur l'accent : {{ accentRatio() }} (minimum {{ minContrast }}).</p>
-      }
 
-      <div
-        class="preview"
-        aria-label="Aperçu du menu"
-        [style.background]="previewColors().background"
-        [style.color]="previewColors().text"
-      >
-        {{ previewName() }} · Vue d'ensemble · Comptes
-      </div>
-      @if (lowContrast()) {
-        <p class="alert" role="alert">
-          Contraste insuffisant ({{ ratio() }} sur {{ minContrast }} requis) : le texte serait difficile à lire.
-        </p>
-      } @else {
-        <p class="muted">Contraste : {{ ratio() }} (minimum {{ minContrast }}).</p>
-      }
+      <fieldset class="group">
+        <legend>Menu</legend>
+        <div class="color-grid">
+          <div class="color-field">
+            <label for="bg-color">Fond du menu</label>
+            <div class="color-control">
+              <input id="bg-color" type="color" formControlName="sidebarBackground" />
+              <code>{{ brandingForm.controls.sidebarBackground.value }}</code>
+            </div>
+          </div>
+          <div class="color-field">
+            <label for="text-color">Texte du menu</label>
+            <div class="color-control">
+              <input id="text-color" type="color" formControlName="sidebarText" />
+              <code>{{ brandingForm.controls.sidebarText.value }}</code>
+            </div>
+          </div>
+        </div>
+        <div
+          class="preview"
+          aria-label="Aperçu du menu"
+          [style.background]="previewColors().background"
+          [style.color]="previewColors().text"
+        >
+          {{ previewName() }} · Vue d'ensemble · Comptes
+        </div>
+        @if (lowContrast()) {
+          <p class="alert" role="alert">
+            Contraste insuffisant ({{ ratio() }} sur {{ minContrast }} requis) : le texte serait difficile à lire.
+          </p>
+        } @else {
+          <p class="muted">Contraste : {{ ratio() }} (minimum {{ minContrast }}).</p>
+        }
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Accent</legend>
+        <div class="color-grid">
+          <div class="color-field">
+            <label for="accent-color">Couleur d'accent</label>
+            <div class="color-control">
+              <input id="accent-color" type="color" formControlName="accentColor" />
+              <code>{{ brandingForm.controls.accentColor.value }}</code>
+              <button mat-button type="button" (click)="resetAccent()">Par défaut</button>
+            </div>
+          </div>
+          <div class="color-field">
+            <span class="field-label">Aperçu</span>
+            <span class="accent-sample" [style.background]="accent()">Boutons et liens</span>
+          </div>
+        </div>
+        @if (lowAccentContrast()) {
+          <p class="alert" role="alert">
+            Accent trop clair ({{ accentRatio() }} sur {{ minContrast }} requis) : le texte blanc des boutons serait illisible.
+          </p>
+        } @else {
+          <p class="muted">Contraste du texte blanc sur l'accent : {{ accentRatio() }} (minimum {{ minContrast }}).</p>
+        }
+      </fieldset>
 
       @if (brandingError(); as failure) {
         <div class="alert" role="alert">
