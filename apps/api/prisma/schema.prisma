@@ -350,6 +350,7 @@ model JournalEntry {
   reversalOf  JournalEntry? @relation("Reversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
   reversedBy  JournalEntry? @relation("Reversal")
   lines       JournalLine[]
+  matches     TreasuryMatch[]
 
   @@unique([journalId, fiscalYearId, number])
   @@index([fiscalYearId, date])
@@ -455,6 +456,7 @@ model FinancialAccount {
   transactions Transaction[]
   statements   BankStatement[]
   imports      ImportBatch[]
+  matches      TreasuryMatch[]
 }
 
 // Solde fourni par un relevé à une date : sert de preuve et de point de contrôle, en ajout seul. Un solde non contrôlé
@@ -504,8 +506,49 @@ model Transaction {
   counterpartAccount Account?         @relation(fields: [counterpartAccountId], references: [id], onDelete: Restrict)
   importedFrom       ImportLine[]     @relation("ImportResult")
   matchedBy          ImportLine[]     @relation("ImportMatch")
+  matches            TreasuryMatch[]
+  transferOut        Transfer?        @relation("TransferOut")
+  transferIn         Transfer?        @relation("TransferIn")
 
   @@index([financialAccountId, operationDate])
+}
+
+enum TreasuryMatchStatus {
+  ACTIVE
+  ENDED
+}
+
+// Liaison d'une transaction à l'écriture qui la comptabilise (ADR 0017). Terminée (ENDED, conservée) quand l'écriture
+// est contrepassée ; un brouillon supprimé emporte sa liaison. Un seul lien actif par transaction et par écriture et
+// compte financier (index partiels en SQL).
+model TreasuryMatch {
+  id                 String              @id @default(uuid()) @db.Uuid
+  transactionId      String              @db.Uuid
+  entryId            String              @db.Uuid
+  financialAccountId String              @db.Uuid
+  status             TreasuryMatchStatus @default(ACTIVE)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  createdBy          String?             @db.Uuid
+  endedAt            DateTime?           @db.Timestamptz(3)
+
+  transaction      Transaction      @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  entry            JournalEntry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  financialAccount FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Restrict)
+
+  @@index([transactionId])
+  @@index([entryId])
+}
+
+// Virement interne : deux transactions reliées (sortie et entrée), sans charge ni produit (CA-05).
+model Transfer {
+  id               String   @id @default(uuid()) @db.Uuid
+  outTransactionId String   @unique @db.Uuid
+  inTransactionId  String   @unique @db.Uuid
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  createdBy        String?  @db.Uuid
+
+  outTransaction Transaction @relation("TransferOut", fields: [outTransactionId], references: [id], onDelete: Restrict)
+  inTransaction  Transaction @relation("TransferIn", fields: [inTransactionId], references: [id], onDelete: Restrict)
 }
 
 enum ImportBatchStatus {

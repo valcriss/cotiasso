@@ -53,6 +53,7 @@ const listQuery = z
     origin: z.enum(["MANUAL", "IMPORT"]).optional(),
     projectId: z.uuid().optional(),
     qualified: z.enum(["true", "false"]).optional(),
+    accounting: z.enum(["NONE", "IN_PROGRESS", "POSTED"]).optional(),
     after: z.uuid().optional(),
     limit: z.coerce.number().int().min(1).max(200).default(50),
   })
@@ -77,17 +78,53 @@ export interface TransactionView {
   counterpartAccountNumber: string | null;
   /** Qualifiée = nature (compte de contrepartie) choisie ; ne préjuge pas de la comptabilisation ni du rapprochement. */
   qualified: boolean;
+  /**
+   * Comptabilisation (dimension distincte du rapprochement) : « à comptabiliser » (NONE), « en cours » tant que l'écriture
+   * liée est un brouillon (IN_PROGRESS), « comptabilisée » (POSTED).
+   */
+  accounting: "NONE" | "IN_PROGRESS" | "POSTED";
+  /** Écriture liée (liaison active), le cas échéant. */
+  entry: { id: string; status: "DRAFT" | "POSTED"; journalCode: string; number: number | null } | null;
+  /** Virement interne dont la transaction fait partie : sens et compte de l'autre côté. */
+  transfer: { id: string; direction: "OUT" | "IN"; otherAccountId: string; otherAccountName: string } | null;
+  /** Montant, date et compte figés (identifiant bancaire, écriture liée ou virement). */
+  financialLock: "BANK" | "ENTRY" | "TRANSFER" | null;
+  /** Peut encore être supprimée (saisie manuelle jamais identifiée, liée ni virée). */
+  deletable: boolean;
   version: number;
 }
 
-const include = {
+export const transactionInclude = {
   project: { select: { code: true } },
   counterpartAccount: { select: { number: true } },
+  matches: { select: { status: true, entry: { select: { id: true, status: true, number: true, journal: { select: { code: true } } } } } },
+  transferOut: { select: { id: true, inTransaction: { select: { financialAccount: { select: { id: true, name: true } } } } } },
+  transferIn: { select: { id: true, outTransaction: { select: { financialAccount: { select: { id: true, name: true } } } } } },
 } satisfies Prisma.TransactionInclude;
-type Loaded = Prisma.TransactionGetPayload<{ include: typeof include }>;
+const include = transactionInclude;
+type Loaded = Prisma.TransactionGetPayload<{ include: typeof transactionInclude }>;
 
 const day = (date: Date) => date.toISOString().slice(0, 10);
 const asDate = (value: string | null | undefined) => (value ? new Date(`${value}T00:00:00Z`) : null);
+
+export const transactionView = (t: Loaded): TransactionView => view(t);
+
+function accountingOf(t: Loaded): Pick<TransactionView, "accounting" | "entry" | "financialLock" | "transfer" | "deletable"> {
+  const active = t.matches.find((m) => m.status === "ACTIVE");
+  const entry = active && active.entry.status !== "REVERSED" ? { id: active.entry.id, status: active.entry.status as "DRAFT" | "POSTED", journalCode: active.entry.journal.code, number: active.entry.number } : null;
+  const transfer = t.transferOut
+    ? { id: t.transferOut.id, direction: "OUT" as const, otherAccountId: t.transferOut.inTransaction.financialAccount.id, otherAccountName: t.transferOut.inTransaction.financialAccount.name }
+    : t.transferIn
+      ? { id: t.transferIn.id, direction: "IN" as const, otherAccountId: t.transferIn.outTransaction.financialAccount.id, otherAccountName: t.transferIn.outTransaction.financialAccount.name }
+      : null;
+  return {
+    accounting: entry ? (entry.status === "DRAFT" ? "IN_PROGRESS" : "POSTED") : "NONE",
+    entry,
+    transfer,
+    financialLock: t.externalId !== null ? "BANK" : t.matches.length > 0 ? "ENTRY" : transfer ? "TRANSFER" : null,
+    deletable: t.origin === "MANUAL" && t.externalId === null && t.matches.length === 0 && transfer === null,
+  };
+}
 
 const view = (t: Loaded): TransactionView => ({
   id: t.id,
@@ -105,6 +142,7 @@ const view = (t: Loaded): TransactionView => ({
   counterpartAccountId: t.counterpartAccountId,
   counterpartAccountNumber: t.counterpartAccount?.number ?? null,
   qualified: t.counterpartAccountId !== null,
+  ...accountingOf(t),
   version: t.version,
 });
 
@@ -116,6 +154,8 @@ const REFUSALS = [
   "Une transaction importée",
   "données financières d'une transaction importée",
   "identifiant bancaire",
+  "liée à une écriture",
+  "ne correspond",
 ];
 
 /**
@@ -139,6 +179,9 @@ export class TransactionsService {
         ...((q.from || q.to) && { operationDate: { ...(q.from && { gte: asDate(q.from)! }), ...(q.to && { lte: asDate(q.to)! }) } }),
         ...(q.origin && { origin: q.origin }),
         ...(q.projectId && { projectId: q.projectId }),
+        ...(q.accounting === "NONE" && { matches: { none: { status: "ACTIVE" } } }),
+        ...(q.accounting === "IN_PROGRESS" && { matches: { some: { status: "ACTIVE", entry: { status: "DRAFT" } } } }),
+        ...(q.accounting === "POSTED" && { matches: { some: { status: "ACTIVE", entry: { status: "POSTED" } } } }),
         ...(q.qualified && { counterpartAccountId: q.qualified === "true" ? { not: null } : null }),
         ...(q.q && {
           OR: [

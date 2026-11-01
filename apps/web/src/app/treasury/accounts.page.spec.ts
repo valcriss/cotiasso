@@ -1,10 +1,14 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { mockAuth } from '../testing/auth-mock';
 import { AccountsPage } from './accounts.page';
+
+@Component({ template: '' })
+class EntryStub {}
 
 const account = (overrides: Record<string, unknown> = {}) => ({
   id: 'f1',
@@ -48,6 +52,11 @@ const transaction = (overrides: Record<string, unknown> = {}) => ({
   counterpartAccountId: null,
   counterpartAccountNumber: null,
   qualified: false,
+  accounting: 'NONE',
+  entry: null,
+  transfer: null,
+  financialLock: null,
+  deletable: true,
   version: 1,
   ...overrides,
 });
@@ -66,7 +75,7 @@ describe('AccountsPage', () => {
   const create = async (permissions: string[], accounts: object[] = [account()]) => {
     await TestBed.configureTestingModule({
       imports: [AccountsPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
+      providers: [provideRouter([{ path: 'comptabilite/ecritures/:id', component: EntryStub }]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(AccountsPage);
@@ -220,7 +229,7 @@ describe('AccountsPage', () => {
     await create(['financial-accounts:view']);
     await openTransactions([
       transaction(),
-      transaction({ id: 't2', amount: '100.00', label: 'Cotisations', counterpartAccountNumber: '706', qualified: true, projectCode: 'ATELIERS', origin: 'IMPORT', bankIdentified: true, externalId: 'FIT-2' }),
+      transaction({ id: 't2', amount: '100.00', label: 'Cotisations', counterpartAccountNumber: '706', qualified: true, projectCode: 'ATELIERS', origin: 'IMPORT', bankIdentified: true, financialLock: 'BANK', deletable: false, externalId: 'FIT-2' }),
     ]);
     const rows = Array.from(root.querySelectorAll('section tbody tr')).map((r) => r.textContent!);
     expect(rows[0]).toContain('-30,50');
@@ -281,7 +290,7 @@ describe('AccountsPage', () => {
 
   it("une transaction identifiée par la banque garde son montant et sa date : seule la qualification est envoyée", async () => {
     await create(['financial-accounts:view', 'transactions:manage']);
-    await openTransactions([transaction({ origin: 'IMPORT', externalId: 'FIT-1', bankIdentified: true })]);
+    await openTransactions([transaction({ origin: 'IMPORT', externalId: 'FIT-1', bankIdentified: true, financialLock: 'BANK', deletable: false })]);
     await click('Modifier Frais');
     expect(ui.title).toBe('Modifier la transaction');
     expect(ui.text).toContain('vient de votre relevé bancaire');
@@ -312,5 +321,152 @@ describe('AccountsPage', () => {
     await settle();
     await reloadAfterWrite([]);
     expect(ui.snackbar).toContain('Transaction supprimée');
+  });
+
+  const entryRef = (overrides: Record<string, unknown> = {}) => ({ id: 'e1', status: 'DRAFT', journalCode: 'BQ-1', number: null, ...overrides });
+  const FULL = ['financial-accounts:view', 'transactions:manage', 'entries:create', 'entries:view'];
+
+  it("affiche pour chaque transaction son état de comptabilisation et l'écriture liée", async () => {
+    await create(FULL);
+    await openTransactions([
+      transaction({ id: 't1', label: 'À faire' }),
+      transaction({ id: 't2', label: 'En cours', accounting: 'IN_PROGRESS', entry: entryRef(), financialLock: 'ENTRY', deletable: false }),
+      transaction({ id: 't3', label: 'Faite', accounting: 'POSTED', entry: entryRef({ id: 'e3', status: 'POSTED', number: 4 }), financialLock: 'ENTRY', deletable: false }),
+    ]);
+    const text = root.textContent!;
+    expect(text).toContain('À comptabiliser');
+    expect(text).toContain('En cours de comptabilisation');
+    expect(text).toContain('Comptabilisée');
+    expect(text).toContain('BQ-1 n° 4');
+    expect(text).toContain("une écriture validée enregistre ce mouvement");
+    const links = Array.from(root.querySelectorAll<HTMLAnchorElement>('a')).map((a) => a.getAttribute('href'));
+    expect(links).toContain('/comptabilite/ecritures/e1');
+    expect(links).toContain('/comptabilite/ecritures/e3');
+  });
+
+  it("prépare un brouillon d'écriture depuis une transaction puis ouvre l'écriture", async () => {
+    await create(FULL);
+    await openTransactions([transaction({ counterpartAccountId: 'a706', counterpartAccountNumber: '706', qualified: true })]);
+    await click('Comptabiliser Frais');
+    const request = controller.expectOne('/api/transactions/t1/entry');
+    expect(request.request.method).toBe('POST');
+    request.flush({ transaction: transaction({ accounting: 'IN_PROGRESS', entry: entryRef() }), entryId: 'e1' });
+    await settle();
+    expect(ui.snackbar).toContain("Brouillon d'écriture préparé");
+  });
+
+  it("explique quoi faire quand le serveur refuse de préparer (compte de contrepartie manquant)", async () => {
+    await create(FULL);
+    await openTransactions();
+    await click('Comptabiliser Frais');
+    controller
+      .expectOne('/api/transactions/t1/entry')
+      .flush({ message: "Choisissez d'abord le compte de contrepartie de la transaction (modifiez-la)." }, { status: 409, statusText: 'Conflict' });
+    await settle();
+    expect(root.querySelector('[role="alert"]')!.textContent).toContain('compte de contrepartie');
+  });
+
+  it("sans le droit de saisir des écritures, aucune action de liaison n'est proposée", async () => {
+    await create(['financial-accounts:view', 'transactions:manage']);
+    await openTransactions();
+    expect(root.textContent).not.toContain('Comptabiliser Frais');
+    expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Associer'))).toBe(false);
+    expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Nouveau virement'))).toBe(false);
+  });
+
+  it("associe une transaction à une écriture existante parmi celles qui correspondent", async () => {
+    await create(FULL);
+    await openTransactions();
+    await click('Associer Frais');
+    controller.expectOne('/api/transactions/t1/entry-candidates').flush([
+      { id: 'e7', date: '2026-03-05', label: 'Frais de banque', status: 'POSTED', journalCode: 'BQ-1', number: 7 },
+    ]);
+    await settle();
+    expect(ui.title).toBe('Associer à une écriture');
+    await ui.choose('mat-select[formcontrolname="entryId"]', 'Frais de banque');
+    await ui.submit();
+    const link = controller.expectOne('/api/transactions/t1/link');
+    expect(link.request.body).toEqual({ entryId: 'e7' });
+    link.flush(transaction({ accounting: 'POSTED', entry: entryRef({ id: 'e7', status: 'POSTED', number: 7 }) }));
+    await settle();
+    controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: [], next: null });
+    await settle();
+    expect(ui.snackbar).toContain('associée');
+  });
+
+  it("dit qu'aucune écriture ne correspond et renvoie vers « Comptabiliser »", async () => {
+    await create(FULL);
+    await openTransactions();
+    await click('Associer Frais');
+    controller.expectOne('/api/transactions/t1/entry-candidates').flush([]);
+    await settle();
+    expect(ui.text).toContain('Aucune écriture ne correspond');
+    expect(ui.text).toContain('Comptabiliser');
+    expect(ui.button('Associer').disabled).toBe(true);
+  });
+
+  it("dissocie un brouillon après confirmation, en rassurant sur le brouillon", async () => {
+    await create(FULL);
+    await openTransactions([transaction({ accounting: 'IN_PROGRESS', entry: entryRef(), financialLock: 'ENTRY', deletable: false })]);
+    await click('Dissocier Frais');
+    expect(ui.text).toContain("n'est pas supprimée");
+    await ui.click('Dissocier');
+    const request = controller.expectOne('/api/transactions/t1/link');
+    expect(request.request.method).toBe('DELETE');
+    request.flush(transaction());
+    await settle();
+    controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: [], next: null });
+    await settle();
+    expect(ui.snackbar).toContain('dissociée');
+  });
+
+  it("une transaction liée à une écriture explique pourquoi son montant ne change plus", async () => {
+    await create(FULL);
+    await openTransactions([transaction({ accounting: 'POSTED', entry: entryRef({ status: 'POSTED', number: 2 }), financialLock: 'ENTRY', deletable: false })]);
+    await click('Modifier Frais');
+    expect(ui.text).toContain('contrepassez');
+    expect(ui.field<HTMLInputElement>('input[formcontrolname="amount"]').disabled).toBe(true);
+    expect(ui.dialog!.textContent).not.toContain('Supprimer cette transaction');
+  });
+
+  it("enregistre un virement interne : deux comptes, montant positif, brouillon préparé", async () => {
+    const savings = account({ id: 'f2', name: 'Livret', accountId: 'a530', accountNumber: '530', journalCode: 'BQ-2' });
+    await create(FULL, [account(), savings]);
+    await click('Nouveau virement interne');
+    expect(ui.title).toBe('Nouveau virement interne');
+    expect(ui.text).toContain("Ce n'est ni une dépense ni une recette");
+
+    // Un montant manquant est expliqué sans appeler le serveur.
+    await ui.submit();
+    expect(ui.error).toContain('compte de départ');
+    await ui.choose('mat-select[formcontrolname="toAccountId"]', 'Livret');
+    await ui.type('input[formcontrolname="amount"]', '300,00');
+    await ui.type('input[formcontrolname="date"]', '2026-03-20');
+    await ui.submit();
+    const request = controller.expectOne('/api/transfers');
+    expect(request.request.body).toEqual({ fromAccountId: 'f1', toAccountId: 'f2', amount: '300.00', date: '2026-03-20', prepareEntry: true });
+    request.flush({ id: 'v1', out: transaction(), in: transaction(), entryId: 'e9' }, { status: 201, statusText: 'Created' });
+    await settle();
+    controller.expectOne('/api/financial-accounts').flush([account(), savings]);
+    await settle();
+    expect(ui.snackbar).toContain('Virement enregistré');
+    expect(ui.snackbar).toContain('relisez-le');
+  });
+
+  it("annule un virement après confirmation, tant qu'il n'est lié à aucune écriture", async () => {
+    await create(FULL);
+    await openTransactions([
+      transaction({ transfer: { id: 'v1', direction: 'OUT', otherAccountId: 'f2', otherAccountName: 'Livret' }, financialLock: 'TRANSFER', deletable: false }),
+    ]);
+    expect(root.textContent).toContain('Virement vers Livret');
+    await click('Annuler le virement Frais');
+    expect(ui.text).toContain('Livret');
+    await ui.click('Annuler le virement');
+    const request = controller.expectOne('/api/transfers/v1');
+    expect(request.request.method).toBe('DELETE');
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    await settle();
+    await reloadAfterWrite([]);
+    expect(ui.snackbar).toContain('Virement annulé');
   });
 });

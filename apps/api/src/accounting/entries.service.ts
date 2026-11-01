@@ -120,6 +120,7 @@ const REFUSAL_FRAGMENTS = [
   "ventilation analytique",
   "projet archivé",
   "Seules les lignes de charge",
+  "ne correspond plus à la transaction",
 ];
 
 /** Texte lisible d'un refus levé par un déclencheur SQL (RAISE EXCEPTION), ou `null` si l'erreur est autre. */

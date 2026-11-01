@@ -27,6 +27,13 @@ export interface TransactionDialogData {
   transaction: TransactionInfo | null;
 }
 
+const LOCK_DESCRIPTIONS = {
+  NONE: "Une transaction est un mouvement d'argent sur ce compte. Vous pourrez la transformer ensuite en écriture comptable.",
+  BANK: 'Cette transaction vient de votre relevé bancaire : son montant et sa date ne changent pas, vous pouvez compléter le reste.',
+  ENTRY: "Cette transaction est liée à une écriture comptable : son montant et sa date ne changent plus. Pour les corriger, contrepassez l'écriture (l'annuler par une écriture inverse).",
+  TRANSFER: "Cette transaction fait partie d'un virement interne : son montant et sa date ne changent pas. Pour les corriger, annulez le virement puis refaites-le.",
+} as const;
+
 export type TransactionDialogResult = { kind: 'saved'; transaction: TransactionInfo } | { kind: 'deleted' };
 
 /** Saisie et modification d'une transaction (un mouvement sur le compte), en boîte de dialogue. */
@@ -119,13 +126,11 @@ export class TransactionDialog {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly details = signal<string[]>([]);
-  protected readonly canDelete = this.transaction?.origin === 'MANUAL' && !this.transaction.bankIdentified;
-  /** Une transaction identifiée par la banque garde son montant et sa date : seules les informations de qualification changent. */
-  protected readonly frozen = signal(this.transaction?.bankIdentified === true);
+  protected readonly canDelete = this.transaction?.deletable === true;
+  /** Une transaction identifiée par la banque, liée à une écriture ou à un virement garde son montant et sa date : seules les informations descriptives changent. */
+  protected readonly frozen = signal(!!this.transaction?.financialLock);
   protected readonly counterparts = computed(() => this.data.accounts.filter((a) => a.active && a.id !== this.data.account.accountId));
-  protected readonly description = this.transaction?.bankIdentified
-    ? 'Cette transaction vient de votre relevé bancaire : son montant et sa date ne changent pas, vous pouvez compléter le reste.'
-    : "Une transaction est un mouvement d'argent sur ce compte. Vous pourrez la transformer ensuite en écriture comptable.";
+  protected readonly description = LOCK_DESCRIPTIONS[this.transaction?.financialLock ?? 'NONE'];
 
   protected readonly form = this.fb.group({
     direction: [this.transaction?.amount.startsWith('-') ? 'out' : 'in'],
@@ -155,7 +160,7 @@ export class TransactionDialog {
       const saved = current
         ? await this.api.updateTransaction(
             current.id,
-            current.bankIdentified
+            current.financialLock
               ? { projectId: body.projectId, counterpartAccountId: body.counterpartAccountId, label: body.label, reference: body.reference, version: current.version }
               : { ...body, version: current.version },
           )

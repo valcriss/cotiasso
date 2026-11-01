@@ -5,7 +5,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import {
   AdminApiService,
   type AccountInfo,
@@ -18,6 +18,7 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
+import { LinkEntryDialog, type LinkEntryDialogData } from './link-entry-dialog';
 import { TransactionDialog, type TransactionDialogData, type TransactionDialogResult } from './transaction-dialog';
 
 /** Transactions d'un compte : liste filtrable, saisie (boîte de dialogue) et accès à l'import d'un relevé. */
@@ -33,6 +34,17 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
     }
     .negative {
       color: var(--mat-sys-error);
+    }
+    .date {
+      white-space: nowrap;
+    }
+    /* Plusieurs actions par ligne : elles passent à la ligne plutôt que d'élargir le tableau. */
+    .row-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px 4px;
+      justify-content: flex-end;
+      min-width: 280px;
     }
   `,
   template: `
@@ -78,6 +90,15 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
             <mat-option value="false">À qualifier</mat-option>
           </mat-select>
         </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Comptabilisation</mat-label>
+          <mat-select formControlName="accounting">
+            <mat-option value="">Toutes</mat-option>
+            <mat-option value="NONE">À comptabiliser</mat-option>
+            <mat-option value="IN_PROGRESS">En cours</mat-option>
+            <mat-option value="POSTED">Comptabilisées</mat-option>
+          </mat-select>
+        </mat-form-field>
         <div class="actions">
           <button mat-flat-button type="submit">
             <mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_alt</mat-icon> Filtrer
@@ -95,6 +116,7 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
           }
         </p>
       } @else {
+        <p class="muted">« Comptabilisée » veut dire qu'une écriture validée enregistre ce mouvement dans les comptes de l'association.</p>
         <table class="table">
           <caption class="sr-only">Transactions</caption>
           <thead>
@@ -103,6 +125,7 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
               <th scope="col">Libellé</th>
               <th scope="col">Projet</th>
               <th scope="col">Contrepartie</th>
+              <th scope="col">Comptabilisation</th>
               <th scope="col" class="amount">Montant</th>
               <th scope="col"><span class="sr-only">Actions</span></th>
             </tr>
@@ -110,7 +133,7 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
           <tbody>
             @for (item of transactions(); track item.id) {
               <tr>
-                <td>{{ item.operationDate }}</td>
+                <td class="date">{{ item.operationDate }}</td>
                 <td>
                   {{ item.label }}
                   @if (item.bankIdentified) {
@@ -122,12 +145,47 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
                 </td>
                 <td>{{ item.projectCode ?? '—' }}</td>
                 <td>{{ item.counterpartAccountNumber ?? 'À qualifier' }}</td>
+                <td>
+                  @switch (item.accounting) {
+                    @case ('POSTED') {
+                      <span class="status ok"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">check_circle</mat-icon> Comptabilisée</span>
+                      <div class="muted">{{ item.entry?.journalCode }} n° {{ item.entry?.number }}</div>
+                    }
+                    @case ('IN_PROGRESS') {
+                      <span class="chip">En cours de comptabilisation</span>
+                      <div class="muted">Écriture en brouillon</div>
+                    }
+                    @default {
+                      <span class="muted">À comptabiliser</span>
+                    }
+                  }
+                  @if (item.transfer; as transfer) {
+                    <div class="muted">
+                      Virement {{ transfer.direction === 'OUT' ? 'vers' : 'depuis' }} {{ transfer.otherAccountName }}
+                    </div>
+                  }
+                </td>
                 <td class="amount" [class.negative]="item.amount.startsWith('-')">{{ amount(item.amount) }}</td>
-                <td class="row-actions">
+                <td class="row-actions"><div class="row-buttons">
+                  @if (canLink() && item.accounting === 'NONE' && !item.transfer && !account().archivedOn) {
+                    <button mat-button type="button" [attr.aria-label]="'Comptabiliser ' + item.label" [disabled]="busy()" (click)="prepare(item)">Comptabiliser</button>
+                  }
+                  @if (canLink() && item.accounting === 'NONE') {
+                    <button mat-button type="button" [attr.aria-label]="'Associer ' + item.label + ' à une écriture'" (click)="link(item)">Associer à une écriture</button>
+                  }
+                  @if (item.entry && canViewEntries()) {
+                    <a mat-button [attr.aria-label]="'Voir l’écriture de ' + item.label" [routerLink]="['/comptabilite/ecritures', item.entry.id]">Voir l'écriture</a>
+                  }
+                  @if (canLink() && item.accounting === 'IN_PROGRESS') {
+                    <button mat-button type="button" [attr.aria-label]="'Dissocier ' + item.label" [disabled]="busy()" (click)="unlink(item)">Dissocier</button>
+                  }
+                  @if (canManage() && item.financialLock === 'TRANSFER' && item.transfer) {
+                    <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler le virement ' + item.label" [disabled]="busy()" (click)="cancelTransfer(item)">Annuler le virement</button>
+                  }
                   @if (canManage()) {
                     <button mat-button type="button" [attr.aria-label]="'Modifier ' + item.label" (click)="open(item)">Modifier</button>
                   }
-                </td>
+                </div></td>
               </tr>
             }
           </tbody>
@@ -147,10 +205,13 @@ export class TransactionsPanel {
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly dialogs = inject(Dialogs);
   private readonly notifier = inject(Notifier);
+  private readonly router = inject(Router);
 
   readonly account = input.required<FinancialAccountInfo>();
   readonly accounts = input<AccountInfo[]>([]);
   readonly projects = input<ProjectInfo[]>([]);
+  /** Incrémenté par la page quand la liste doit être rechargée de l'extérieur (nouveau virement). */
+  readonly reloadKey = input(0);
   /** Émis après toute écriture : les soldes du compte ont changé. */
   readonly changed = output<void>();
 
@@ -165,12 +226,21 @@ export class TransactionsPanel {
     this.auth.permissions();
     return this.auth.can('transactions:manage');
   });
+  /** Lier une transaction à une écriture demande aussi le droit de saisir des écritures. */
+  protected readonly canLink = computed(() => {
+    this.auth.permissions();
+    return this.auth.can('transactions:manage') && this.auth.can('entries:create');
+  });
+  protected readonly canViewEntries = computed(() => {
+    this.auth.permissions();
+    return this.auth.can('entries:view');
+  });
   protected readonly canImport = computed(() => {
     this.auth.permissions();
     return this.auth.can('imports:post');
   });
 
-  protected readonly filters = this.fb.group({ from: [''], to: [''], q: [''], qualified: [''] });
+  protected readonly filters = this.fb.group({ from: [''], to: [''], q: [''], qualified: [''], accounting: [''] });
 
   /** Identifiant seul : recharger les soldes du compte ne doit pas relancer la liste ni perdre les filtres. */
   private readonly accountId = computed(() => this.account().id);
@@ -178,6 +248,7 @@ export class TransactionsPanel {
   constructor() {
     effect(() => {
       this.accountId();
+      this.reloadKey();
       // La requête lit d'autres signaux (compte, filtres) : hors suivi, seul le changement de compte relance l'effet.
       untracked(() => void this.search());
     });
@@ -194,6 +265,68 @@ export class TransactionsPanel {
     );
     this.changed.emit();
     await this.search();
+  }
+
+  protected readonly busy = signal(false);
+
+  /** Prépare le brouillon d'écriture de la transaction, puis l'ouvre pour qu'on le relise. */
+  protected async prepare(item: TransactionInfo): Promise<void> {
+    await this.run(async () => {
+      const { entryId } = await this.api.prepareTransactionEntry(item.id);
+      this.notifier.success("Brouillon d'écriture préparé : relisez-le, puis comptabilisez-le.");
+      await this.router.navigate(['/comptabilite/ecritures', entryId]);
+    }, "Le brouillon n'a pas pu être préparé.");
+  }
+
+  protected async link(item: TransactionInfo): Promise<void> {
+    const linked = await this.dialogs.open<TransactionInfo, LinkEntryDialogData>(LinkEntryDialog, { size: 'md', data: { transaction: item } });
+    if (!linked) return;
+    this.notifier.success('Transaction associée à l’écriture.');
+    await this.search();
+  }
+
+  protected async unlink(item: TransactionInfo): Promise<void> {
+    const confirmed = await this.dialogs.confirm({
+      title: 'Dissocier cette transaction de son écriture ?',
+      message: `« ${item.label} » redevient « à comptabiliser ». L'écriture en brouillon n'est pas supprimée : vous pourrez la modifier, la supprimer ou la réassocier.`,
+      confirmLabel: 'Dissocier',
+    });
+    if (!confirmed) return;
+    await this.run(async () => {
+      await this.api.unlinkTransactionEntry(item.id);
+      this.notifier.success('Transaction dissociée.');
+      await this.search();
+    }, "La transaction n'a pas pu être dissociée.");
+  }
+
+  protected async cancelTransfer(item: TransactionInfo): Promise<void> {
+    if (!item.transfer) return;
+    const confirmed = await this.dialogs.confirm({
+      title: 'Annuler ce virement ?',
+      message: `Les deux mouvements du virement (ici et sur ${item.transfer.otherAccountName}) seront supprimés. Vous pourrez refaire le virement si vous vous êtes trompé.`,
+      confirmLabel: 'Annuler le virement',
+      cancelLabel: 'Garder',
+      danger: true,
+    });
+    if (!confirmed) return;
+    await this.run(async () => {
+      await this.api.cancelTransfer(item.transfer!.id);
+      this.notifier.success('Virement annulé.');
+      this.changed.emit();
+      await this.search();
+    }, "Le virement n'a pas pu être annulé.");
+  }
+
+  private async run(action: () => Promise<void>, fallback: string): Promise<void> {
+    this.error.set(null);
+    this.busy.set(true);
+    try {
+      await action();
+    } catch (failure) {
+      this.error.set(describeHttpError(failure, fallback).message);
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   protected async search(): Promise<void> {
@@ -226,7 +359,13 @@ export class TransactionsPanel {
   }
 
   private query() {
-    const { from, to, q, qualified } = this.filters.getRawValue();
-    return { ...(from && { from }), ...(to && { to }), ...(q && { q }), ...(qualified && { qualified: qualified as 'true' | 'false' }) };
+    const { from, to, q, qualified, accounting } = this.filters.getRawValue();
+    return {
+      ...(from && { from }),
+      ...(to && { to }),
+      ...(q && { q }),
+      ...(qualified && { qualified: qualified as 'true' | 'false' }),
+      ...(accounting && { accounting: accounting as 'NONE' | 'IN_PROGRESS' | 'POSTED' }),
+    };
   }
 }

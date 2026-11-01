@@ -32,7 +32,9 @@ import {
   type ImportListItem,
   type ImportView,
 } from "./imports.service.js";
+import { TransactionLinksService, type EntryCandidate } from "./transaction-links.service.js";
 import { TransactionsService, type TransactionView } from "./transactions.service.js";
+import { TransfersService, type TransferView } from "./transfers.service.js";
 
 async function translate<T>(operation: () => Promise<T>): Promise<T> {
   try {
@@ -58,6 +60,8 @@ export class TreasuryController {
     @Inject(FinancialAccountsService) private readonly accounts: FinancialAccountsService,
     @Inject(TransactionsService) private readonly transactions: TransactionsService,
     @Inject(ImportsService) private readonly imports: ImportsService,
+    @Inject(TransactionLinksService) private readonly links: TransactionLinksService,
+    @Inject(TransfersService) private readonly transfers: TransfersService,
   ) {}
 
   @RequirePermission("financial-accounts:view")
@@ -138,6 +142,53 @@ export class TreasuryController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async removeTransaction(@Param("id", ParseUUIDPipe) id: string, @Req() request: AuthenticatedRequest): Promise<void> {
     await translate(() => this.transactions.remove(id, request.auth!.user.id));
+  }
+
+  // --- Liaison transaction → écriture et virements internes (ADR 0017) ---
+
+  @RequirePermission("transactions:manage", "entries:create")
+  @Post("transactions/:id/entry")
+  prepareEntry(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<{ transaction: TransactionView; entryId: string }> {
+    return translate(() => this.links.prepareEntry(id, body ?? {}, request.auth!.user.id));
+  }
+
+  @RequirePermission("financial-accounts:view", "entries:view")
+  @Get("transactions/:id/entry-candidates")
+  entryCandidates(@Param("id", ParseUUIDPipe) id: string): Promise<EntryCandidate[]> {
+    return translate(() => this.links.candidates(id));
+  }
+
+  @RequirePermission("transactions:manage", "entries:create")
+  @Post("transactions/:id/link")
+  linkEntry(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<TransactionView> {
+    return translate(() => this.links.link(id, body, request.auth!.user.id));
+  }
+
+  @RequirePermission("transactions:manage", "entries:create")
+  @Delete("transactions/:id/link")
+  unlinkEntry(@Param("id", ParseUUIDPipe) id: string, @Req() request: AuthenticatedRequest): Promise<TransactionView> {
+    return translate(() => this.links.unlink(id, request.auth!.user.id));
+  }
+
+  @RequirePermission("transactions:manage", "entries:create")
+  @Post("transfers")
+  createTransfer(@Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<TransferView> {
+    return translate(() => this.transfers.create(body, request.auth!.user.id));
+  }
+
+  @RequirePermission("transactions:manage")
+  @Delete("transfers/:id")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async cancelTransfer(@Param("id", ParseUUIDPipe) id: string, @Req() request: AuthenticatedRequest): Promise<void> {
+    await translate(() => this.transfers.cancel(id, request.auth!.user.id));
   }
 
   // --- Import de relevés OFX : analyse sans écriture, puis confirmation ---

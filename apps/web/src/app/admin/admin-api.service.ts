@@ -288,7 +288,39 @@ export interface TransactionInfo {
   counterpartAccountId: string | null;
   counterpartAccountNumber: string | null;
   qualified: boolean;
+  /** Comptabilisation : « à comptabiliser », « en cours » (écriture en brouillon) ou « comptabilisée ». */
+  accounting: 'NONE' | 'IN_PROGRESS' | 'POSTED';
+  entry: { id: string; status: 'DRAFT' | 'POSTED'; journalCode: string; number: number | null } | null;
+  transfer: { id: string; direction: 'OUT' | 'IN'; otherAccountId: string; otherAccountName: string } | null;
+  /** Montant et date figés : identifiant bancaire, écriture liée ou virement. */
+  financialLock: 'BANK' | 'ENTRY' | 'TRANSFER' | null;
+  deletable: boolean;
   version: number;
+}
+
+export interface EntryCandidateInfo {
+  id: string;
+  date: string;
+  label: string;
+  status: 'DRAFT' | 'POSTED';
+  journalCode: string;
+  number: number | null;
+}
+
+export interface TransferBody {
+  fromAccountId: string;
+  toAccountId: string;
+  amount: string;
+  date: string;
+  label?: string;
+  prepareEntry: boolean;
+}
+
+export interface TransferInfo {
+  id: string;
+  out: TransactionInfo;
+  in: TransactionInfo;
+  entryId: string | null;
 }
 
 export interface TransactionBody {
@@ -358,6 +390,7 @@ export interface TransactionFilters {
   to?: string;
   q?: string;
   qualified?: 'true' | 'false';
+  accounting?: 'NONE' | 'IN_PROGRESS' | 'POSTED';
   after?: string;
 }
 
@@ -715,6 +748,30 @@ export class AdminApiService {
 
   deleteTransaction(id: string): Promise<void> {
     return firstValueFrom(this.http.delete<void>(`/api/transactions/${id}`));
+  }
+
+  prepareTransactionEntry(id: string): Promise<{ transaction: TransactionInfo; entryId: string }> {
+    return firstValueFrom(this.http.post<{ transaction: TransactionInfo; entryId: string }>(`/api/transactions/${id}/entry`, {}));
+  }
+
+  entryCandidates(id: string): Promise<EntryCandidateInfo[]> {
+    return firstValueFrom(this.http.get<EntryCandidateInfo[]>(`/api/transactions/${id}/entry-candidates`));
+  }
+
+  linkTransactionEntry(id: string, entryId: string): Promise<TransactionInfo> {
+    return firstValueFrom(this.http.post<TransactionInfo>(`/api/transactions/${id}/link`, { entryId }));
+  }
+
+  unlinkTransactionEntry(id: string): Promise<TransactionInfo> {
+    return firstValueFrom(this.http.delete<TransactionInfo>(`/api/transactions/${id}/link`));
+  }
+
+  createTransfer(body: TransferBody): Promise<TransferInfo> {
+    return firstValueFrom(this.http.post<TransferInfo>('/api/transfers', body));
+  }
+
+  cancelTransfer(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/transfers/${id}`));
   }
 
   analyzeImport(accountId: string, file: File): Promise<ImportInfo> {

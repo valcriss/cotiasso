@@ -6,6 +6,7 @@ import {
   type AccountInfo,
   type FinancialAccountInfo,
   type ProjectInfo,
+  type TransferInfo,
 } from '../admin/admin-api.service';
 import { formatApiAmount } from '../accounting/amount';
 import { AuthService } from '../auth/auth.service';
@@ -14,6 +15,7 @@ import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { PageHeader } from '../ui/page-header';
 import { FinancialAccountDialog, type AccountDialogData } from './account-dialog';
+import { TransferDialog, type TransferDialogData } from './transfer-dialog';
 import { StatementDialog, type StatementDialogData } from './statement-dialog';
 import { TransactionsPanel } from './transactions-panel';
 
@@ -74,6 +76,11 @@ import { TransactionsPanel } from './transactions-panel';
       @if (canAdmin()) {
         <button mat-flat-button type="button" (click)="create()">
           <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Nouveau compte
+        </button>
+      }
+      @if (canTransfer()) {
+        <button mat-stroked-button type="button" (click)="transfer()">
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">sync_alt</mat-icon> Nouveau virement interne
         </button>
       }
     </app-page-header>
@@ -139,7 +146,7 @@ import { TransactionsPanel } from './transactions-panel';
     }
 
     @if (selected(); as account) {
-      <app-transactions-panel [account]="account" [accounts]="chart()" [projects]="activeProjects()" (changed)="load()" />
+      <app-transactions-panel [account]="account" [accounts]="chart()" [projects]="activeProjects()" [reloadKey]="reloadKey()" (changed)="load()" />
     }
   `,
 })
@@ -164,6 +171,13 @@ export class AccountsPage {
     this.auth.permissions();
     return this.auth.can('settings.accounting:admin');
   });
+  protected readonly reloadKey = signal(0);
+  /** Un virement relie deux comptes actifs et prépare une écriture : il faut les droits de saisie des deux. */
+  protected readonly canTransfer = computed(() => {
+    this.auth.permissions();
+    return this.auth.can('transactions:manage') && this.auth.can('entries:create') && this.activeAccounts().length >= 2;
+  });
+  private readonly activeAccounts = computed(() => this.accounts().filter((a) => !a.archivedOn));
   protected readonly canStatement = computed(() => {
     this.auth.permissions();
     return this.auth.can('imports:post');
@@ -190,6 +204,21 @@ export class AccountsPage {
     if (!created) return;
     this.notifier.success(`Compte « ${created.name} » créé avec le journal ${created.journalCode}.`);
     await this.load();
+  }
+
+  protected async transfer(): Promise<void> {
+    const created = await this.dialogs.open<TransferInfo, TransferDialogData>(TransferDialog, {
+      size: 'md',
+      data: { accounts: this.activeAccounts(), fromAccountId: this.selectedId() },
+    });
+    if (!created) return;
+    this.notifier.success(
+      created.entryId
+        ? 'Virement enregistré. Le brouillon d’écriture est prêt : relisez-le puis comptabilisez-le depuis la liste des transactions.'
+        : 'Virement enregistré.',
+    );
+    await this.load();
+    this.reloadKey.update((key) => key + 1);
   }
 
   protected async statement(account: FinancialAccountInfo): Promise<void> {
