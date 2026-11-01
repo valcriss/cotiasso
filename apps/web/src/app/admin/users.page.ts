@@ -165,6 +165,16 @@ interface ShownLink {
                       <button mat-stroked-button type="button" [disabled]="busy()" (click)="revokeSessions(user)">
                         Déconnecter partout
                       </button>
+                      @if (confirming() === 'mfa:' + user.id) {
+                        <button mat-flat-button type="button" class="danger" [disabled]="busy()" (click)="resetMfa(user)">
+                          Confirmer la réinitialisation
+                        </button>
+                        <button mat-button type="button" (click)="confirming.set(null)">Annuler</button>
+                      } @else {
+                        <button mat-stroked-button type="button" (click)="confirming.set('mfa:' + user.id)">
+                          Réinitialiser le MFA
+                        </button>
+                      }
                       @if (confirming() === 'disable:' + user.id) {
                         <button mat-flat-button type="button" class="danger" [disabled]="busy()" (click)="disable(user)">
                           Confirmer la désactivation
@@ -257,6 +267,11 @@ export class UsersPage {
 
   protected enable(user: ManagedUser): Promise<void> {
     return this.run(() => this.api.enable(user.id));
+  }
+
+  protected resetMfa(user: ManagedUser): Promise<void> {
+    this.confirming.set(null);
+    return this.run(() => this.api.resetMfa(user.id));
   }
 
   protected revokeSessions(user: ManagedUser): Promise<void> {

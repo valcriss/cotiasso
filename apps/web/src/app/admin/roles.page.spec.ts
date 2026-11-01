@@ -11,7 +11,7 @@ const catalog = [
   { key: 'users:admin', label: 'Administrer les utilisateurs' },
 ];
 const roles = [
-  { id: 'r-reader', key: 'reader', name: 'Lecteur', description: 'Consultation', permissions: ['entries:view'], version: 1 },
+  { id: 'r-reader', key: 'reader', name: 'Lecteur', description: 'Consultation', permissions: ['entries:view'], requiresMfa: false, version: 1 },
 ];
 
 describe('groupPermissions', () => {
@@ -67,7 +67,7 @@ describe('RolesPage', () => {
     buttonWith('Modifier')!.click();
     await settle();
 
-    const boxes = root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    const boxes = root.querySelectorAll<HTMLInputElement>('fieldset input[type="checkbox"]');
     expect(boxes[0]!.checked).toBe(true);
     expect(boxes[1]!.checked).toBe(false);
     boxes[1]!.click();
@@ -81,6 +81,7 @@ describe('RolesPage', () => {
       name: 'Lecteur',
       description: 'Consultation',
       permissions: ['entries:view', 'entries:post'],
+      requiresMfa: false,
     });
     request.flush({ ...roles[0], permissions: ['entries:view', 'entries:post'] });
     await settle();

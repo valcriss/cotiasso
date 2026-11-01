@@ -14,6 +14,8 @@ export interface AppEnv {
   cookieSecure: boolean;
   /** À activer derrière un reverse proxy de confiance pour lire l'IP réelle (X-Forwarded-For). */
   trustProxy: boolean;
+  /** Clé AES-256 qui chiffre les secrets TOTP au repos. À sauvegarder avec la base. */
+  mfaKey: Buffer;
 }
 
 function readPositiveInteger(source: NodeJS.ProcessEnv, key: string, fallback: number): number {
@@ -32,6 +34,14 @@ function readBoolean(source: NodeJS.ProcessEnv, key: string, fallback: boolean):
   if (raw === "true") return true;
   if (raw === "false") return false;
   throw new Error(`${key} doit valoir true ou false : ${raw}`);
+}
+
+function readKey(source: NodeJS.ProcessEnv, key: string): Buffer {
+  const raw = source[key];
+  if (!raw) throw new Error(`${key} est obligatoire : 32 octets en base64 (voir .env.example).`);
+  const bytes = Buffer.from(raw, 'base64');
+  if (bytes.length !== 32) throw new Error(`${key} doit décoder exactement 32 octets en base64.`);
+  return bytes;
 }
 
 export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
@@ -53,5 +63,6 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     },
     cookieSecure: readBoolean(source, "COOKIE_SECURE", true),
     trustProxy: readBoolean(source, "TRUST_PROXY", false),
+    mfaKey: readKey(source, "MFA_ENCRYPTION_KEY"),
   };
 }

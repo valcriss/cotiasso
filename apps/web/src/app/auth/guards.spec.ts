@@ -2,9 +2,10 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRouteSnapshot, RouterStateSnapshot, UrlTree, provideRouter } from '@angular/router';
 import { AuthService } from './auth.service';
-import { authGuard, loginGuard, permissionGuard, setupGuard } from './guards';
+import { authGuard, loginGuard, mfaEnrollGuard, mfaVerifyGuard, permissionGuard, setupGuard } from './guards';
+import type { MfaStatus } from './auth.service';
 
-function configure(state: { setupRequired: boolean; user: object | null; permissions?: string[] }) {
+function configure(state: { setupRequired: boolean; user: object | null; permissions?: string[]; mfa?: MfaStatus }) {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
@@ -14,6 +15,7 @@ function configure(state: { setupRequired: boolean; user: object | null; permiss
           initialize: () => Promise.resolve(),
           setupRequired: signal(state.setupRequired).asReadonly(),
           user: signal(state.user).asReadonly(),
+          mfa: signal(state.mfa ?? { state: 'OK', enabled: false, required: false }).asReadonly(),
           can: (permission: string | undefined) => permission === undefined || (state.permissions ?? []).includes(permission),
         },
       },
@@ -77,5 +79,40 @@ describe('guards', () => {
     TestBed.resetTestingModule();
     configure({ setupRequired: false, user: { id: '1' }, permissions: ['projects:view'] });
     expect(target(check())).toBe('/');
+  });
+
+  it("authGuard : renvoie vers la vérification ou l'activation du second facteur selon l'état de la session", async () => {
+    configure({ setupRequired: false, user: { id: '1' }, mfa: { state: 'VERIFICATION_REQUIRED', enabled: true, required: true } });
+    expect(target(await run(authGuard))).toBe('/mfa/verification');
+
+    TestBed.resetTestingModule();
+    configure({ setupRequired: false, user: { id: '1' }, mfa: { state: 'ENROLLMENT_REQUIRED', enabled: false, required: true } });
+    expect(target(await run(authGuard))).toBe('/mfa/activation');
+  });
+
+  it('mfaVerifyGuard : ouvre la page seulement quand une vérification est attendue', async () => {
+    configure({ setupRequired: false, user: { id: '1' }, mfa: { state: 'VERIFICATION_REQUIRED', enabled: true, required: true } });
+    expect(await run(mfaVerifyGuard)).toBe(true);
+
+    TestBed.resetTestingModule();
+    configure({ setupRequired: false, user: { id: '1' } });
+    expect(target(await run(mfaVerifyGuard))).toBe('/');
+
+    TestBed.resetTestingModule();
+    configure({ setupRequired: false, user: null });
+    expect(target(await run(mfaVerifyGuard))).toBe('/connexion');
+  });
+
+  it("mfaEnrollGuard : ouvre l'activation sauf si le second facteur est déjà actif ou à vérifier", async () => {
+    configure({ setupRequired: false, user: { id: '1' } });
+    expect(await run(mfaEnrollGuard)).toBe(true);
+
+    TestBed.resetTestingModule();
+    configure({ setupRequired: false, user: { id: '1' }, mfa: { state: 'OK', enabled: true, required: false } });
+    expect(target(await run(mfaEnrollGuard))).toBe('/compte');
+
+    TestBed.resetTestingModule();
+    configure({ setupRequired: false, user: { id: '1' }, mfa: { state: 'VERIFICATION_REQUIRED', enabled: true, required: true } });
+    expect(target(await run(mfaEnrollGuard))).toBe('/mfa/verification');
   });
 });

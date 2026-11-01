@@ -69,6 +69,10 @@ export function groupPermissions(permissions: PermissionInfo[]): PermissionGroup
           <input matInput formControlName="description" autocomplete="off" />
         </mat-form-field>
 
+        <mat-checkbox [checked]="requiresMfa()" (change)="requiresMfa.set($event.checked)">
+          Authentification à deux facteurs obligatoire pour ce rôle
+        </mat-checkbox>
+
         <fieldset class="permissions">
           <legend>Permissions</legend>
           @for (group of groups(); track group.resource) {
@@ -102,7 +106,12 @@ export function groupPermissions(permissions: PermissionInfo[]): PermissionGroup
             <div>
               <strong>{{ role.name }}</strong>
               <div class="muted">{{ role.description }}</div>
-              <div class="muted">{{ role.permissions.length }} permission(s)</div>
+              <div class="muted">
+                {{ role.permissions.length }} permission(s)
+                @if (role.requiresMfa) {
+                  · vérification en deux étapes obligatoire
+                }
+              </div>
             </div>
             @if (canAdmin()) {
               <button mat-stroked-button type="button" (click)="startEdit(role)">Modifier</button>
@@ -130,6 +139,7 @@ export class RolesPage {
   /** `'new'` pour une création, l'identifiant du rôle pour une modification, null sinon. */
   protected readonly editing = signal<string | null>(null);
   protected readonly selected = signal<ReadonlySet<string>>(new Set());
+  protected readonly requiresMfa = signal(false);
 
   protected readonly form = inject(FormBuilder).nonNullable.group({
     key: ['', [Validators.required, Validators.pattern(/^[a-z][a-z0-9-]*$/)]],
@@ -144,12 +154,14 @@ export class RolesPage {
   protected startCreate(): void {
     this.form.reset({ key: '', name: '', description: '' });
     this.selected.set(new Set());
+    this.requiresMfa.set(false);
     this.editing.set('new');
   }
 
   protected startEdit(role: RoleSummary): void {
     this.form.reset({ key: role.key, name: role.name, description: role.description });
     this.selected.set(new Set(role.permissions));
+    this.requiresMfa.set(role.requiresMfa);
     this.editing.set(role.id);
   }
 
@@ -178,7 +190,7 @@ export class RolesPage {
     this.error.set(null);
     this.busy.set(true);
     try {
-      const draft = { name, description, permissions: [...this.selected()] };
+      const draft = { name, description, permissions: [...this.selected()], requiresMfa: this.requiresMfa() };
       if (creating) await this.api.createRole({ ...draft, key });
       else await this.api.updateRole(current, draft);
       this.editing.set(null);

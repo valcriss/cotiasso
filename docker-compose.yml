@@ -36,6 +36,8 @@ services:
       DATABASE_URL: postgresql://cotiasso:${POSTGRES_PASSWORD}@db:5432/cotiasso
       # L'API n'est joignable que par le conteneur web (nginx) : X-Forwarded-For y est fiable.
       TRUST_PROXY: "true"
+      # Chiffre les secrets de l'authentification à deux facteurs. À sauvegarder avec la base : sans cette clé, les secrets sont illisibles.
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?Renseigner MFA_ENCRYPTION_KEY dans .env.prod (openssl rand -base64 32)}
 
   web:
     image: cotiasso-web:${COTIASSO_VERSION}

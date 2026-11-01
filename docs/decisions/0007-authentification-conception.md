@@ -24,6 +24,14 @@ Statut : accepté — 1er novembre 2026. Précise l'[ADR 0005](0005-authentifica
 - Un administrateur ne peut ni se désactiver ni retirer son propre dernier rôle d'administration (évite de verrouiller l'installation).
 - Le champ `SameSite=Lax` et l'en-tête CSRF supposent que le web et l'API partagent la même origine (proxy nginx `/api`, ADR 0001 et Dockerfile).
 
+## Mise en œuvre du MFA (1er novembre 2026)
+
+- TOTP SHA-1, 6 chiffres, 30 s, tolérance d'un pas, rejeu interdit par un pas strictement croissant.
+- Secrets chiffrés au repos (AES-256-GCM, clé `MFA_ENCRYPTION_KEY` hors base, à sauvegarder avec elle) car un secret TOTP doit pouvoir être relu ; codes de secours en HMAC avec la même clé.
+- Exigence par rôle (`Role.requiresMfa`), recalculée à chaque requête ; session partielle tant que le second facteur n'est pas vérifié ou activé.
+- Par défaut, l'administrateur technique et le trésorier l'exigent : le premier compte créé par l'assistant doit donc l'activer avant toute autre action.
+- Appareil perdu : codes de secours, ou réinitialisation par un administrateur ; en dernier recours, SQL (voir CLAUDE.md).
+
 ## Découpage du lot 1.2
 
 1. Utilisateurs, hachage et politique de mot de passe.

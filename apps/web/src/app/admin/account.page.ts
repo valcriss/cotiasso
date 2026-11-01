@@ -1,11 +1,21 @@
 import { Component, inject, signal, viewChild } from '@angular/core';
-import { AbstractControl, FormBuilder, FormGroupDirective, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import {
+  AbstractControl,
+  FormBuilder,
+  FormControl,
+  FormGroupDirective,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError, type FormError } from '../auth/error-messages';
 import { AdminApiService } from './admin-api.service';
+import { recoveryCodesText } from '../pages/mfa-enroll.page';
 
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -16,7 +26,7 @@ function matchesNewPassword(control: AbstractControl): ValidationErrors | null {
 
 @Component({
   selector: 'app-account-page',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule],
+  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule],
   styleUrl: './admin-pages.scss',
   template: `
     <h2>Mon compte</h2>
@@ -69,13 +79,70 @@ function matchesNewPassword(control: AbstractControl): ValidationErrors | null {
         <button mat-flat-button type="submit" [disabled]="submitting()">Enregistrer</button>
       </div>
     </form>
+
+    <section class="panel narrow" aria-labelledby="mfa-title">
+      <h3 id="mfa-title">Vérification en deux étapes</h3>
+      @if (!mfa().enabled) {
+        <p class="muted">
+          Ajoutez une protection : un code à usage unique, généré par une application sur votre téléphone, est demandé à chaque connexion.
+        </p>
+        <div class="actions">
+          <a mat-flat-button routerLink="/mfa/activation">Activer</a>
+        </div>
+      } @else {
+        <p class="success" role="status">Vérification en deux étapes activée.</p>
+        @if (mfa().required) {
+          <p class="muted">Un de vos rôles l'exige : elle ne peut pas être désactivée.</p>
+        }
+        <mat-form-field appearance="outline">
+          <mat-label>Mot de passe actuel</mat-label>
+          <input matInput type="password" [formControl]="mfaPassword" autocomplete="current-password" />
+          <mat-hint>Requis pour les actions ci-dessous.</mat-hint>
+        </mat-form-field>
+
+        @if (mfaError(); as failure) {
+          <p class="alert" role="alert">{{ failure }}</p>
+        }
+
+        <div class="actions">
+          <button mat-stroked-button type="button" [disabled]="mfaBusy()" (click)="regenerate()">
+            Régénérer les codes de secours
+          </button>
+          @if (!mfa().required) {
+            <button mat-stroked-button type="button" class="danger-text" [disabled]="mfaBusy()" (click)="disable()">
+              Désactiver
+            </button>
+          }
+        </div>
+
+        @if (newCodes(); as codes) {
+          <h4>Nouveaux codes de secours</h4>
+          <p class="muted">Les anciens codes ne fonctionnent plus. Ces codes ne seront plus affichés.</p>
+          <ul class="codes" aria-label="Nouveaux codes de secours">
+            @for (code of codes; track code) {
+              <li>{{ code }}</li>
+            }
+          </ul>
+          <div class="actions">
+            <button mat-stroked-button type="button" (click)="copyCodes(codes)">Copier</button>
+          </div>
+        }
+      }
+    </section>
   `,
 })
 export class AccountPage {
   private readonly api = inject(AdminApiService);
   private readonly formDirective = viewChild.required(FormGroupDirective);
 
-  protected readonly user = inject(AuthService).user;
+  private readonly auth = inject(AuthService);
+
+  protected readonly user = this.auth.user;
+  protected readonly mfa = this.auth.mfa;
+  protected readonly mfaPassword = new FormControl('', { nonNullable: true });
+  protected readonly mfaBusy = signal(false);
+  protected readonly mfaError = signal<string | null>(null);
+  protected readonly newCodes = signal<string[] | null>(null);
   protected readonly minLength = MIN_PASSWORD_LENGTH;
   protected readonly form = inject(FormBuilder).nonNullable.group({
     currentPassword: ['', [Validators.required]],
@@ -88,6 +155,44 @@ export class AccountPage {
 
   constructor() {
     this.form.controls.newPassword.valueChanges.subscribe(() => this.form.controls.confirmation.updateValueAndValidity());
+  }
+
+  protected regenerate(): Promise<void> {
+    return this.runMfa(async () => {
+      this.newCodes.set(await this.auth.regenerateRecoveryCodes(this.mfaPassword.value));
+    });
+  }
+
+  protected disable(): Promise<void> {
+    return this.runMfa(async () => {
+      await this.auth.disableMfa(this.mfaPassword.value);
+      this.newCodes.set(null);
+    });
+  }
+
+  protected async copyCodes(codes: string[]): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(recoveryCodesText(codes));
+    } catch {
+      // La liste reste affichée : la copie manuelle reste possible.
+    }
+  }
+
+  private async runMfa(action: () => Promise<void>): Promise<void> {
+    this.mfaError.set(null);
+    if (this.mfaPassword.value === '') {
+      this.mfaError.set('Saisissez votre mot de passe actuel.');
+      return;
+    }
+    this.mfaBusy.set(true);
+    try {
+      await action();
+      this.mfaPassword.reset('');
+    } catch (error) {
+      this.mfaError.set(describeHttpError(error, 'Action impossible. Réessayez.').message);
+    } finally {
+      this.mfaBusy.set(false);
+    }
   }
 
   protected async submit(): Promise<void> {

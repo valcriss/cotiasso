@@ -14,6 +14,7 @@ import { isPermission, type Permission } from "./permissions.js";
 
 export interface RoleInput {
   key?: string;
+  requiresMfa?: boolean;
   name: string;
   description: string;
   permissions: string[];
@@ -51,7 +52,7 @@ export class RolesService {
   listRoles() {
     return this.prisma.role.findMany({
       orderBy: { name: "asc" },
-      select: { id: true, key: true, name: true, description: true, permissions: true, version: true },
+      select: { id: true, key: true, name: true, description: true, permissions: true, requiresMfa: true, version: true },
     });
   }
 
@@ -63,7 +64,13 @@ export class RolesService {
     const permissions = validatePermissions(input.permissions);
     try {
       const role = await this.prisma.role.create({
-        data: { key, name: input.name.trim(), description: input.description.trim(), permissions },
+        data: {
+          key,
+          name: input.name.trim(),
+          description: input.description.trim(),
+          permissions,
+          requiresMfa: input.requiresMfa ?? false,
+        },
       });
       await this.audit.record({ action: "role.created", objectType: "Role", objectId: role.id, actorId, details: { key, permissions } });
       return role;
@@ -86,6 +93,7 @@ export class RolesService {
           name: input.name.trim(),
           description: input.description.trim(),
           permissions,
+          ...(input.requiresMfa !== undefined && { requiresMfa: input.requiresMfa }),
           version: { increment: 1 },
         },
       });

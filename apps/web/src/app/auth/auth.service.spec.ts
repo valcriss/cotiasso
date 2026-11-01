@@ -13,6 +13,7 @@ const user: AuthUser = {
 const session = {
   user,
   permissions: ['projects:view', 'documents:view'],
+  mfa: { state: 'OK', enabled: false, required: false },
   csrfToken: 'csrf-1',
   expiresAt: '2026-11-02T00:00:00.000Z',
 };

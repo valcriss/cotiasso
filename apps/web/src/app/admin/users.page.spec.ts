@@ -6,8 +6,8 @@ import { mockAuth } from '../testing/auth-mock';
 import { UsersPage } from './users.page';
 
 const roles = [
-  { id: 'r-admin', key: 'technical-admin', name: 'Administrateur technique', description: '', permissions: ['users:admin'], version: 1 },
-  { id: 'r-reader', key: 'reader', name: 'Lecteur', description: '', permissions: ['projects:view'], version: 1 },
+  { id: 'r-admin', key: 'technical-admin', name: 'Administrateur technique', description: '', permissions: ['users:admin'], requiresMfa: false, version: 1 },
+  { id: 'r-reader', key: 'reader', name: 'Lecteur', description: '', permissions: ['projects:view'], requiresMfa: false, version: 1 },
 ];
 const users = [
   {

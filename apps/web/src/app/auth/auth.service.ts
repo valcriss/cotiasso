@@ -10,9 +10,23 @@ export interface AuthUser {
   createdAt: string;
 }
 
+export type MfaState = 'OK' | 'VERIFICATION_REQUIRED' | 'ENROLLMENT_REQUIRED';
+
+export interface MfaStatus {
+  state: MfaState;
+  enabled: boolean;
+  required: boolean;
+}
+
+export interface EnrollmentStart {
+  secret: string;
+  otpauthUri: string;
+}
+
 interface SessionResponse {
   user: AuthUser;
   permissions: string[];
+  mfa: MfaStatus;
   csrfToken: string;
   expiresAt: string;
 }
@@ -30,12 +44,15 @@ export class AuthService {
   private readonly userState = signal<AuthUser | null>(null);
   private readonly permissionsState = signal<ReadonlySet<string>>(new Set());
   private readonly setupRequiredState = signal(false);
+  private readonly mfaState = signal<MfaStatus>({ state: 'OK', enabled: false, required: false });
   private csrf: string | null = null;
   private initialization?: Promise<void>;
 
   readonly user = this.userState.asReadonly();
   readonly setupRequired = this.setupRequiredState.asReadonly();
   readonly permissions = this.permissionsState.asReadonly();
+  /** État du second facteur : détermine si la session est complète ou partielle. */
+  readonly mfa = this.mfaState.asReadonly();
 
   /** Indique si l'utilisateur détient la permission ; sert à adapter l'interface, le serveur reste l'autorité. */
   can(permission: string | undefined): boolean {
@@ -64,6 +81,38 @@ export class AuthService {
     this.applySession(response);
   }
 
+  /** Recharge l'état de la session (après une vérification ou un changement de rôle côté serveur). */
+  async refresh(): Promise<void> {
+    this.applySession(await firstValueFrom(this.http.get<SessionResponse>('/api/auth/me')));
+  }
+
+  /** Vérifie le second facteur (code TOTP ou code de secours) de la session en cours. */
+  async verifyMfa(code: string): Promise<void> {
+    await firstValueFrom(this.http.post('/api/auth/mfa/verify', { code }));
+    await this.refresh();
+  }
+
+  startMfaEnrollment(): Promise<EnrollmentStart> {
+    return firstValueFrom(this.http.post<EnrollmentStart>('/api/auth/mfa/enroll/start', {}));
+  }
+
+  /** Confirme l'inscription et renvoie les codes de secours, affichés une seule fois. */
+  async confirmMfaEnrollment(code: string): Promise<string[]> {
+    const result = await firstValueFrom(this.http.post<{ recoveryCodes: string[] }>('/api/auth/mfa/enroll/confirm', { code }));
+    await this.refresh();
+    return result.recoveryCodes;
+  }
+
+  async disableMfa(password: string): Promise<void> {
+    await firstValueFrom(this.http.post<void>('/api/auth/mfa/disable', { password }));
+    await this.refresh();
+  }
+
+  async regenerateRecoveryCodes(password: string): Promise<string[]> {
+    const result = await firstValueFrom(this.http.post<{ recoveryCodes: string[] }>('/api/auth/mfa/recovery-codes', { password }));
+    return result.recoveryCodes;
+  }
+
   /** Définit le mot de passe avec un jeton d'invitation ou de réinitialisation ; ne connecte pas l'utilisateur. */
   async resetPassword(token: string, password: string): Promise<void> {
     await firstValueFrom(this.http.post<void>('/api/auth/password-reset', { token, password }));
@@ -81,6 +130,7 @@ export class AuthService {
   clearSession(): void {
     this.userState.set(null);
     this.permissionsState.set(new Set());
+    this.mfaState.set({ state: 'OK', enabled: false, required: false });
     this.csrf = null;
   }
 
@@ -99,6 +149,7 @@ export class AuthService {
   private applySession(response: SessionResponse): void {
     this.csrf = response.csrfToken;
     this.permissionsState.set(new Set(response.permissions));
+    this.mfaState.set(response.mfa);
     this.userState.set(response.user);
   }
 }

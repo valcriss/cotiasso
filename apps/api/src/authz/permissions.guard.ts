@@ -4,6 +4,7 @@ import type { AuthenticatedRequest } from "../auth/auth.guard.js";
 import { IS_PUBLIC } from "../auth/public.decorator.js";
 import { AuthorizationService } from "./authorization.service.js";
 import { AUTHENTICATED_ONLY, REQUIRED_PERMISSIONS } from "./decorators.js";
+import { ALLOW_PARTIAL_SESSION } from "./partial-session.js";
 import type { Permission } from "./permissions.js";
 
 /**
@@ -23,6 +24,11 @@ export class PermissionsGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     if (!request.auth) throw new ForbiddenException("Accès refusé.");
+
+    // Second facteur à vérifier ou à activer : seules les routes marquées @AllowPartialSession() sont ouvertes.
+    if (request.auth.mfa.state !== "OK" && !this.reflector.getAllAndOverride<boolean | undefined>(ALLOW_PARTIAL_SESSION, targets)) {
+      throw new ForbiddenException({ message: "Authentification à deux facteurs requise.", code: "MFA_REQUIRED", mfa: request.auth.mfa.state });
+    }
 
     const required = this.reflector.getAllAndOverride<Permission[] | undefined>(REQUIRED_PERMISSIONS, targets);
     if (required) {

@@ -2,6 +2,8 @@ import type { Permission } from "./permissions.js";
 
 export interface DefaultRole {
   key: string;
+  /** Authentification à deux facteurs obligatoire pour ce rôle (ADR 0005). */
+  requiresMfa: boolean;
   name: string;
   description: string;
   permissions: Permission[];
@@ -15,6 +17,7 @@ export interface DefaultRole {
 export const DEFAULT_ROLES: readonly DefaultRole[] = [
   {
     key: "technical-admin",
+    requiresMfa: true,
     name: "Administrateur technique",
     description: "Configuration, accès et exploitation ; aucun droit métier par défaut.",
     permissions: [
@@ -28,6 +31,7 @@ export const DEFAULT_ROLES: readonly DefaultRole[] = [
   },
   {
     key: "president",
+    requiresMfa: false,
     name: "Président",
     description: "Consultation générale, documents du bureau, administration des workflows.",
     permissions: [
@@ -47,6 +51,7 @@ export const DEFAULT_ROLES: readonly DefaultRole[] = [
   },
   {
     key: "treasurer",
+    requiresMfa: true,
     name: "Trésorier",
     description: "Comptes, cotisations, comptabilité, rapports et clôture.",
     permissions: [
@@ -79,6 +84,7 @@ export const DEFAULT_ROLES: readonly DefaultRole[] = [
   },
   {
     key: "board-member",
+    requiresMfa: false,
     name: "Membre du bureau",
     description: "Tableaux de bord et documents autorisés, approbation des budgets.",
     permissions: [
@@ -97,6 +103,7 @@ export const DEFAULT_ROLES: readonly DefaultRole[] = [
   },
   {
     key: "project-manager",
+    requiresMfa: false,
     name: "Responsable de projet",
     description: "Gestion opérationnelle de ses projets, budgets et documents.",
     permissions: [
@@ -115,12 +122,14 @@ export const DEFAULT_ROLES: readonly DefaultRole[] = [
   },
   {
     key: "contributor",
+    requiresMfa: false,
     name: "Contributeur",
     description: "Dépôt de pièces et demandes sur les projets autorisés.",
     permissions: ["projects:view", "expenses:submit", "documents:view", "documents:create"],
   },
   {
     key: "reader",
+    requiresMfa: false,
     name: "Lecteur",
     description: "Consultation des synthèses et documents autorisés.",
     permissions: ["projects:view", "documents:view"],

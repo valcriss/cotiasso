@@ -31,6 +31,9 @@ export const csrfInterceptor: HttpInterceptorFn = (request, next) => {
       if (expired) {
         auth.clearSession();
         void router.navigateByUrl('/connexion');
+      } else if (error instanceof HttpErrorResponse && error.status === 403 && error.error?.code === 'MFA_REQUIRED') {
+        // Un rôle est devenu exigeant en cours de session : on recharge l'état, la garde de route redirige.
+        void auth.refresh().then(() => router.navigateByUrl('/'));
       }
       return throwError(() => error);
     }),

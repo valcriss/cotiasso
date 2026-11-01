@@ -28,32 +28,36 @@ enum UserStatus {
 }
 
 model User {
-  id              String           @id @default(uuid()) @db.Uuid
-  email           String           @unique
-  displayName     String
-  passwordHash    String
-  status          UserStatus       @default(ACTIVE)
-  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime         @updatedAt @db.Timestamptz(3)
-  version         Int              @default(1)
-  sessions        Session[]
-  roleAssignments RoleAssignment[]
-  passwordTokens  PasswordToken[]
+  id               String            @id @default(uuid()) @db.Uuid
+  email            String            @unique
+  displayName      String
+  passwordHash     String
+  status           UserStatus        @default(ACTIVE)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+  version          Int               @default(1)
+  sessions         Session[]
+  roleAssignments  RoleAssignment[]
+  passwordTokens   PasswordToken[]
+  mfaCredential    MfaCredential?
+  mfaRecoveryCodes MfaRecoveryCode[]
 }
 
 model Session {
-  id         String    @id @default(uuid()) @db.Uuid
-  userId     String    @db.Uuid
-  user       User      @relation(fields: [userId], references: [id])
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  user          User      @relation(fields: [userId], references: [id])
   // Empreinte SHA-256 du jeton du cookie : le jeton lui-même n'est jamais stocké.
-  tokenHash  String    @unique
-  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
-  lastSeenAt DateTime  @default(now()) @db.Timestamptz(3)
+  tokenHash     String    @unique
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  lastSeenAt    DateTime  @default(now()) @db.Timestamptz(3)
   // Fin absolue de la session ; l'inactivité se calcule à partir de lastSeenAt.
-  expiresAt  DateTime  @db.Timestamptz(3)
-  revokedAt  DateTime? @db.Timestamptz(3)
-  ipAddress  String?
-  userAgent  String?
+  expiresAt     DateTime  @db.Timestamptz(3)
+  revokedAt     DateTime? @db.Timestamptz(3)
+  // Renseigné quand le second facteur a été vérifié pour cette session.
+  mfaVerifiedAt DateTime? @db.Timestamptz(3)
+  ipAddress     String?
+  userAgent     String?
 
   @@index([userId])
   @@index([expiresAt])
@@ -88,6 +92,8 @@ model Role {
   description String           @default("")
   // Clés du catalogue de permissions (voir src/authz/permissions.ts), validées par l'application.
   permissions String[]
+  // Exige une authentification à deux facteurs de tout utilisateur qui détient ce rôle (attribution active).
+  requiresMfa Boolean          @default(false)
   createdAt   DateTime         @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
   version     Int              @default(1)
@@ -130,6 +136,30 @@ model PasswordToken {
   expiresAt DateTime             @db.Timestamptz(3)
   usedAt    DateTime?            @db.Timestamptz(3)
   createdBy String?              @db.Uuid
+
+  @@index([userId])
+}
+
+// Secret TOTP d'un utilisateur, chiffré au repos. Inactif (enabledAt nul) tant que l'inscription n'est pas confirmée.
+model MfaCredential {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @unique @db.Uuid
+  user            User      @relation(fields: [userId], references: [id])
+  secretEncrypted String
+  enabledAt       DateTime? @db.Timestamptz(3)
+  // Dernier pas TOTP accepté : empêche de rejouer un code.
+  lastUsedStep    Int       @default(0)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+}
+
+// Code de secours à usage unique ; seule l'empreinte HMAC est stockée.
+model MfaRecoveryCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id])
+  codeHash  String    @unique
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
 
   @@index([userId])
 }

@@ -1,5 +1,5 @@
 import { signal } from '@angular/core';
-import { AuthService, type AuthUser } from '../auth/auth.service';
+import { AuthService, type AuthUser, type MfaStatus } from '../auth/auth.service';
 
 export const TEST_USER: AuthUser = {
   id: 'u-self',
@@ -10,14 +10,20 @@ export const TEST_USER: AuthUser = {
 };
 
 /** Faux AuthService pour les tests de pages : l'utilisateur détient exactement les permissions données. */
-export function mockAuth(permissions: string[]) {
+export function mockAuth(
+  permissions: string[],
+  mfa: MfaStatus = { state: 'OK', enabled: false, required: false },
+  extra: Record<string, unknown> = {},
+) {
   const granted = signal<ReadonlySet<string>>(new Set(permissions));
   return {
     provide: AuthService,
     useValue: {
       user: signal(TEST_USER).asReadonly(),
+      mfa: signal(mfa).asReadonly(),
       permissions: granted.asReadonly(),
       can: (permission: string | undefined) => permission === undefined || granted().has(permission),
+      ...extra,
     },
   };
 }

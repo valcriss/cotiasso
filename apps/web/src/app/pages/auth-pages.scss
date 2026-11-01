@@ -48,3 +48,61 @@ form {
 p.error {
   margin: 0 0 12px;
 }
+
+.card.wide {
+  max-width: 520px;
+}
+
+.steps {
+  margin: 0 0 12px;
+  padding-left: 20px;
+
+  li {
+    margin: 0 0 4px;
+  }
+}
+
+.qr {
+  display: block;
+  height: 192px;
+  image-rendering: pixelated;
+  margin: 0 auto 8px;
+  width: 192px;
+}
+
+.secret {
+  margin: 0 0 12px;
+  text-align: center;
+
+  code {
+    font: var(--mat-sys-label-large);
+    letter-spacing: 1px;
+    user-select: all;
+  }
+}
+
+.codes {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+
+  li {
+    background: var(--mat-sys-surface-container-low);
+    border: 1px solid var(--mat-sys-outline-variant);
+    border-radius: 8px;
+    font-family: var(--mat-sys-label-large-font, monospace);
+    letter-spacing: 1px;
+    padding: 8px;
+    text-align: center;
+    user-select: all;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

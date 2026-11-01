@@ -15,6 +15,10 @@ describe("rôles par défaut (matrice des droits v0.2)", () => {
     }
   });
 
+  it("exige le second facteur pour l'administrateur technique et le trésorier, par défaut seulement", () => {
+    expect(DEFAULT_ROLES.filter((r) => r.requiresMfa).map((r) => r.key).sort()).toEqual(["technical-admin", "treasurer"]);
+  });
+
   it("donne l'administration des utilisateurs à l'administrateur technique", () => {
     expect(has(ADMIN_ROLE_KEY, LOCKOUT_PERMISSION)).toBe(true);
   });

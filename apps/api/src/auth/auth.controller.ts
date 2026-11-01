@@ -14,9 +14,8 @@ import {
 } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
 import { AuditService } from "../audit/audit.service.js";
-import { AuthorizationService } from "../authz/authorization.service.js";
 import { Authenticated } from "../authz/decorators.js";
-import type { Permission } from "../authz/permissions.js";
+import { AllowPartialSession } from "../authz/partial-session.js";
 import type { AppEnv } from "../config/env.js";
 import { ENV } from "../config/tokens.js";
 import type { AuthenticatedRequest } from "./auth.guard.js";
@@ -24,15 +23,11 @@ import { normalizeEmail } from "./email.js";
 import { LoginThrottleService } from "./login-throttle.service.js";
 import { Public } from "./public.decorator.js";
 import { removeSessionCookie, setSessionCookie } from "./session-cookie.js";
+import { SessionPresenter, type SessionResponse } from "./session-presenter.js";
 import { SessionService } from "./session.service.js";
-import { UsersService, type PublicUser } from "./users.service.js";
+import { UsersService } from "./users.service.js";
 
-export interface SessionResponse {
-  user: PublicUser;
-  permissions: Permission[];
-  csrfToken: string;
-  expiresAt: string;
-}
+export type { SessionResponse };
 
 const MAX_FIELD_LENGTH = 1024;
 
@@ -55,7 +50,7 @@ export class AuthController {
     @Inject(SessionService) private readonly sessions: SessionService,
     @Inject(LoginThrottleService) private readonly throttle: LoginThrottleService,
     @Inject(AuditService) private readonly audit: AuditService,
-    @Inject(AuthorizationService) private readonly authorization: AuthorizationService,
+    @Inject(SessionPresenter) private readonly presenter: SessionPresenter,
     @Inject(ENV) private readonly env: AppEnv,
   ) {}
 
@@ -103,28 +98,20 @@ export class AuthController {
     });
 
     setSessionCookie(reply, this.env, session.token);
-    return {
-      user,
-      permissions: [...(await this.authorization.permissionsFor(user.id))],
-      csrfToken: session.csrfToken,
-      expiresAt: session.expiresAt.toISOString(),
-    };
+    return this.presenter.present(user, { ...session, mfaVerifiedAt: null });
   }
 
   @Authenticated()
+  @AllowPartialSession()
   @Get("me")
   async me(@Req() request: AuthenticatedRequest): Promise<SessionResponse> {
     const auth = request.auth;
     if (!auth) throw new UnauthorizedException("Authentification requise.");
-    return {
-      user: auth.user,
-      permissions: [...(await this.authorization.permissionsFor(auth.user.id))],
-      csrfToken: auth.csrfToken,
-      expiresAt: auth.expiresAt.toISOString(),
-    };
+    return this.presenter.present(auth.user, auth, auth.mfa);
   }
 
   @Authenticated()
+  @AllowPartialSession()
   @Post("logout")
   @HttpCode(HttpStatus.NO_CONTENT)
   async logout(@Req() request: AuthenticatedRequest, @Res({ passthrough: true }) reply: FastifyReply): Promise<void> {

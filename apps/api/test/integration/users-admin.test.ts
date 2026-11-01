@@ -93,6 +93,8 @@ describe("Administration des comptes (base vierge)", () => {
       payload: { token, email: "admin@asso.test", displayName: "Admin", password: PASSWORD },
     });
     adminId = setup.json().user.id;
+    // Ces tests portent sur les droits et les comptes, pas sur le second facteur : les rôles par défaut l'exigent, on le désactive ici.
+    await prisma.role.updateMany({ data: { requiresMfa: false } });
     admin = await login("admin@asso.test");
   }, 60_000);
 

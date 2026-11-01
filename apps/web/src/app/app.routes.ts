@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, loginGuard, permissionGuard, setupGuard } from './auth/guards';
+import { authGuard, loginGuard, mfaEnrollGuard, mfaVerifyGuard, permissionGuard, setupGuard } from './auth/guards';
 import { NAVIGATION, SETTINGS_ITEM } from './navigation';
 
 const [overview, ...others] = NAVIGATION;
@@ -15,6 +15,18 @@ export const routes: Routes = [
     path: 'reinitialisation',
     title: 'Nouveau mot de passe',
     loadComponent: () => import('./pages/reset-password.page').then((m) => m.ResetPasswordPage),
+  },
+  {
+    path: 'mfa/verification',
+    title: 'Vérification en deux étapes',
+    canActivate: [mfaVerifyGuard],
+    loadComponent: () => import('./pages/mfa-verify.page').then((m) => m.MfaVerifyPage),
+  },
+  {
+    path: 'mfa/activation',
+    title: 'Activer la vérification en deux étapes',
+    canActivate: [mfaEnrollGuard],
+    loadComponent: () => import('./pages/mfa-enroll.page').then((m) => m.MfaEnrollPage),
   },
   {
     path: 'installation',

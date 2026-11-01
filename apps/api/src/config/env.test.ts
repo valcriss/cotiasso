@@ -1,30 +1,39 @@
 import { describe, expect, it } from "vitest";
 import { readEnv } from "./env.js";
 
+const KEY = Buffer.alloc(32, 5).toString("base64");
+const base = { DATABASE_URL: "postgresql://x", MFA_ENCRYPTION_KEY: KEY };
+
 describe("readEnv", () => {
   it("lit la configuration avec des valeurs par défaut sûres", () => {
-    expect(readEnv({ DATABASE_URL: "postgresql://x" })).toEqual({
+    expect(readEnv(base)).toEqual({
       databaseUrl: "postgresql://x",
       host: "127.0.0.1",
       port: 3000,
       session: { idleMinutes: 120, maxHours: 12 },
       cookieSecure: true,
       trustProxy: false,
+      mfaKey: Buffer.alloc(32, 5),
     });
   });
 
   it("refuse l'absence de DATABASE_URL", () => {
-    expect(() => readEnv({})).toThrow(/DATABASE_URL/);
+    expect(() => readEnv({ MFA_ENCRYPTION_KEY: KEY })).toThrow(/DATABASE_URL/);
   });
 
   it("refuse un port invalide", () => {
-    expect(() => readEnv({ DATABASE_URL: "x", API_PORT: "abc" })).toThrow(/API_PORT/);
-    expect(() => readEnv({ DATABASE_URL: "x", API_PORT: "70000" })).toThrow(/API_PORT/);
+    expect(() => readEnv({ ...base, API_PORT: "abc" })).toThrow(/API_PORT/);
+    expect(() => readEnv({ ...base, API_PORT: "70000" })).toThrow(/API_PORT/);
+  });
+
+  it("exige une clé MFA de 32 octets en base64", () => {
+    expect(() => readEnv({ DATABASE_URL: "x" })).toThrow(/MFA_ENCRYPTION_KEY/);
+    expect(() => readEnv({ DATABASE_URL: "x", MFA_ENCRYPTION_KEY: Buffer.alloc(16).toString("base64") })).toThrow(/32 octets/);
   });
 
   it("lit les durées de session et les options de cookie", () => {
     const env = readEnv({
-      DATABASE_URL: "x",
+      ...base,
       SESSION_IDLE_MINUTES: "30",
       SESSION_MAX_HOURS: "8",
       COOKIE_SECURE: "false",
@@ -36,8 +45,8 @@ describe("readEnv", () => {
   });
 
   it("refuse des durées ou des booléens invalides", () => {
-    expect(() => readEnv({ DATABASE_URL: "x", SESSION_IDLE_MINUTES: "0" })).toThrow(/SESSION_IDLE_MINUTES/);
-    expect(() => readEnv({ DATABASE_URL: "x", SESSION_MAX_HOURS: "abc" })).toThrow(/SESSION_MAX_HOURS/);
-    expect(() => readEnv({ DATABASE_URL: "x", COOKIE_SECURE: "oui" })).toThrow(/COOKIE_SECURE/);
+    expect(() => readEnv({ ...base, SESSION_IDLE_MINUTES: "0" })).toThrow(/SESSION_IDLE_MINUTES/);
+    expect(() => readEnv({ ...base, SESSION_MAX_HOURS: "abc" })).toThrow(/SESSION_MAX_HOURS/);
+    expect(() => readEnv({ ...base, COOKIE_SECURE: "oui" })).toThrow(/COOKIE_SECURE/);
   });
 });

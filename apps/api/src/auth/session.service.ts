@@ -23,6 +23,8 @@ export interface ValidSession {
   user: PublicUser;
   csrfToken: string;
   expiresAt: Date;
+  /** Date de vérification du second facteur pour cette session, s'il a eu lieu. */
+  mfaVerifiedAt: Date | null;
 }
 
 /** Les écritures de `lastSeenAt` sont espacées pour ne pas écrire en base à chaque requête. */
@@ -74,6 +76,7 @@ export class SessionService {
       user: { id, email, displayName, status, createdAt },
       csrfToken: deriveCsrfToken(token),
       expiresAt: session.expiresAt,
+      mfaVerifiedAt: session.mfaVerifiedAt,
     };
   }
 

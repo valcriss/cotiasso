@@ -50,8 +50,12 @@ function readRole(body: unknown, { withKey }: { withKey: boolean }): RoleInput {
   if (!Array.isArray(permissions) || permissions.some((p) => typeof p !== "string")) {
     throw new BadRequestException("Champ invalide : permissions.");
   }
+  if (record.requiresMfa !== undefined && typeof record.requiresMfa !== "boolean") {
+    throw new BadRequestException("Champ invalide : requiresMfa.");
+  }
   return {
     ...(withKey && { key: text(record.key, "key", { required: true }) }),
+    ...(record.requiresMfa !== undefined && { requiresMfa: record.requiresMfa }),
     name: text(record.name, "name", { required: true }),
     description: text(record.description, "description", { required: false }),
     permissions: permissions as string[],

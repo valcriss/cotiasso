@@ -8,6 +8,7 @@ export interface RoleSummary {
   name: string;
   description: string;
   permissions: string[];
+  requiresMfa: boolean;
   version: number;
 }
 
@@ -44,6 +45,7 @@ export interface RoleDraft {
   name: string;
   description: string;
   permissions: string[];
+  requiresMfa: boolean;
 }
 
 /** Appels de l'API d'administration (utilisateurs, rôles, attributions). Le serveur applique les droits. */
@@ -69,6 +71,10 @@ export class AdminApiService {
 
   enable(userId: string): Promise<void> {
     return firstValueFrom(this.http.post<void>(`/api/users/${userId}/enable`, {}));
+  }
+
+  resetMfa(userId: string): Promise<void> {
+    return firstValueFrom(this.http.post<void>(`/api/users/${userId}/mfa/reset`, {}));
   }
 
   revokeSessions(userId: string): Promise<{ revoked: number }> {

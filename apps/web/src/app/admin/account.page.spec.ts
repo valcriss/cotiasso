@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { vi } from 'vitest';
 import { provideRouter } from '@angular/router';
 import { mockAuth } from '../testing/auth-mock';
 import { AccountPage } from './account.page';
@@ -79,5 +80,70 @@ describe('AccountPage', () => {
     await settle();
     expect(root.querySelector('[role="alert"]')!.textContent).toContain('mot de passe actuel est incorrect');
     expect(root.querySelector('[role="status"]')).toBeNull();
+  });
+});
+
+describe('AccountPage : vérification en deux étapes', () => {
+  const settle = async (fixture: { detectChanges(): void; whenStable(): Promise<unknown> }) => {
+    await new Promise<void>((resolve) => setTimeout(resolve));
+    fixture.detectChanges();
+    await fixture.whenStable();
+  };
+
+  const render = async (mfa: { state: 'OK'; enabled: boolean; required: boolean }, extra: Record<string, unknown> = {}) => {
+    await TestBed.configureTestingModule({
+      imports: [AccountPage],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth([], mfa, extra)],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(AccountPage);
+    await settle(fixture);
+    return { fixture, root: fixture.nativeElement as HTMLElement };
+  };
+  const buttonWith = (root: HTMLElement, text: string) =>
+    Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.includes(text));
+  const typePassword = (root: HTMLElement, value: string) => {
+    const input = root.querySelector<HTMLInputElement>('section input[type="password"]')!;
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
+  };
+
+  it("propose d'activer quand le second facteur est inactif", async () => {
+    const { root } = await render({ state: 'OK', enabled: false, required: false });
+    expect(root.querySelector('a[href="/mfa/activation"]')).not.toBeNull();
+    expect(buttonWith(root, 'Désactiver')).toBeUndefined();
+  });
+
+  it("n'offre pas de désactivation quand un rôle l'exige", async () => {
+    const { root } = await render({ state: 'OK', enabled: true, required: true });
+    expect(root.textContent).toContain('Un de vos rôles l\'exige');
+    expect(buttonWith(root, 'Régénérer')).toBeDefined();
+    expect(buttonWith(root, 'Désactiver')).toBeUndefined();
+  });
+
+  it('exige le mot de passe avant de désactiver, puis désactive', async () => {
+    const disableMfa = vi.fn(async () => {});
+    const { fixture, root } = await render({ state: 'OK', enabled: true, required: false }, { disableMfa });
+
+    buttonWith(root, 'Désactiver')!.click();
+    await settle(fixture);
+    expect(disableMfa).not.toHaveBeenCalled();
+    expect(root.textContent).toContain('Saisissez votre mot de passe actuel.');
+
+    typePassword(root, 'une phrase de passe correcte');
+    buttonWith(root, 'Désactiver')!.click();
+    await settle(fixture);
+    expect(disableMfa).toHaveBeenCalledWith('une phrase de passe correcte');
+  });
+
+  it('régénère les codes de secours et les affiche une seule fois', async () => {
+    const regenerateRecoveryCodes = vi.fn(async () => ['AAAAA-BBBBB', 'CCCCC-DDDDD']);
+    const { fixture, root } = await render({ state: 'OK', enabled: true, required: false }, { regenerateRecoveryCodes });
+
+    typePassword(root, 'une phrase de passe correcte');
+    buttonWith(root, 'Régénérer')!.click();
+    await settle(fixture);
+    expect(regenerateRecoveryCodes).toHaveBeenCalledWith('une phrase de passe correcte');
+    expect(Array.from(root.querySelectorAll('ul.codes li')).map((li) => li.textContent?.trim())).toEqual(['AAAAA-BBBBB', 'CCCCC-DDDDD']);
+    expect(root.textContent).toContain('ne seront plus affichés');
   });
 });

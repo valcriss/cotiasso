@@ -62,3 +62,31 @@ export class SelfDisableError extends Error {
     this.name = "SelfDisableError";
   }
 }
+
+export class InvalidMfaCodeError extends Error {
+  constructor() {
+    super("Code invalide ou expiré.");
+    this.name = "InvalidMfaCodeError";
+  }
+}
+
+export class MfaAlreadyEnabledError extends Error {
+  constructor() {
+    super("L'authentification à deux facteurs est déjà activée.");
+    this.name = "MfaAlreadyEnabledError";
+  }
+}
+
+export class MfaNotPendingError extends Error {
+  constructor() {
+    super("Aucune activation de l'authentification à deux facteurs n'est en cours.");
+    this.name = "MfaNotPendingError";
+  }
+}
+
+export class MfaRequiredByRoleError extends Error {
+  constructor() {
+    super("Un de vos rôles exige l'authentification à deux facteurs : elle ne peut pas être désactivée.");
+    this.name = "MfaRequiredByRoleError";
+  }
+}

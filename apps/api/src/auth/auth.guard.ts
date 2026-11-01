@@ -13,9 +13,13 @@ import { ENV } from "../config/tokens.js";
 import { parseCookies, sessionCookieName } from "./cookies.js";
 import { IS_PUBLIC } from "./public.decorator.js";
 import { csrfTokensMatch } from "./session-tokens.js";
+import { MfaService, type MfaStatus } from "./mfa.service.js";
 import { SessionService, type ValidSession } from "./session.service.js";
 
-export type AuthenticatedRequest = FastifyRequest & { auth?: ValidSession };
+/** Session validée, enrichie de l'état du second facteur (recalculé à chaque requête). */
+export type AuthContext = ValidSession & { mfa: MfaStatus };
+
+export type AuthenticatedRequest = FastifyRequest & { auth?: AuthContext };
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 export const CSRF_HEADER = "x-csrf-token";
@@ -26,6 +30,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(SessionService) private readonly sessions: SessionService,
+    @Inject(MfaService) private readonly mfa: MfaService,
     @Inject(ENV) private readonly env: AppEnv,
   ) {}
 
@@ -49,7 +54,7 @@ export class AuthGuard implements CanActivate {
       }
     }
 
-    request.auth = session;
+    request.auth = { ...session, mfa: await this.mfa.statusFor(session.user.id, session.mfaVerifiedAt) };
     return true;
   }
 }

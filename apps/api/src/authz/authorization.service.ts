@@ -29,6 +29,7 @@ export class AuthorizationService implements OnApplicationBootstrap {
         name: role.name,
         description: role.description,
         permissions: role.permissions,
+        requiresMfa: role.requiresMfa,
       })),
       skipDuplicates: true,
     });
