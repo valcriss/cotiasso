@@ -182,6 +182,21 @@ export interface AccountInfo {
   reportLine: string | null;
 }
 
+export interface ClosingCheckInfo {
+  code: string;
+  level: 'BLOCKING' | 'WARNING';
+  message: string;
+}
+
+export interface ClosingReportInfo {
+  fiscalYearId: string;
+  status: 'OPEN' | 'CLOSING' | 'CLOSED';
+  checks: ClosingCheckInfo[];
+  canStart: boolean;
+  canClose: boolean;
+  preview: { accountCount: number; result: { kind: 'SURPLUS' | 'DEFICIT' | 'BALANCED'; amount: string } } | null;
+}
+
 export type EntryStatus = 'DRAFT' | 'POSTED' | 'REVERSED';
 
 export interface EntryLineInfo {
@@ -415,6 +430,25 @@ export class AdminApiService {
 
   importAccounts(accounts: { number: string; label: string }[]): Promise<{ created: number; skipped: number }> {
     return firstValueFrom(this.http.post<{ created: number; skipped: number }>('/api/accounts/import', { accounts }));
+  }
+
+  closingReport(id: string): Promise<ClosingReportInfo> {
+    return firstValueFrom(this.http.get<ClosingReportInfo>(`/api/fiscal-years/${id}/closing`));
+  }
+
+  startClosing(id: string): Promise<ClosingReportInfo> {
+    return firstValueFrom(this.http.post<ClosingReportInfo>(`/api/fiscal-years/${id}/closing/start`, {}));
+  }
+
+  cancelClosing(id: string): Promise<ClosingReportInfo> {
+    return firstValueFrom(this.http.post<ClosingReportInfo>(`/api/fiscal-years/${id}/closing/cancel`, {}));
+  }
+
+  closeFiscalYear(
+    id: string,
+    body: { surplusAccountId?: string | null; deficitAccountId?: string | null },
+  ): Promise<{ openingEntryId: string }> {
+    return firstValueFrom(this.http.post<{ openingEntryId: string }>(`/api/fiscal-years/${id}/closing/close`, body));
   }
 
   listEntries(filters: EntryFilters = {}): Promise<{ entries: EntryInfo[]; next: string | null }> {

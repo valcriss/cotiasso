@@ -259,9 +259,12 @@ model FiscalYear {
   status    FiscalYearStatus @default(OPEN)
   createdAt DateTime         @default(now()) @db.Timestamptz(3)
   createdBy String?          @db.Uuid
+  closedAt  DateTime?        @db.Timestamptz(3)
+  closedBy  String?          @db.Uuid
 
-  entries  JournalEntry[]
-  counters EntryCounter[]
+  entries      JournalEntry[] @relation("EntryYear")
+  openingEntry JournalEntry?  @relation("Carry")
+  counters     EntryCounter[]
 }
 
 enum JournalType {
@@ -317,29 +320,32 @@ enum EntryKind {
 // Écriture comptable. Brouillon modifiable ; une fois comptabilisée (numérotée), elle ne change plus : on la
 // contrepasse. Les garanties (équilibre, numérotation, exercice ouvert, immuabilité) sont des déclencheurs SQL.
 model JournalEntry {
-  id           String      @id @default(uuid()) @db.Uuid
-  fiscalYearId String      @db.Uuid
-  journalId    String      @db.Uuid
-  date         DateTime    @db.Date
-  label        String
-  reference    String?
-  kind         EntryKind   @default(NORMAL)
-  status       EntryStatus @default(DRAFT)
+  id            String      @id @default(uuid()) @db.Uuid
+  fiscalYearId  String      @db.Uuid
+  journalId     String      @db.Uuid
+  date          DateTime    @db.Date
+  label         String
+  reference     String?
+  kind          EntryKind   @default(NORMAL)
+  status        EntryStatus @default(DRAFT)
   // Attribué à la comptabilisation, par journal et par exercice, sans trou (voir EntryCounter).
-  number       Int?
+  number        Int?
   // Contrôle de version optimiste du brouillon.
-  version      Int         @default(1)
-  postedAt     DateTime?   @db.Timestamptz(3)
-  postedBy     String?     @db.Uuid
-  reversalOfId String?     @unique @db.Uuid
-  createdAt    DateTime    @default(now()) @db.Timestamptz(3)
-  createdBy    String?     @db.Uuid
+  version       Int         @default(1)
+  postedAt      DateTime?   @db.Timestamptz(3)
+  postedBy      String?     @db.Uuid
+  reversalOfId  String?     @unique @db.Uuid
+  // Exercice dont cette écriture d'à-nouveaux reporte les soldes : un exercice ne se reporte qu'une fois (unique).
+  carriesFromId String?     @unique @db.Uuid
+  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
+  createdBy     String?     @db.Uuid
 
-  fiscalYear FiscalYear    @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
-  journal    Journal       @relation(fields: [journalId], references: [id], onDelete: Restrict)
-  reversalOf JournalEntry? @relation("Reversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
-  reversedBy JournalEntry? @relation("Reversal")
-  lines      JournalLine[]
+  fiscalYear  FiscalYear    @relation("EntryYear", fields: [fiscalYearId], references: [id], onDelete: Restrict)
+  carriesFrom FiscalYear?   @relation("Carry", fields: [carriesFromId], references: [id], onDelete: Restrict)
+  journal     Journal       @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  reversalOf  JournalEntry? @relation("Reversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedBy  JournalEntry? @relation("Reversal")
+  lines       JournalLine[]
 
   @@unique([journalId, fiscalYearId, number])
   @@index([fiscalYearId, date])

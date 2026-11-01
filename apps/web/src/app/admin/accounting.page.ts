@@ -5,6 +5,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { ClosingPanel } from './closing-panel';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import {
@@ -59,7 +60,7 @@ export function parseAccountCsv(text: string): ParsedAccounts {
 
 @Component({
   selector: 'app-accounting-page',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ClosingPanel],
   styleUrl: './admin-pages.scss',
   template: `
     <h2>Comptabilité</h2>
@@ -82,7 +83,7 @@ export function parseAccountCsv(text: string): ParsedAccounts {
         <table class="table">
           <caption class="sr-only">Exercices</caption>
           <thead>
-            <tr><th scope="col">Libellé</th><th scope="col">Début</th><th scope="col">Fin</th><th scope="col">État</th></tr>
+            <tr><th scope="col">Libellé</th><th scope="col">Début</th><th scope="col">Fin</th><th scope="col">État</th><th scope="col"><span class="sr-only">Clôture</span></th></tr>
           </thead>
           <tbody>
             @for (year of years(); track year.id) {
@@ -91,10 +92,18 @@ export function parseAccountCsv(text: string): ParsedAccounts {
                 <td>{{ year.start }}</td>
                 <td>{{ year.end }}</td>
                 <td>{{ statusLabel(year.status) }}</td>
+                <td class="row-actions">
+                  @if (canClose()) {
+                    <button mat-stroked-button type="button" [attr.aria-label]="'Clôture de ' + year.label" (click)="closingYearId.set(year.id)">Clôture…</button>
+                  }
+                </td>
               </tr>
             }
           </tbody>
         </table>
+      }
+      @if (closingYear(); as year) {
+        <app-closing-panel [year]="year" [accounts]="accounts()" (changed)="load()" (closed)="closingYearId.set(null)" />
       }
       @if (canEdit()) {
         <form class="row" [formGroup]="yearForm" (ngSubmit)="addYear()" novalidate>
@@ -237,6 +246,12 @@ export class AccountingPage {
     return this.auth.can('settings.accounting:admin');
   });
 
+  protected readonly canClose = computed(() => {
+    this.auth.permissions();
+    return this.auth.can('fiscal-years:close');
+  });
+  protected readonly closingYearId = signal<string | null>(null);
+  protected readonly closingYear = computed(() => this.years().find((y) => y.id === this.closingYearId()) ?? null);
   protected readonly years = signal<FiscalYearInfo[]>([]);
   protected readonly journals = signal<JournalInfo[]>([]);
   protected readonly accounts = signal<AccountInfo[]>([]);
@@ -334,7 +349,7 @@ export class AccountingPage {
     });
   }
 
-  private async load(): Promise<void> {
+  protected async load(): Promise<void> {
     try {
       const [years, journals, accounts] = await Promise.all([
         this.api.listFiscalYears(),

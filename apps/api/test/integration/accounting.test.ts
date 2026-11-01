@@ -148,15 +148,15 @@ describe("Comptabilité : exercices, journaux et plan de comptes (base vierge)",
       expect((await call("PATCH", "/fiscal-years/pas-un-uuid", treasurer, { label: "?" })).statusCode).toBe(400);
     });
 
-    it("garde la progression du statut et fige un exercice clôturé (déclencheur SQL)", async () => {
+    it("garde la progression du statut : fermeture annulable, clôture seulement dans l'ordre et avec le report des soldes", async () => {
       const [, second] = (await call("GET", "/fiscal-years", treasurer)).json();
       expect(await sqlError(`UPDATE "FiscalYear" SET "status"='CLOSED' WHERE id='${second.id}'`)).toContain("en cours de clôture");
       expect(await sqlError(`UPDATE "FiscalYear" SET "status"='CLOSING' WHERE id='${second.id}'`)).toBeNull();
-      expect(await sqlError(`UPDATE "FiscalYear" SET "status"='OPEN' WHERE id='${second.id}'`)).toContain("ne se rouvre pas");
       expect(await sqlError(`UPDATE "FiscalYear" SET "end"='2027-11-30' WHERE id='${second.id}'`)).toContain("dates");
       expect((await call("PATCH", `/fiscal-years/${second.id}`, treasurer, { label: "Trop tard" })).statusCode).toBe(409);
-      expect(await sqlError(`UPDATE "FiscalYear" SET "status"='CLOSED' WHERE id='${second.id}'`)).toBeNull();
-      expect(await sqlError(`UPDATE "FiscalYear" SET "label"='Altéré' WHERE id='${second.id}'`)).toContain("clôturé");
+      // Une fermeture à la saisie s'annule ; la clôture définitive exige les à-nouveaux de l'exercice suivant.
+      expect(await sqlError(`UPDATE "FiscalYear" SET "status"='CLOSED' WHERE id='${second.id}'`)).toContain("précédent");
+      expect(await sqlError(`UPDATE "FiscalYear" SET "status"='OPEN' WHERE id='${second.id}'`)).toBeNull();
     });
 
     it("ne supprime jamais un exercice", async () => {

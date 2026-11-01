@@ -105,6 +105,7 @@ const REFUSAL_FRAGMENTS = [
   "peut l'être",
   "immuable",
   "ne se supprime pas",
+  "exercice clôturé",
 ];
 
 /** Texte lisible d'un refus levé par un déclencheur SQL (RAISE EXCEPTION), ou `null` si l'erreur est autre. */
