@@ -182,6 +182,53 @@ export interface AccountInfo {
   reportLine: string | null;
 }
 
+export type EntryStatus = 'DRAFT' | 'POSTED' | 'REVERSED';
+
+export interface EntryLineInfo {
+  position: number;
+  accountId: string;
+  accountNumber: string;
+  accountLabel: string;
+  debit: string;
+  credit: string;
+  label: string | null;
+}
+
+export interface EntryInfo {
+  id: string;
+  fiscalYearId: string;
+  journalId: string;
+  journalCode: string;
+  date: string;
+  label: string;
+  reference: string | null;
+  kind: 'NORMAL' | 'ADJUSTMENT' | 'REVERSAL' | 'OPENING';
+  status: EntryStatus;
+  number: number | null;
+  version: number;
+  postedAt: string | null;
+  reversalOfId: string | null;
+  reversedById: string | null;
+  totalDebit: string;
+  totalCredit: string;
+  lines: EntryLineInfo[];
+}
+
+export interface EntryDraftBody {
+  journalId: string;
+  date: string;
+  label: string;
+  reference: string | null;
+  lines: { accountId: string; debit: string; credit: string; label?: string | null }[];
+}
+
+export interface EntryFilters {
+  fiscalYearId?: string;
+  journalId?: string;
+  status?: EntryStatus;
+  after?: string;
+}
+
 export interface OperationsInfo {
   version: string;
   backups: {
@@ -368,6 +415,36 @@ export class AdminApiService {
 
   importAccounts(accounts: { number: string; label: string }[]): Promise<{ created: number; skipped: number }> {
     return firstValueFrom(this.http.post<{ created: number; skipped: number }>('/api/accounts/import', { accounts }));
+  }
+
+  listEntries(filters: EntryFilters = {}): Promise<{ entries: EntryInfo[]; next: string | null }> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(filters)) if (value) params = params.set(key, value);
+    return firstValueFrom(this.http.get<{ entries: EntryInfo[]; next: string | null }>('/api/entries', { params }));
+  }
+
+  getEntry(id: string): Promise<EntryInfo> {
+    return firstValueFrom(this.http.get<EntryInfo>(`/api/entries/${id}`));
+  }
+
+  createEntry(body: EntryDraftBody): Promise<EntryInfo> {
+    return firstValueFrom(this.http.post<EntryInfo>('/api/entries', body));
+  }
+
+  updateEntry(id: string, body: EntryDraftBody & { version: number }): Promise<EntryInfo> {
+    return firstValueFrom(this.http.put<EntryInfo>(`/api/entries/${id}`, body));
+  }
+
+  deleteEntry(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/entries/${id}`));
+  }
+
+  postEntry(id: string): Promise<EntryInfo> {
+    return firstValueFrom(this.http.post<EntryInfo>(`/api/entries/${id}/post`, {}));
+  }
+
+  reverseEntry(id: string, body: { date?: string; label?: string } = {}): Promise<EntryInfo> {
+    return firstValueFrom(this.http.post<EntryInfo>(`/api/entries/${id}/reverse`, body));
   }
 
   operations(): Promise<OperationsInfo> {

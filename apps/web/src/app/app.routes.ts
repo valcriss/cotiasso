@@ -45,13 +45,20 @@ export const routes: Routes = [
         title: overview!.label,
         loadComponent: () => import('./pages/overview.page').then((m) => m.OverviewPage),
       },
-      ...others.filter((item) => item.path !== 'documents').map((item) => ({
+      ...others.filter((item) => item.path !== 'documents' && item.path !== 'comptabilite').map((item) => ({
         path: item.path,
         title: item.label,
         canActivate: [permissionGuard],
         data: { title: item.label, permission: item.permission },
         loadComponent: () => import('./pages/placeholder.page').then((m) => m.PlaceholderPage),
       })),
+      {
+        path: 'comptabilite',
+        title: 'Comptabilité',
+        canActivate: [permissionGuard],
+        data: { permission: 'entries:view' },
+        loadComponent: () => import('./accounting/entries.page').then((m) => m.EntriesPage),
+      },
       {
         path: 'documents',
         title: 'Documents',

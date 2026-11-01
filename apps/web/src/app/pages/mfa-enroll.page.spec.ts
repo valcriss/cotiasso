@@ -40,6 +40,11 @@ describe('MfaEnrollPage', () => {
     await fixture.whenStable();
   };
 
+  /** Attend l'apparition d'un élément (import dynamique de qrcode, plus lent sur une machine chargée). */
+  const until = async (selector: string) => {
+    for (let attempt = 0; attempt < 50 && !root.querySelector(selector); attempt++) await settle();
+  };
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [MfaEnrollPage],
@@ -56,6 +61,7 @@ describe('MfaEnrollPage', () => {
   const loadStart = async () => {
     controller.expectOne('/api/auth/mfa/enroll/start').flush(start);
     await settle();
+    await until('form input');
   };
   const submitCode = async (code: string) => {
     const input = root.querySelector<HTMLInputElement>('input')!;
@@ -67,6 +73,7 @@ describe('MfaEnrollPage', () => {
 
   it('affiche le QR code et la clé de saisie manuelle', async () => {
     await loadStart();
+    await until('img.qr');
     expect(root.querySelector('img.qr')!.getAttribute('src')).toBe('data:image/png;base64,AAAA');
     expect(root.querySelector('.secret code')!.textContent).toContain('JBSW Y3DP');
   });

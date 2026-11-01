@@ -31,6 +31,7 @@ export function describeHttpError(error: unknown, fallback: string): FormError {
       return { message, details: [] };
     case 400:
     case 409:
+    case 422:
       return { message, details: issues };
     default:
       return { message: fallback, details: [] };
