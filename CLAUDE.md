@@ -4,6 +4,19 @@ Application web de gestion associative et de comptabilité en partie double, en 
 
 **État du projet : lot 0 (conception) en brouillons dans `docs/lot0/`, non validés par le trésorier du pilote ; implémentation du lot 1 démarrée sur décision de l'utilisateur (31 octobre 2026). Les livrables du lot 0 restent la référence fonctionnelle mais peuvent évoluer à la validation.**
 
+## Public cible et pédagogie (priorité sur le reste de l'interface)
+
+**L'application s'adresse à des trésorier·ères d'association bénévoles qui n'y connaissent rien en comptabilité.** La rigueur comptable est l'affaire du logiciel ; **tout doit être fait pour leur faciliter la tâche et leur permettre de comprendre** ce qu'ils font et pourquoi. Concrètement, pour tout écran, message ou fonction :
+
+- **Parler simple** : mot courant d'abord (« argent qui entre / qui sort »), terme comptable gardé mais **toujours expliqué** à côté (il servira face à un expert-comptable).
+- **Expliquer à quoi ça sert** : phrase de description sous le titre de chaque page, aide et exemple sur les champs non évidents, **état vide qui dit quoi faire en premier**.
+- **Guider** : valeurs par défaut sûres, contrôles au fil de l'eau, actions impossibles masquées ou expliquées.
+- **Messages d'erreur à trois temps** : ce qui s'est passé, pourquoi, que faire maintenant. Jamais de code technique ni de ton accusateur.
+- **Montrer les conséquences avant les actions irréversibles** (comptabiliser, clôturer…) et **rassurer** (brouillon, contrepassation : une erreur se corrige).
+- **Cohérence** : même geste, même mot, même emplacement partout.
+
+Une fonction n'est pas terminée tant qu'une personne sans connaissance comptable ne peut pas l'utiliser sans explication orale. Le détail (structure des pages, barre d'action, boîtes de dialogue, descriptions, retours à l'utilisateur) est dans **[design.md](design.md)**, à suivre pour toute nouvelle page.
+
 ## Commandes
 
 Node épinglé dans `mise.toml` (26.12.1) ; gestionnaire de paquets : npm (workspaces). Préfixer par `mise exec --` si les shims ne sont pas actifs. Toutes les commandes se lancent à la racine :
@@ -56,6 +69,7 @@ Conventions de l'API :
 ## Documents de référence
 
 - [cadrage-gestion-associative.md](cadrage-gestion-associative.md) : cadrage fonctionnel et technique v1.0 (source de vérité). Les mentions *Retenu* / *Proposé* / *À décider* y distinguent le niveau de décision ; ne jamais traiter un *Proposé* comme acquis.
+- [design.md](design.md) : guide de conception de l'interface et principes pédagogiques (public cible : trésoriers sans formation comptable). À suivre pour tout écran.
 - [docs/decoupage.md](docs/decoupage.md) : découpage en lots/epics, dépendances et questions ouvertes (document de travail).
 - `docs/decisions/` : une décision d'architecture ou de règle métier par fichier (ADR), à créer au fil de l'eau.
 
@@ -81,6 +95,7 @@ Node.js, NestJS + Fastify, PostgreSQL, Prisma + SQL brut pour les zones critique
 ## Conventions de travail
 
 - Langue : français pour la documentation, les libellés UI et les échanges ; identifiants de code en anglais (noms d'entités du §22 du cadrage).
+- Toute page ou tout formulaire suit [design.md](design.md) (en-tête avec description, barre d'action, formulaires en boîte de dialogue sauf les deux pages dédiées, succès en bandeau temporaire) et ses principes pédagogiques : libellés en langage courant, état vide utile, erreurs à trois temps.
 - Documentation en Markdown, en gardant les statuts Retenu/Proposé/À décider.
 - Toute décision prise avec l'utilisateur est reportée dans `docs/decisions/` et reflétée dans le cadrage.
 - Ne pas committer ni pousser sans demande explicite.
