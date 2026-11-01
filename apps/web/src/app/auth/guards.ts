@@ -29,3 +29,11 @@ export const setupGuard: CanActivateFn = async () => {
   await auth.initialize();
   return auth.setupRequired() ? true : router.parseUrl(auth.user() ? '/' : '/connexion');
 };
+
+/** Rubrique protégée : la route déclare data.permission ; sans cette permission, retour à l'accueil. */
+export const permissionGuard: CanActivateFn = (route) => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const permission = route.data['permission'] as string | undefined;
+  return auth.can(permission) ? true : router.parseUrl('/');
+};

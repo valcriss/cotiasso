@@ -1,6 +1,8 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
 import { AuditService } from "../audit/audit.service.js";
 import { AlreadySetUpError, InvalidSetupTokenError } from "../auth/errors.js";
+import { AuthorizationService } from "../authz/authorization.service.js";
+import { ADMIN_ROLE_KEY } from "../authz/default-roles.js";
 import { generateSessionToken, hashSessionToken } from "../auth/session-tokens.js";
 import { UsersService, type CreateUserInput, type PublicUser } from "../auth/users.service.js";
 import { PrismaService } from "../prisma/prisma.service.js";
@@ -17,6 +19,7 @@ export class SetupService implements OnApplicationBootstrap {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(UsersService) private readonly users: UsersService,
+    @Inject(AuthorizationService) private readonly authorization: AuthorizationService,
     @Inject(AuditService) private readonly audit: AuditService,
   ) {}
 
@@ -65,6 +68,12 @@ export class SetupService implements OnApplicationBootstrap {
       if ((await tx.user.count()) > 0) throw new AlreadySetUpError();
 
       const created = await this.users.createUser(input, tx);
+
+      // Le premier compte reçoit le rôle d'administration : sans lui, personne ne pourrait gérer les accès.
+      await this.authorization.ensureDefaultRoles(tx);
+      const adminRole = await tx.role.findUniqueOrThrow({ where: { key: ADMIN_ROLE_KEY }, select: { id: true } });
+      await tx.roleAssignment.create({ data: { userId: created.id, roleId: adminRole.id, createdBy: created.id } });
+
       await tx.setupToken.update({ where: { id: row.id }, data: { usedAt: new Date() } });
       return created;
     });
@@ -74,6 +83,7 @@ export class SetupService implements OnApplicationBootstrap {
       objectType: "User",
       objectId: user.id,
       actorId: user.id,
+      details: { role: ADMIN_ROLE_KEY },
     });
     return user;
   }

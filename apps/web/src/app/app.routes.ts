@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, loginGuard, setupGuard } from './auth/guards';
+import { authGuard, loginGuard, permissionGuard, setupGuard } from './auth/guards';
 import { NAVIGATION, SETTINGS_ITEM } from './navigation';
 
 const [overview, ...others] = NAVIGATION;
@@ -31,7 +31,8 @@ export const routes: Routes = [
       ...[...others, SETTINGS_ITEM].map((item) => ({
         path: item.path,
         title: item.label,
-        data: { title: item.label },
+        canActivate: [permissionGuard],
+        data: { title: item.label, permission: item.permission },
         loadComponent: () => import('./pages/placeholder.page').then((m) => m.PlaceholderPage),
       })),
     ],

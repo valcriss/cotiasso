@@ -16,13 +16,34 @@ const user: AuthUser = {
 
 describe('Shell', () => {
   const logout = vi.fn(() => Promise.resolve());
+  const permissions = signal<ReadonlySet<string>>(new Set(NAVIGATION.map((item) => item.permission ?? '').concat('settings.association:view')));
 
   beforeEach(async () => {
     logout.mockClear();
+    permissions.set(new Set(NAVIGATION.map((item) => item.permission ?? '').concat('settings.association:view')));
     await TestBed.configureTestingModule({
       imports: [Shell],
-      providers: [provideRouter([]), { provide: AuthService, useValue: { user: signal(user).asReadonly(), logout } }],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AuthService,
+          useValue: {
+            user: signal(user).asReadonly(),
+            permissions: permissions.asReadonly(),
+            can: (permission: string | undefined) => permission === undefined || permissions().has(permission),
+            logout,
+          },
+        },
+      ],
     }).compileComponents();
+  });
+
+  it('ne montre que les rubriques autorisées', async () => {
+    permissions.set(new Set(['projects:view', 'documents:view']));
+    const fixture = TestBed.createComponent(Shell);
+    await fixture.whenStable();
+    const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim());
+    expect(labels).toEqual(["Vue d'ensemble", 'Projets', 'Documents'].map((l) => expect.stringContaining(l)));
   });
 
   it('affiche la navigation du cadrage et les paramètres', async () => {

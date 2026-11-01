@@ -30,6 +30,7 @@ import { Public } from "../auth/public.decorator.js";
 import { setSessionCookie } from "../auth/session-cookie.js";
 import { SessionService } from "../auth/session.service.js";
 import { AuditService } from "../audit/audit.service.js";
+import { AuthorizationService } from "../authz/authorization.service.js";
 import { SetupService } from "./setup.service.js";
 
 const MAX_FIELD_LENGTH = 1024;
@@ -53,6 +54,7 @@ export class SetupController {
     @Inject(SessionService) private readonly sessions: SessionService,
     @Inject(LoginThrottleService) private readonly throttle: LoginThrottleService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(AuthorizationService) private readonly authorization: AuthorizationService,
     @Inject(ENV) private readonly env: AppEnv,
   ) {}
 
@@ -95,7 +97,12 @@ export class SetupController {
         details: { sessionId: session.sessionId, ipAddress: ipAddress ?? null },
       });
       setSessionCookie(reply, this.env, session.token);
-      return { user, csrfToken: session.csrfToken, expiresAt: session.expiresAt.toISOString() };
+      return {
+        user,
+        permissions: [...(await this.authorization.permissionsFor(user.id))],
+        csrfToken: session.csrfToken,
+        expiresAt: session.expiresAt.toISOString(),
+      };
     } catch (error) {
       if (error instanceof InvalidSetupTokenError) {
         await this.throttle.record(null, ipAddress, false);

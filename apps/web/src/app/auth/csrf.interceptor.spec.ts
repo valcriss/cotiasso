@@ -8,6 +8,7 @@ import { csrfInterceptor } from './csrf.interceptor';
 
 const session = {
   user: { id: '1', email: 'm@asso.fr', displayName: 'M', status: 'ACTIVE', createdAt: '2026-11-01T00:00:00.000Z' },
+  permissions: ['projects:view'],
   csrfToken: 'csrf-1',
   expiresAt: '2026-11-02T00:00:00.000Z',
 };

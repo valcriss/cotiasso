@@ -12,6 +12,7 @@ export interface AuthUser {
 
 interface SessionResponse {
   user: AuthUser;
+  permissions: string[];
   csrfToken: string;
   expiresAt: string;
 }
@@ -27,12 +28,19 @@ export interface SetupRequest {
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly userState = signal<AuthUser | null>(null);
+  private readonly permissionsState = signal<ReadonlySet<string>>(new Set());
   private readonly setupRequiredState = signal(false);
   private csrf: string | null = null;
   private initialization?: Promise<void>;
 
   readonly user = this.userState.asReadonly();
   readonly setupRequired = this.setupRequiredState.asReadonly();
+  readonly permissions = this.permissionsState.asReadonly();
+
+  /** Indique si l'utilisateur détient la permission ; sert à adapter l'interface, le serveur reste l'autorité. */
+  can(permission: string | undefined): boolean {
+    return permission === undefined || this.permissionsState().has(permission);
+  }
 
   /** Jeton CSRF à joindre aux requêtes modifiantes ; absent tant qu'aucune session n'est ouverte. */
   get csrfToken(): string | null {
@@ -67,6 +75,7 @@ export class AuthService {
   /** Oublie la session locale (déconnexion, ou session expirée côté serveur). */
   clearSession(): void {
     this.userState.set(null);
+    this.permissionsState.set(new Set());
     this.csrf = null;
   }
 
@@ -84,6 +93,7 @@ export class AuthService {
 
   private applySession(response: SessionResponse): void {
     this.csrf = response.csrfToken;
+    this.permissionsState.set(new Set(response.permissions));
     this.userState.set(response.user);
   }
 }

@@ -28,15 +28,16 @@ enum UserStatus {
 }
 
 model User {
-  id           String     @id @default(uuid()) @db.Uuid
-  email        String     @unique
-  displayName  String
-  passwordHash String
-  status       UserStatus @default(ACTIVE)
-  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
-  version      Int        @default(1)
-  sessions     Session[]
+  id              String           @id @default(uuid()) @db.Uuid
+  email           String           @unique
+  displayName     String
+  passwordHash    String
+  status          UserStatus       @default(ACTIVE)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(3)
+  version         Int              @default(1)
+  sessions        Session[]
+  roleAssignments RoleAssignment[]
 }
 
 model Session {
@@ -76,4 +77,37 @@ model SetupToken {
   tokenHash String    @unique
   createdAt DateTime  @default(now()) @db.Timestamptz(3)
   usedAt    DateTime? @db.Timestamptz(3)
+}
+
+// Rôle = modèle modifiable de permissions (jamais de privilège codé en dur selon le nom du rôle).
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique
+  name        String
+  description String           @default("")
+  // Clés du catalogue de permissions (voir src/authz/permissions.ts), validées par l'application.
+  permissions String[]
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+  version     Int              @default(1)
+  assignments RoleAssignment[]
+}
+
+// Attribution d'un rôle à un utilisateur, datée. L'historique est conservé : on révoque, on ne supprime pas.
+// Portée globale uniquement pour l'instant ; la portée projet s'ajoutera avec l'entité Project (lot 2a.4).
+model RoleAssignment {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id])
+  roleId    String    @db.Uuid
+  role      Role      @relation(fields: [roleId], references: [id])
+  startsAt  DateTime  @default(now()) @db.Timestamptz(3)
+  endsAt    DateTime? @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  createdBy String?   @db.Uuid
+  revokedBy String?   @db.Uuid
+
+  @@index([userId])
+  @@index([roleId])
 }

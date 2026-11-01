@@ -16,7 +16,7 @@
     </header>
 
     <nav aria-label="Navigation principale">
-      @for (item of navigation; track item.path) {
+      @for (item of navigation(); track item.path) {
         <a
           class="item"
           [routerLink]="item.path"
@@ -33,18 +33,20 @@
     </nav>
 
     <footer>
-      <a
-        class="item"
-        [routerLink]="settings.path"
-        routerLinkActive="active"
-        [matTooltip]="collapsed() ? settings.label : ''"
-        matTooltipPosition="right"
-      >
-        <mat-icon fontSet="material-icons-outlined">{{ settings.icon }}</mat-icon>
-        @if (!collapsed()) {
-          <span>{{ settings.label }}</span>
-        }
-      </a>
+      @if (settings(); as settingsItem) {
+        <a
+          class="item"
+          [routerLink]="settingsItem.path"
+          routerLinkActive="active"
+          [matTooltip]="collapsed() ? settingsItem.label : ''"
+          matTooltipPosition="right"
+        >
+          <mat-icon fontSet="material-icons-outlined">{{ settingsItem.icon }}</mat-icon>
+          @if (!collapsed()) {
+            <span>{{ settingsItem.label }}</span>
+          }
+        </a>
+      }
 
       <div class="account">
         @if (!collapsed()) {

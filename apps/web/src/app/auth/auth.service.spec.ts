@@ -10,7 +10,12 @@ const user: AuthUser = {
   status: 'ACTIVE',
   createdAt: '2026-11-01T00:00:00.000Z',
 };
-const session = { user, csrfToken: 'csrf-1', expiresAt: '2026-11-02T00:00:00.000Z' };
+const session = {
+  user,
+  permissions: ['projects:view', 'documents:view'],
+  csrfToken: 'csrf-1',
+  expiresAt: '2026-11-02T00:00:00.000Z',
+};
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve));
 
@@ -85,6 +90,20 @@ describe('AuthService', () => {
     await logout;
     expect(auth.user()).toBeNull();
     expect(auth.csrfToken).toBeNull();
+  });
+
+  it('expose les permissions de la session et les efface à la déconnexion', async () => {
+    expect(auth.can('projects:view')).toBe(false);
+    expect(auth.can(undefined)).toBe(true);
+
+    const login = auth.login('marie@asso.fr', 'secret');
+    http.expectOne('/api/auth/login').flush(session);
+    await login;
+    expect(auth.can('projects:view')).toBe(true);
+    expect(auth.can('entries:post')).toBe(false);
+
+    auth.clearSession();
+    expect(auth.can('projects:view')).toBe(false);
   });
 
   it('oublie la session même quand la déconnexion échoue côté serveur', async () => {

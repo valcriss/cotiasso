@@ -14,6 +14,9 @@ import {
 } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
 import { AuditService } from "../audit/audit.service.js";
+import { AuthorizationService } from "../authz/authorization.service.js";
+import { Authenticated } from "../authz/decorators.js";
+import type { Permission } from "../authz/permissions.js";
 import type { AppEnv } from "../config/env.js";
 import { ENV } from "../config/tokens.js";
 import type { AuthenticatedRequest } from "./auth.guard.js";
@@ -26,6 +29,7 @@ import { UsersService, type PublicUser } from "./users.service.js";
 
 export interface SessionResponse {
   user: PublicUser;
+  permissions: Permission[];
   csrfToken: string;
   expiresAt: string;
 }
@@ -51,6 +55,7 @@ export class AuthController {
     @Inject(SessionService) private readonly sessions: SessionService,
     @Inject(LoginThrottleService) private readonly throttle: LoginThrottleService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(AuthorizationService) private readonly authorization: AuthorizationService,
     @Inject(ENV) private readonly env: AppEnv,
   ) {}
 
@@ -98,16 +103,28 @@ export class AuthController {
     });
 
     setSessionCookie(reply, this.env, session.token);
-    return { user, csrfToken: session.csrfToken, expiresAt: session.expiresAt.toISOString() };
+    return {
+      user,
+      permissions: [...(await this.authorization.permissionsFor(user.id))],
+      csrfToken: session.csrfToken,
+      expiresAt: session.expiresAt.toISOString(),
+    };
   }
 
+  @Authenticated()
   @Get("me")
-  me(@Req() request: AuthenticatedRequest): SessionResponse {
+  async me(@Req() request: AuthenticatedRequest): Promise<SessionResponse> {
     const auth = request.auth;
     if (!auth) throw new UnauthorizedException("Authentification requise.");
-    return { user: auth.user, csrfToken: auth.csrfToken, expiresAt: auth.expiresAt.toISOString() };
+    return {
+      user: auth.user,
+      permissions: [...(await this.authorization.permissionsFor(auth.user.id))],
+      csrfToken: auth.csrfToken,
+      expiresAt: auth.expiresAt.toISOString(),
+    };
   }
 
+  @Authenticated()
   @Post("logout")
   @HttpCode(HttpStatus.NO_CONTENT)
   async logout(@Req() request: AuthenticatedRequest, @Res({ passthrough: true }) reply: FastifyReply): Promise<void> {

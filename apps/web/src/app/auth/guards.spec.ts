@@ -2,9 +2,9 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRouteSnapshot, RouterStateSnapshot, UrlTree, provideRouter } from '@angular/router';
 import { AuthService } from './auth.service';
-import { authGuard, loginGuard, setupGuard } from './guards';
+import { authGuard, loginGuard, permissionGuard, setupGuard } from './guards';
 
-function configure(state: { setupRequired: boolean; user: object | null }) {
+function configure(state: { setupRequired: boolean; user: object | null; permissions?: string[] }) {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
@@ -14,6 +14,7 @@ function configure(state: { setupRequired: boolean; user: object | null }) {
           initialize: () => Promise.resolve(),
           setupRequired: signal(state.setupRequired).asReadonly(),
           user: signal(state.user).asReadonly(),
+          can: (permission: string | undefined) => permission === undefined || (state.permissions ?? []).includes(permission),
         },
       },
     ],
@@ -64,5 +65,17 @@ describe('guards', () => {
     TestBed.resetTestingModule();
     configure({ setupRequired: false, user: { id: '1' } });
     expect(target(await run(setupGuard))).toBe('/');
+  });
+
+  it("permissionGuard : laisse passer avec la permission, renvoie à l'accueil sinon", () => {
+    const route = { data: { permission: 'entries:view' } } as unknown as ActivatedRouteSnapshot;
+    const check = () => TestBed.runInInjectionContext(() => permissionGuard(route, {} as RouterStateSnapshot));
+
+    configure({ setupRequired: false, user: { id: '1' }, permissions: ['entries:view'] });
+    expect(check()).toBe(true);
+
+    TestBed.resetTestingModule();
+    configure({ setupRequired: false, user: { id: '1' }, permissions: ['projects:view'] });
+    expect(target(check())).toBe('/');
   });
 });

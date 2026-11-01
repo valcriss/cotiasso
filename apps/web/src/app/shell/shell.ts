@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
@@ -16,8 +16,14 @@ export class Shell {
   private readonly router = inject(Router);
 
   protected readonly associationName = 'cotiasso';
-  protected readonly navigation = NAVIGATION;
-  protected readonly settings = SETTINGS_ITEM;
+  protected readonly navigation = computed(() => {
+    this.auth.permissions();
+    return NAVIGATION.filter((item) => this.auth.can(item.permission));
+  });
+  protected readonly settings = computed(() => {
+    this.auth.permissions();
+    return this.auth.can(SETTINGS_ITEM.permission) ? SETTINGS_ITEM : null;
+  });
   protected readonly user = this.auth.user;
   protected readonly collapsed = signal(false);
 
