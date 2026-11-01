@@ -71,6 +71,7 @@ jobs:
       POSTGRES_PASSWORD: ci-only-password
       COTIASSO_VERSION: ci
       COTIASSO_HTTP_PORT: 8088
+      BACKUP_PASSPHRASE: ci-only-passphrase
     steps:
       - uses: actions/checkout@v7
 
@@ -88,6 +89,12 @@ jobs:
         run: |
           curl --fail --silent --show-error http://localhost:8088/api/health | grep '"database":"up"'
           curl --fail --silent --show-error http://localhost:8088/api/setup/status
+
+      - name: Sauvegarde puis vérification par restauration en base temporaire
+        # Sans cette étape, une sauvegarde qui ne se restaure pas ne serait jamais détectée.
+        run: |
+          docker compose exec -T backup /usr/local/bin/backup.sh once
+          docker compose --profile tools run --rm tools verify
 
       - name: Journaux en cas d'échec
         if: failure()

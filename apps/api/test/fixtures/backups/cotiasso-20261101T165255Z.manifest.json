@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "archiveSha256": "52585d80fcf4efb74f215cc4e57d35476da97ec93c0e2690f7f72be3752cea79",
+  "archiveBytes": 61472,
+  "name": "cotiasso-20261101T165255Z",
+  "createdAt": "2026-11-01T16:52:55Z",
+  "appVersion": "test",
+  "migrations": 10,
+  "mfaKeyFingerprint": "5a46d405c92c3ba1",
+  "counts": {
+    "users": 1,
+    "documents": 1,
+    "documentVersions": 1,
+    "auditEvents": 4
+  },
+  "sha256": {
+    "db.dump": "18ed16b4e28481dcabcee3963b179320af02e743826562bb892a9fe564e4e8c2",
+    "documents.tar": "e750c39a0338b5bc840b934b64c0595bedca75e2bc226694eee1fe4656b458f0"
+  }
+}

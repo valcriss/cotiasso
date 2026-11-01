@@ -101,6 +101,13 @@ export const routes: Routes = [
             loadComponent: () => import('./admin/audit.page').then((m) => m.AuditPage),
           },
           {
+            path: 'exploitation',
+            title: 'Exploitation',
+            canActivate: [permissionGuard],
+            data: { permission: 'backups:admin' },
+            loadComponent: () => import('./admin/exploitation.page').then((m) => m.ExploitationPage),
+          },
+          {
             path: 'roles',
             title: 'Rôles',
             canActivate: [permissionGuard],

@@ -20,6 +20,10 @@ export interface AppEnv {
   documentsDir: string;
   /** Taille maximale d'un fichier déposé, en octets. */
   documentsMaxBytes: number;
+  /** Dossier des sauvegardes, en lecture seule pour l'API (écran d'exploitation) ; absent si non configuré. */
+  backupsDir: string | null;
+  /** Version de l'application, fixée au déploiement (COTIASSO_VERSION). */
+  appVersion: string;
 }
 
 function readPositiveInteger(source: NodeJS.ProcessEnv, key: string, fallback: number): number {
@@ -70,5 +74,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     mfaKey: readKey(source, "MFA_ENCRYPTION_KEY"),
     documentsDir: source.DOCUMENTS_DIR || "./storage/documents",
     documentsMaxBytes: readPositiveInteger(source, "DOCUMENTS_MAX_MB", 25) * 1024 * 1024,
+    backupsDir: source.BACKUPS_DIR || null,
+    appVersion: source.COTIASSO_VERSION || "développement",
   };
 }

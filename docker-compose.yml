@@ -39,9 +39,13 @@ services:
       # Chiffre les secrets de l'authentification à deux facteurs. À sauvegarder avec la base : sans cette clé, les secrets sont illisibles.
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?Renseigner MFA_ENCRYPTION_KEY dans .env.prod (openssl rand -base64 32)}
       DOCUMENTS_MAX_MB: ${DOCUMENTS_MAX_MB:-25}
+      # Écran d'exploitation : l'API lit l'état des sauvegardes, en lecture seule.
+      BACKUPS_DIR: /backups
+      COTIASSO_VERSION: ${COTIASSO_VERSION}
     volumes:
       # Documents déposés : à sauvegarder avec la base (cohérence base et fichiers, cadrage §24.2).
       - documents-data:/data/documents
+      - backups-data:/backups:ro
 
   web:
     image: cotiasso-web:${COTIASSO_VERSION}
@@ -58,6 +62,44 @@ services:
     ports:
       - "${COTIASSO_HTTP_PORT:-8080}:8080"
 
+  # Sauvegardes planifiées : base, documents et manifeste dans une archive chiffrée (voir docs/exploitation.md).
+  backup:
+    image: cotiasso-backup:${COTIASSO_VERSION}
+    build:
+      context: .
+      target: backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:?Renseigner BACKUP_PASSPHRASE dans .env.prod (phrase de passe de chiffrement, à conserver séparément)}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_KEEP_MIN: ${BACKUP_KEEP_MIN:-7}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY}
+      COTIASSO_VERSION: ${COTIASSO_VERSION}
+    volumes:
+      - documents-data:/data/documents:ro
+      - backups-data:/backups
+
+  # Outils ponctuels (restauration, vérification) : docker compose --profile tools run --rm tools <commande>
+  tools:
+    profiles: ["tools"]
+    image: cotiasso-backup:${COTIASSO_VERSION}
+    entrypoint: ["/usr/local/bin/backup.sh"]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:-}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:-}
+      CONFIRM_RESTORE: ${CONFIRM_RESTORE:-}
+    volumes:
+      - documents-data:/data/documents
+      - backups-data:/backups
+
 volumes:
   db-data:
   documents-data:
+  # Par défaut un volume local : pour une vraie protection, monter un dossier d'un autre disque ou copier ces archives hors du serveur.
+  backups-data:

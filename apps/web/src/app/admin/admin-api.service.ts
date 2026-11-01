@@ -146,6 +146,26 @@ export interface DocumentUploadResult {
   duplicates: { documentId: string; title: string }[];
 }
 
+export interface BackupEntryInfo {
+  name: string;
+  createdAt: string;
+  appVersion: string;
+  bytes: number | null;
+  migrations: number;
+  counts: { users: number; documents: number; documentVersions: number; auditEvents: number };
+  archivePresent: boolean;
+}
+
+export interface OperationsInfo {
+  version: string;
+  backups: {
+    configured: boolean;
+    report: { health: 'OK' | 'FAILING' | 'STALE' | 'NONE'; message: string; ageHours: number | null } | null;
+    status: { lastAttemptAt: string | null; lastSuccessAt: string | null; lastError: string | null; intervalHours: number; retentionDays: number } | null;
+    entries: BackupEntryInfo[];
+  };
+}
+
 /** Appels de l'API d'administration (utilisateurs, rôles, attributions). Le serveur applique les droits. */
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
@@ -282,6 +302,10 @@ export class AdminApiService {
   /** Lien de téléchargement : le navigateur envoie son cookie de session, le serveur contrôle l'accès. */
   documentDownloadUrl(id: string, version?: number): string {
     return `/api/documents/${id}/download${version ? `?version=${version}` : ''}`;
+  }
+
+  operations(): Promise<OperationsInfo> {
+    return firstValueFrom(this.http.get<OperationsInfo>('/api/operations'));
   }
 
   changeOwnPassword(currentPassword: string, newPassword: string): Promise<void> {

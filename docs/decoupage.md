@@ -46,7 +46,7 @@ Points à trancher ou à ne pas perdre de vue avant de découper plus finement :
 1.4b Registre des modules activables : activation datée et auditée, modules indisponibles explicites ([ADR 0002](decisions/0002-modules-activables-et-regles-comptables.md)) — **fait** (API et onglet Modules ; aucun module livré)
 1.5 Audit : journal d'audit protégé — **fait** : ajout seul, chaîne d'empreintes vérifiable, consultation filtrée et paginée, écran web avec vérification d'intégrité. Reste à envisager : export du journal, et ancrage périodique de l'empreinte hors base (hors périmètre pour l'instant)
 1.6 Documents : dépôt, versions immuables, liens génériques, contrôles fichiers — **fait** (API, stockage privé, page web ; reste la portée projet, les empreintes d'altération des fichiers et la détection de contenu à risque selon le déploiement)
-1.7 Opérations : sauvegarde cohérente base+fichiers, restauration, santé, version
+1.7 Opérations : sauvegarde cohérente base+fichiers, restauration, santé, version — **fait** (service `backup` chiffré, vérification par restauration en base temporaire, restauration confirmée explicitement, onglet web Exploitation, [procédures](exploitation.md)). **Reste** : copie hors site automatique, notes de version et sauvegarde automatique avant mise à jour
 **Sortie** : instance installable, sauvegardée et restaurée sur instance vierge (CA-14 partiel), CA-10 testable sur le moteur de droits.
 
 ### Lot 2a — Noyau comptable

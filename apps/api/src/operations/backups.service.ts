@@ -1,0 +1,110 @@
+import { access, readFile, readdir } from "node:fs/promises";
+import { join } from "node:path";
+import { Inject, Injectable } from "@nestjs/common";
+import { z } from "zod";
+import type { AppEnv } from "../config/env.js";
+import { ENV } from "../config/tokens.js";
+import { evaluateBackupHealth, type BackupHealthReport, type BackupStatusFile } from "./backup-health.js";
+
+const statusSchema = z.object({
+  lastAttemptAt: z.string().nullable(),
+  lastSuccessAt: z.string().nullable(),
+  lastError: z.string().nullable(),
+  intervalHours: z.number().positive(),
+  retentionDays: z.number().positive(),
+});
+
+const manifestSchema = z.object({
+  name: z.string().regex(/^cotiasso-\d{8}T\d{6}Z$/),
+  createdAt: z.string(),
+  appVersion: z.string(),
+  migrations: z.number(),
+  archiveBytes: z.number().optional(),
+  archiveSha256: z.string().optional(),
+  counts: z.object({
+    users: z.number(),
+    documents: z.number(),
+    documentVersions: z.number(),
+    auditEvents: z.number(),
+  }),
+});
+
+export interface BackupEntry {
+  name: string;
+  createdAt: string;
+  appVersion: string;
+  bytes: number | null;
+  migrations: number;
+  counts: { users: number; documents: number; documentVersions: number; auditEvents: number };
+  /** Faux si l'archive a disparu alors que son manifeste existe. */
+  archivePresent: boolean;
+}
+
+export interface OperationsReport {
+  version: string;
+  backups: {
+    configured: boolean;
+    report: BackupHealthReport | null;
+    status: BackupStatusFile | null;
+    entries: BackupEntry[];
+  };
+}
+
+/** Lit l'état des sauvegardes écrit par le service backup, en lecture seule : l'API ne sauvegarde ni ne restaure rien. */
+@Injectable()
+export class BackupsService {
+  constructor(@Inject(ENV) private readonly env: AppEnv) {}
+
+  async report(now: Date = new Date()): Promise<OperationsReport> {
+    const dir = this.env.backupsDir;
+    if (!dir) {
+      return { version: this.env.appVersion, backups: { configured: false, report: null, status: null, entries: [] } };
+    }
+
+    const status = await this.readJson(join(dir, "status.json"), statusSchema);
+    const entries = await this.entries(dir);
+    return {
+      version: this.env.appVersion,
+      backups: {
+        configured: true,
+        status,
+        entries,
+        report: evaluateBackupHealth(status, entries.filter((e) => e.archivePresent).length, now),
+      },
+    };
+  }
+
+  private async entries(dir: string): Promise<BackupEntry[]> {
+    let names: string[];
+    try {
+      names = (await readdir(dir)).filter((name) => /^cotiasso-\d{8}T\d{6}Z\.manifest\.json$/.test(name));
+    } catch {
+      return [];
+    }
+
+    const entries: BackupEntry[] = [];
+    for (const file of names) {
+      const manifest = await this.readJson(join(dir, file), manifestSchema);
+      if (!manifest) continue;
+      entries.push({
+        name: manifest.name,
+        createdAt: manifest.createdAt,
+        appVersion: manifest.appVersion,
+        bytes: manifest.archiveBytes ?? null,
+        migrations: manifest.migrations,
+        counts: manifest.counts,
+        archivePresent: await access(join(dir, `${manifest.name}.tar.enc`)).then(() => true, () => false),
+      });
+    }
+    return entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  private async readJson<T>(path: string, schema: z.ZodType<T>): Promise<T | null> {
+    try {
+      const parsed = schema.safeParse(JSON.parse(await readFile(path, "utf8")));
+      return parsed.success ? parsed.data : null;
+    } catch {
+      return null;
+    }
+  }
+}

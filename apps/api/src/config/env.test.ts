@@ -16,6 +16,8 @@ describe("readEnv", () => {
       mfaKey: Buffer.alloc(32, 5),
       documentsDir: "./storage/documents",
       documentsMaxBytes: 25 * 1024 * 1024,
+      backupsDir: null,
+      appVersion: "développement",
     });
   });
 

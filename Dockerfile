@@ -58,6 +58,15 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
   CMD node -e "fetch('http://127.0.0.1:'+process.env.API_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 ENTRYPOINT ["api-entrypoint"]
 
+# ---------- Sauvegarde : pg_dump à la version du serveur, chiffrement, restauration et vérification ----------
+# Image séparée de l'API pour ne pas l'alourdir : l'API ne contient aucun outil de sauvegarde.
+FROM postgres:17-alpine AS backup
+RUN apk add --no-cache bash openssl tar coreutils
+COPY docker/backup.sh /usr/local/bin/backup.sh
+RUN chmod +x /usr/local/bin/backup.sh
+ENTRYPOINT ["/usr/local/bin/backup.sh"]
+CMD ["run"]
+
 # ---------- Web : fichiers statiques servis par nginx, /api proxifié vers l'API ----------
 FROM ${NGINX_IMAGE} AS web
 ENV TRUSTED_PROXY_CIDR=127.0.0.1/32
