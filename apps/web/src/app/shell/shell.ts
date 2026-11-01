@@ -3,6 +3,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
+import { BrandingService } from '../branding/branding.service';
 import { NAVIGATION, SETTINGS_ITEM } from '../navigation';
 
 @Component({
@@ -15,7 +16,8 @@ export class Shell {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
-  protected readonly associationName = 'cotiasso';
+  private readonly brandingService = inject(BrandingService);
+  protected readonly associationName = computed(() => this.brandingService.branding().appName);
   protected readonly navigation = computed(() => {
     this.auth.permissions();
     return NAVIGATION.filter((item) => this.auth.can(item.permission));

@@ -48,6 +48,18 @@ export interface RoleDraft {
   requiresMfa: boolean;
 }
 
+export type SettingsSection = 'identity' | 'branding';
+
+export interface ModuleInfo {
+  key: string;
+  label: string;
+  description: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'UNAVAILABLE';
+  reason: string | null;
+  requires: string[];
+  activatedAt: string | null;
+}
+
 /** Appels de l'API d'administration (utilisateurs, rôles, attributions). Le serveur applique les droits. */
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
@@ -103,6 +115,26 @@ export class AdminApiService {
 
   listPermissions(): Promise<PermissionInfo[]> {
     return firstValueFrom(this.http.get<PermissionInfo[]>('/api/authz/permissions'));
+  }
+
+  getSettings<T>(section: SettingsSection): Promise<T> {
+    return firstValueFrom(this.http.get<{ value: T }>(`/api/settings/${section}`)).then((response) => response.value);
+  }
+
+  updateSettings<T>(section: SettingsSection, value: T): Promise<{ changed: boolean; value: T }> {
+    return firstValueFrom(this.http.put<{ changed: boolean; value: T }>(`/api/settings/${section}`, value));
+  }
+
+  listModules(): Promise<ModuleInfo[]> {
+    return firstValueFrom(this.http.get<ModuleInfo[]>('/api/modules'));
+  }
+
+  activateModule(key: string): Promise<void> {
+    return firstValueFrom(this.http.post<void>(`/api/modules/${key}/activate`, {}));
+  }
+
+  deactivateModule(key: string): Promise<void> {
+    return firstValueFrom(this.http.post<void>(`/api/modules/${key}/deactivate`, {}));
   }
 
   changeOwnPassword(currentPassword: string, newPassword: string): Promise<void> {

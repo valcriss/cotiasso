@@ -20,8 +20,14 @@ describe('SettingsPage', () => {
     expect(tabs).toEqual(['Utilisateurs', 'Rôles']);
   });
 
+  it('ajoute Association et Modules à qui peut consulter les paramètres', async () => {
+    const root = await render(['settings.association:view', 'users:view']);
+    const tabs = Array.from(root.querySelectorAll('nav.tabs a')).map((a) => a.textContent?.trim());
+    expect(tabs).toEqual(['Association', 'Modules', 'Utilisateurs', 'Rôles']);
+  });
+
   it("indique qu'aucune rubrique n'est disponible sans permission adéquate", async () => {
-    const root = await render(['settings.association:view']);
+    const root = await render([]);
     expect(root.querySelector('nav.tabs')).toBeNull();
     expect(root.textContent).toContain("Aucune rubrique de paramètres n'est disponible");
   });

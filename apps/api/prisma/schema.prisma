@@ -163,3 +163,26 @@ model MfaRecoveryCode {
 
   @@index([userId])
 }
+
+// Paramètres de l'association, versionnés et datés : une évolution ne modifie jamais l'historique.
+// Le contenu est un JSON validé par un schéma côté serveur avant écriture (voir src/settings/schemas.ts).
+model SettingsVersion {
+  id            String   @id @default(uuid()) @db.Uuid
+  section       String
+  effectiveFrom DateTime @default(now()) @db.Timestamptz(3)
+  payload       Json
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  createdBy     String?  @db.Uuid
+
+  @@index([section, effectiveFrom])
+}
+
+// État d'activation des modules fonctionnels (TVA, immobilisations, constatés d'avance, etc.).
+model ModuleActivation {
+  id            String    @id @default(uuid()) @db.Uuid
+  key           String    @unique
+  activatedAt   DateTime  @db.Timestamptz(3)
+  deactivatedAt DateTime? @db.Timestamptz(3)
+  activatedBy   String?   @db.Uuid
+  deactivatedBy String?   @db.Uuid
+}

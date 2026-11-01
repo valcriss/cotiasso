@@ -64,7 +64,21 @@ export const routes: Routes = [
         data: { permission: SETTINGS_ITEM.permission },
         loadComponent: () => import('./admin/settings.page').then((m) => m.SettingsPage),
         children: [
-          { path: '', pathMatch: 'full', redirectTo: 'utilisateurs' },
+          { path: '', pathMatch: 'full', redirectTo: 'association' },
+          {
+            path: 'association',
+            title: 'Association',
+            canActivate: [permissionGuard],
+            data: { permission: 'settings.association:view' },
+            loadComponent: () => import('./admin/association.page').then((m) => m.AssociationPage),
+          },
+          {
+            path: 'modules',
+            title: 'Modules',
+            canActivate: [permissionGuard],
+            data: { permission: 'settings.association:view' },
+            loadComponent: () => import('./admin/modules.page').then((m) => m.ModulesPage),
+          },
           {
             path: 'utilisateurs',
             title: 'Utilisateurs',

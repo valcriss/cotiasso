@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { vi } from 'vitest';
 import { AuthService, type AuthUser } from '../auth/auth.service';
+import { BrandingService } from '../branding/branding.service';
 import { NAVIGATION } from '../navigation';
 import { Shell } from './shell';
 
@@ -25,6 +26,7 @@ describe('Shell', () => {
       imports: [Shell],
       providers: [
         provideRouter([]),
+        { provide: BrandingService, useValue: { branding: signal({ appName: 'Mon Asso', sidebarBackground: '#eaf2fd', sidebarText: '#0b2a55' }) } },
         {
           provide: AuthService,
           useValue: {
@@ -44,6 +46,12 @@ describe('Shell', () => {
     await fixture.whenStable();
     const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim());
     expect(labels).toEqual(["Vue d'ensemble", 'Projets', 'Documents'].map((l) => expect.stringContaining(l)));
+  });
+
+  it("affiche le nom de l'association défini par la marque blanche", async () => {
+    const fixture = TestBed.createComponent(Shell);
+    await fixture.whenStable();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.brand .name')?.textContent).toContain('Mon Asso');
   });
 
   it('affiche la navigation du cadrage et les paramètres', async () => {

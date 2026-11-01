@@ -12,7 +12,11 @@ export function describeHttpError(error: unknown, fallback: string): FormError {
   if (error.status === 0) return { message: 'Le serveur est injoignable. Réessayez dans un instant.', details: [] };
 
   const body = error.error as { message?: unknown; issues?: unknown } | null;
-  const issues = Array.isArray(body?.issues) ? body.issues.filter((i): i is string => typeof i === 'string') : [];
+  const issues = Array.isArray(body?.issues)
+    ? (body.issues as unknown[])
+        .map((issue) => (typeof issue === 'string' ? issue : (issue as { message?: unknown } | null)?.message))
+        .filter((issue): issue is string => typeof issue === 'string')
+    : [];
   const message = typeof body?.message === 'string' ? body.message : fallback;
 
   switch (error.status) {

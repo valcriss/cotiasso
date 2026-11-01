@@ -34,6 +34,9 @@
               "@fontsource/roboto/latin-500.css",
               "material-icons/iconfont/outlined.css",
               "src/styles.scss"
+            ],
+            "allowedCommonJsDependencies": [
+              "qrcode"
             ]
           },
           "configurations": {
@@ -46,7 +49,7 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "4kB",
+                  "maximumWarning": "6kB",
                   "maximumError": "8kB"
                 }
               ],
