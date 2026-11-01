@@ -27,3 +27,17 @@ export class UserNotFoundError extends Error {
     this.name = "UserNotFoundError";
   }
 }
+
+export class InvalidSetupTokenError extends Error {
+  constructor() {
+    super("Jeton d'installation invalide.");
+    this.name = "InvalidSetupTokenError";
+  }
+}
+
+export class AlreadySetUpError extends Error {
+  constructor() {
+    super("L'installation est déjà initialisée.");
+    this.name = "AlreadySetUpError";
+  }
+}

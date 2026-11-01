@@ -5,9 +5,10 @@ import { AuthModule } from "./auth/auth.module.js";
 import { DATABASE_PING, HealthController } from "./health/health.controller.js";
 import { PrismaModule } from "./prisma/prisma.module.js";
 import { PrismaService } from "./prisma/prisma.service.js";
+import { SetupModule } from "./setup/setup.module.js";
 
 @Module({
-  imports: [PrismaModule, AuthModule],
+  imports: [PrismaModule, AuthModule, SetupModule],
   controllers: [HealthController],
   providers: [
     // Refus par défaut : toute route exige une session, sauf si elle est marquée @Public().

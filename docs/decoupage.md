@@ -41,7 +41,7 @@ Points à trancher ou à ne pas perdre de vue avant de découper plus finement :
 
 1.1 Squelette dépôt, CI, Docker/Compose, migrations, config d'environnement
 1.2 Identity & Access : utilisateurs, auth, sessions, récupération, MFA (option), désactivation — conception dans l'[ADR 0007](decisions/0007-authentification-conception.md), 6 tâches
-1.3 Permissions : rôles, portées globale/projet, moteur de résolution (§6.2), écran « Accès effectifs »
+1.3 Permissions : rôles, portées globale/projet, moteur de résolution (§6.2), écran « Accès effectifs » (inclut : rôle d'administration du compte créé par l'assistant initial, événement d'audit `setup.completed`)
 1.4 Association : assistant initial, identité, marque blanche, paramètres versionnés
 1.4b Registre des modules activables : activation datée et auditée, modules indisponibles explicites ([ADR 0002](decisions/0002-modules-activables-et-regles-comptables.md))
 1.5 Audit : journal d'audit protégé

@@ -11,6 +11,6 @@ import { UsersService } from "./users.service.js";
   imports: [PrismaModule, AuditModule],
   controllers: [AuthController],
   providers: [UsersService, SessionService, LoginThrottleService, AuthGuard],
-  exports: [UsersService, SessionService, AuthGuard],
+  exports: [UsersService, SessionService, LoginThrottleService, AuthGuard],
 })
 export class AuthModule {}

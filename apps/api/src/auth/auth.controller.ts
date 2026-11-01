@@ -17,14 +17,14 @@ import { AuditService } from "../audit/audit.service.js";
 import type { AppEnv } from "../config/env.js";
 import { ENV } from "../config/tokens.js";
 import type { AuthenticatedRequest } from "./auth.guard.js";
-import { clearSessionCookie, serializeSessionCookie, sessionCookieName } from "./cookies.js";
 import { normalizeEmail } from "./email.js";
 import { LoginThrottleService } from "./login-throttle.service.js";
 import { Public } from "./public.decorator.js";
+import { removeSessionCookie, setSessionCookie } from "./session-cookie.js";
 import { SessionService } from "./session.service.js";
 import { UsersService, type PublicUser } from "./users.service.js";
 
-interface SessionResponse {
+export interface SessionResponse {
   user: PublicUser;
   csrfToken: string;
   expiresAt: string;
@@ -97,13 +97,7 @@ export class AuthController {
       details: { sessionId: session.sessionId, ipAddress: ipAddress ?? null },
     });
 
-    reply.header(
-      "Set-Cookie",
-      serializeSessionCookie(sessionCookieName(this.env.cookieSecure), session.token, {
-        secure: this.env.cookieSecure,
-        maxAgeSeconds: this.env.session.maxHours * 3600,
-      }),
-    );
+    setSessionCookie(reply, this.env, session.token);
     return { user, csrfToken: session.csrfToken, expiresAt: session.expiresAt.toISOString() };
   }
 
@@ -127,6 +121,6 @@ export class AuthController {
       actorId: auth.user.id,
       details: { sessionId: auth.sessionId },
     });
-    reply.header("Set-Cookie", clearSessionCookie(sessionCookieName(this.env.cookieSecure), this.env.cookieSecure));
+    removeSessionCookie(reply, this.env);
   }
 }

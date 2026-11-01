@@ -68,3 +68,12 @@ model LoginAttempt {
   @@index([email, occurredAt])
   @@index([ipAddress, occurredAt])
 }
+
+// Jeton à usage unique de l'assistant initial : généré au démarrage tant qu'aucun compte n'existe.
+model SetupToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  // Empreinte SHA-256 ; le jeton lui-même n'apparaît que dans les logs au moment de sa création.
+  tokenHash String    @unique
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+}

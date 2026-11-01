@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { UserStatus } from "../generated/prisma/client.js";
+import type { Prisma, UserStatus } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { normalizeEmail } from "./email.js";
 import { DuplicateEmailError, InvalidEmailError, UserNotFoundError, WeakPasswordError } from "./errors.js";
@@ -13,6 +13,9 @@ export interface PublicUser {
   status: UserStatus;
   createdAt: Date;
 }
+
+/** Client Prisma ou transaction : permet de créer un utilisateur dans une transaction plus large. */
+export type UserWriter = Pick<Prisma.TransactionClient, "user">;
 
 export interface CreateUserInput {
   email: string;
@@ -33,7 +36,7 @@ export class UsersService {
 
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async createUser(input: CreateUserInput): Promise<PublicUser> {
+  async createUser(input: CreateUserInput, db: UserWriter = this.prisma): Promise<PublicUser> {
     const email = normalizeEmail(input.email);
     if (!email) throw new InvalidEmailError();
 
@@ -42,7 +45,7 @@ export class UsersService {
 
     const passwordHash = await hashPassword(input.password);
     try {
-      return await this.prisma.user.create({
+      return await db.user.create({
         data: { email, displayName: input.displayName.trim(), passwordHash },
         select: PUBLIC_FIELDS,
       });
