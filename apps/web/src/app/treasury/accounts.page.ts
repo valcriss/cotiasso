@@ -1,31 +1,32 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
-import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
 import {
   AdminApiService,
   type AccountInfo,
   type FinancialAccountInfo,
   type ProjectInfo,
 } from '../admin/admin-api.service';
-import { centsToApi, formatApiAmount, parseAmountToCents } from '../accounting/amount';
+import { formatApiAmount } from '../accounting/amount';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
+import { Dialogs } from '../ui/dialogs.service';
+import { Notifier } from '../ui/notifier.service';
+import { PageHeader } from '../ui/page-header';
+import { FinancialAccountDialog, type AccountDialogData } from './account-dialog';
+import { StatementDialog, type StatementDialogData } from './statement-dialog';
 import { TransactionsPanel } from './transactions-panel';
 
 /** Comptes : banques et caisses avec leurs soldes (ouverture, calculé, comptable, relevé) et leurs transactions. */
 @Component({
   selector: 'app-accounts-page',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, TransactionsPanel],
+  imports: [MatButtonModule, MatIconModule, PageHeader, TransactionsPanel],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .accounts {
       display: grid;
       gap: 16px;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       list-style: none;
       margin: 0 0 20px;
       padding: 0;
@@ -65,76 +66,35 @@ import { TransactionsPanel } from './transactions-panel';
     }
   `,
   template: `
-    <header class="head">
-      <h1 class="title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">account_balance</mat-icon><span>Comptes</span></h1>
+    <app-page-header
+      title="Comptes"
+      icon="account_balance"
+      description="Vos comptes bancaires et votre caisse : combien il y a dessus et quels mouvements restent à enregistrer."
+    >
       @if (canAdmin()) {
-        <button mat-flat-button type="button" (click)="creating.set(!creating())">
+        <button mat-flat-button type="button" (click)="create()">
           <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Nouveau compte
         </button>
       }
-    </header>
+    </app-page-header>
 
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
-    }
-    @if (notice(); as message) {
-      <p class="success" role="status">{{ message }}</p>
-    }
-
-    @if (creating()) {
-      <form class="panel" [formGroup]="form" (ngSubmit)="create()" novalidate>
-        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">add_card</mat-icon><span>Nouveau compte financier</span></h3>
-        <div class="row">
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Nom</mat-label>
-            <input matInput formControlName="name" required />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Type</mat-label>
-            <mat-select formControlName="type">
-              <mat-option value="BANK">Compte bancaire</mat-option>
-              <mat-option value="CASH">Caisse</mat-option>
-            </mat-select>
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Compte comptable de trésorerie</mat-label>
-            <mat-select formControlName="accountId" required>
-              @for (candidate of freeAccounts(); track candidate.id) {
-                <mat-option [value]="candidate.id">{{ candidate.number }} — {{ candidate.label }}</mat-option>
-              }
-            </mat-select>
-            <mat-hint>Classe 5, non utilisé par un autre compte</mat-hint>
-          </mat-form-field>
-        </div>
-        <div class="row">
-          <mat-form-field appearance="outline">
-            <mat-label>Ouvert le</mat-label>
-            <input matInput type="date" formControlName="openedOn" required />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Solde à l'ouverture</mat-label>
-            <input matInput inputmode="decimal" formControlName="openingBalance" />
-            <mat-hint>Information : ne crée aucune écriture</mat-hint>
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Référence (ex. fin d'IBAN)</mat-label>
-            <input matInput formControlName="reference" />
-          </mat-form-field>
-        </div>
-        <p class="muted">Un journal de banque ou de caisse est créé et rattaché automatiquement ; le compte comptable et le journal sont ensuite définitifs.</p>
-        <div class="actions">
-          <button mat-flat-button type="submit" [disabled]="busy() || form.invalid">
-            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">save</mat-icon> Créer le compte
-          </button>
-          <button mat-button type="button" (click)="creating.set(false)">Annuler</button>
-        </div>
-      </form>
     }
 
     @if (loading()) {
       <p class="muted">Chargement…</p>
     } @else if (accounts().length === 0) {
-      <p class="muted">Aucun compte financier. Créez le premier pour saisir des transactions.</p>
+      <section class="panel">
+        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">savings</mat-icon><span>Commençons par votre compte bancaire</span></h3>
+        <p>
+          Aucun compte n'est encore enregistré. Ajoutez votre compte bancaire (ou votre caisse) pour pouvoir y saisir ou y
+          importer des mouvements.
+        </p>
+        @if (!canAdmin()) {
+          <p class="muted">Demandez à la personne qui administre la comptabilité de le créer.</p>
+        }
+      </section>
     } @else {
       <ul class="accounts">
         @for (account of accounts(); track account.id) {
@@ -167,7 +127,7 @@ import { TransactionsPanel } from './transactions-panel';
                 <mat-icon fontSet="material-icons-outlined" aria-hidden="true">list</mat-icon> Transactions
               </button>
               @if (canStatement() && !account.archivedOn) {
-                <button mat-button type="button" [attr.aria-label]="'Relevé de ' + account.name" (click)="startStatement(account.id)">Solde de relevé</button>
+                <button mat-button type="button" [attr.aria-label]="'Relevé de ' + account.name" (click)="statement(account)">Solde de relevé</button>
               }
               @if (canAdmin() && !account.archivedOn) {
                 <button mat-button type="button" [attr.aria-label]="'Archiver ' + account.name" [disabled]="busy()" (click)="archive(account)">Archiver</button>
@@ -178,33 +138,6 @@ import { TransactionsPanel } from './transactions-panel';
       </ul>
     }
 
-    @if (statementFor(); as target) {
-      <form class="panel" [formGroup]="statementForm" (ngSubmit)="recordStatement(target)" novalidate>
-        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">receipt_long</mat-icon><span>Solde d'un relevé</span></h3>
-        <p class="muted">
-          Une preuve datée, en ajout seul : elle ne rapproche pas le compte, elle mesure l'écart avec le solde calculé.
-        </p>
-        <div class="row">
-          <mat-form-field appearance="outline">
-            <mat-label>Début de période</mat-label>
-            <input matInput type="date" formControlName="periodStart" />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Fin de période</mat-label>
-            <input matInput type="date" formControlName="periodEnd" />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Solde de clôture</mat-label>
-            <input matInput inputmode="decimal" formControlName="closingBalance" />
-          </mat-form-field>
-        </div>
-        <div class="actions">
-          <button mat-flat-button type="submit" [disabled]="busy()">Enregistrer le solde</button>
-          <button mat-button type="button" (click)="statementFor.set(null)">Annuler</button>
-        </div>
-      </form>
-    }
-
     @if (selected(); as account) {
       <app-transactions-panel [account]="account" [accounts]="chart()" [projects]="activeProjects()" (changed)="load()" />
     }
@@ -213,7 +146,8 @@ import { TransactionsPanel } from './transactions-panel';
 export class AccountsPage {
   private readonly api = inject(AdminApiService);
   private readonly auth = inject(AuthService);
-  private readonly fb = inject(FormBuilder).nonNullable;
+  private readonly dialogs = inject(Dialogs);
+  private readonly notifier = inject(Notifier);
 
   protected readonly accounts = signal<FinancialAccountInfo[]>([]);
   protected readonly chart = signal<AccountInfo[]>([]);
@@ -221,12 +155,9 @@ export class AccountsPage {
   protected readonly activeProjects = computed(() => this.projects().filter((p) => p.status !== 'ARCHIVED'));
   protected readonly selectedId = signal<string | null>(null);
   protected readonly selected = computed(() => this.accounts().find((a) => a.id === this.selectedId()) ?? null);
-  protected readonly creating = signal(false);
-  protected readonly statementFor = signal<string | null>(null);
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly notice = signal<string | null>(null);
   protected readonly amount = formatApiAmount;
 
   protected readonly canAdmin = computed(() => {
@@ -238,20 +169,10 @@ export class AccountsPage {
     return this.auth.can('imports:post');
   });
   /** Comptes de classe 5 actifs, pas encore rattachés à un compte financier. */
-  protected readonly freeAccounts = computed(() => {
+  private readonly freeAccounts = computed(() => {
     const used = new Set(this.accounts().map((a) => a.accountId));
     return this.chart().filter((a) => a.active && a.number.startsWith('5') && !used.has(a.id));
   });
-
-  protected readonly form = this.fb.group({
-    name: ['', [Validators.required]],
-    type: ['BANK' as 'BANK' | 'CASH'],
-    accountId: ['', [Validators.required]],
-    openedOn: ['', [Validators.required]],
-    openingBalance: [''],
-    reference: [''],
-  });
-  protected readonly statementForm = this.fb.group({ periodStart: [''], periodEnd: [''], closingBalance: [''] });
 
   constructor() {
     void this.init();
@@ -261,57 +182,43 @@ export class AccountsPage {
     this.selectedId.set(id);
   }
 
-  protected startStatement(id: string): void {
-    this.statementForm.reset({ periodStart: '', periodEnd: '', closingBalance: '' });
-    this.statementFor.set(id);
-  }
-
   protected async create(): Promise<void> {
-    const raw = this.form.getRawValue();
-    const cents = parseAmountToCents(raw.openingBalance.replace(/^-/, ''));
-    if (cents === null) {
-      this.error.set("Solde d'ouverture invalide (ex. 1 250,00).");
-      return;
-    }
-    await this.run(async () => {
-      const created = await this.api.createFinancialAccount({
-        name: raw.name.trim(),
-        type: raw.type,
-        reference: raw.reference.trim() === '' ? null : raw.reference.trim(),
-        accountId: raw.accountId,
-        openedOn: raw.openedOn,
-        openingBalance: centsToApi(raw.openingBalance.trim().startsWith('-') ? -cents : cents),
-      });
-      this.notice.set(`Compte « ${created.name} » créé avec le journal ${created.journalCode}.`);
-      this.creating.set(false);
-      this.form.reset({ name: '', type: 'BANK', accountId: '', openedOn: '', openingBalance: '', reference: '' });
+    const created = await this.dialogs.open<FinancialAccountInfo, AccountDialogData>(FinancialAccountDialog, {
+      size: 'md',
+      data: { freeAccounts: this.freeAccounts() },
     });
+    if (!created) return;
+    this.notifier.success(`Compte « ${created.name} » créé avec le journal ${created.journalCode}.`);
+    await this.load();
   }
 
-  protected archive(account: FinancialAccountInfo): Promise<void> {
-    return this.run(async () => {
+  protected async statement(account: FinancialAccountInfo): Promise<void> {
+    const saved = await this.dialogs.open<boolean, StatementDialogData>(StatementDialog, { size: 'sm', data: { account } });
+    if (!saved) return;
+    this.notifier.success('Solde de relevé enregistré.');
+    await this.load();
+  }
+
+  protected async archive(account: FinancialAccountInfo): Promise<void> {
+    const confirmed = await this.dialogs.confirm({
+      title: `Archiver « ${account.name} » ?`,
+      message:
+        "Le compte n'acceptera plus de nouvelles transactions, mais son historique reste consultable.\nUn compte archivé ne peut pas être réactivé.",
+      confirmLabel: 'Archiver',
+      danger: true,
+    });
+    if (!confirmed) return;
+    this.busy.set(true);
+    this.error.set(null);
+    try {
       await this.api.archiveFinancialAccount(account.id);
-      this.notice.set(`Compte « ${account.name} » archivé.`);
-    });
-  }
-
-  protected async recordStatement(id: string): Promise<void> {
-    const raw = this.statementForm.getRawValue();
-    const negative = raw.closingBalance.trim().startsWith('-');
-    const cents = parseAmountToCents(raw.closingBalance.replace(/^-/, ''));
-    if (!raw.periodStart || !raw.periodEnd || cents === null || raw.closingBalance.trim() === '') {
-      this.error.set('Renseignez la période et le solde de clôture du relevé (ex. 1 250,00).');
-      return;
+      this.notifier.success(`Compte « ${account.name} » archivé.`);
+      await this.load();
+    } catch (failure) {
+      this.error.set(describeHttpError(failure, "Le compte n'a pas pu être archivé. Réessayez dans un instant.").message);
+    } finally {
+      this.busy.set(false);
     }
-    await this.run(async () => {
-      await this.api.recordStatement(id, {
-        periodStart: raw.periodStart,
-        periodEnd: raw.periodEnd,
-        closingBalance: centsToApi(negative ? -cents : cents),
-      });
-      this.notice.set('Solde de relevé enregistré.');
-      this.statementFor.set(null);
-    });
   }
 
   protected async load(): Promise<void> {
@@ -329,19 +236,5 @@ export class AccountsPage {
     // Plan de comptes et projets : facultatifs pour consulter, ignorés sans droit.
     this.chart.set(await this.api.listAccounts().catch(() => []));
     this.projects.set(await this.api.listProjects().catch(() => []));
-  }
-
-  private async run(action: () => Promise<void>): Promise<void> {
-    this.error.set(null);
-    this.notice.set(null);
-    this.busy.set(true);
-    try {
-      await action();
-      await this.load();
-    } catch (failure) {
-      this.error.set(describeHttpError(failure, 'Opération impossible. Réessayez.').message);
-    } finally {
-      this.busy.set(false);
-    }
   }
 }

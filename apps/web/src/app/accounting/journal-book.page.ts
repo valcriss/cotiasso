@@ -10,12 +10,13 @@ import {
 } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { formatApiAmount } from './amount';
+import { ActionBar } from '../ui/action-bar';
 import { ReportFilters, type PeriodFilter } from './report-filters';
 
 /** Livre-journal : les écritures comptabilisées dans l'ordre de leur numérotation, avec leurs lignes. */
 @Component({
   selector: 'app-journal-book-page',
-  imports: [FormsModule, MatFormFieldModule, MatSelectModule, ReportFilters],
+  imports: [ActionBar, FormsModule, MatFormFieldModule, MatSelectModule, ReportFilters],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -39,7 +40,7 @@ import { ReportFilters, type PeriodFilter } from './report-filters';
     }
   `,
   template: `
-    <h2>Livre-journal</h2>
+    <app-action-bar label="Livre-journal" description="Toutes les écritures comptabilisées dans l’ordre chronologique, comme un cahier de bord de la comptabilité." />
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
     }

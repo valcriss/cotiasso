@@ -70,6 +70,26 @@ export class DialogTester {
     await this.settle();
   }
 
+  /** Choisit une option dans une liste déroulante de la boîte : ouvre la liste puis clique l'option dont le texte contient `option`. */
+  async choose(selectSelector: string, option: string): Promise<void> {
+    this.field(selectSelector).querySelector<HTMLElement>('.mat-mdc-select-trigger')!.click();
+    await this.settle();
+    const found = Array.from(this.overlay.querySelectorAll<HTMLElement>('.mat-mdc-option')).find((o) => o.textContent!.includes(option));
+    if (!found) throw new Error(`Option introuvable : ${option}`);
+    found.click();
+    await this.settle();
+  }
+
+  /** Textes des options proposées par une liste déroulante de la boîte (la liste est ouverte puis refermée). */
+  async options(selectSelector: string): Promise<string[]> {
+    this.field(selectSelector).querySelector<HTMLElement>('.mat-mdc-select-trigger')!.click();
+    await this.settle();
+    const texts = Array.from(this.overlay.querySelectorAll<HTMLElement>('.mat-mdc-option')).map((o) => o.textContent!.trim());
+    this.overlay.querySelector<HTMLElement>('.cdk-overlay-transparent-backdrop')?.click();
+    await this.settle();
+    return texts;
+  }
+
   /** Valide le formulaire de la boîte (comme un appui sur le bouton d'envoi). */
   async submit(): Promise<void> {
     this.dialog!.querySelector('form')!.dispatchEvent(new Event('submit'));
@@ -77,7 +97,7 @@ export class DialogTester {
   }
 
   async pressEscape(): Promise<void> {
-    this.dialog?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    this.dialog?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
     await this.settle();
   }
 

@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { mockAuth } from '../testing/auth-mock';
+import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { DocumentsPage } from './documents.page';
 
 const options = {
@@ -43,6 +44,7 @@ const detail = (id: string, overrides: Record<string, unknown> = {}) => ({
 describe('DocumentsPage', () => {
   let controller: HttpTestingController;
   let root: HTMLElement;
+  let ui: DialogTester;
   let fixture: ReturnType<typeof TestBed.createComponent<DocumentsPage>>;
 
   const settle = async () => {
@@ -53,11 +55,12 @@ describe('DocumentsPage', () => {
   const create = async (permissions: string[], items = [summary('d1'), summary('d2', { restricted: true, archivedAt: '2026-11-03T10:00:00.000Z' })]) => {
     await TestBed.configureTestingModule({
       imports: [DocumentsPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions)],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(DocumentsPage);
     root = fixture.nativeElement as HTMLElement;
+    ui = new DialogTester(settle);
     await settle();
     controller.expectOne('/api/documents/options').flush(options);
     await settle();
@@ -67,7 +70,16 @@ describe('DocumentsPage', () => {
   const buttonWith = (text: string) =>
     Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.includes(text));
 
-  afterEach(() => controller.verify());
+  afterEach(() => {
+    ui.closeAll();
+    controller.verify();
+  });
+  const pick = async (file: File) => {
+    const input = ui.field<HTMLInputElement>('#upload-file');
+    Object.defineProperty(input, 'files', { value: [file] });
+    input.dispatchEvent(new Event('change'));
+    await settle();
+  };
 
   it('liste les documents avec leur catégorie, leur dernier fichier, et signale restreints et archivés', async () => {
     await create(['documents:view']);
@@ -114,15 +126,10 @@ describe('DocumentsPage', () => {
     buttonWith('Déposer un document')!.click();
     await settle();
 
-    const file = new File(['%PDF-1.7 contenu'], 'facture_edf.pdf', { type: 'application/pdf' });
-    const input = root.querySelector<HTMLInputElement>('#upload-file')!;
-    Object.defineProperty(input, 'files', { value: [file] });
-    input.dispatchEvent(new Event('change'));
-    await settle();
-    expect(root.querySelector<HTMLInputElement>('input[formcontrolname="title"]')!.value).toBe('facture edf');
+    await pick(new File(['%PDF-1.7 contenu'], 'facture_edf.pdf', { type: 'application/pdf' }));
+    expect(ui.field<HTMLInputElement>('input[formcontrolname="title"]').value).toBe('facture edf');
 
-    root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
-    await settle();
+    await ui.submit();
     const request = controller.expectOne('/api/documents');
     expect(request.request.method).toBe('POST');
     const body = request.request.body as FormData;
@@ -135,41 +142,37 @@ describe('DocumentsPage', () => {
     await settle();
     controller.expectOne((req) => req.url === '/api/documents').flush({ items: [summary('d9')], total: 1, pageSize: 50 });
     await settle();
-    expect(root.querySelector('[role="status"]')!.textContent).toContain('identique à un document déjà déposé');
+    expect(ui.snackbar).toContain('identique à un document déjà déposé');
+    expect(ui.isOpen).toBe(false);
   });
 
   it("réclame un fichier avant d'envoyer quoi que ce soit", async () => {
     await create(['documents:view', 'documents:create']);
     buttonWith('Déposer un document')!.click();
     await settle();
-    root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
-    await settle();
+    await ui.submit();
     controller.expectNone('/api/documents');
-    expect(root.querySelector('[role="alert"]')!.textContent).toContain('Choisissez un fichier');
+    expect(ui.error).toContain('Choisissez un fichier');
   });
 
   it("ne propose la case « restreint » qu'avec la permission documents.restricted:view", async () => {
     await create(['documents:view', 'documents:create']);
     buttonWith('Déposer un document')!.click();
     await settle();
-    expect(root.textContent).not.toContain('Document restreint (visible');
+    expect(ui.text).not.toContain('Document restreint (visible');
   });
 
   it('affiche le refus du serveur, par exemple un type de fichier non autorisé', async () => {
     await create(['documents:view', 'documents:create']);
     buttonWith('Déposer un document')!.click();
     await settle();
-    const input = root.querySelector<HTMLInputElement>('#upload-file')!;
-    Object.defineProperty(input, 'files', { value: [new File(['<html>'], 'page.html')] });
-    input.dispatchEvent(new Event('change'));
-    await settle();
-    root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
-    await settle();
+    await pick(new File(['<html>'], 'page.html'));
+    await ui.submit();
     controller
       .expectOne('/api/documents')
       .flush({ message: 'Type de fichier non autorisé, ou contenu qui ne correspond pas à l\'extension.' }, { status: 415, statusText: 'Unsupported Media Type' });
     await settle();
-    expect(root.querySelector('[role="alert"]')!.textContent).toContain('Type de fichier non autorisé');
+    expect(ui.error).toContain('Type de fichier non autorisé');
   });
 
   it('archive un document ouvert et recharge la liste', async () => {

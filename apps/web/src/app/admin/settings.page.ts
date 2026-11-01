@@ -1,5 +1,6 @@
 import { Component, computed, inject } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
+import { PageHeader } from '../ui/page-header';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 
@@ -23,10 +24,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
 
 @Component({
   selector: 'app-settings-page',
-  imports: [MatIconModule, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [MatIconModule, PageHeader, RouterLink, RouterLinkActive, RouterOutlet],
   styleUrl: './admin-pages.scss',
   template: `
-    <h1 class="title">Paramètres</h1>
+    <app-page-header
+      title="Paramètres"
+      icon="settings"
+      description="Réglez l'association, sa comptabilité et les accès : chaque rubrique ci-dessous a son rôle, expliqué en tête de page."
+    />
     @if (sections().length === 0) {
       <p class="muted">Aucune rubrique de paramètres n'est disponible pour votre profil.</p>
     } @else {

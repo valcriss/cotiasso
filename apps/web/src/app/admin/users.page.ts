@@ -1,87 +1,33 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
+import { ActionBar } from '../ui/action-bar';
+import { Dialogs } from '../ui/dialogs.service';
+import { Notifier } from '../ui/notifier.service';
 import { AdminApiService, type ManagedUser, type PasswordLink, type RoleSummary } from './admin-api.service';
+import { InviteDialog, type InviteDialogData, type InviteResult } from './invite-dialog';
+import { LinkDialog, type LinkDialogData } from './link-dialog';
 import { fullLink } from './password-link';
-
-interface ShownLink {
-  title: string;
-  url: string;
-  expiresAt: string;
-}
 
 @Component({
   selector: 'app-users-page',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar],
   styleUrl: './admin-pages.scss',
   template: `
-    <header class="head">
-      <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">group</mat-icon><span>Utilisateurs</span></h2>
+    <app-action-bar label="Actions des utilisateurs" description="Les personnes qui peuvent se connecter à l'application et ce qu'elles ont le droit de faire.">
       @if (canAdmin()) {
-        <button mat-flat-button type="button" (click)="toggleInvite()">
-          <mat-icon fontSet="material-icons-outlined">person_add</mat-icon>
-          Inviter un utilisateur
+        <button mat-flat-button type="button" (click)="invite()">
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">person_add</mat-icon> Inviter un utilisateur
         </button>
       }
-    </header>
+    </app-action-bar>
 
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
-    }
-
-    @if (link(); as shown) {
-      <section class="link-card" aria-live="polite">
-        <h3>{{ shown.title }}</h3>
-        <p>
-          Transmettez ce lien à l'utilisateur. Il ne sera plus affiché et expire le
-          {{ shown.expiresAt }}.
-        </p>
-        <div class="link-row">
-          <input readonly [value]="shown.url" aria-label="Lien à transmettre" />
-          <button mat-stroked-button type="button" (click)="copy(shown.url)">Copier</button>
-          <button mat-button type="button" (click)="link.set(null)">Fermer</button>
-        </div>
-      </section>
-    }
-
-    @if (inviteOpen() && canAdmin()) {
-      <form class="panel" [formGroup]="inviteForm" (ngSubmit)="invite()" novalidate>
-        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">person_add</mat-icon><span>Inviter un utilisateur</span></h3>
-        <mat-form-field appearance="outline">
-          <mat-label>Nom affiché</mat-label>
-          <input matInput formControlName="displayName" autocomplete="off" required />
-          @if (inviteForm.controls.displayName.hasError('required')) {
-            <mat-error>Saisissez un nom.</mat-error>
-          }
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Adresse email</mat-label>
-          <input matInput type="email" formControlName="email" autocomplete="off" required />
-          @if (inviteForm.controls.email.hasError('required')) {
-            <mat-error>Saisissez une adresse email.</mat-error>
-          } @else if (inviteForm.controls.email.hasError('email')) {
-            <mat-error>Cette adresse email n'est pas valide.</mat-error>
-          }
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Rôles</mat-label>
-          <mat-select formControlName="roleIds" multiple>
-            @for (role of roles(); track role.id) {
-              <mat-option [value]="role.id">{{ role.name }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-        <div class="actions">
-          <button mat-flat-button type="submit" [disabled]="busy()">Créer et générer le lien</button>
-          <button mat-button type="button" (click)="inviteOpen.set(false)">Annuler</button>
-        </div>
-      </form>
     }
 
     @if (loading()) {
@@ -114,14 +60,14 @@ interface ShownLink {
                         class="chip-remove"
                         [attr.aria-label]="'Retirer le rôle ' + assignment.role.name + ' à ' + user.displayName"
                         [disabled]="busy()"
-                        (click)="removeRole(assignment.id)"
+                        (click)="removeRole(user, assignment.id, assignment.role.name)"
                       >
                         <mat-icon fontSet="material-icons-outlined">close</mat-icon>
                       </button>
                     }
                   </span>
                 } @empty {
-                  <span class="muted">Aucun rôle</span>
+                  <span class="muted">Aucun rôle : cette personne ne peut rien faire pour l'instant.</span>
                 }
               </td>
               <td>
@@ -133,14 +79,7 @@ interface ShownLink {
               </td>
               <td class="row-actions">
                 @if (canAdmin()) {
-                  <button
-                    mat-button
-                    type="button"
-                    [attr.aria-expanded]="expanded() === user.id"
-                    (click)="toggleRow(user.id)"
-                  >
-                    Gérer
-                  </button>
+                  <button mat-button type="button" [attr.aria-expanded]="expanded() === user.id" (click)="toggleRow(user.id)">Gérer</button>
                 }
               </td>
             </tr>
@@ -159,31 +98,11 @@ interface ShownLink {
                       </mat-form-field>
                     }
                     @if (user.status === 'ACTIVE') {
-                      <button mat-stroked-button type="button" [disabled]="busy()" (click)="issueReset(user)">
-                        Lien de réinitialisation
-                      </button>
-                      <button mat-stroked-button type="button" [disabled]="busy()" (click)="revokeSessions(user)">
-                        Déconnecter partout
-                      </button>
-                      @if (confirming() === 'mfa:' + user.id) {
-                        <button mat-flat-button type="button" class="danger" [disabled]="busy()" (click)="resetMfa(user)">
-                          Confirmer la réinitialisation
-                        </button>
-                        <button mat-button type="button" (click)="confirming.set(null)">Annuler</button>
-                      } @else {
-                        <button mat-stroked-button type="button" (click)="confirming.set('mfa:' + user.id)">
-                          Réinitialiser le MFA
-                        </button>
-                      }
-                      @if (confirming() === 'disable:' + user.id) {
-                        <button mat-flat-button type="button" class="danger" [disabled]="busy()" (click)="disable(user)">
-                          Confirmer la désactivation
-                        </button>
-                        <button mat-button type="button" (click)="confirming.set(null)">Annuler</button>
-                      } @else if (user.id !== currentUserId()) {
-                        <button mat-stroked-button type="button" class="danger-text" (click)="confirming.set('disable:' + user.id)">
-                          Désactiver
-                        </button>
+                      <button mat-stroked-button type="button" [disabled]="busy()" (click)="issueReset(user)">Lien de réinitialisation</button>
+                      <button mat-stroked-button type="button" [disabled]="busy()" (click)="revokeSessions(user)">Déconnecter partout</button>
+                      <button mat-stroked-button type="button" [disabled]="busy()" (click)="resetMfa(user)">Réinitialiser la double vérification</button>
+                      @if (user.id !== currentUserId()) {
+                        <button mat-stroked-button type="button" class="danger-text" [disabled]="busy()" (click)="disable(user)">Désactiver</button>
                       }
                     } @else {
                       <button mat-stroked-button type="button" [disabled]="busy()" (click)="enable(user)">Réactiver</button>
@@ -201,6 +120,8 @@ interface ShownLink {
 export class UsersPage {
   private readonly api = inject(AdminApiService);
   private readonly auth = inject(AuthService);
+  private readonly dialogs = inject(Dialogs);
+  private readonly notifier = inject(Notifier);
 
   protected readonly canAdmin = computed(() => {
     this.auth.permissions();
@@ -212,16 +133,7 @@ export class UsersPage {
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly link = signal<ShownLink | null>(null);
   protected readonly expanded = signal<string | null>(null);
-  protected readonly confirming = signal<string | null>(null);
-  protected readonly inviteOpen = signal(false);
-
-  protected readonly inviteForm = inject(FormBuilder).nonNullable.group({
-    displayName: ['', [Validators.required]],
-    email: ['', [Validators.required, Validators.email]],
-    roleIds: [[] as string[]],
-  });
 
   constructor() {
     void this.load();
@@ -232,74 +144,85 @@ export class UsersPage {
     return this.roles().filter((role) => !held.has(role.id));
   }
 
-  protected toggleInvite(): void {
-    this.inviteOpen.update((open) => !open);
-  }
-
   protected toggleRow(id: string): void {
-    this.confirming.set(null);
     this.expanded.update((current) => (current === id ? null : id));
   }
 
   protected async invite(): Promise<void> {
-    if (this.inviteForm.invalid) {
-      this.inviteForm.markAllAsTouched();
-      return;
-    }
-    await this.run(async () => {
-      const { invitation, user } = await this.api.createUser(this.inviteForm.getRawValue());
-      this.showLink(`Lien d'invitation pour ${user.displayName}`, invitation);
-      this.inviteForm.reset({ displayName: '', email: '', roleIds: [] });
-      this.inviteOpen.set(false);
-    });
+    const result = await this.dialogs.open<InviteResult, InviteDialogData>(InviteDialog, { size: 'md', data: { roles: this.roles() } });
+    if (!result) return;
+    await this.load();
+    await this.showLink(`Lien d'invitation pour ${result.user.displayName}`, result.invitation);
   }
 
   protected issueReset(user: ManagedUser): Promise<void> {
     return this.run(async () => {
-      this.showLink(`Lien de réinitialisation pour ${user.displayName}`, await this.api.issueReset(user.id));
+      await this.showLink(`Lien de réinitialisation pour ${user.displayName}`, await this.api.issueReset(user.id));
     });
   }
 
-  protected disable(user: ManagedUser): Promise<void> {
-    this.confirming.set(null);
-    return this.run(() => this.api.disable(user.id));
+  protected async disable(user: ManagedUser): Promise<void> {
+    const confirmed = await this.dialogs.confirm({
+      title: `Désactiver ${user.displayName} ?`,
+      message: `${user.displayName} ne pourra plus se connecter et sera déconnecté(e) partout. Son historique est conservé et vous pourrez le/la réactiver.`,
+      confirmLabel: 'Désactiver',
+      danger: true,
+    });
+    if (!confirmed) return;
+    await this.run(async () => {
+      await this.api.disable(user.id);
+      this.notifier.success(`${user.displayName} est désactivé(e).`);
+    });
   }
 
   protected enable(user: ManagedUser): Promise<void> {
-    return this.run(() => this.api.enable(user.id));
+    return this.run(async () => {
+      await this.api.enable(user.id);
+      this.notifier.success(`${user.displayName} est réactivé(e).`);
+    });
   }
 
-  protected resetMfa(user: ManagedUser): Promise<void> {
-    this.confirming.set(null);
-    return this.run(() => this.api.resetMfa(user.id));
+  protected async resetMfa(user: ManagedUser): Promise<void> {
+    const confirmed = await this.dialogs.confirm({
+      title: `Réinitialiser la double vérification de ${user.displayName} ?`,
+      message: `${user.displayName} devra la configurer de nouveau à sa prochaine connexion. À faire si cette personne a perdu son téléphone et ses codes de secours.`,
+      confirmLabel: 'Réinitialiser',
+      danger: true,
+    });
+    if (!confirmed) return;
+    await this.run(async () => {
+      await this.api.resetMfa(user.id);
+      this.notifier.success(`Double vérification de ${user.displayName} réinitialisée.`);
+    });
   }
 
   protected revokeSessions(user: ManagedUser): Promise<void> {
     return this.run(async () => {
       await this.api.revokeSessions(user.id);
+      this.notifier.success(`${user.displayName} est déconnecté(e) de tous ses appareils.`);
     });
   }
 
   protected addRole(user: ManagedUser, roleId: string): Promise<void> {
     return this.run(async () => {
       await this.api.assignRole(user.id, roleId);
+      this.notifier.success(`Rôle ajouté à ${user.displayName}.`);
     });
   }
 
-  protected removeRole(assignmentId: string): Promise<void> {
-    return this.run(() => this.api.revokeAssignment(assignmentId));
+  protected removeRole(user: ManagedUser, assignmentId: string, roleName: string): Promise<void> {
+    return this.run(async () => {
+      await this.api.revokeAssignment(assignmentId);
+      this.notifier.success(`Rôle « ${roleName} » retiré à ${user.displayName}.`);
+    });
   }
 
-  protected async copy(value: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      // Le champ reste sélectionnable : la copie manuelle reste possible.
-    }
-  }
-
-  private showLink(title: string, link: PasswordLink): void {
-    this.link.set({ title, url: fullLink(link), expiresAt: new Date(link.expiresAt).toLocaleString('fr-FR') });
+  private async showLink(title: string, link: PasswordLink): Promise<void> {
+    await this.dialogs.open<boolean, LinkDialogData>(LinkDialog, {
+      size: 'md',
+      dismissible: true,
+      data: { title, url: fullLink(link), expiresAt: new Date(link.expiresAt).toLocaleString('fr-FR') },
+    });
   }
 
   private async load(): Promise<void> {
@@ -322,7 +245,7 @@ export class UsersPage {
       await action();
       await this.load();
     } catch (error) {
-      this.error.set(describeHttpError(error, 'Action impossible. Réessayez.').message);
+      this.error.set(describeHttpError(error, "L'action n'a pas pu aboutir. Réessayez dans un instant.").message);
     } finally {
       this.busy.set(false);
     }

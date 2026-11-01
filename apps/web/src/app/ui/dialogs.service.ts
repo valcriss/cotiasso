@@ -10,6 +10,8 @@ export type DialogSize = 'sm' | 'md' | 'lg';
 export interface OpenDialogOptions<D> {
   size?: DialogSize;
   data?: D;
+  /** Boîte d'information sans saisie à perdre : Échap et le clic à côté la ferment. Par défaut (formulaire), ils demandent d'abord confirmation (voir FormDialog). */
+  dismissible?: boolean;
 }
 
 /**
@@ -29,7 +31,7 @@ export class Dialogs {
       autoFocus: 'first-tabbable',
       restoreFocus: true,
       // Fermeture gérée par `FormDialog` : un formulaire modifié demande d'abord confirmation.
-      disableClose: true,
+      disableClose: !options.dismissible,
     });
     return firstValueFrom(reference.afterClosed());
   }

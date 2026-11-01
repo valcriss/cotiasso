@@ -12,6 +12,7 @@ import {
 } from '../admin/admin-api.service';
 import { formatApiAmount } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
+import { Notifier } from '../ui/notifier.service';
 
 const STATUS_LABELS: Record<ImportLineInfo['status'], string> = {
   NEW: 'Nouvelle',
@@ -59,16 +60,8 @@ const LINK = 'LINK:';
   `,
   template: `
     <section class="panel" aria-label="Import d'un relevé OFX">
-      <div class="head">
-        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload_file</mat-icon><span>Importer un relevé OFX</span></h3>
-        <button mat-button type="button" (click)="closed.emit()">Fermer</button>
-      </div>
-
       @if (error(); as message) {
         <p class="alert" role="alert">{{ message }}</p>
-      }
-      @if (notice(); as message) {
-        <p class="success" role="status">{{ message }}</p>
       }
 
       @if (!batch()) {
@@ -184,16 +177,15 @@ const LINK = 'LINK:';
 })
 export class ImportPanel {
   private readonly api = inject(AdminApiService);
+  private readonly notifier = inject(Notifier);
 
   readonly account = input.required<FinancialAccountInfo>();
   /** Émis après une confirmation : les transactions et les soldes ont changé. */
-  readonly imported = output<void>();
-  readonly closed = output<void>();
+  readonly imported = output<{ created: number; linked: number; skipped: number }>();
 
   protected readonly batch = signal<ImportInfo | null>(null);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly notice = signal<string | null>(null);
   protected readonly recordStatement = signal(false);
   protected readonly link = LINK;
   protected readonly amount = formatApiAmount;
@@ -222,7 +214,6 @@ export class ImportPanel {
     input.value = '';
     if (!file) return;
     this.error.set(null);
-    this.notice.set(null);
     this.busy.set(true);
     try {
       this.batch.set(await this.api.analyzeImport(this.account().id, file));
@@ -251,8 +242,8 @@ export class ImportPanel {
       const done = await this.api.commitImport(current.id, { decisions, recordStatement: this.recordStatement() });
       const result = done.summary.result!;
       this.batch.set(null);
-      this.notice.set(`Import confirmé : ${result.created} créée(s), ${result.linked} rapprochée(s), ${result.skipped} ignorée(s).`);
-      this.imported.emit();
+      this.notifier.success(`Import confirmé : ${result.created} créée(s), ${result.linked} rapprochée(s), ${result.skipped} ignorée(s).`);
+      this.imported.emit(result);
     } catch (failure) {
       this.error.set(describeHttpError(failure, "L'import n'a pas pu être confirmé.").message);
     } finally {
@@ -267,7 +258,7 @@ export class ImportPanel {
     try {
       await this.api.cancelImport(current.id);
       this.batch.set(null);
-      this.notice.set('Analyse annulée : aucune transaction créée.');
+      this.notifier.success('Analyse annulée : aucune transaction créée.');
     } catch (failure) {
       this.error.set(describeHttpError(failure, "L'analyse n'a pas pu être annulée.").message);
     } finally {

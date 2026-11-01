@@ -1,34 +1,24 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
-import { ClosingPanel } from './closing-panel';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
-import {
-  AdminApiService,
-  type AccountInfo,
-  type FiscalYearInfo,
-  type JournalInfo,
-  type JournalType,
-} from './admin-api.service';
-
-export const JOURNAL_TYPES: readonly { value: JournalType; label: string }[] = [
-  { value: 'BANK', label: 'Banque' },
-  { value: 'CASH', label: 'Caisse' },
-  { value: 'PURCHASES', label: 'Achats' },
-  { value: 'REVENUE', label: 'Produits' },
-  { value: 'MISC', label: 'Opérations diverses' },
-  { value: 'OPENING', label: 'À-nouveaux' },
-];
+import { ActionBar } from '../ui/action-bar';
+import { Dialogs } from '../ui/dialogs.service';
+import { Notifier } from '../ui/notifier.service';
+import { AdminApiService, type AccountInfo, type FiscalYearInfo, type JournalInfo } from './admin-api.service';
+import { ClosingDialog, type ClosingDialogData } from './closing-dialog';
+import { FiscalYearDialog } from './fiscal-year-dialog';
+import { JOURNAL_TYPES, JournalDialog } from './journal-dialog';
+import { PlanAccountDialog } from './plan-account-dialog';
 
 const STATUS_LABELS: Record<FiscalYearInfo['status'], string> = {
   OPEN: 'Ouvert',
-  CLOSING: 'En cours de clôture',
+  CLOSING: 'Fermé à la saisie',
   CLOSED: 'Clôturé',
 };
 
@@ -59,20 +49,41 @@ export function parseAccountCsv(text: string): ParsedAccounts {
   return { accounts, errors };
 }
 
+/** Paramètres › Comptabilité : exercices, journaux et plan de comptes. Création en boîtes de dialogue. */
 @Component({
   selector: 'app-accounting-page',
-  imports: [MatCheckboxModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ClosingPanel],
+  imports: [FormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, ActionBar],
   styleUrl: './admin-pages.scss',
   template: `
-    <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">menu_book</mat-icon><span>Comptabilité</span></h2>
+    <app-action-bar
+      label="Actions de la comptabilité"
+      description="La structure de votre comptabilité : les exercices (périodes comptables), les journaux (cahiers d'enregistrement) et le plan de comptes."
+    >
+      @if (canEdit()) {
+        <button mat-flat-button type="button" (click)="addYear()">
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Nouvel exercice
+        </button>
+        <button mat-stroked-button type="button" (click)="addJournal()">
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Nouveau journal
+        </button>
+        <button mat-stroked-button type="button" (click)="addAccount()">
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Nouveau compte
+        </button>
+        <button mat-stroked-button type="button" (click)="planFile.click()">
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload_file</mat-icon> Importer un plan (CSV)
+        </button>
+        <input #planFile class="sr-only" type="file" accept=".csv,.txt,text/csv,text/plain" aria-label="Fichier du plan de comptes" (change)="importFile($event)" />
+      }
+    </app-action-bar>
+
     @if (!canEdit()) {
       <p class="muted">Vous pouvez consulter la structure comptable, mais pas la modifier.</p>
     }
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
     }
-    @if (notice(); as message) {
-      <p class="success" role="status">{{ message }}</p>
+    @for (message of importErrors(); track message) {
+      <p class="alert" role="alert">{{ message }}</p>
     }
 
     <section class="panel" aria-labelledby="rules-title">
@@ -88,14 +99,20 @@ export function parseAccountCsv(text: string): ParsedAccounts {
 
     <section class="panel" aria-labelledby="fy-title">
       <h3 id="fy-title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">event</mat-icon><span>Exercices</span></h3>
-      <p class="muted">Dates libres, sans chevauchement. Un exercice ne se supprime pas.</p>
+      <p class="muted">Dates libres, sans chevauchement. Un exercice ne se supprime pas ; on le clôture quand les comptes de la période sont arrêtés.</p>
       @if (years().length === 0) {
-        <p class="muted">Aucun exercice. Créez le premier pour pouvoir saisir des écritures.</p>
+        <p class="muted">Aucun exercice pour l'instant. Créez le premier pour pouvoir enregistrer des écritures.</p>
       } @else {
         <table class="table">
           <caption class="sr-only">Exercices</caption>
           <thead>
-            <tr><th scope="col">Libellé</th><th scope="col">Début</th><th scope="col">Fin</th><th scope="col">État</th><th scope="col"><span class="sr-only">Clôture</span></th></tr>
+            <tr>
+              <th scope="col">Nom</th>
+              <th scope="col">Début</th>
+              <th scope="col">Fin</th>
+              <th scope="col">État</th>
+              <th scope="col"><span class="sr-only">Clôture</span></th>
+            </tr>
           </thead>
           <tbody>
             @for (year of years(); track year.id) {
@@ -106,33 +123,13 @@ export function parseAccountCsv(text: string): ParsedAccounts {
                 <td>{{ statusLabel(year.status) }}</td>
                 <td class="row-actions">
                   @if (canClose()) {
-                    <button mat-stroked-button type="button" [attr.aria-label]="'Clôture de ' + year.label" (click)="closingYearId.set(year.id)">Clôture…</button>
+                    <button mat-button type="button" [attr.aria-label]="'Clôture de ' + year.label" (click)="closeYear(year)">Clôture…</button>
                   }
                 </td>
               </tr>
             }
           </tbody>
         </table>
-      }
-      @if (closingYear(); as year) {
-        <app-closing-panel [year]="year" [accounts]="accounts()" (changed)="load()" (closed)="closingYearId.set(null)" />
-      }
-      @if (canEdit()) {
-        <form class="row" [formGroup]="yearForm" (ngSubmit)="addYear()" novalidate>
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Libellé</mat-label>
-            <input matInput formControlName="label" />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Début</mat-label>
-            <input matInput type="date" formControlName="start" />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Fin</mat-label>
-            <input matInput type="date" formControlName="end" />
-          </mat-form-field>
-          <button mat-flat-button type="submit" [disabled]="busy() || yearForm.invalid"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Créer l'exercice</button>
-        </form>
       }
     </section>
 
@@ -142,7 +139,13 @@ export function parseAccountCsv(text: string): ParsedAccounts {
       <table class="table">
         <caption class="sr-only">Journaux</caption>
         <thead>
-          <tr><th scope="col">Code</th><th scope="col">Libellé</th><th scope="col">Type</th><th scope="col">État</th><th scope="col"></th></tr>
+          <tr>
+            <th scope="col">Code</th>
+            <th scope="col">Nom</th>
+            <th scope="col">Type</th>
+            <th scope="col">État</th>
+            <th scope="col"><span class="sr-only">Actions</span></th>
+          </tr>
         </thead>
         <tbody>
           @for (journal of journals(); track journal.id) {
@@ -153,7 +156,7 @@ export function parseAccountCsv(text: string): ParsedAccounts {
               <td>{{ journal.active ? 'Actif' : 'Désactivé' }}</td>
               <td class="row-actions">
                 @if (canEdit()) {
-                  <button mat-stroked-button type="button" [disabled]="busy()" (click)="toggleJournal(journal)">
+                  <button mat-button type="button" [disabled]="busy()" [attr.aria-label]="(journal.active ? 'Désactiver ' : 'Réactiver ') + journal.code" (click)="toggleJournal(journal)">
                     {{ journal.active ? 'Désactiver' : 'Réactiver' }}
                   </button>
                 }
@@ -162,27 +165,6 @@ export function parseAccountCsv(text: string): ParsedAccounts {
           }
         </tbody>
       </table>
-      @if (canEdit()) {
-        <form class="row" [formGroup]="journalForm" (ngSubmit)="addJournal()" novalidate>
-          <mat-form-field appearance="outline">
-            <mat-label>Code</mat-label>
-            <input matInput formControlName="code" />
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Libellé</mat-label>
-            <input matInput formControlName="label" />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Type</mat-label>
-            <mat-select formControlName="type">
-              @for (type of journalTypes; track type.value) {
-                <mat-option [value]="type.value">{{ type.label }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-          <button mat-flat-button type="submit" [disabled]="busy() || journalForm.invalid"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Créer le journal</button>
-        </form>
-      }
     </section>
 
     <section class="panel" aria-labelledby="ac-title">
@@ -193,15 +175,26 @@ export function parseAccountCsv(text: string): ParsedAccounts {
       </p>
       <mat-form-field appearance="outline">
         <mat-label>Filtrer par numéro ou libellé</mat-label>
-        <input matInput [value]="filter()" (input)="filter.set($any($event.target).value)" />
+        <input matInput [ngModel]="filter()" (ngModelChange)="filter.set($event)" [ngModelOptions]="{ standalone: true }" />
       </mat-form-field>
       @if (visibleAccounts().length === 0) {
-        <p class="muted">Aucun compte à afficher.</p>
+        <p class="muted">
+          @if (accounts().length === 0) {
+            Aucun compte pour l'instant. Importez votre plan ou créez un premier compte.
+          } @else {
+            Aucun compte ne correspond à ce filtre.
+          }
+        </p>
       } @else {
         <table class="table">
           <caption class="sr-only">Plan de comptes</caption>
           <thead>
-            <tr><th scope="col">Numéro</th><th scope="col">Libellé</th><th scope="col">État</th><th scope="col"></th></tr>
+            <tr>
+              <th scope="col">Numéro</th>
+              <th scope="col">Libellé</th>
+              <th scope="col">État</th>
+              <th scope="col"><span class="sr-only">Actions</span></th>
+            </tr>
           </thead>
           <tbody>
             @for (account of visibleAccounts(); track account.id) {
@@ -211,7 +204,7 @@ export function parseAccountCsv(text: string): ParsedAccounts {
                 <td>{{ account.active ? 'Actif' : 'Désactivé' }}</td>
                 <td class="row-actions">
                   @if (canEdit()) {
-                    <button mat-stroked-button type="button" [disabled]="busy()" (click)="toggleAccount(account)">
+                    <button mat-button type="button" [disabled]="busy()" [attr.aria-label]="(account.active ? 'Désactiver ' : 'Réactiver ') + account.number" (click)="toggleAccount(account)">
                       {{ account.active ? 'Désactiver' : 'Réactiver' }}
                     </button>
                   }
@@ -224,46 +217,24 @@ export function parseAccountCsv(text: string): ParsedAccounts {
           <p class="muted">{{ hiddenCount() }} compte(s) de plus : affinez le filtre.</p>
         }
       }
-      @if (canEdit()) {
-        <form class="row" [formGroup]="accountForm" (ngSubmit)="addAccount()" novalidate>
-          <mat-form-field appearance="outline">
-            <mat-label>Numéro</mat-label>
-            <input matInput formControlName="number" inputmode="numeric" />
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Libellé</mat-label>
-            <input matInput formControlName="label" />
-          </mat-form-field>
-          <button mat-flat-button type="submit" [disabled]="busy() || accountForm.invalid"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Créer le compte</button>
-        </form>
-        <div class="actions">
-          <label class="muted" for="accounts-file">Importer un plan (CSV « numéro;libellé »)</label>
-          <input id="accounts-file" type="file" accept=".csv,.txt,text/csv,text/plain" (change)="importFile($event)" />
-        </div>
-        @for (message of importErrors(); track message) {
-          <p class="alert" role="alert">{{ message }}</p>
-        }
-      }
     </section>
   `,
 })
 export class AccountingPage {
   private readonly api = inject(AdminApiService);
   private readonly auth = inject(AuthService);
-  private readonly fb = inject(FormBuilder).nonNullable;
+  private readonly dialogs = inject(Dialogs);
+  private readonly notifier = inject(Notifier);
 
-  protected readonly journalTypes = JOURNAL_TYPES;
   protected readonly canEdit = computed(() => {
     this.auth.permissions();
     return this.auth.can('settings.accounting:admin');
   });
-
   protected readonly canClose = computed(() => {
     this.auth.permissions();
     return this.auth.can('fiscal-years:close');
   });
-  protected readonly closingYearId = signal<string | null>(null);
-  protected readonly closingYear = computed(() => this.years().find((y) => y.id === this.closingYearId()) ?? null);
+
   protected readonly projectRequired = signal(true);
   protected readonly years = signal<FiscalYearInfo[]>([]);
   protected readonly journals = signal<JournalInfo[]>([]);
@@ -271,7 +242,6 @@ export class AccountingPage {
   protected readonly filter = signal('');
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly notice = signal<string | null>(null);
   protected readonly importErrors = signal<string[]>([]);
 
   private readonly pageSize = 200;
@@ -284,21 +254,6 @@ export class AccountingPage {
   protected readonly visibleAccounts = computed(() => this.matching().slice(0, this.pageSize));
   protected readonly hiddenCount = computed(() => Math.max(0, this.matching().length - this.pageSize));
 
-  protected readonly yearForm = this.fb.group({
-    label: ['', [Validators.required]],
-    start: ['', [Validators.required]],
-    end: ['', [Validators.required]],
-  });
-  protected readonly journalForm = this.fb.group({
-    code: ['', [Validators.required, Validators.pattern(/^[A-Z0-9-]{1,10}$/)]],
-    label: ['', [Validators.required]],
-    type: ['MISC' as JournalType, [Validators.required]],
-  });
-  protected readonly accountForm = this.fb.group({
-    number: ['', [Validators.required, Validators.pattern(ACCOUNT_NUMBER)]],
-    label: ['', [Validators.required]],
-  });
-
   constructor() {
     void this.load();
   }
@@ -307,37 +262,49 @@ export class AccountingPage {
     return STATUS_LABELS[status];
   }
 
-  protected journalTypeLabel(type: JournalType): string {
+  protected journalTypeLabel(type: JournalInfo['type']): string {
     return JOURNAL_TYPES.find((t) => t.value === type)?.label ?? type;
   }
 
-  protected addYear(): Promise<void> {
-    return this.run(async () => {
-      await this.api.createFiscalYear(this.yearForm.getRawValue());
-      this.yearForm.reset();
-    }, 'Exercice créé.');
+  protected async addYear(): Promise<void> {
+    const created = await this.dialogs.open<FiscalYearInfo>(FiscalYearDialog, { size: 'sm' });
+    if (!created) return;
+    this.notifier.success(`Exercice « ${created.label} » créé.`);
+    await this.load();
   }
 
-  protected addJournal(): Promise<void> {
-    return this.run(async () => {
-      await this.api.createJournal(this.journalForm.getRawValue());
-      this.journalForm.reset({ code: '', label: '', type: 'MISC' });
-    }, 'Journal créé.');
+  protected async addJournal(): Promise<void> {
+    const created = await this.dialogs.open<JournalInfo>(JournalDialog, { size: 'sm' });
+    if (!created) return;
+    this.notifier.success(`Journal ${created.code} créé.`);
+    await this.load();
+  }
+
+  protected async addAccount(): Promise<void> {
+    const created = await this.dialogs.open<AccountInfo>(PlanAccountDialog, { size: 'sm' });
+    if (!created) return;
+    this.notifier.success(`Compte ${created.number} créé.`);
+    await this.load();
+  }
+
+  protected async closeYear(year: FiscalYearInfo): Promise<void> {
+    // Boîte d'information et d'actions successives : la page se recharge toujours à sa fermeture.
+    await this.dialogs.open<boolean, ClosingDialogData>(ClosingDialog, { size: 'md', dismissible: true, data: { year, accounts: this.accounts() } });
+    await this.load();
   }
 
   protected toggleJournal(journal: JournalInfo): Promise<void> {
-    return this.run(() => this.api.updateJournal(journal.id, { active: !journal.active }).then(() => undefined));
-  }
-
-  protected addAccount(): Promise<void> {
     return this.run(async () => {
-      await this.api.createAccount(this.accountForm.getRawValue());
-      this.accountForm.reset();
-    }, 'Compte créé.');
+      await this.api.updateJournal(journal.id, { active: !journal.active });
+      this.notifier.success(`Journal ${journal.code} ${journal.active ? 'désactivé' : 'réactivé'}.`);
+    });
   }
 
   protected toggleAccount(account: AccountInfo): Promise<void> {
-    return this.run(() => this.api.updateAccount(account.id, { active: !account.active }).then(() => undefined));
+    return this.run(async () => {
+      await this.api.updateAccount(account.id, { active: !account.active });
+      this.notifier.success(`Compte ${account.number} ${account.active ? 'désactivé' : 'réactivé'}.`);
+    });
   }
 
   protected async importFile(event: Event): Promise<void> {
@@ -349,24 +316,30 @@ export class AccountingPage {
 
     const { accounts, errors } = parseAccountCsv(await file.text());
     if (errors.length > 0) {
-      this.importErrors.set(errors.slice(0, 5).concat(errors.length > 5 ? [`… et ${errors.length - 5} autre(s) erreur(s).`] : []));
+      this.importErrors.set(
+        [`Le fichier n'a pas été importé : corrigez-le puis recommencez. ${errors[0]}`].concat(
+          errors.slice(1, 5),
+          errors.length > 5 ? [`… et ${errors.length - 5} autre(s) erreur(s).`] : [],
+        ),
+      );
       return;
     }
     if (accounts.length === 0) {
-      this.importErrors.set(['Le fichier ne contient aucun compte.']);
+      this.importErrors.set(["Le fichier ne contient aucun compte. Chaque ligne doit être de la forme « 706;Prestations de services »."]);
       return;
     }
     await this.run(async () => {
       const result = await this.api.importAccounts(accounts);
-      this.notice.set(`${result.created} compte(s) créé(s), ${result.skipped} déjà présent(s) laissé(s) tel(s) quel(s).`);
+      this.notifier.success(`${result.created} compte(s) créé(s), ${result.skipped} déjà présent(s) laissé(s) tel(s) quel(s).`);
     });
   }
 
-  protected async setProjectRequired(value: boolean): Promise<void> {
-    await this.run(async () => {
+  protected setProjectRequired(value: boolean): Promise<void> {
+    return this.run(async () => {
       await this.api.updateAccountingSettings({ projectRequired: value });
       this.projectRequired.set(value);
-    }, value ? 'Le projet est désormais obligatoire.' : "Le projet n'est plus obligatoire.");
+      this.notifier.success(value ? 'Le projet est désormais obligatoire.' : "Le projet n'est plus obligatoire.");
+    });
   }
 
   protected async load(): Promise<void> {
@@ -386,16 +359,14 @@ export class AccountingPage {
     }
   }
 
-  private async run(action: () => Promise<void>, success?: string): Promise<void> {
+  private async run(action: () => Promise<void>): Promise<void> {
     this.error.set(null);
-    this.notice.set(null);
     this.busy.set(true);
     try {
       await action();
-      if (success) this.notice.set(success);
       await this.load();
     } catch (failure) {
-      this.error.set(describeHttpError(failure, 'Action impossible. Réessayez.').message);
+      this.error.set(describeHttpError(failure, "L'action n'a pas pu aboutir. Réessayez dans un instant.").message);
     } finally {
       this.busy.set(false);
     }

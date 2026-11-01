@@ -15,6 +15,7 @@ import { MatInputModule } from '@angular/material/input';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError, type FormError } from '../auth/error-messages';
+import { PageHeader } from '../ui/page-header';
 import { AdminApiService } from './admin-api.service';
 import { recoveryCodesText } from '../pages/mfa-enroll.page';
 
@@ -27,11 +28,14 @@ function matchesNewPassword(control: AbstractControl): ValidationErrors | null {
 
 @Component({
   selector: 'app-account-page',
-  imports: [MatIconModule, ReactiveFormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule],
+  imports: [PageHeader, MatIconModule, ReactiveFormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule],
   styleUrl: './admin-pages.scss',
   template: `
-    <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">account_circle</mat-icon><span>Mon compte</span></h2>
-    <p class="muted">{{ user()?.displayName }} · {{ user()?.email }}</p>
+    <app-page-header
+      title="Mon compte"
+      icon="account_circle"
+      [description]="(user()?.displayName ?? '') + ' · ' + (user()?.email ?? '') + ' — Changez votre mot de passe et gérez votre double vérification.'"
+    />
 
     <form class="panel narrow" [formGroup]="form" (ngSubmit)="submit()" novalidate>
       <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">lock</mat-icon><span>Changer mon mot de passe</span></h3>

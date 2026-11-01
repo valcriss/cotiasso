@@ -53,6 +53,13 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/placeholder.page').then((m) => m.PlaceholderPage),
       })),
       {
+        path: 'comptabilite/ecritures/:id',
+        title: 'Écriture',
+        canActivate: [permissionGuard],
+        data: { permission: 'entries:view' },
+        loadComponent: () => import('./accounting/entry.page').then((m) => m.EntryPage),
+      },
+      {
         path: 'comptabilite',
         title: 'Comptabilité',
         canActivate: [permissionGuard],
@@ -81,6 +88,13 @@ export const routes: Routes = [
             loadComponent: () => import('./accounting/journal-book.page').then((m) => m.JournalBookPage),
           },
         ],
+      },
+      {
+        path: 'comptes/:id/import',
+        title: 'Importer un relevé',
+        canActivate: [permissionGuard],
+        data: { permission: 'imports:post' },
+        loadComponent: () => import('./treasury/import.page').then((m) => m.ImportPage),
       },
       {
         path: 'comptes',

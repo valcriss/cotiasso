@@ -11,12 +11,13 @@ import {
 } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { formatApiAmount, formatBalance } from './amount';
+import { ActionBar } from '../ui/action-bar';
 import { ReportFilters, type PeriodFilter } from './report-filters';
 
 /** Grand livre : les mouvements de chaque compte avec leur solde cumulé, écritures comptabilisées seulement. */
 @Component({
   selector: 'app-ledger-page',
-  imports: [FormsModule, MatFormFieldModule, MatInputModule, MatSelectModule, ReportFilters],
+  imports: [ActionBar, FormsModule, MatFormFieldModule, MatInputModule, MatSelectModule, ReportFilters],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -29,7 +30,7 @@ import { ReportFilters, type PeriodFilter } from './report-filters';
     }
   `,
   template: `
-    <h2>Grand livre</h2>
+    <app-action-bar label="Grand livre" description="Le détail des mouvements de chaque compte, avec son solde au fil du temps. Seules les écritures comptabilisées y figurent." />
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
     }

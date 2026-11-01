@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { mockAuth } from '../testing/auth-mock';
 import { AccountsPage } from './accounts.page';
 
@@ -55,6 +56,7 @@ describe('AccountsPage', () => {
   let controller: HttpTestingController;
   let fixture: ReturnType<typeof TestBed.createComponent<AccountsPage>>;
   let root: HTMLElement;
+  let ui: DialogTester;
 
   const settle = async () => {
     await new Promise<void>((resolve) => setTimeout(resolve));
@@ -64,11 +66,12 @@ describe('AccountsPage', () => {
   const create = async (permissions: string[], accounts: object[] = [account()]) => {
     await TestBed.configureTestingModule({
       imports: [AccountsPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions)],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(AccountsPage);
     root = fixture.nativeElement as HTMLElement;
+    ui = new DialogTester(settle);
     await settle();
     controller.expectOne('/api/financial-accounts').flush(accounts);
     await settle();
@@ -78,53 +81,64 @@ describe('AccountsPage', () => {
     await settle();
   };
   const click = async (label: string) => {
-    const button = Array.from(root.querySelectorAll('button')).find(
+    const button = Array.from(root.querySelectorAll('button, a')).find(
       (b) => b.textContent!.trim().includes(label) || b.getAttribute('aria-label')?.includes(label),
-    );
+    ) as HTMLElement | undefined;
     expect(button, label).toBeTruthy();
     button!.click();
     await settle();
-  };
-  const type = (selector: string, value: string) => {
-    const input = root.querySelector<HTMLInputElement>(selector)!;
-    input.value = value;
-    input.dispatchEvent(new Event('input'));
   };
   const openTransactions = async (list: object[] = [transaction()]) => {
     await click('Ouvrir Compte courant');
     controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: list, next: null });
     await settle();
   };
+  const reloadAfterWrite = async (list: object[] = []) => {
+    controller.expectOne('/api/financial-accounts').flush([account()]);
+    await settle();
+    controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: list, next: null });
+    await settle();
+  };
 
-  afterEach(() => controller.verify());
+  afterEach(() => {
+    ui.closeAll();
+    controller.verify();
+  });
 
-  it("affiche chaque solde séparément et l'écart de relevé, sans parler de rapprochement", async () => {
+  it("présente la page et affiche chaque solde séparément, sans parler de rapprochement", async () => {
     await create(['financial-accounts:view']);
+    expect(root.querySelector('h1')!.textContent).toContain('Comptes');
+    expect(root.querySelector('.description')!.textContent).toContain('combien il y a dessus');
     const text = root.textContent!;
     expect(text).toContain('Compte courant');
     expect(text).toContain('BQ-1');
     expect(text).toContain('969,50');
     expect(text).toContain('Solde comptable (écritures)');
-    expect(text).toContain('400,00');
     expect(text).toContain('Relevé au 2026-03-31');
     expect(text).toContain('-19,50');
     expect(text.toLowerCase()).not.toContain('rapproché');
     expect(text).not.toContain('Nouveau compte');
   });
 
-  it('crée un compte avec un compte de trésorerie libre uniquement', async () => {
+  it("guide l'utilisateur quand il n'y a aucun compte", async () => {
+    await create(['financial-accounts:view', 'settings.accounting:admin'], []);
+    expect(root.textContent).toContain('Commençons par votre compte bancaire');
+    expect(root.textContent).toContain('Nouveau compte');
+  });
+
+  it('crée un compte dans une boîte de dialogue, avec seulement les comptes de trésorerie libres', async () => {
     await create(['financial-accounts:view', 'settings.accounting:admin']);
     await click('Nouveau compte');
+    expect(ui.title).toBe('Nouveau compte financier');
     // 512 est déjà utilisé, 411 et 706 ne sont pas de classe 5 : seule la caisse 530 est proposée.
-    const options = (fixture.componentInstance as unknown as { freeAccounts(): { number: string }[] }).freeAccounts();
-    expect(options.map((a) => a.number)).toEqual(['530']);
+    expect(await ui.options('mat-select[formcontrolname="accountId"]')).toEqual(['530 — Caisse']);
 
-    type('input[formcontrolname="name"]', 'Caisse');
-    type('input[formcontrolname="openedOn"]', '2026-01-01');
-    type('input[formcontrolname="openingBalance"]', '50,5');
-    (fixture.componentInstance as unknown as { form: { patchValue(v: object): void } }).form.patchValue({ type: 'CASH', accountId: 'a530' });
-    await settle();
-    await click('Créer le compte');
+    await ui.type('input[formcontrolname="name"]', 'Caisse');
+    await ui.choose('mat-select[formcontrolname="type"]', 'Caisse (espèces)');
+    await ui.choose('mat-select[formcontrolname="accountId"]', '530');
+    await ui.type('input[formcontrolname="openedOn"]', '2026-01-01');
+    await ui.type('input[formcontrolname="openingBalance"]', '50,5');
+    await ui.submit();
 
     const post = controller.expectOne('/api/financial-accounts');
     expect(post.request.method).toBe('POST');
@@ -140,44 +154,57 @@ describe('AccountsPage', () => {
     await settle();
     controller.expectOne('/api/financial-accounts').flush([account(), account({ id: 'f2', name: 'Caisse', journalCode: 'CA-1' })]);
     await settle();
-    expect(root.querySelector('[role="status"]')!.textContent).toContain('journal CA-1');
+    expect(ui.isOpen).toBe(false);
+    expect(ui.snackbar).toContain('journal CA-1');
   });
 
-  it('affiche le refus du serveur lors de la création', async () => {
+  it('explique ce qui manque et garde la boîte ouverte quand le serveur refuse', async () => {
     await create(['financial-accounts:view', 'settings.accounting:admin']);
     await click('Nouveau compte');
-    type('input[formcontrolname="name"]', 'X');
-    type('input[formcontrolname="openedOn"]', '2026-01-01');
-    (fixture.componentInstance as unknown as { form: { patchValue(v: object): void } }).form.patchValue({ accountId: 'a530' });
-    await settle();
-    await click('Créer le compte');
+    await ui.submit();
+    expect(ui.error).toContain('Vérifiez les champs signalés');
+    expect(ui.text).toContain('Donnez un nom à ce compte');
+
+    await ui.type('input[formcontrolname="name"]', 'X');
+    await ui.choose('mat-select[formcontrolname="accountId"]', '530');
+    await ui.type('input[formcontrolname="openedOn"]', '2026-01-01');
+    await ui.submit();
     controller
       .expectOne('/api/financial-accounts')
       .flush({ message: 'Le compte 530 est déjà utilisé par « Caisse ».' }, { status: 409, statusText: 'Conflict' });
     await settle();
-    expect(root.querySelector('[role="alert"]')!.textContent).toContain('déjà utilisé');
+    expect(ui.isOpen).toBe(true);
+    expect(ui.error).toContain('déjà utilisé');
+    expect(ui.field<HTMLInputElement>('input[formcontrolname="name"]').value).toBe('X');
   });
 
   it('enregistre un solde de relevé, avec le signe saisi', async () => {
     await create(['financial-accounts:view', 'imports:post']);
     await click('Relevé de Compte courant');
-    type('input[formcontrolname="periodStart"]', '2026-04-01');
-    type('input[formcontrolname="periodEnd"]', '2026-04-30');
-    type('input[formcontrolname="closingBalance"]', '-120,40');
-    await settle();
-    await click('Enregistrer le solde');
+    expect(ui.title).toBe('Solde du relevé — Compte courant');
+    await ui.type('input[formcontrolname="periodStart"]', '2026-04-01');
+    await ui.type('input[formcontrolname="periodEnd"]', '2026-04-30');
+    await ui.type('input[formcontrolname="closingBalance"]', '-120,40');
+    await ui.submit();
     const post = controller.expectOne('/api/financial-accounts/f1/statements');
     expect(post.request.body).toEqual({ periodStart: '2026-04-01', periodEnd: '2026-04-30', closingBalance: '-120.40' });
     post.flush({}, { status: 201, statusText: 'Created' });
     await settle();
     controller.expectOne('/api/financial-accounts').flush([account()]);
     await settle();
-    expect(root.querySelector('[role="status"]')!.textContent).toContain('Solde de relevé enregistré');
+    expect(ui.snackbar).toContain('Solde de relevé enregistré');
   });
 
-  it('archive un compte', async () => {
+  it("demande confirmation avant d'archiver, en expliquant les conséquences", async () => {
     await create(['financial-accounts:view', 'settings.accounting:admin']);
     await click('Archiver Compte courant');
+    expect(ui.title).toBe('Archiver « Compte courant » ?');
+    expect(ui.text).toContain('ne peut pas être réactivé');
+    await ui.click('Annuler');
+    controller.expectNone('/api/financial-accounts/f1');
+
+    await click('Archiver Compte courant');
+    await ui.click('Archiver');
     const patch = controller.expectOne('/api/financial-accounts/f1');
     expect(patch.request.method).toBe('PATCH');
     expect(patch.request.body).toEqual({ archived: true });
@@ -185,6 +212,7 @@ describe('AccountsPage', () => {
     await settle();
     controller.expectOne('/api/financial-accounts').flush([account({ archivedOn: '2026-11-01' })]);
     await settle();
+    expect(ui.snackbar).toContain('archivé');
     expect(root.textContent).toContain('Archivé');
   });
 
@@ -204,24 +232,23 @@ describe('AccountsPage', () => {
     expect(root.textContent).not.toContain('Ajouter une transaction');
   });
 
+  it("propose l'import d'un relevé sur sa page dédiée", async () => {
+    await create(['financial-accounts:view', 'imports:post']);
+    await openTransactions([]);
+    const link = Array.from(root.querySelectorAll('a')).find((a) => a.textContent!.includes('Importer un relevé OFX'))!;
+    expect(link.getAttribute('href')).toBe('/comptes/f1/import');
+  });
+
   it('ajoute un décaissement : le montant est envoyé signé et les soldes rechargés', async () => {
     await create(['financial-accounts:view', 'transactions:manage']);
     await openTransactions([]);
     await click('Ajouter une transaction');
-    (fixture.componentInstance as unknown as { selected(): unknown }).selected();
-    const panel = root.querySelector('app-transactions-panel')!;
-    expect(panel).toBeTruthy();
-    type('input[formcontrolname="amount"]', '12,5');
-    type('input[formcontrolname="operationDate"]', '2026-05-02');
-    type('input[formcontrolname="label"]', 'Courses');
-    await settle();
-    // Sens « décaissement » : le formulaire est piloté par le composant du panneau.
-    const instance = (fixture.debugElement.query((d) => d.name === 'app-transactions-panel').componentInstance) as {
-      form: { patchValue(v: object): void };
-    };
-    instance.form.patchValue({ direction: 'out' });
-    await settle();
-    await click('Enregistrer');
+    expect(ui.title).toBe('Nouvelle transaction');
+    await ui.choose('mat-select[formcontrolname="direction"]', 'Argent dépensé');
+    await ui.type('input[formcontrolname="amount"]', '12,5');
+    await ui.type('input[formcontrolname="operationDate"]', '2026-05-02');
+    await ui.type('input[formcontrolname="label"]', 'Courses');
+    await ui.submit();
 
     const post = controller.expectOne('/api/financial-accounts/f1/transactions');
     expect(post.request.method).toBe('POST');
@@ -235,39 +262,55 @@ describe('AccountsPage', () => {
     });
     post.flush(transaction({ amount: '-12.50' }), { status: 201, statusText: 'Created' });
     await settle();
-    controller.expectOne('/api/financial-accounts').flush([account()]);
-    await settle();
-    controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: [transaction({ amount: '-12.50' })], next: null });
-    await settle();
-    expect(root.querySelector('[role="status"]')!.textContent).toContain('Transaction ajoutée');
+    await reloadAfterWrite([transaction({ amount: '-12.50' })]);
+    expect(ui.isOpen).toBe(false);
+    expect(ui.snackbar).toContain('Transaction ajoutée');
   });
 
-  it('refuse un montant nul ou invalide sans appeler le serveur', async () => {
+  it('refuse un montant nul sans appeler le serveur, avec une explication', async () => {
     await create(['financial-accounts:view', 'transactions:manage']);
     await openTransactions([]);
     await click('Ajouter une transaction');
-    type('input[formcontrolname="amount"]', '0');
-    type('input[formcontrolname="operationDate"]', '2026-05-02');
-    type('input[formcontrolname="label"]', 'Rien');
-    await settle();
-    await click('Enregistrer');
-    expect(root.querySelector('[role="alert"]')!.textContent).toContain('montant positif');
+    await ui.type('input[formcontrolname="amount"]', '0');
+    await ui.type('input[formcontrolname="operationDate"]', '2026-05-02');
+    await ui.type('input[formcontrolname="label"]', 'Rien');
+    await ui.submit();
+    expect(ui.error).toContain('montant supérieur à zéro');
+    expect(ui.isOpen).toBe(true);
   });
 
-  it("une transaction importée n'envoie que sa qualification à la modification", async () => {
+  it("une transaction identifiée par la banque garde son montant et sa date : seule la qualification est envoyée", async () => {
     await create(['financial-accounts:view', 'transactions:manage']);
     await openTransactions([transaction({ origin: 'IMPORT', externalId: 'FIT-1', bankIdentified: true })]);
     await click('Modifier Frais');
-    await click('Enregistrer');
+    expect(ui.title).toBe('Modifier la transaction');
+    expect(ui.text).toContain('vient de votre relevé bancaire');
+    expect(ui.field<HTMLInputElement>('input[formcontrolname="amount"]').disabled).toBe(true);
+    expect(ui.dialog!.textContent).not.toContain('Supprimer cette transaction');
+    await ui.submit();
+
     const patch = controller.expectOne('/api/transactions/t1');
     expect(patch.request.body.amount).toBeUndefined();
     expect(patch.request.body.operationDate).toBeUndefined();
     expect(patch.request.body.version).toBe(1);
     patch.flush(transaction({ origin: 'IMPORT', version: 2 }));
     await settle();
-    controller.expectOne('/api/financial-accounts').flush([account()]);
+    await reloadAfterWrite([]);
+    expect(ui.snackbar).toContain('Transaction enregistrée');
+  });
+
+  it("supprime une saisie manuelle après confirmation", async () => {
+    await create(['financial-accounts:view', 'transactions:manage']);
+    await openTransactions([transaction()]);
+    await click('Modifier Frais');
+    await ui.click('Supprimer cette transaction');
+    expect(ui.title).toBe('Supprimer cette transaction ?');
+    await ui.click('Supprimer');
+    const del = controller.expectOne('/api/transactions/t1');
+    expect(del.request.method).toBe('DELETE');
+    del.flush(null, { status: 204, statusText: 'No Content' });
     await settle();
-    controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: [], next: null });
-    await settle();
+    await reloadAfterWrite([]);
+    expect(ui.snackbar).toContain('Transaction supprimée');
   });
 });

@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { mockAuth } from '../testing/auth-mock';
 import { AccountingPage, parseAccountCsv } from './accounting.page';
 
@@ -13,32 +14,45 @@ describe('AccountingPage', () => {
   let controller: HttpTestingController;
   let fixture: ReturnType<typeof TestBed.createComponent<AccountingPage>>;
   let root: HTMLElement;
+  let ui: DialogTester;
 
   const settle = async () => {
     await new Promise<void>((resolve) => setTimeout(resolve));
     fixture.detectChanges();
     await fixture.whenStable();
   };
-  const flushLists = async (accounts: object[] = [account]) => {
+  const flushLists = async (accounts: object[] = [account], rules = { projectRequired: true }) => {
     controller.expectOne('/api/fiscal-years').flush([year]);
     controller.expectOne('/api/journals').flush([journal]);
     controller.expectOne('/api/accounts').flush(accounts);
-    controller.expectOne('/api/accounting/settings').flush({ projectRequired: true });
+    controller.expectOne('/api/accounting/settings').flush(rules);
     await settle();
   };
   const create = async (permissions: string[]) => {
     await TestBed.configureTestingModule({
       imports: [AccountingPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions)],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(AccountingPage);
     root = fixture.nativeElement as HTMLElement;
+    ui = new DialogTester(settle);
     await settle();
     await flushLists();
   };
+  const click = async (label: string) => {
+    const button = Array.from(root.querySelectorAll('button')).find(
+      (b) => b.textContent!.trim().includes(label) || b.getAttribute('aria-label')?.includes(label),
+    );
+    expect(button, label).toBeTruthy();
+    button!.click();
+    await settle();
+  };
 
-  afterEach(() => controller.verify());
+  afterEach(() => {
+    ui.closeAll();
+    controller.verify();
+  });
 
   it('affiche exercices, journaux et comptes en lecture seule sans le droit d’administrer', async () => {
     await create(['entries:view']);
@@ -47,8 +61,19 @@ describe('AccountingPage', () => {
     expect(text).toContain('Opérations diverses');
     expect(text).toContain('Banque');
     expect(text).toContain('mais pas la modifier');
-    expect(root.querySelector('form')).toBeNull();
+    expect(text).toContain('Ouvert');
+    expect(root.querySelector('app-action-bar button')).toBeNull();
     expect(root.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it('propose les créations dans la barre d’action et explique chaque partie', async () => {
+    await create(['entries:view', 'settings.accounting:admin']);
+    const buttons = Array.from(root.querySelectorAll('app-action-bar button')).map((b) => b.textContent!.trim());
+    expect(buttons.join('|')).toContain('Nouvel exercice');
+    expect(buttons.join('|')).toContain('Nouveau journal');
+    expect(buttons.join('|')).toContain('Nouveau compte');
+    expect(buttons.join('|')).toContain('Importer un plan');
+    expect(root.querySelector('app-action-bar .help')!.textContent).toContain('exercices (périodes comptables)');
   });
 
   it('affiche l’obligation de projet sans permettre de la modifier sans droit', async () => {
@@ -58,7 +83,7 @@ describe('AccountingPage', () => {
     expect(box.disabled).toBe(true);
   });
 
-  it('désactive l’obligation de projet avec settings.accounting:admin', async () => {
+  it('désactive l’obligation de projet avec settings.accounting:admin, et confirme par un bandeau', async () => {
     await create(['entries:view', 'settings.accounting:admin']);
     root.querySelector<HTMLInputElement>('mat-checkbox input')!.click();
     await settle();
@@ -67,24 +92,19 @@ describe('AccountingPage', () => {
     expect(put.request.body).toEqual({ projectRequired: false });
     put.flush({ changed: true, value: { projectRequired: false } });
     await settle();
-    await flushLists();
-    expect(root.querySelector('[role="status"]')!.textContent).toContain('plus obligatoire');
+    await flushLists([account], { projectRequired: false });
+    expect(ui.snackbar).toContain("n'est plus obligatoire");
   });
 
-  it('crée un exercice puis recharge les listes', async () => {
+  it('crée un exercice dans une boîte de dialogue puis recharge les listes', async () => {
     await create(['entries:view', 'settings.accounting:admin']);
-    const form = root.querySelectorAll('form')[0]!;
-    const set = (name: string, value: string) => {
-      const input = form.querySelector<HTMLInputElement>(`[formcontrolname="${name}"]`)!;
-      input.value = value;
-      input.dispatchEvent(new Event('input'));
-    };
-    set('label', 'Exercice 2027');
-    set('start', '2027-01-01');
-    set('end', '2027-12-31');
-    fixture.detectChanges();
-    form.dispatchEvent(new Event('submit'));
-    await settle();
+    await click('Nouvel exercice');
+    expect(ui.title).toBe('Nouvel exercice comptable');
+    expect(ui.text).toContain('la période sur laquelle vous arrêtez vos comptes');
+    await ui.type('input[formcontrolname="label"]', 'Exercice 2027');
+    await ui.type('input[formcontrolname="start"]', '2027-01-01');
+    await ui.type('input[formcontrolname="end"]', '2027-12-31');
+    await ui.submit();
 
     const request = controller.expectOne('/api/fiscal-years');
     expect(request.request.method).toBe('POST');
@@ -92,35 +112,96 @@ describe('AccountingPage', () => {
     request.flush({ ...year, id: 'y2' }, { status: 201, statusText: 'Created' });
     await settle();
     await flushLists();
-    expect(root.querySelector('[role="status"]')!.textContent).toContain('Exercice créé');
+    expect(ui.isOpen).toBe(false);
+    expect(ui.snackbar).toContain('créé.');
   });
 
-  it('affiche le refus du serveur, par exemple un chevauchement', async () => {
+  it('affiche le refus du serveur dans la boîte, par exemple un chevauchement, sans perdre la saisie', async () => {
     await create(['entries:view', 'settings.accounting:admin']);
-    const form = root.querySelectorAll('form')[0]!;
-    for (const [name, value] of [['label', 'X'], ['start', '2026-06-01'], ['end', '2027-06-01']] as const) {
-      const input = form.querySelector<HTMLInputElement>(`[formcontrolname="${name}"]`)!;
-      input.value = value;
-      input.dispatchEvent(new Event('input'));
-    }
-    fixture.detectChanges();
-    form.dispatchEvent(new Event('submit'));
-    await settle();
+    await click('Nouvel exercice');
+    await ui.type('input[formcontrolname="label"]', 'X');
+    await ui.type('input[formcontrolname="start"]', '2026-06-01');
+    await ui.type('input[formcontrolname="end"]', '2027-06-01');
+    await ui.submit();
     controller
       .expectOne('/api/fiscal-years')
       .flush({ message: "Ces dates chevauchent l'exercice « Exercice 2026 »." }, { status: 409, statusText: 'Conflict' });
     await settle();
-    expect(root.querySelector('[role="alert"]')!.textContent).toContain('chevauchent');
+    expect(ui.isOpen).toBe(true);
+    expect(ui.error).toContain('chevauchent');
+    expect(ui.field<HTMLInputElement>('input[formcontrolname="start"]').value).toBe('2026-06-01');
   });
 
-  it('filtre le plan de comptes', async () => {
+  it('crée un journal et un compte, avec des aides en langage courant', async () => {
+    await create(['entries:view', 'settings.accounting:admin']);
+    await click('Nouveau journal');
+    expect(ui.text).toContain("Un journal est un cahier dans lequel on classe les écritures");
+    await ui.type('input[formcontrolname="code"]', 'VT');
+    await ui.type('input[formcontrolname="label"]', 'Ventes');
+    await ui.choose('mat-select[formcontrolname="type"]', 'Produits (ventes');
+    await ui.submit();
+    const journalRequest = controller.expectOne('/api/journals');
+    expect(journalRequest.request.body).toEqual({ code: 'VT', label: 'Ventes', type: 'REVENUE' });
+    journalRequest.flush({ ...journal, id: 'j2', code: 'VT' }, { status: 201, statusText: 'Created' });
+    await settle();
+    await flushLists();
+    expect(ui.snackbar).toContain('Journal VT créé');
+
+    await click('Nouveau compte');
+    expect(ui.text).toContain('6 charges (ce que vous dépensez)');
+    await ui.type('input[formcontrolname="number"]', '12');
+    await ui.type('input[formcontrolname="label"]', 'Trop court');
+    await ui.submit();
+    expect(ui.text).toContain('3 à 8 chiffres');
+    await ui.type('input[formcontrolname="number"]', '706');
+    await ui.submit();
+    const accountRequest = controller.expectOne('/api/accounts');
+    expect(accountRequest.request.body).toEqual({ number: '706', label: 'Trop court' });
+    accountRequest.flush({ id: 'a2', number: '706', label: 'Trop court', active: true, reportLine: null }, { status: 201, statusText: 'Created' });
+    await settle();
+    await flushLists();
+    expect(ui.snackbar).toContain('Compte 706 créé');
+  });
+
+  it('désactive un compte directement depuis la liste', async () => {
+    await create(['entries:view', 'settings.accounting:admin']);
+    await click('Désactiver 512');
+    const patch = controller.expectOne('/api/accounts/a1');
+    expect(patch.request.body).toEqual({ active: false });
+    patch.flush({ ...account, active: false });
+    await settle();
+    await flushLists([{ ...account, active: false }]);
+    expect(ui.snackbar).toContain('Compte 512 désactivé');
+  });
+
+  it('filtre le plan de comptes et guide quand rien ne correspond', async () => {
     await create(['entries:view']);
-    controller.verify();
     const filterInput = root.querySelector<HTMLInputElement>('section[aria-labelledby="ac-title"] input')!;
     filterInput.value = 'zzz';
     filterInput.dispatchEvent(new Event('input'));
     await settle();
-    expect(root.textContent).toContain('Aucun compte à afficher');
+    expect(root.textContent).toContain('Aucun compte ne correspond à ce filtre');
+  });
+
+  it('ouvre la clôture d’un exercice dans une boîte de dialogue (droit fiscal-years:close)', async () => {
+    await create(['entries:view', 'fiscal-years:close']);
+    await click('Clôture de Exercice 2026');
+    controller.expectOne('/api/fiscal-years/y1/closing').flush({
+      fiscalYearId: 'y1',
+      status: 'OPEN',
+      checks: [{ code: 'NO_NEXT_YEAR', level: 'BLOCKING', message: "Créez l'exercice suivant." }],
+      canStart: false,
+      canClose: false,
+      preview: { accountCount: 2, result: { kind: 'SURPLUS', amount: '181.00' } },
+    });
+    await settle();
+    expect(ui.title).toBe("Clôture de l'exercice Exercice 2026");
+    expect(ui.text).toContain("Créez l'exercice suivant.");
+    expect(ui.button('Fermer à la saisie').disabled).toBe(true);
+    ui.dialog!.querySelector<HTMLButtonElement>('.mat-mdc-dialog-actions button')!.click();
+    await settle();
+    await flushLists();
+    expect(ui.isOpen).toBe(false);
   });
 });
 

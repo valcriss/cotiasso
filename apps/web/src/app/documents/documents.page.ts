@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -12,14 +12,19 @@ import {
   type DocumentDetail,
   type DocumentOptions,
   type DocumentSummary,
+  type DocumentUploadResult,
 } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
-import { formatSize, objectTypeLabel, titleFromFilename } from './format';
+import { Dialogs } from '../ui/dialogs.service';
+import { Notifier } from '../ui/notifier.service';
+import { PageHeader } from '../ui/page-header';
+import { formatSize, objectTypeLabel } from './format';
+import { UploadDialog, type UploadDialogData } from './upload-dialog';
 
 @Component({
   selector: 'app-documents-page',
-  imports: [DatePipe, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [PageHeader, DatePipe, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .file-input {
@@ -49,60 +54,22 @@ import { formatSize, objectTypeLabel, titleFromFilename } from './format';
     }
   `,
   template: `
-    <header class="head">
-      <h1 class="title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">description</mat-icon><span>Documents</span></h1>
+    <app-page-header
+      title="Documents"
+      icon="description"
+      description="Factures, devis, procès-verbaux… Tous vos justificatifs au même endroit, conservés sans pouvoir être supprimés, avec l’historique de leurs versions."
+    >
       @if (canCreate()) {
-        <button mat-flat-button type="button" (click)="toggleUpload()">
-          <mat-icon fontSet="material-icons-outlined">upload_file</mat-icon>
+        <button mat-flat-button type="button" (click)="openUpload()">
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload_file</mat-icon>
           Déposer un document
         </button>
       }
-    </header>
+    </app-page-header>
 
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
     }
-    @if (notice(); as message) {
-      <p class="success" role="status">{{ message }}</p>
-    }
-
-    @if (uploadOpen() && canCreate()) {
-      <form class="panel" [formGroup]="uploadForm" (ngSubmit)="upload()" novalidate>
-        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload_file</mat-icon><span>Déposer un document</span></h3>
-        <div class="file-input">
-          <label for="upload-file">Fichier</label>
-          <input id="upload-file" type="file" [attr.accept]="accept()" (change)="pickFile($event, 'new')" />
-          <div class="muted">Formats acceptés : {{ extensions() }}.</div>
-        </div>
-        <mat-form-field appearance="outline">
-          <mat-label>Titre</mat-label>
-          <input matInput formControlName="title" required />
-          @if (uploadForm.controls.title.hasError('required')) {
-            <mat-error>Saisissez un titre.</mat-error>
-          }
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Catégorie</mat-label>
-          <mat-select formControlName="category" required>
-            @for (category of options()?.categories ?? []; track category.key) {
-              <mat-option [value]="category.key">{{ category.label }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Commentaire (facultatif)</mat-label>
-          <input matInput formControlName="comment" />
-        </mat-form-field>
-        @if (canSeeRestricted()) {
-          <mat-checkbox formControlName="restricted">Document restreint (visible des seuls rôles autorisés)</mat-checkbox>
-        }
-        <div class="actions">
-          <button mat-flat-button type="submit" [disabled]="busy()"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload</mat-icon> Déposer</button>
-          <button mat-button type="button" (click)="uploadOpen.set(false)">Annuler</button>
-        </div>
-      </form>
-    }
-
     <form class="panel filters" [formGroup]="filters" (ngSubmit)="search()">
       <mat-form-field appearance="outline">
         <mat-label>Rechercher un titre</mat-label>
@@ -170,7 +137,7 @@ import { formatSize, objectTypeLabel, titleFromFilename } from './format';
         @if (canCreate() && !doc.archivedAt) {
           <div class="file-input">
             <label for="version-file">Ajouter une version</label>
-            <input id="version-file" type="file" [attr.accept]="accept()" (change)="pickFile($event, 'version')" />
+            <input id="version-file" type="file" [attr.accept]="accept()" (change)="pickFile($event)" />
             <button mat-stroked-button type="button" [disabled]="busy() || !versionFile()" (click)="addVersion(doc)">
               Déposer cette version
             </button>
@@ -213,7 +180,7 @@ import { formatSize, objectTypeLabel, titleFromFilename } from './format';
     @if (loading()) {
       <p class="muted">Chargement…</p>
     } @else if (documents().length === 0) {
-      <p class="muted">Aucun document ne correspond à ces critères.</p>
+      <p class="muted">Aucun document ne correspond à ces critères.@if (canCreate()) { Utilisez « Déposer un document » pour ajouter le premier. }</p>
     } @else {
       <table class="table">
         <caption class="sr-only">Documents</caption>
@@ -264,6 +231,8 @@ export class DocumentsPage {
   private readonly api = inject(AdminApiService);
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder).nonNullable;
+  private readonly dialogs = inject(Dialogs);
+  private readonly notifier = inject(Notifier);
 
   protected readonly canCreate = computed(() => {
     this.auth.permissions();
@@ -281,22 +250,13 @@ export class DocumentsPage {
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly notice = signal<string | null>(null);
-  protected readonly uploadOpen = signal(false);
   protected readonly versionFile = signal<File | null>(null);
-  private readonly newFile = signal<File | null>(null);
   private page = 1;
 
   protected readonly accept = computed(() => (this.options()?.allowedExtensions ?? []).map((e) => `.${e}`).join(','));
   protected readonly extensions = computed(() => (this.options()?.allowedExtensions ?? []).join(', '));
 
   protected readonly filters = this.fb.group({ q: '', category: '', includeArchived: false });
-  protected readonly uploadForm = this.fb.group({
-    title: ['', [Validators.required]],
-    category: ['facture', [Validators.required]],
-    comment: '',
-    restricted: false,
-  });
   protected readonly linkForm = this.fb.group({ objectType: ['project'], objectId: [''] });
 
   protected readonly size = formatSize;
@@ -308,19 +268,21 @@ export class DocumentsPage {
     void this.init();
   }
 
-  protected toggleUpload(): void {
-    this.uploadOpen.update((open) => !open);
-    this.notice.set(null);
+  protected async openUpload(): Promise<void> {
+    const options = this.options();
+    if (!options) return;
+    const result = await this.dialogs.open<DocumentUploadResult, UploadDialogData>(UploadDialog, {
+      size: 'md',
+      data: { options, canSeeRestricted: this.canSeeRestricted() },
+    });
+    if (!result) return;
+    this.announce(result.duplicates, 'Document déposé.');
+    this.selected.set(result.document);
+    await this.search();
   }
 
-  protected pickFile(event: Event, target: 'new' | 'version'): void {
-    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
-    if (target === 'version') {
-      this.versionFile.set(file);
-      return;
-    }
-    this.newFile.set(file);
-    if (file && !this.uploadForm.controls.title.value) this.uploadForm.controls.title.setValue(titleFromFilename(file.name));
+  protected pickFile(event: Event): void {
+    this.versionFile.set((event.target as HTMLInputElement).files?.[0] ?? null);
   }
 
   protected async search(): Promise<void> {
@@ -343,37 +305,6 @@ export class DocumentsPage {
     this.versionFile.set(null);
   }
 
-  protected async upload(): Promise<void> {
-    this.error.set(null);
-    this.notice.set(null);
-    const file = this.newFile();
-    if (!file) {
-      this.error.set('Choisissez un fichier à déposer.');
-      return;
-    }
-    if (this.uploadForm.invalid) {
-      this.uploadForm.markAllAsTouched();
-      return;
-    }
-    const { title, category, comment, restricted } = this.uploadForm.getRawValue();
-    const form = new FormData();
-    form.append('title', title);
-    form.append('category', category);
-    if (comment) form.append('comment', comment);
-    if (restricted) form.append('restricted', 'true');
-    form.append('file', file);
-
-    await this.run(async () => {
-      const result = await this.api.uploadDocument(form);
-      this.notice.set(this.duplicateNotice(result.duplicates, 'Document déposé.'));
-      this.uploadForm.reset({ title: '', category: 'facture', comment: '', restricted: false });
-      this.newFile.set(null);
-      this.uploadOpen.set(false);
-      this.selected.set(result.document);
-      await this.search();
-    });
-  }
-
   protected async addVersion(doc: DocumentDetail): Promise<void> {
     const file = this.versionFile();
     if (!file) return;
@@ -381,7 +312,7 @@ export class DocumentsPage {
     form.append('file', file);
     await this.run(async () => {
       const result = await this.api.addDocumentVersion(doc.id, form);
-      this.notice.set(this.duplicateNotice(result.duplicates, 'Nouvelle version déposée.'));
+      this.announce(result.duplicates, 'Nouvelle version déposée.');
       this.selected.set(result.document);
       this.versionFile.set(null);
       await this.search();
@@ -411,10 +342,10 @@ export class DocumentsPage {
     return this.run(async () => this.selected.set(await this.api.removeDocumentLink(doc.id, linkId)));
   }
 
-  private duplicateNotice(duplicates: { title: string }[], base: string): string {
-    return duplicates.length === 0
-      ? base
-      : `${base} Attention : ce fichier est identique à un document déjà déposé (${duplicates.map((d) => d.title).join(', ')}).`;
+  /** Confirme le dépôt ; un fichier identique à un document existant est signalé sans être bloqué. */
+  private announce(duplicates: { title: string }[], base: string): void {
+    if (duplicates.length === 0) this.notifier.success(base);
+    else this.notifier.notice(`${base} Attention : ce fichier est identique à un document déjà déposé (${duplicates.map((d) => d.title).join(', ')}).`);
   }
 
   private async init(): Promise<void> {

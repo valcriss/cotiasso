@@ -20,7 +20,6 @@ import { Component, input } from '@angular/core';
       color: var(--mat-sys-on-surface-variant);
       font: var(--mat-sys-body-medium);
       margin: 0;
-      max-width: 70ch;
     }
     /* Même barre d'outils que l'en-tête de page : une carte, boutons alignés à gauche. */
     .buttons {

@@ -3,18 +3,18 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
+import { ActionBar } from '../ui/action-bar';
 import { AdminApiService, type ModuleInfo } from './admin-api.service';
 
 @Component({
   selector: 'app-modules-page',
-  imports: [MatButtonModule, MatIconModule],
+  imports: [ActionBar, MatButtonModule, MatIconModule],
   styleUrl: './admin-pages.scss',
   template: `
-    <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">extension</mat-icon><span>Modules</span></h2>
-    <p class="muted">
-      Les modules ajoutent des fonctions optionnelles. Un module n'est activable qu'une fois livré et validé : un module
-      indisponible ne peut pas être activé.
-    </p>
+    <app-action-bar
+      label="Modules"
+      description="Les modules ajoutent des fonctions optionnelles. Un module n'est activable qu'une fois livré et validé : un module indisponible ne peut pas être activé."
+    />
 
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>

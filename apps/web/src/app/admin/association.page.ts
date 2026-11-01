@@ -9,6 +9,7 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError, type FormError } from '../auth/error-messages';
 import { BrandingService, DEFAULT_ACCENT, type Branding } from '../branding/branding.service';
 import { MIN_TEXT_CONTRAST, contrastRatio } from '../branding/contrast';
+import { ActionBar } from '../ui/action-bar';
 import { AdminApiService } from './admin-api.service';
 
 interface Identity {
@@ -24,13 +25,17 @@ interface Identity {
 
 @Component({
   selector: 'app-association-page',
-  imports: [MatIconModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule],
+  imports: [ActionBar, MatIconModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule],
   styleUrl: './admin-pages.scss',
   template: `
-    <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">business</mat-icon><span>Association</span></h2>
-    @if (!canEdit()) {
-      <p class="muted">Vous pouvez consulter ces informations, mais pas les modifier.</p>
-    }
+    <app-action-bar
+      label="Association"
+      [description]="
+        canEdit()
+          ? 'Le nom, les coordonnées et les couleurs de votre association : ils apparaissent dans l’application et sur vos documents.'
+          : 'Le nom, les coordonnées et les couleurs de votre association. Vous pouvez les consulter, mais pas les modifier.'
+      "
+    />
 
     <form class="panel" [formGroup]="identityForm" (ngSubmit)="saveIdentity()" novalidate>
       <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">badge</mat-icon><span>Identité</span></h3>

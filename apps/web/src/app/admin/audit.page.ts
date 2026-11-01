@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { describeHttpError } from '../auth/error-messages';
+import { ActionBar } from '../ui/action-bar';
 import { AdminApiService, type AuditEntry, type AuditFilters, type IntegrityReport } from './admin-api.service';
 import { actionLabel } from './audit-labels';
 
@@ -19,20 +20,18 @@ export function dayBound(value: string, end: boolean): string | undefined {
 
 @Component({
   selector: 'app-audit-page',
-  imports: [DatePipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [ActionBar, DatePipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: './admin-pages.scss',
   template: `
-    <header class="head">
-      <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">history</mat-icon><span>Journal d'audit</span></h2>
+    <app-action-bar
+      label="Actions du journal"
+      description="L'historique des actions sensibles (connexions, droits, écritures validées…), conservé sans possibilité de modification. La vérification détecte une modification faite directement en base ; elle ne constitue pas un archivage à valeur probante."
+    >
       <button mat-stroked-button type="button" [disabled]="verifying()" (click)="verify()">
         <mat-icon fontSet="material-icons-outlined">verified_user</mat-icon>
         Vérifier l'intégrité
       </button>
-    </header>
-    <p class="muted">
-      Historique des actions sensibles, en ajout seul. La vérification détecte une modification faite directement en
-      base ; elle ne constitue pas un archivage à valeur probante.
-    </p>
+    </app-action-bar>
 
     @if (report(); as result) {
       @if (result.ok) {

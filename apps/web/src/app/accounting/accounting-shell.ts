@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
+import { PageHeader } from '../ui/page-header';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 /** Rubriques de la comptabilité : saisie des écritures et états de lecture du grand livre. */
@@ -12,10 +13,14 @@ export const ACCOUNTING_TABS = [
 
 @Component({
   selector: 'app-accounting-shell',
-  imports: [MatIconModule, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [PageHeader, MatIconModule, RouterLink, RouterLinkActive, RouterOutlet],
   styleUrl: '../admin/admin-pages.scss',
   template: `
-    <h1 class="title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">menu_book</mat-icon><span>Comptabilité</span></h1>
+    <app-page-header
+      title="Comptabilité"
+      icon="menu_book"
+      description="Le cahier des comptes de l’association : saisissez des écritures puis consultez le grand livre, la balance et le livre-journal."
+    />
     <nav class="tabs" aria-label="Rubriques de la comptabilité">
       @for (tab of tabs; track tab.path) {
         <a [routerLink]="tab.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: tab.exact }">

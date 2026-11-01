@@ -6,22 +6,22 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import {
   AdminApiService,
-  type AccountInfo,
   type EntryInfo,
   type EntryStatus,
   type FiscalYearInfo,
   type JournalInfo,
-  type ProjectInfo,
 } from '../admin/admin-api.service';
+import { RouterLink } from '@angular/router';
+import { ActionBar } from '../ui/action-bar';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { formatApiAmount } from './amount';
-import { ENTRY_STATUS_LABELS, EntryEditor } from './entry-editor';
+import { ENTRY_STATUS_LABELS } from './entry-editor';
 
-/** Comptabilité : liste filtrée des écritures et éditeur (brouillon, comptabilisation, contrepassation). */
+/** Comptabilité : liste filtrée des écritures ; la saisie et la lecture d’une écriture ont leur page (`EntryPage`). */
 @Component({
   selector: 'app-entries-page',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, EntryEditor],
+  imports: [ReactiveFormsModule, RouterLink, ActionBar, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -29,37 +29,22 @@ import { ENTRY_STATUS_LABELS, EntryEditor } from './entry-editor';
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
     }
-    tr.clickable {
-      cursor: pointer;
-    }
-    tr.selected td {
-      background: var(--mat-sys-surface-container-low);
-    }
   `,
   template: `
-    <header class="head">
-      <h2>Écritures</h2>
+    <app-action-bar
+      label="Actions des écritures"
+      description="Chaque mouvement d’argent noté dans les comptes. Un brouillon peut encore être modifié ; une écriture comptabilisée est définitive."
+    >
       @if (canCreate()) {
-        <button mat-flat-button type="button" (click)="startNew()">
-          <mat-icon fontSet="material-icons-outlined">add</mat-icon>
+        <a mat-flat-button routerLink="ecritures/nouvelle">
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon>
           Nouvelle écriture
-        </button>
+        </a>
       }
-    </header>
+    </app-action-bar>
 
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
-    }
-
-    @if (editing()) {
-      <app-entry-editor
-        [entryId]="selectedId()"
-        [journals]="journals()"
-        [accounts]="activeAccounts()"
-        [projects]="activeProjects()"
-        (changed)="onChanged($event.id)"
-        (closed)="close()"
-      />
     }
 
     <form class="panel filters" [formGroup]="filters" (ngSubmit)="search()">
@@ -96,7 +81,7 @@ import { ENTRY_STATUS_LABELS, EntryEditor } from './entry-editor';
     @if (loading()) {
       <p class="muted">Chargement…</p>
     } @else if (entries().length === 0) {
-      <p class="muted">Aucune écriture pour ces critères.</p>
+      <p class="muted">Aucune écriture pour ces critères.@if (canCreate()) { Cliquez sur « Nouvelle écriture » pour noter votre première opération. }</p>
     } @else {
       <table class="table">
         <caption class="sr-only">Écritures</caption>
@@ -113,7 +98,7 @@ import { ENTRY_STATUS_LABELS, EntryEditor } from './entry-editor';
         </thead>
         <tbody>
           @for (entry of entries(); track entry.id) {
-            <tr class="clickable" [class.selected]="entry.id === selectedId()">
+            <tr>
               <td>{{ entry.date }}</td>
               <td>{{ entry.journalCode }}</td>
               <td>{{ entry.number ?? '—' }}</td>
@@ -121,7 +106,7 @@ import { ENTRY_STATUS_LABELS, EntryEditor } from './entry-editor';
               <td class="amount">{{ amount(entry.totalDebit) }}</td>
               <td>{{ statusLabel(entry.status) }}</td>
               <td class="row-actions">
-                <button mat-button type="button" [attr.aria-label]="'Ouvrir ' + entry.label" (click)="open(entry)">Ouvrir</button>
+                <a mat-button [attr.aria-label]="'Ouvrir ' + entry.label" [routerLink]="['ecritures', entry.id]">Ouvrir</a>
               </td>
             </tr>
           }
@@ -140,20 +125,12 @@ export class EntriesPage {
 
   protected readonly years = signal<FiscalYearInfo[]>([]);
   protected readonly journals = signal<JournalInfo[]>([]);
-  private readonly accounts = signal<AccountInfo[]>([]);
-  protected readonly activeAccounts = computed(() => this.accounts().filter((a) => a.active));
-  private readonly projects = signal<ProjectInfo[]>([]);
-  protected readonly activeProjects = computed(() => this.projects().filter((p) => p.status !== 'ARCHIVED'));
 
   protected readonly entries = signal<EntryInfo[]>([]);
   protected readonly next = signal<string | null>(null);
   protected readonly loading = signal(true);
   protected readonly loadingMore = signal(false);
   protected readonly error = signal<string | null>(null);
-
-  /** Éditeur ouvert ? `selectedId` = null avec `editing` vrai signifie « nouvelle écriture ». */
-  protected readonly editing = signal(false);
-  protected readonly selectedId = signal<string | null>(null);
 
   protected readonly canCreate = computed(() => {
     this.auth.permissions();
@@ -169,26 +146,6 @@ export class EntriesPage {
 
   protected statusLabel(status: EntryStatus): string {
     return ENTRY_STATUS_LABELS[status];
-  }
-
-  protected startNew(): void {
-    this.selectedId.set(null);
-    this.editing.set(true);
-  }
-
-  protected open(entry: EntryInfo): void {
-    this.selectedId.set(entry.id);
-    this.editing.set(true);
-  }
-
-  protected close(): void {
-    this.editing.set(false);
-    this.selectedId.set(null);
-  }
-
-  protected async onChanged(id: string | null): Promise<void> {
-    if (id !== null) this.selectedId.set(id);
-    await this.search();
   }
 
   protected async search(): Promise<void> {
@@ -231,19 +188,12 @@ export class EntriesPage {
 
   private async init(): Promise<void> {
     try {
-      const [years, journals, accounts] = await Promise.all([
-        this.api.listFiscalYears(),
-        this.api.listJournals(),
-        this.api.listAccounts(),
-      ]);
+      const [years, journals] = await Promise.all([this.api.listFiscalYears(), this.api.listJournals()]);
       this.years.set(years);
       this.journals.set(journals.filter((j) => j.active));
-      this.accounts.set(accounts);
     } catch (failure) {
       this.error.set(describeHttpError(failure, 'Impossible de charger la structure comptable.').message);
     }
-    // La liste des projets exige projects:view ; sans ce droit, la ventilation n'est simplement pas proposée.
-    this.projects.set(await this.api.listProjects().catch(() => []));
     await this.search();
   }
 }

@@ -56,6 +56,9 @@ La comptabilité reste exacte et rigoureuse (c'est le rôle du logiciel), mais *
 
 ### Cartes et boutons
 
+- **L'en-tête de page est lui aussi une carte** (titre + description), la barre d'outils étant une seconde carte juste dessous.
+- **Arrondi très faible** : 4 px pour les cartes (`--app-radius`).
+- **Le contenu occupe toute la largeur disponible** : aucune largeur maximale sur les pages ; seules les boîtes de dialogue et la page de connexion ont une largeur fixe.
 - **Chaque zone de contenu est une carte** (panneau ou tableau : surface, bordure, ombre douce) posée sur le fond de page, jamais à plat. Un tableau est une carte par défaut ; dans un panneau il reste plat pour ne pas doubler le cadre.
 - **Les boutons sont des rectangles aux angles arrondis** (8 px), pas des pilules : même famille de formes que les champs et les cartes. Les pastilles d'état (étiquettes) peuvent rester arrondies.
 ## 3. Descriptions de page (proposition de texte)
@@ -146,9 +149,9 @@ Fournir `NO_MATERIAL_ANIMATIONS` (sinon la fermeture attend l'animation) et util
 ### Ordre de réalisation
 
 1. **Fondations** — *faites* : `PageHeader`, `ActionBar`, `FormDialog`, `ConfirmDialog`, `Dialogs`, `Notifier`, utilitaire de test, styles ; page pilote **Projets** convertie.
-2. **Pages simples** : ~~Projets~~ (fait), Comptes (nouveau compte, solde de relevé), Paramètres › Comptabilité (exercice, journal, compte), Rôles, Utilisateurs (invitation).
-3. **Pages lourdes** : transactions (nouvelle, modification), documents (dépôt, modification), clôture d'exercice, puis les deux pages dédiées (écriture, import).
-4. **Déploiement des en-têtes** sur toutes les pages, suppression des anciens titres et des messages verts en page.
+2. **Pages simples** — *faites* : Projets, Comptes, Paramètres (comptabilité, rôles, utilisateurs, association, modules, audit, exploitation), Mon compte.
+3. **Pages lourdes** — *faites* : transactions, documents (le dépôt est en boîte ; versions et liens restent en ligne dans la fiche), clôture d’exercice, et les deux pages dédiées (écriture : `/comptabilite/ecritures/:id`, `nouvelle` pour créer ; import : `/comptes/:id/import`).
+4. **En-têtes déployés** sur toutes les pages (y compris Vue d’ensemble et rubriques à venir) ; plus de message vert en page, sauf les formulaires de réglage (association, mot de passe) qui restent en ligne.
 
 ### Ce qui ne change pas
 

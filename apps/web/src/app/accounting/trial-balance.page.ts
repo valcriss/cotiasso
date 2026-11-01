@@ -6,12 +6,13 @@ import { MatInputModule } from '@angular/material/input';
 import { AdminApiService, type FiscalYearInfo, type TrialBalanceInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { formatApiAmount } from './amount';
+import { ActionBar } from '../ui/action-bar';
 import { ReportFilters, type PeriodFilter } from './report-filters';
 
 /** Balance : débit, crédit et soldes de chaque compte mouvementé, avec la vérification de l'équilibre. */
 @Component({
   selector: 'app-trial-balance-page',
-  imports: [FormsModule, MatFormFieldModule, MatIconModule, MatInputModule, ReportFilters],
+  imports: [ActionBar, FormsModule, MatFormFieldModule, MatIconModule, MatInputModule, ReportFilters],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -24,7 +25,7 @@ import { ReportFilters, type PeriodFilter } from './report-filters';
     }
   `,
   template: `
-    <h2>Balance</h2>
+    <app-action-bar label="Balance" description="Pour chaque compte, le total des débits, des crédits et le solde. Sert à vérifier d’un coup d’œil que les comptes sont équilibrés." />
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
     }

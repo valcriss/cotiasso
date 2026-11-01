@@ -4,7 +4,7 @@ import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { AccountingShell } from './accounting-shell';
 
-@Component({ template: '<p>contenu</p>' })
+@Component({ template: '<p class="stub">contenu</p>' })
 class Stub {}
 
 describe('AccountingShell', () => {
@@ -38,7 +38,7 @@ describe('AccountingShell', () => {
     const tabs = Array.from(root.querySelectorAll('nav.tabs a'));
     expect(tabs.map((a) => a.querySelector('span')!.textContent)).toEqual(['Écritures', 'Grand livre', 'Balance', 'Livre-journal']);
     expect(tabs.filter((a) => a.classList.contains('active')).map((a) => a.querySelector('span')!.textContent)).toEqual(['Balance']);
-    expect(root.querySelector('p')!.textContent).toBe('contenu');
+    expect(root.querySelector('p.stub')!.textContent).toBe('contenu');
   });
 
   it("n'active « Écritures » que sur la page racine", async () => {

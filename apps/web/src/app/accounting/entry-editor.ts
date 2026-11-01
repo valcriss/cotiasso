@@ -16,6 +16,7 @@ import {
 } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
+import { Notifier } from '../ui/notifier.service';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from './amount';
 
 /** Valeur du sélecteur de projet pour une ligne déjà ventilée entre plusieurs projets : la ventilation est conservée. */
@@ -90,7 +91,7 @@ export const ENTRY_STATUS_LABELS = {
             Nouvelle écriture
           }
         </h3>
-        <button mat-button type="button" (click)="closed.emit()">Fermer</button>
+        <button mat-button type="button" (click)="closed.emit()">Retour à la liste</button>
       </div>
 
       @if (error(); as message) {
@@ -102,9 +103,6 @@ export const ENTRY_STATUS_LABELS = {
             }
           </ul>
         }
-      }
-      @if (notice(); as message) {
-        <p class="success" role="status">{{ message }}</p>
       }
 
       @if (loading()) {
@@ -298,6 +296,7 @@ export const ENTRY_STATUS_LABELS = {
 export class EntryEditor {
   private readonly api = inject(AdminApiService);
   private readonly auth = inject(AuthService);
+  private readonly notifier = inject(Notifier);
   private readonly fb = inject(FormBuilder).nonNullable;
 
   /** Identifiant de l'écriture à ouvrir, ou `null` pour une nouvelle. */
@@ -315,7 +314,6 @@ export class EntryEditor {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly details = signal<string[]>([]);
-  protected readonly notice = signal<string | null>(null);
 
   protected readonly canCreate = computed(() => {
     this.auth.permissions();
@@ -418,7 +416,7 @@ export class EntryEditor {
         ? await this.api.updateEntry(current.id, { ...body, version: current.version })
         : await this.api.createEntry(body);
       this.show(saved);
-      this.notice.set('Brouillon enregistré.');
+      this.notifier.success('Brouillon enregistré.');
       this.changed.emit({ id: saved.id });
       return saved;
     });
@@ -430,7 +428,7 @@ export class EntryEditor {
     await this.run(async () => {
       const posted = await this.api.postEntry(saved.id);
       this.show(posted);
-      this.notice.set(`Écriture comptabilisée : ${posted.journalCode} n° ${posted.number}.`);
+      this.notifier.success(`Écriture comptabilisée : ${posted.journalCode} n° ${posted.number}.`);
       this.changed.emit({ id: posted.id });
       return posted;
     });
@@ -441,6 +439,7 @@ export class EntryEditor {
     if (!current) return;
     await this.run(async () => {
       await this.api.deleteEntry(current.id);
+      this.notifier.success('Brouillon supprimé.');
       this.changed.emit({ id: null });
       this.closed.emit();
       return null;
@@ -454,7 +453,7 @@ export class EntryEditor {
     await this.run(async () => {
       const reversal = await this.api.reverseEntry(current.id, date ? { date } : {});
       this.show(await this.api.getEntry(current.id));
-      this.notice.set(`Contrepassation comptabilisée : ${reversal.journalCode} n° ${reversal.number}.`);
+      this.notifier.success(`Contrepassation comptabilisée : ${reversal.journalCode} n° ${reversal.number}.`);
       this.changed.emit({ id: current.id });
       return reversal;
     });
@@ -465,7 +464,6 @@ export class EntryEditor {
     if (id !== null && this.entry()?.id === id) return;
     this.error.set(null);
     this.details.set([]);
-    this.notice.set(null);
     if (id === null) {
       this.entry.set(null);
       this.reset();
@@ -582,7 +580,6 @@ export class EntryEditor {
   private async run<T>(action: () => Promise<T>): Promise<T | null> {
     this.error.set(null);
     this.details.set([]);
-    this.notice.set(null);
     this.busy.set(true);
     try {
       return await action();

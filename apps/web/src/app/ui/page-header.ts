@@ -3,7 +3,7 @@ import { MatIconModule } from '@angular/material/icon';
 
 /**
  * En-tête de page (design.md §2) : titre avec icône et une phrase qui explique à quoi sert la page. La barre d'action de
- * la page se projette dans une barre d'outils placée sous le titre et la description.
+ * la page se projette dans une barre d'outils placée sous la carte du titre et de la description.
  *
  * <app-page-header title="Projets" icon="folder_open" description="…"><button …>Nouveau projet</button></app-page-header>
  */
@@ -18,10 +18,16 @@ import { MatIconModule } from '@angular/material/icon';
     .page-header {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
     }
+    /* En-tête : une carte avec le titre et la phrase qui explique la page. */
     .page-text {
+      background: var(--app-surface);
+      border: 1px solid var(--app-border);
+      border-radius: var(--app-radius);
+      box-shadow: var(--app-shadow-sm);
       min-width: 0;
+      padding: 20px 28px;
     }
     h1 {
       align-items: center;
@@ -40,7 +46,6 @@ import { MatIconModule } from '@angular/material/icon';
       color: var(--mat-sys-on-surface-variant);
       font: var(--mat-sys-body-medium);
       margin: 6px 0 0;
-      max-width: 70ch;
     }
     /* Barre d'outils : une carte sous le titre, boutons alignés à gauche, le principal en premier. */
     .actions {

@@ -625,7 +625,7 @@ export class AdminApiService {
     return firstValueFrom(this.http.get<AccountInfo[]>('/api/accounts'));
   }
 
-  createAccount(body: { number: string; label: string }): Promise<AccountInfo> {
+  createAccount(body: { number: string; label: string; reportLine?: string }): Promise<AccountInfo> {
     return firstValueFrom(this.http.post<AccountInfo>('/api/accounts', body));
   }
 

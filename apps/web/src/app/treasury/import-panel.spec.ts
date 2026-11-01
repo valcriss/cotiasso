@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { ImportPanel } from './import-panel';
 import type { FinancialAccountInfo, ImportInfo, ImportLineInfo } from '../admin/admin-api.service';
 
@@ -59,6 +60,7 @@ describe('ImportPanel', () => {
   let controller: HttpTestingController;
   let fixture: ReturnType<typeof TestBed.createComponent<ImportPanel>>;
   let root: HTMLElement;
+  let ui: DialogTester;
 
   const settle = async () => {
     await new Promise<void>((resolve) => setTimeout(resolve));
@@ -68,12 +70,13 @@ describe('ImportPanel', () => {
   const create = async () => {
     await TestBed.configureTestingModule({
       imports: [ImportPanel],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(ImportPanel);
     fixture.componentRef.setInput('account', account);
     root = fixture.nativeElement as HTMLElement;
+    ui = new DialogTester(settle);
     await settle();
   };
   const upload = async (response: ImportInfo | { failure: { status: number; message: string } }) => {
@@ -99,7 +102,10 @@ describe('ImportPanel', () => {
   const button = (label: string) =>
     Array.from(root.querySelectorAll('button')).find((b) => b.textContent!.includes(label)) as HTMLButtonElement;
 
-  afterEach(() => controller.verify());
+  afterEach(() => {
+    ui.closeAll();
+    controller.verify();
+  });
 
   it("analyse d'abord : montre le classement des lignes avant toute création", async () => {
     await create();
@@ -130,8 +136,8 @@ describe('ImportPanel', () => {
 
   it('confirme avec le rattachement choisi, les créations par défaut et le solde du relevé', async () => {
     await create();
-    let imported = 0;
-    fixture.componentInstance.imported.subscribe(() => imported++);
+    let imported: { created: number; linked: number; skipped: number } | null = null;
+    fixture.componentInstance.imported.subscribe((result) => (imported = result));
     await upload(batch(mixed));
     await choose('Décision de la ligne 2', 'LINK:t9');
     root.querySelector<HTMLInputElement>('mat-checkbox input')!.click();
@@ -149,8 +155,8 @@ describe('ImportPanel', () => {
     });
     commit.flush(batch(mixed, { status: 'COMMITTED', summary: { total: 4, new: 1, duplicate: 1, probableMatch: 1, error: 1, result: { created: 1, linked: 1, skipped: 2 } } }));
     await settle();
-    expect(root.querySelector('[role="status"]')!.textContent).toContain('1 créée(s), 1 rapprochée(s), 2 ignorée(s)');
-    expect(imported).toBe(1);
+    expect(ui.snackbar).toContain('1 créée(s), 1 rapprochée(s), 2 ignorée(s)');
+    expect(imported).toEqual({ created: 1, linked: 1, skipped: 2 });
   });
 
   it('permet de créer quand même un paiement distinct, ou d’ignorer une ligne', async () => {
@@ -186,7 +192,7 @@ describe('ImportPanel', () => {
     const cancel = controller.expectOne('/api/imports/b1/cancel');
     cancel.flush(batch(mixed, { status: 'CANCELLED' }));
     await settle();
-    expect(root.textContent).toContain('aucune transaction créée');
+    expect(ui.snackbar).toContain('aucune transaction créée');
     expect(root.querySelector('input[type="file"]')).toBeTruthy();
   });
 });

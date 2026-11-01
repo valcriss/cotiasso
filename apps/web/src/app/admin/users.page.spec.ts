@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { mockAuth } from '../testing/auth-mock';
+import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { UsersPage } from './users.page';
 
 const roles = [
@@ -24,16 +25,18 @@ const users = [
 describe('UsersPage', () => {
   let controller: HttpTestingController;
   let root: HTMLElement;
+  let ui: DialogTester;
   let fixture: ReturnType<typeof TestBed.createComponent<UsersPage>>;
 
   const create = async (permissions: string[]) => {
     await TestBed.configureTestingModule({
       imports: [UsersPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions)],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(UsersPage);
     root = fixture.nativeElement as HTMLElement;
+    ui = new DialogTester(settle);
     await settle();
     flushLists();
     await settle();
@@ -54,7 +57,10 @@ describe('UsersPage', () => {
   const buttonWith = (text: string) =>
     Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.includes(text));
 
-  afterEach(() => controller.verify());
+  afterEach(() => {
+    ui.closeAll();
+    controller.verify();
+  });
 
   it('liste les utilisateurs avec leurs rôles et leur état', async () => {
     await create(['users:view']);
@@ -77,13 +83,9 @@ describe('UsersPage', () => {
     buttonWith('Inviter')!.click();
     await settle();
 
-    const inputs = root.querySelectorAll<HTMLInputElement>('form input');
-    inputs[0]!.value = 'Nouvelle Personne';
-    inputs[0]!.dispatchEvent(new Event('input'));
-    inputs[1]!.value = 'nouvelle@asso.fr';
-    inputs[1]!.dispatchEvent(new Event('input'));
-    root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
-    await settle();
+    await ui.type('input[formControlName="displayName"]', 'Nouvelle Personne');
+    await ui.type('input[formControlName="email"]', 'nouvelle@asso.fr');
+    await ui.submit();
 
     const request = controller.expectOne('/api/users');
     expect(request.request.method).toBe('POST');
@@ -96,9 +98,9 @@ describe('UsersPage', () => {
     flushLists();
     await settle();
 
-    const shown = root.querySelector<HTMLInputElement>('.link-card input')!;
+    const shown = ui.field<HTMLInputElement>('input[readonly]');
     expect(shown.value).toBe(`${window.location.origin}/reinitialisation#token=t`);
-    expect(root.querySelector('.link-card')!.textContent).toContain('ne sera plus affiché');
+    expect(ui.text).toContain('ne sera plus affiché');
   });
 
   it('demande confirmation avant de désactiver, puis désactive', async () => {
@@ -109,13 +111,14 @@ describe('UsersPage', () => {
     buttonWith('Désactiver')!.click();
     await settle();
     controller.expectNone('/api/users/u-marie/disable');
-    expect(buttonWith('Confirmer la désactivation')).toBeDefined();
+    expect(ui.text).toContain('Désactiver Marie ?');
 
-    buttonWith('Confirmer la désactivation')!.click();
-    await settle();
+    await ui.click('Désactiver');
     controller.expectOne('/api/users/u-marie/disable').flush(null, { status: 204, statusText: 'No Content' });
     await settle();
     flushLists();
+    await settle();
+    expect(ui.snackbar).toContain('Marie est désactivé(e).');
   });
 
   it('ne propose pas de désactiver son propre compte', async () => {
