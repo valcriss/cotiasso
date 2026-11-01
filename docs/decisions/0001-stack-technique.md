@@ -26,4 +26,5 @@ Statut : accepté — 31 octobre 2026
 
 - OIDC/SSO et MFA : tranchés dans l'[ADR 0005](0005-authentification-et-exploitation.md).
 - Moteur de génération PDF, format tableur.
-- Version majeure d'Angular et de NestJS, à figer à l'initialisation du dépôt.
+- Versions figées à l'initialisation (31 octobre 2026) : Node 26.12.1, NestJS 12, Angular 22, Prisma 7.10.1 (stable ; la 8 est encore en RC), PostgreSQL 17.
+- TypeScript : 6.0.3 dans tout le dépôt (1er novembre 2026). Angular 22 impose `>=6.0 <6.1`, ce qui exclut TypeScript 7 pour le web ; migration d'ensemble vers la 7 quand Angular la supportera.

@@ -21,7 +21,7 @@ Node épinglé dans `mise.toml` (26.12.1) ; gestionnaire de paquets : npm (works
 Workspaces :
 - `packages/accounting-domain` : TypeScript pur, Vitest.
 - `apps/api` : NestJS 12 + Fastify (ESM), Prisma 7 (adaptateur `pg`). `GET /health` vérifie la base. L'API écoute sur `API_HOST:API_PORT` (3000 par défaut).
-- `apps/web` : à créer (Angular).
+- `apps/web` : Angular 22 + Angular Material 22 (thème Material 3 azure/bleu dans `src/styles.scss`, variables `--app-sidebar-*` pour la marque blanche), tests Vitest via `ng test`. `npm run dev -w @cotiasso/web` sert sur http://localhost:4200 (utiliser `localhost`, pas `127.0.0.1`) et proxifie `/api/*` vers l'API en retirant le préfixe `/api`. Polices et icônes sont hébergées localement (`@fontsource/roboto`, `material-icons`), jamais chargées depuis un CDN. TypeScript est aligné sur 6.0.3 dans tout le dépôt : Angular 22 exige `>=6.0 <6.1` (compiler-cli et build), ce qui bloque TypeScript 7 tant qu'Angular ne le supporte pas. Migrer l'ensemble vers 7 en une fois quand ce sera possible, sans désaligner les workspaces.
 
 Conventions de l'API :
 - Injection explicite avec `@Inject(TOKEN)` partout : le code est exécuté par tsx/esbuild, qui n'émet pas `emitDecoratorMetadata`.

@@ -1,0 +1,54 @@
+<div class="shell" [class.collapsed]="collapsed()">
+  <aside class="sidebar">
+    <header class="brand">
+      @if (!collapsed()) {
+        <span class="name">{{ associationName }}</span>
+      }
+      <button
+        type="button"
+        class="toggle"
+        (click)="toggle()"
+        [attr.aria-label]="collapsed() ? 'Déplier le menu' : 'Replier le menu'"
+        [attr.aria-expanded]="!collapsed()"
+      >
+        <mat-icon fontSet="material-icons-outlined">{{ collapsed() ? 'menu' : 'menu_open' }}</mat-icon>
+      </button>
+    </header>
+
+    <nav aria-label="Navigation principale">
+      @for (item of navigation; track item.path) {
+        <a
+          class="item"
+          [routerLink]="item.path"
+          routerLinkActive="active"
+          [matTooltip]="collapsed() ? item.label : ''"
+          matTooltipPosition="right"
+        >
+          <mat-icon fontSet="material-icons-outlined">{{ item.icon }}</mat-icon>
+          @if (!collapsed()) {
+            <span>{{ item.label }}</span>
+          }
+        </a>
+      }
+    </nav>
+
+    <footer>
+      <a
+        class="item"
+        [routerLink]="settings.path"
+        routerLinkActive="active"
+        [matTooltip]="collapsed() ? settings.label : ''"
+        matTooltipPosition="right"
+      >
+        <mat-icon fontSet="material-icons-outlined">{{ settings.icon }}</mat-icon>
+        @if (!collapsed()) {
+          <span>{{ settings.label }}</span>
+        }
+      </a>
+    </footer>
+  </aside>
+
+  <main class="content">
+    <router-outlet />
+  </main>
+</div>
