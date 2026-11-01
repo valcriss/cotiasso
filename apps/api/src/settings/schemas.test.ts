@@ -54,7 +54,14 @@ describe("brandingSchema", () => {
   const valid = { appName: "Mon asso", sidebarBackground: "#EAF2FD", sidebarText: "#0B2A55" };
 
   it("normalise les couleurs en minuscules", () => {
-    expect(brandingSchema.parse(valid)).toEqual({ appName: "Mon asso", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55" });
+    expect(brandingSchema.parse(valid)).toEqual({ appName: "Mon asso", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55", accentColor: "#005cbb" });
+  });
+
+  it("accepte un accent assez foncé pour du texte blanc et refuse un accent trop clair", () => {
+    expect(brandingSchema.parse({ ...valid, accentColor: "#7A1F4D" }).accentColor).toBe("#7a1f4d");
+    const result = brandingSchema.safeParse({ ...valid, accentColor: "#ffd54f" });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["accentColor"]);
   });
 
   it("refuse un format de couleur invalide", () => {

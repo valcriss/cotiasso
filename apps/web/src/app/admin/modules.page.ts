@@ -10,7 +10,7 @@ import { AdminApiService, type ModuleInfo } from './admin-api.service';
   imports: [MatButtonModule, MatIconModule],
   styleUrl: './admin-pages.scss',
   template: `
-    <h2>Modules</h2>
+    <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">extension</mat-icon><span>Modules</span></h2>
     <p class="muted">
       Les modules ajoutent des fonctions optionnelles. Un module n'est activable qu'une fois livré et validé : un module
       indisponible ne peut pas être activé.

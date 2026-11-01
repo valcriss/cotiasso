@@ -37,7 +37,7 @@ import { ENTRY_STATUS_LABELS, EntryEditor } from './entry-editor';
   `,
   template: `
     <header class="head">
-      <h1 class="title">Comptabilité</h1>
+      <h1 class="title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">menu_book</mat-icon><span>Comptabilité</span></h1>
       @if (canCreate()) {
         <button mat-flat-button type="button" (click)="startNew()">
           <mat-icon fontSet="material-icons-outlined">add</mat-icon>
@@ -88,7 +88,7 @@ import { ENTRY_STATUS_LABELS, EntryEditor } from './entry-editor';
           <mat-option value="REVERSED">Contrepassées</mat-option>
         </mat-select>
       </mat-form-field>
-      <div class="actions"><button mat-flat-button type="submit">Filtrer</button></div>
+      <div class="actions"><button mat-flat-button type="submit"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_alt</mat-icon> Filtrer</button></div>
     </form>
 
     @if (loading()) {

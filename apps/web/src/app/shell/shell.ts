@@ -1,14 +1,16 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { BrandingService } from '../branding/branding.service';
 import { NAVIGATION, SETTINGS_ITEM } from '../navigation';
+import { DENSITIES, THEME_MODES, ThemeService } from '../theme/theme.service';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatIconModule, MatTooltipModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatIconModule, MatMenuModule, MatTooltipModule],
   styleUrl: './shell.scss',
   templateUrl: './shell.html',
 })
@@ -26,6 +28,9 @@ export class Shell {
     this.auth.permissions();
     return this.auth.can(SETTINGS_ITEM.permission) ? SETTINGS_ITEM : null;
   });
+  protected readonly theme = inject(ThemeService);
+  protected readonly modes = THEME_MODES;
+  protected readonly densities = DENSITIES;
   protected readonly user = this.auth.user;
   protected readonly collapsed = signal(false);
 

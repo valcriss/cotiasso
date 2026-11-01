@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -25,11 +26,11 @@ export function groupPermissions(permissions: PermissionInfo[]): PermissionGroup
 
 @Component({
   selector: 'app-roles-page',
-  imports: [ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule],
+  imports: [MatIconModule, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule],
   styleUrl: './admin-pages.scss',
   template: `
     <header class="head">
-      <h2>Rôles</h2>
+      <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">admin_panel_settings</mat-icon><span>Rôles</span></h2>
       @if (canAdmin()) {
         <button mat-flat-button type="button" (click)="startCreate()">Nouveau rôle</button>
       }

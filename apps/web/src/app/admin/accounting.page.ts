@@ -63,7 +63,7 @@ export function parseAccountCsv(text: string): ParsedAccounts {
   imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ClosingPanel],
   styleUrl: './admin-pages.scss',
   template: `
-    <h2>Comptabilité</h2>
+    <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">menu_book</mat-icon><span>Comptabilité</span></h2>
     @if (!canEdit()) {
       <p class="muted">Vous pouvez consulter la structure comptable, mais pas la modifier.</p>
     }
@@ -75,7 +75,7 @@ export function parseAccountCsv(text: string): ParsedAccounts {
     }
 
     <section class="panel" aria-labelledby="fy-title">
-      <h3 id="fy-title">Exercices</h3>
+      <h3 id="fy-title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">event</mat-icon><span>Exercices</span></h3>
       <p class="muted">Dates libres, sans chevauchement. Un exercice ne se supprime pas.</p>
       @if (years().length === 0) {
         <p class="muted">Aucun exercice. Créez le premier pour pouvoir saisir des écritures.</p>
@@ -119,13 +119,13 @@ export function parseAccountCsv(text: string): ParsedAccounts {
             <mat-label>Fin</mat-label>
             <input matInput type="date" formControlName="end" />
           </mat-form-field>
-          <button mat-flat-button type="submit" [disabled]="busy() || yearForm.invalid">Créer l'exercice</button>
+          <button mat-flat-button type="submit" [disabled]="busy() || yearForm.invalid"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Créer l'exercice</button>
         </form>
       }
     </section>
 
     <section class="panel" aria-labelledby="jr-title">
-      <h3 id="jr-title">Journaux</h3>
+      <h3 id="jr-title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">book</mat-icon><span>Journaux</span></h3>
       <p class="muted">Le code et le type d'un journal sont définitifs ; on le désactive au lieu de le supprimer.</p>
       <table class="table">
         <caption class="sr-only">Journaux</caption>
@@ -168,13 +168,13 @@ export function parseAccountCsv(text: string): ParsedAccounts {
               }
             </mat-select>
           </mat-form-field>
-          <button mat-flat-button type="submit" [disabled]="busy() || journalForm.invalid">Créer le journal</button>
+          <button mat-flat-button type="submit" [disabled]="busy() || journalForm.invalid"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Créer le journal</button>
         </form>
       }
     </section>
 
     <section class="panel" aria-labelledby="ac-title">
-      <h3 id="ac-title">Plan de comptes</h3>
+      <h3 id="ac-title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">account_tree</mat-icon><span>Plan de comptes</span></h3>
       <p class="muted">
         Aucun plan n'est fourni : importez le vôtre (fichier « numéro;libellé ») ou créez les comptes un à un. Le numéro est
         définitif ; un compte se désactive, il ne se supprime pas.
@@ -222,7 +222,7 @@ export function parseAccountCsv(text: string): ParsedAccounts {
             <mat-label>Libellé</mat-label>
             <input matInput formControlName="label" />
           </mat-form-field>
-          <button mat-flat-button type="submit" [disabled]="busy() || accountForm.invalid">Créer le compte</button>
+          <button mat-flat-button type="submit" [disabled]="busy() || accountForm.invalid"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Créer le compte</button>
         </form>
         <div class="actions">
           <label class="muted" for="accounts-file">Importer un plan (CSV « numéro;libellé »)</label>

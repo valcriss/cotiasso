@@ -99,7 +99,7 @@ describe("Paramètres et modules (base vierge)", () => {
   it("publie la marque blanche avant toute connexion, avec des valeurs par défaut", async () => {
     const response = await call("GET", "/branding");
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ appName: "cotiasso", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55" });
+    expect(response.json()).toEqual({ appName: "cotiasso", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55", accentColor: "#005cbb" });
   });
 
   it("réserve la lecture et l'écriture des paramètres aux permissions prévues", async () => {
@@ -135,13 +135,27 @@ describe("Paramètres et modules (base vierge)", () => {
       appName: "Mon Asso",
       sidebarBackground: "#0B2A55",
       sidebarText: "#FFFFFF",
+      accentColor: "#7A1F4D",
     });
     expect(update.statusCode).toBe(200);
     expect((await call("GET", "/branding")).json()).toEqual({
       appName: "Mon Asso",
       sidebarBackground: "#0b2a55",
       sidebarText: "#ffffff",
+      accentColor: "#7a1f4d",
     });
+  });
+
+  it("garde l'accent par défaut quand il est omis et refuse un accent trop clair pour du texte blanc", async () => {
+    const omitted = await call("PUT", "/settings/branding", admin, { appName: "Mon Asso", sidebarBackground: "#0b2a55", sidebarText: "#ffffff" });
+    expect(omitted.statusCode).toBe(200);
+    expect(omitted.json().value.accentColor).toBe("#005cbb");
+
+    const tooLight = await call("PUT", "/settings/branding", admin, { appName: "Mon Asso", sidebarBackground: "#0b2a55", sidebarText: "#ffffff", accentColor: "#ffd54f" });
+    expect(tooLight.statusCode).toBe(400);
+    expect(tooLight.json().issues[0]).toMatchObject({ path: "accentColor" });
+    expect(tooLight.json().issues[0].message).toContain("texte blanc");
+    expect((await call("GET", "/branding")).json().accentColor).toBe("#005cbb");
   });
 
   it("refuse les paramètres invalides en désignant le champ fautif, sans rien enregistrer", async () => {
@@ -189,7 +203,7 @@ describe("Paramètres et modules (base vierge)", () => {
 
   it("complète un ancien contenu avec les valeurs par défaut quand le schéma gagne des champs", async () => {
     await prisma.settingsVersion.create({ data: { section: "branding", payload: { appName: "Ancien", sidebarBackground: "#eaf2fd" } } });
-    expect(await settings.current("branding")).toEqual({ appName: "Ancien", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55" });
+    expect(await settings.current("branding")).toEqual({ appName: "Ancien", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55", accentColor: "#005cbb" });
   });
 
   describe("modules", () => {

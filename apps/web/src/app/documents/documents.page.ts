@@ -50,7 +50,7 @@ import { formatSize, objectTypeLabel, titleFromFilename } from './format';
   `,
   template: `
     <header class="head">
-      <h1 class="title">Documents</h1>
+      <h1 class="title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">description</mat-icon><span>Documents</span></h1>
       @if (canCreate()) {
         <button mat-flat-button type="button" (click)="toggleUpload()">
           <mat-icon fontSet="material-icons-outlined">upload_file</mat-icon>
@@ -68,7 +68,7 @@ import { formatSize, objectTypeLabel, titleFromFilename } from './format';
 
     @if (uploadOpen() && canCreate()) {
       <form class="panel" [formGroup]="uploadForm" (ngSubmit)="upload()" novalidate>
-        <h3>Déposer un document</h3>
+        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload_file</mat-icon><span>Déposer un document</span></h3>
         <div class="file-input">
           <label for="upload-file">Fichier</label>
           <input id="upload-file" type="file" [attr.accept]="accept()" (change)="pickFile($event, 'new')" />
@@ -97,7 +97,7 @@ import { formatSize, objectTypeLabel, titleFromFilename } from './format';
           <mat-checkbox formControlName="restricted">Document restreint (visible des seuls rôles autorisés)</mat-checkbox>
         }
         <div class="actions">
-          <button mat-flat-button type="submit" [disabled]="busy()">Déposer</button>
+          <button mat-flat-button type="submit" [disabled]="busy()"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload</mat-icon> Déposer</button>
           <button mat-button type="button" (click)="uploadOpen.set(false)">Annuler</button>
         </div>
       </form>
@@ -119,7 +119,7 @@ import { formatSize, objectTypeLabel, titleFromFilename } from './format';
       </mat-form-field>
       <mat-checkbox formControlName="includeArchived">Inclure les archivés</mat-checkbox>
       <div class="actions">
-        <button mat-flat-button type="submit">Filtrer</button>
+        <button mat-flat-button type="submit"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_alt</mat-icon> Filtrer</button>
       </div>
     </form>
 

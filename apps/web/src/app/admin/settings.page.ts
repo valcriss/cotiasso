@@ -1,27 +1,29 @@
 import { Component, computed, inject } from '@angular/core';
+import { MatIconModule } from '@angular/material/icon';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 
 interface SettingsSection {
   path: string;
+  icon: string;
   label: string;
   permission: string;
 }
 
 /** Sections des paramètres ; chacune exige sa permission (le serveur vérifie de toute façon). */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
-  { path: 'association', label: 'Association', permission: 'settings.association:view' },
-  { path: 'comptabilite', label: 'Comptabilité', permission: 'entries:view' },
-  { path: 'modules', label: 'Modules', permission: 'settings.association:view' },
-  { path: 'utilisateurs', label: 'Utilisateurs', permission: 'users:view' },
-  { path: 'roles', label: 'Rôles', permission: 'users:view' },
-  { path: 'journal', label: "Journal d'audit", permission: 'audit:view' },
-  { path: 'exploitation', label: 'Exploitation', permission: 'backups:admin' },
+  { path: 'association', icon: 'business', label: 'Association', permission: 'settings.association:view' },
+  { path: 'comptabilite', icon: 'menu_book', label: 'Comptabilité', permission: 'entries:view' },
+  { path: 'modules', icon: 'extension', label: 'Modules', permission: 'settings.association:view' },
+  { path: 'utilisateurs', icon: 'group', label: 'Utilisateurs', permission: 'users:view' },
+  { path: 'roles', icon: 'admin_panel_settings', label: 'Rôles', permission: 'users:view' },
+  { path: 'journal', icon: 'history', label: "Journal d'audit", permission: 'audit:view' },
+  { path: 'exploitation', icon: 'dns', label: 'Exploitation', permission: 'backups:admin' },
 ];
 
 @Component({
   selector: 'app-settings-page',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [MatIconModule, RouterLink, RouterLinkActive, RouterOutlet],
   styleUrl: './admin-pages.scss',
   template: `
     <h1 class="title">Paramètres</h1>
@@ -30,7 +32,9 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     } @else {
       <nav class="tabs" aria-label="Rubriques des paramètres">
         @for (section of sections(); track section.path) {
-          <a [routerLink]="section.path" routerLinkActive="active">{{ section.label }}</a>
+          <a [routerLink]="section.path" routerLinkActive="active">
+            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ section.icon }}</mat-icon><span>{{ section.label }}</span>
+          </a>
         }
       </nav>
       <router-outlet />

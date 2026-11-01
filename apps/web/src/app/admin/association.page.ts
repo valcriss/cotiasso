@@ -2,11 +2,12 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError, type FormError } from '../auth/error-messages';
-import { BrandingService, type Branding } from '../branding/branding.service';
+import { BrandingService, DEFAULT_ACCENT, type Branding } from '../branding/branding.service';
 import { MIN_TEXT_CONTRAST, contrastRatio } from '../branding/contrast';
 import { AdminApiService } from './admin-api.service';
 
@@ -23,16 +24,16 @@ interface Identity {
 
 @Component({
   selector: 'app-association-page',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule],
+  imports: [MatIconModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule],
   styleUrl: './admin-pages.scss',
   template: `
-    <h2>Association</h2>
+    <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">business</mat-icon><span>Association</span></h2>
     @if (!canEdit()) {
       <p class="muted">Vous pouvez consulter ces informations, mais pas les modifier.</p>
     }
 
     <form class="panel" [formGroup]="identityForm" (ngSubmit)="saveIdentity()" novalidate>
-      <h3>Identité</h3>
+      <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">badge</mat-icon><span>Identité</span></h3>
       <mat-form-field appearance="outline">
         <mat-label>Nom de l'association</mat-label>
         <input matInput formControlName="name" required />
@@ -92,13 +93,13 @@ interface Identity {
       }
       @if (canEdit()) {
         <div class="actions">
-          <button mat-flat-button type="submit" [disabled]="saving()">Enregistrer l'identité</button>
+          <button mat-flat-button type="submit" [disabled]="saving()"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">save</mat-icon> Enregistrer l'identité</button>
         </div>
       }
     </form>
 
     <form class="panel" [formGroup]="brandingForm" (ngSubmit)="saveBranding()" novalidate>
-      <h3>Apparence</h3>
+      <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">palette</mat-icon><span>Apparence</span></h3>
       <p class="muted">Le nom et les couleurs du menu s'appliquent à toute l'interface, y compris la page de connexion.</p>
       <mat-form-field appearance="outline">
         <mat-label>Nom affiché</mat-label>
@@ -119,6 +120,22 @@ interface Identity {
           <code>{{ brandingForm.controls.sidebarText.value }}</code>
         </div>
       </div>
+      <div class="row">
+        <div class="color">
+          <label for="accent-color">Couleur d'accent</label>
+          <input id="accent-color" type="color" formControlName="accentColor" />
+          <code>{{ brandingForm.controls.accentColor.value }}</code>
+          <button mat-button type="button" (click)="resetAccent()">Par défaut</button>
+        </div>
+        <span class="accent-sample" [style.background]="accent()">Boutons et liens</span>
+      </div>
+      @if (lowAccentContrast()) {
+        <p class="alert" role="alert">
+          Accent trop clair ({{ accentRatio() }} sur {{ minContrast }} requis) : le texte blanc des boutons serait illisible.
+        </p>
+      } @else {
+        <p class="muted">Contraste du texte blanc sur l'accent : {{ accentRatio() }} (minimum {{ minContrast }}).</p>
+      }
 
       <div
         class="preview"
@@ -153,7 +170,7 @@ interface Identity {
       }
       @if (canEdit()) {
         <div class="actions">
-          <button mat-flat-button type="submit" [disabled]="saving() || lowContrast()">Enregistrer l'apparence</button>
+          <button mat-flat-button type="submit" [disabled]="saving() || lowContrast() || lowAccentContrast()"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">save</mat-icon> Enregistrer l'apparence</button>
         </div>
       }
     </form>
@@ -190,6 +207,7 @@ export class AssociationPage {
     appName: ['', [Validators.required]],
     sidebarBackground: ['#eaf2fd'],
     sidebarText: ['#0b2a55'],
+    accentColor: [DEFAULT_ACCENT],
   });
 
   private readonly brandingValue = toSignal(this.brandingForm.valueChanges, { initialValue: this.brandingForm.getRawValue() });
@@ -202,8 +220,17 @@ export class AssociationPage {
   protected readonly ratio = computed(() => (this.rawRatio() ?? 0).toFixed(1));
   protected readonly lowContrast = computed(() => (this.rawRatio() ?? 0) < MIN_TEXT_CONTRAST);
 
+  protected readonly accent = computed(() => this.brandingValue().accentColor ?? DEFAULT_ACCENT);
+  private readonly rawAccentRatio = computed(() => contrastRatio('#ffffff', this.accent()));
+  protected readonly accentRatio = computed(() => (this.rawAccentRatio() ?? 0).toFixed(1));
+  protected readonly lowAccentContrast = computed(() => (this.rawAccentRatio() ?? 0) < MIN_TEXT_CONTRAST);
+
   constructor() {
     void this.load();
+  }
+
+  protected resetAccent(): void {
+    this.brandingForm.controls.accentColor.setValue(DEFAULT_ACCENT);
   }
 
   protected async saveIdentity(): Promise<void> {

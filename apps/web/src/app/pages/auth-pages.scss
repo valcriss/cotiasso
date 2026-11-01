@@ -1,6 +1,6 @@
 .page {
   align-items: center;
-  background: var(--app-sidebar-bg);
+  background: light-dark(var(--app-sidebar-bg), color-mix(in srgb, var(--app-sidebar-bg) 16%, #12151b));
   display: flex;
   justify-content: center;
   min-height: 100%;
@@ -8,6 +8,11 @@
 }
 
 .card {
+  --mat-card-elevated-container-color: var(--app-surface);
+  --mat-card-elevated-container-shape: var(--app-radius);
+  --mat-card-elevated-container-elevation: none;
+  border: 1px solid var(--app-border);
+  box-shadow: var(--app-shadow-md);
   max-width: 440px;
   width: 100%;
 }

@@ -1,7 +1,9 @@
 @use '@angular/material' as mat;
 
 html {
-  color-scheme: light;
+  // Clair par défaut, sombre si le système le demande ; le choix de l'utilisateur (classes theme-light / theme-dark,
+  // voir ThemeService) l'emporte.
+  color-scheme: light dark;
   @include mat.theme((
     color: (
       primary: mat.$azure-palette,
@@ -11,10 +13,75 @@ html {
     density: 0,
   ));
 
-  // Marque blanche : ces variables seront surchargées par la configuration de l'association.
+  // Marque blanche : ces variables sont surchargées par la configuration de l'association (BrandingService).
   --app-sidebar-bg: #eaf2fd;
   --app-sidebar-text: #0b2a55;
   --app-sidebar-selected: #ffffff;
+
+  // Surfaces : une page légèrement teintée, des cartes blanches (ou anthracite) qui ressortent par une ombre douce.
+  --app-bg: light-dark(#f3f5fa, #0f1217);
+  --app-surface: light-dark(#ffffff, #181c23);
+  --app-surface-muted: light-dark(#f6f8fc, #1f242d);
+  --app-border: light-dark(#dfe4ee, #2c323d);
+  --app-field-border: light-dark(#7d879b, #8993a6);
+  --app-shadow-color: light-dark(rgb(20 30 60 / 10%), rgb(0 0 0 / 55%));
+  --app-shadow-xs: 0 1px 2px var(--app-shadow-color);
+  --app-shadow-sm: 0 1px 3px var(--app-shadow-color), 0 1px 2px var(--app-shadow-color);
+  --app-shadow-md: 0 6px 16px var(--app-shadow-color), 0 2px 4px var(--app-shadow-color);
+  --app-radius: 14px;
+  --app-success-bg: light-dark(#e2f3e7, #16301f);
+  --app-success-text: light-dark(#14532d, #b9e7c8);
+  --app-success: light-dark(#1b7a3d, #6fcf8f);
+
+  // Densité (réglage de l'utilisateur, voir ThemeService) : espacements des panneaux, tableaux et formulaires.
+  --app-panel-pad: 20px;
+  --app-cell-pad: 12px;
+  --app-field-gap: 4px;
+
+  // Champs : contour net et fond de la surface, pour qu'ils se lisent comme saisissables et non désactivés.
+  --mat-form-field-outlined-outline-color: var(--app-field-border);
+  --mat-form-field-outlined-hover-outline-color: var(--mat-sys-on-surface);
+  --mat-form-field-outlined-focus-outline-color: var(--mat-sys-primary);
+  --mat-form-field-outlined-outline-width: 1px;
+  --mat-form-field-outlined-focus-outline-width: 2px;
+  --mat-form-field-outlined-container-shape: 10px;
+  --mat-form-field-focus-select-arrow-color: var(--mat-sys-primary);
+}
+
+// Accent de l'association : seules les couleurs principales du thème changent. En clair l'accent sert tel quel (texte
+// blanc dessus, contraste imposé par le serveur) ; en sombre il est éclairci et porte du texte foncé.
+html.has-accent {
+  --mat-sys-primary: light-dark(var(--app-accent), color-mix(in srgb, var(--app-accent) 45%, white));
+  --mat-sys-on-primary: light-dark(#ffffff, #10131a);
+  --mat-sys-primary-container: light-dark(
+    color-mix(in srgb, var(--app-accent) 16%, white),
+    color-mix(in srgb, var(--app-accent) 55%, #10131a)
+  );
+  --mat-sys-on-primary-container: light-dark(
+    color-mix(in srgb, var(--app-accent) 75%, black),
+    color-mix(in srgb, var(--app-accent) 15%, white)
+  );
+  --mat-sys-surface-tint: var(--mat-sys-primary);
+  --mat-sys-secondary-container: light-dark(
+    color-mix(in srgb, var(--app-accent) 12%, white),
+    color-mix(in srgb, var(--app-accent) 35%, #10131a)
+  );
+  --mat-sys-on-secondary-container: var(--mat-sys-on-primary-container);
+}
+
+html.theme-light {
+  color-scheme: light;
+}
+
+html.theme-dark {
+  color-scheme: dark;
+}
+
+html.density-compact {
+  --app-panel-pad: 14px;
+  --app-cell-pad: 6px;
+  --app-field-gap: 0;
+  @include mat.theme((density: -3));
 }
 
 html,
@@ -24,7 +91,48 @@ body {
 }
 
 body {
-  background: var(--mat-sys-surface);
+  background: var(--app-bg);
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
+}
+
+// Les champs prennent la couleur de la surface qui les porte : jamais un gris qui évoque un champ désactivé.
+.mat-mdc-form-field.mat-form-field-appearance-outline .mat-mdc-text-field-wrapper {
+  background: var(--app-surface);
+  border-radius: 10px;
+}
+
+.mat-mdc-form-field.mat-form-field-disabled .mat-mdc-text-field-wrapper {
+  background: var(--app-surface-muted);
+}
+
+// Boutons pleins : un léger relief, sans changer la forme Material.
+.mat-mdc-unelevated-button:not(:disabled) {
+  box-shadow: var(--app-shadow-xs);
+}
+
+.mat-mdc-unelevated-button:not(:disabled):hover {
+  box-shadow: var(--app-shadow-sm);
+}
+
+// Les icônes insérées dans un bouton ou un titre restent alignées sur le texte.
+.mat-icon {
+  flex-shrink: 0;
+}
+
+// Menu d'apparence du menu latéral (rendu dans l'overlay, donc en style global).
+.appearance-menu .menu-title {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-label-medium);
+  padding: 12px 16px 4px;
+  text-transform: uppercase;
+}
+
+.appearance-menu .check {
+  color: var(--mat-sys-primary);
+  margin: 0 0 0 auto;
+}
+
+.appearance-menu .label {
+  flex: 1;
 }

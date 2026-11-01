@@ -16,13 +16,13 @@ describe('SettingsPage', () => {
 
   it("montre les rubriques d'administration à qui peut consulter les utilisateurs", async () => {
     const root = await render(['users:view']);
-    const tabs = Array.from(root.querySelectorAll('nav.tabs a')).map((a) => a.textContent?.trim());
+    const tabs = Array.from(root.querySelectorAll('nav.tabs a span')).map((a) => a.textContent?.trim());
     expect(tabs).toEqual(['Utilisateurs', 'Rôles']);
   });
 
   it('ajoute Association et Modules à qui peut consulter les paramètres', async () => {
     const root = await render(['settings.association:view', 'users:view', 'audit:view']);
-    const tabs = Array.from(root.querySelectorAll('nav.tabs a')).map((a) => a.textContent?.trim());
+    const tabs = Array.from(root.querySelectorAll('nav.tabs a span')).map((a) => a.textContent?.trim());
     expect(tabs).toEqual(['Association', 'Modules', 'Utilisateurs', 'Rôles', "Journal d'audit"]);
   });
 

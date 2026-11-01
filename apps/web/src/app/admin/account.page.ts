@@ -9,6 +9,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { RouterLink } from '@angular/router';
@@ -26,14 +27,14 @@ function matchesNewPassword(control: AbstractControl): ValidationErrors | null {
 
 @Component({
   selector: 'app-account-page',
-  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule],
+  imports: [MatIconModule, ReactiveFormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule],
   styleUrl: './admin-pages.scss',
   template: `
-    <h2>Mon compte</h2>
+    <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">account_circle</mat-icon><span>Mon compte</span></h2>
     <p class="muted">{{ user()?.displayName }} · {{ user()?.email }}</p>
 
     <form class="panel narrow" [formGroup]="form" (ngSubmit)="submit()" novalidate>
-      <h3>Changer mon mot de passe</h3>
+      <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">lock</mat-icon><span>Changer mon mot de passe</span></h3>
       <mat-form-field appearance="outline">
         <mat-label>Mot de passe actuel</mat-label>
         <input matInput type="password" formControlName="currentPassword" autocomplete="current-password" required />
@@ -81,7 +82,7 @@ function matchesNewPassword(control: AbstractControl): ValidationErrors | null {
     </form>
 
     <section class="panel narrow" aria-labelledby="mfa-title">
-      <h3 id="mfa-title">Vérification en deux étapes</h3>
+      <h3 id="mfa-title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">security</mat-icon><span>Vérification en deux étapes</span></h3>
       @if (!mfa().enabled) {
         <p class="muted">
           Ajoutez une protection : un code à usage unique, généré par une application sur votre téléphone, est demandé à chaque connexion.

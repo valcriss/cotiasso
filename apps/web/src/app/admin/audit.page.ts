@@ -23,7 +23,7 @@ export function dayBound(value: string, end: boolean): string | undefined {
   styleUrl: './admin-pages.scss',
   template: `
     <header class="head">
-      <h2>Journal d'audit</h2>
+      <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">history</mat-icon><span>Journal d'audit</span></h2>
       <button mat-stroked-button type="button" [disabled]="verifying()" (click)="verify()">
         <mat-icon fontSet="material-icons-outlined">verified_user</mat-icon>
         Vérifier l'intégrité

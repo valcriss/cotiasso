@@ -19,13 +19,24 @@ describe('BrandingService', () => {
 
   it("applique le nom et les couleurs de l'association à l'interface", async () => {
     const loading = service.load();
-    http.expectOne('/api/branding').flush({ appName: 'Mon Asso', sidebarBackground: '#0b2a55', sidebarText: '#ffffff' });
+    http.expectOne('/api/branding').flush({ appName: 'Mon Asso', sidebarBackground: '#0b2a55', sidebarText: '#ffffff', accentColor: '#005cbb' });
     await loading;
 
     expect(service.branding().appName).toBe('Mon Asso');
     expect(document.documentElement.style.getPropertyValue('--app-sidebar-bg')).toBe('#0b2a55');
     expect(document.documentElement.style.getPropertyValue('--app-sidebar-text')).toBe('#ffffff');
     expect(document.title).toBe('Mon Asso');
+  });
+
+  it("applique un accent personnalisé et revient au thème d'origine avec l'accent par défaut", async () => {
+    const html = document.documentElement;
+    service.apply({ ...DEFAULT_BRANDING, accentColor: '#7a1f4d' });
+    expect(html.classList.contains('has-accent')).toBe(true);
+    expect(html.style.getPropertyValue('--app-accent')).toBe('#7a1f4d');
+
+    service.apply({ ...DEFAULT_BRANDING, accentColor: '#005CBB' });
+    expect(html.classList.contains('has-accent')).toBe(false);
+    expect(html.style.getPropertyValue('--app-accent')).toBe('');
   });
 
   it('garde les valeurs par défaut quand le serveur ne répond pas', async () => {

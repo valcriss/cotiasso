@@ -22,7 +22,7 @@ interface ShownLink {
   styleUrl: './admin-pages.scss',
   template: `
     <header class="head">
-      <h2>Utilisateurs</h2>
+      <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">group</mat-icon><span>Utilisateurs</span></h2>
       @if (canAdmin()) {
         <button mat-flat-button type="button" (click)="toggleInvite()">
           <mat-icon fontSet="material-icons-outlined">person_add</mat-icon>
@@ -52,7 +52,7 @@ interface ShownLink {
 
     @if (inviteOpen() && canAdmin()) {
       <form class="panel" [formGroup]="inviteForm" (ngSubmit)="invite()" novalidate>
-        <h3>Inviter un utilisateur</h3>
+        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">person_add</mat-icon><span>Inviter un utilisateur</span></h3>
         <mat-form-field appearance="outline">
           <mat-label>Nom affiché</mat-label>
           <input matInput formControlName="displayName" autocomplete="off" required />

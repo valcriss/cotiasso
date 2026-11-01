@@ -48,6 +48,42 @@
         </a>
       }
 
+      <button
+        type="button"
+        class="item appearance"
+        [matMenuTriggerFor]="appearanceMenu"
+        aria-label="Apparence de l'écran"
+        [matTooltip]="collapsed() ? 'Apparence' : ''"
+        matTooltipPosition="right"
+      >
+        <mat-icon fontSet="material-icons-outlined">palette</mat-icon>
+        @if (!collapsed()) {
+          <span>Apparence</span>
+        }
+      </button>
+      <mat-menu #appearanceMenu="matMenu" class="appearance-menu">
+        <div class="menu-title" (click)="$event.stopPropagation()">Mode</div>
+        @for (mode of modes; track mode.value) {
+          <button mat-menu-item type="button" role="menuitemradio" [attr.aria-checked]="theme.mode() === mode.value" (click)="theme.setMode(mode.value)">
+            <mat-icon fontSet="material-icons-outlined">{{ mode.icon }}</mat-icon>
+            <span class="label">{{ mode.label }}</span>
+            @if (theme.mode() === mode.value) {
+              <mat-icon class="check" fontSet="material-icons-outlined">check</mat-icon>
+            }
+          </button>
+        }
+        <div class="menu-title" (click)="$event.stopPropagation()">Densité</div>
+        @for (density of densities; track density.value) {
+          <button mat-menu-item type="button" role="menuitemradio" [attr.aria-checked]="theme.density() === density.value" (click)="theme.setDensity(density.value)">
+            <mat-icon fontSet="material-icons-outlined">{{ density.icon }}</mat-icon>
+            <span class="label">{{ density.label }}</span>
+            @if (theme.density() === density.value) {
+              <mat-icon class="check" fontSet="material-icons-outlined">check</mat-icon>
+            }
+          </button>
+        }
+      </mat-menu>
+
       <div class="account">
         @if (!collapsed()) {
           <a class="who" routerLink="/compte" [title]="user()?.email ?? ''">{{ user()?.displayName }}</a>

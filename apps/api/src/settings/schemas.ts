@@ -16,16 +16,25 @@ export const identitySchema = z.strictObject({
   siren: z.union([z.literal(""), z.string().regex(/^\d{9}$/, "Le SIREN comporte 9 chiffres.")]).default(""),
 });
 
-/** Marque blanche : nom affiché et couleurs du menu. Le contraste du texte doit rester lisible (WCAG AA). */
+/** Accent par défaut : le bleu du thème, assez foncé pour porter du texte blanc. */
+export const DEFAULT_ACCENT = "#005cbb";
+
+/** Marque blanche : nom affiché, couleurs du menu et couleur d'accent. Les contrastes doivent rester lisibles (WCAG AA). */
 export const brandingSchema = z
   .strictObject({
     appName: z.string().trim().min(1, "Le nom affiché est obligatoire.").max(60),
     sidebarBackground: hexColor,
     sidebarText: hexColor,
+    // Couleur des boutons, liens et focus ; le texte des boutons est blanc, l'accent doit donc rester assez foncé.
+    accentColor: hexColor.default(DEFAULT_ACCENT),
   })
   .refine((value) => contrastRatio(value.sidebarText, value.sidebarBackground) >= MIN_TEXT_CONTRAST, {
     message: `Le contraste entre le texte et le fond du menu doit être d'au moins ${MIN_TEXT_CONTRAST} pour rester lisible.`,
     path: ["sidebarText"],
+  })
+  .refine((value) => contrastRatio("#ffffff", value.accentColor) >= MIN_TEXT_CONTRAST, {
+    message: `L'accent doit être assez foncé pour porter du texte blanc (contraste d'au moins ${MIN_TEXT_CONTRAST}).`,
+    path: ["accentColor"],
   });
 
 export type Identity = z.infer<typeof identitySchema>;
@@ -38,7 +47,7 @@ export const SETTINGS_SECTIONS = {
   },
   branding: {
     schema: brandingSchema,
-    defaults: { appName: "cotiasso", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55" } satisfies Branding,
+    defaults: { appName: "cotiasso", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55", accentColor: DEFAULT_ACCENT } satisfies Branding,
   },
 } as const;
 

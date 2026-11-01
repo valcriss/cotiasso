@@ -5,13 +5,30 @@
 
 .title,
 h2 {
+  align-items: center;
+  display: flex;
   font: var(--mat-sys-headline-small);
+  gap: 12px;
   margin: 0 0 8px;
+
+  mat-icon {
+    color: var(--mat-sys-primary);
+    font-size: 28px;
+    height: 28px;
+    width: 28px;
+  }
 }
 
 h3 {
+  align-items: center;
+  display: flex;
   font: var(--mat-sys-title-medium);
+  gap: 10px;
   margin: 0 0 8px;
+
+  mat-icon {
+    color: var(--mat-sys-primary);
+  }
 }
 
 h4 {
@@ -23,6 +40,8 @@ h4 {
 .head {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   justify-content: space-between;
   margin: 0 0 8px;
 
@@ -49,16 +68,32 @@ h4 {
 }
 
 .tabs {
-  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  border-bottom: 1px solid var(--app-border);
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
-  margin: 0 0 16px;
+  margin: 0 0 20px;
 
   a {
+    align-items: center;
     border-bottom: 2px solid transparent;
     color: var(--mat-sys-on-surface-variant);
-    padding: 8px 14px;
+    display: inline-flex;
+    font: var(--mat-sys-label-large);
+    gap: 8px;
+    margin-bottom: -1px;
+    padding: 10px 14px;
     text-decoration: none;
+
+    mat-icon {
+      font-size: 20px;
+      height: 20px;
+      width: 20px;
+    }
+
+    &:hover {
+      color: var(--mat-sys-on-surface);
+    }
 
     &.active {
       border-bottom-color: var(--mat-sys-primary);
@@ -73,8 +108,9 @@ h4 {
 }
 
 .alert {
+  align-items: flex-start;
   background: var(--mat-sys-error-container);
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--mat-sys-on-error-container);
   margin: 0 0 12px;
   padding: 8px 12px;
@@ -90,22 +126,34 @@ h4 {
 }
 
 .success {
-  background: var(--mat-sys-tertiary-container);
-  border-radius: 8px;
-  color: var(--mat-sys-on-tertiary-container);
+  background: var(--app-success-bg);
+  border-radius: 10px;
+  color: var(--app-success-text);
   margin: 0 0 12px;
   padding: 8px 12px;
 }
 
 .panel,
 .link-card {
-  background: var(--mat-sys-surface-container-low);
-  border: 1px solid var(--mat-sys-outline-variant);
-  border-radius: 12px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow-sm);
   display: flex;
   flex-direction: column;
-  margin: 0 0 16px;
-  padding: 16px;
+  margin: 0 0 20px;
+  padding: var(--app-panel-pad);
+
+  // Un panneau dans un panneau (clôture, saisie) : séparé par un filet, sans seconde carte.
+  .panel {
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--app-border);
+    border-radius: 0;
+    box-shadow: none;
+    margin: 12px 0 0;
+    padding: 12px 0 0;
+  }
 
   &.narrow {
     max-width: 440px;
@@ -122,9 +170,10 @@ h4 {
   gap: 8px;
 
   input {
-    background: var(--mat-sys-surface);
-    border: 1px solid var(--mat-sys-outline);
-    border-radius: 6px;
+    background: var(--app-surface);
+    border: 1px solid var(--app-field-border);
+    border-radius: 8px;
+    color: inherit;
     flex: 1;
     font: var(--mat-sys-body-small);
     min-width: 0;
@@ -149,16 +198,30 @@ h4 {
   width: 100%;
 
   th {
-    border-bottom: 1px solid var(--mat-sys-outline-variant);
+    background: var(--app-surface-muted);
+    border-bottom: 1px solid var(--app-border);
+    color: var(--mat-sys-on-surface-variant);
     font: var(--mat-sys-label-large);
-    padding: 8px;
+    padding: var(--app-cell-pad);
     text-align: left;
   }
 
+  th:first-child {
+    border-top-left-radius: 8px;
+  }
+
+  th:last-child {
+    border-top-right-radius: 8px;
+  }
+
   td {
-    border-bottom: 1px solid var(--mat-sys-outline-variant);
-    padding: 8px;
+    border-bottom: 1px solid var(--app-border);
+    padding: var(--app-cell-pad);
     vertical-align: top;
+  }
+
+  tbody tr:hover td {
+    background: var(--app-surface-muted);
   }
 
   tr.disabled strong {
@@ -167,7 +230,7 @@ h4 {
   }
 
   .detail td {
-    background: var(--mat-sys-surface-container-low);
+    background: var(--app-surface-muted);
   }
 
   .row-actions {
@@ -178,8 +241,10 @@ h4 {
 
 .chip {
   align-items: center;
-  background: var(--app-sidebar-bg);
+  background: var(--app-surface-muted);
+  border: 1px solid var(--app-border);
   border-radius: 999px;
+  color: var(--mat-sys-on-surface);
   display: inline-flex;
   font: var(--mat-sys-label-medium);
   gap: 2px;
@@ -223,7 +288,7 @@ h4 {
   }
 
   &.ok {
-    color: var(--mat-sys-tertiary);
+    color: var(--app-success);
   }
 
   &.off {
@@ -250,11 +315,13 @@ h4 {
 
 .card-item {
   align-items: center;
-  border: 1px solid var(--mat-sys-outline-variant);
-  border-radius: 12px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow-xs);
   display: flex;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 14px 18px;
 }
 
 .permissions {
@@ -295,7 +362,7 @@ h4 {
   gap: 8px;
 
   label {
-    min-width: 100px;
+    min-width: 120px;
   }
 
   input[type='color'] {
@@ -317,7 +384,8 @@ h4 {
 }
 
 .unavailable {
-  background: var(--mat-sys-surface-container-low);
+  background: var(--app-surface-muted);
+  box-shadow: none;
 }
 
 .module-side {
@@ -344,11 +412,33 @@ h4 {
 }
 
 details pre {
-  background: var(--mat-sys-surface-container-low);
+  background: var(--app-surface-muted);
   border-radius: 6px;
   font: var(--mat-sys-body-small);
   margin: 4px 0 0;
   overflow: auto;
   padding: 8px;
   white-space: pre-wrap;
+}
+
+.accent-sample {
+  align-self: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  color: #ffffff;
+  font: var(--mat-sys-label-large);
+  padding: 8px 18px;
+}
+
+.color button {
+  white-space: nowrap;
+}
+
+// Petits écrans : un tableau trop large défile dans son cadre au lieu d'élargir toute la page.
+@media (max-width: 720px) {
+  .table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
 }

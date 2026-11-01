@@ -42,6 +42,30 @@ export const ENTRY_STATUS_LABELS = {
     .num {
       font-variant-numeric: tabular-nums;
     }
+    .lines {
+      table-layout: fixed;
+    }
+    .lines th:nth-child(1),
+    .lines td:nth-child(1) {
+      width: 30%;
+    }
+    .lines th:nth-child(2),
+    .lines td:nth-child(2) {
+      width: 26%;
+    }
+    .lines th:nth-child(3),
+    .lines td:nth-child(3),
+    .lines th:nth-child(4),
+    .lines td:nth-child(4) {
+      width: 17%;
+    }
+    .lines th:nth-child(5),
+    .lines td:nth-child(5) {
+      width: 56px;
+    }
+    .lines mat-form-field {
+      width: 100%;
+    }
   `,
   template: `
     <section class="panel" aria-label="Écriture">
@@ -101,7 +125,7 @@ export const ENTRY_STATUS_LABELS = {
             </mat-form-field>
           </div>
 
-          <table class="table">
+          <table class="table lines">
             <caption class="sr-only">Lignes de l'écriture</caption>
             <thead>
               <tr>
@@ -176,9 +200,9 @@ export const ENTRY_STATUS_LABELS = {
           }
 
           <div class="actions">
-            <button mat-flat-button type="submit" [disabled]="busy()">Enregistrer le brouillon</button>
+            <button mat-flat-button type="submit" [disabled]="busy()"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">save</mat-icon> Enregistrer le brouillon</button>
             @if (canPost() && entry()) {
-              <button mat-stroked-button type="button" [disabled]="busy()" (click)="saveAndPost()">Comptabiliser</button>
+              <button mat-stroked-button type="button" [disabled]="busy()" (click)="saveAndPost()"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">task_alt</mat-icon> Comptabiliser</button>
             }
             @if (entry()) {
               <button mat-button class="danger" type="button" [disabled]="busy()" (click)="remove()">Supprimer le brouillon</button>

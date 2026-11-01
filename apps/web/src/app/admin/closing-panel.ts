@@ -69,7 +69,7 @@ import { AdminApiService, type AccountInfo, type ClosingReportInfo, type FiscalY
               dans l'exercice ; vous pouvez l'annuler tant que la clôture n'est pas définitive.
             </p>
             <div class="actions">
-              <button mat-flat-button type="button" [disabled]="busy() || !r.canStart" (click)="start()">Fermer à la saisie</button>
+              <button mat-flat-button type="button" [disabled]="busy() || !r.canStart" (click)="start()"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">lock_clock</mat-icon> Fermer à la saisie</button>
             </div>
           } @else {
             <form class="panel" [formGroup]="form" (ngSubmit)="close()" novalidate>
@@ -98,7 +98,7 @@ import { AdminApiService, type AccountInfo, type ClosingReportInfo, type FiscalY
               </mat-checkbox>
               <p class="muted">L'affectation du résultat par l'assemblée générale reste une écriture distincte, à saisir ensuite.</p>
               <div class="actions">
-                <button mat-flat-button type="submit" [disabled]="busy() || !r.canClose || !ready()">Clôturer définitivement</button>
+                <button mat-flat-button type="submit" [disabled]="busy() || !r.canClose || !ready()"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">lock</mat-icon> Clôturer définitivement</button>
                 <button mat-button type="button" [disabled]="busy()" (click)="cancel()">Annuler la fermeture</button>
               </div>
             </form>

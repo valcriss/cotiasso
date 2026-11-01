@@ -9,7 +9,7 @@ import { mockAuth } from '../testing/auth-mock';
 import { AssociationPage } from './association.page';
 
 const identity = { name: 'Club des amis', address: '', postalCode: '', city: 'Paris', email: '', phone: '', rna: '', siren: '' };
-const branding = { appName: 'cotiasso', sidebarBackground: '#eaf2fd', sidebarText: '#0b2a55' };
+const branding = { appName: 'cotiasso', sidebarBackground: '#eaf2fd', sidebarText: '#0b2a55', accentColor: '#005cbb' };
 
 describe('AssociationPage', () => {
   let controller: HttpTestingController;
@@ -100,7 +100,7 @@ describe('AssociationPage', () => {
     buttonWith("Enregistrer l'apparence")!.click();
     await settle();
     const request = controller.expectOne('/api/settings/branding');
-    const saved = { appName: 'Mon Asso', sidebarBackground: '#0b2a55', sidebarText: '#ffffff' };
+    const saved = { appName: 'Mon Asso', sidebarBackground: '#0b2a55', sidebarText: '#ffffff', accentColor: '#005cbb' };
     request.flush({ changed: true, value: saved });
     await settle();
     expect(apply).toHaveBeenCalledWith(saved);
