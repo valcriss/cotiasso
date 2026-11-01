@@ -259,6 +259,9 @@ model FiscalYear {
   status    FiscalYearStatus @default(OPEN)
   createdAt DateTime         @default(now()) @db.Timestamptz(3)
   createdBy String?          @db.Uuid
+
+  entries  JournalEntry[]
+  counters EntryCounter[]
 }
 
 enum JournalType {
@@ -279,6 +282,9 @@ model Journal {
   active    Boolean     @default(true)
   createdAt DateTime    @default(now()) @db.Timestamptz(3)
   createdBy String?     @db.Uuid
+
+  entries  JournalEntry[]
+  counters EntryCounter[]
 }
 
 // Compte du plan comptable. Le numéro est définitif ; un compte se désactive, il ne se supprime jamais.
@@ -291,4 +297,80 @@ model Account {
   reportLine String?
   createdAt  DateTime @default(now()) @db.Timestamptz(3)
   createdBy  String?  @db.Uuid
+
+  lines JournalLine[]
+}
+
+enum EntryStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+enum EntryKind {
+  NORMAL
+  ADJUSTMENT
+  REVERSAL
+  OPENING
+}
+
+// Écriture comptable. Brouillon modifiable ; une fois comptabilisée (numérotée), elle ne change plus : on la
+// contrepasse. Les garanties (équilibre, numérotation, exercice ouvert, immuabilité) sont des déclencheurs SQL.
+model JournalEntry {
+  id           String      @id @default(uuid()) @db.Uuid
+  fiscalYearId String      @db.Uuid
+  journalId    String      @db.Uuid
+  date         DateTime    @db.Date
+  label        String
+  reference    String?
+  kind         EntryKind   @default(NORMAL)
+  status       EntryStatus @default(DRAFT)
+  // Attribué à la comptabilisation, par journal et par exercice, sans trou (voir EntryCounter).
+  number       Int?
+  // Contrôle de version optimiste du brouillon.
+  version      Int         @default(1)
+  postedAt     DateTime?   @db.Timestamptz(3)
+  postedBy     String?     @db.Uuid
+  reversalOfId String?     @unique @db.Uuid
+  createdAt    DateTime    @default(now()) @db.Timestamptz(3)
+  createdBy    String?     @db.Uuid
+
+  fiscalYear FiscalYear    @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
+  journal    Journal       @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  reversalOf JournalEntry? @relation("Reversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedBy JournalEntry? @relation("Reversal")
+  lines      JournalLine[]
+
+  @@unique([journalId, fiscalYearId, number])
+  @@index([fiscalYearId, date])
+  @@index([status])
+}
+
+model JournalLine {
+  id        String  @id @default(uuid()) @db.Uuid
+  entryId   String  @db.Uuid
+  position  Int
+  accountId String  @db.Uuid
+  debit     Decimal @default(0) @db.Decimal(14, 2)
+  credit    Decimal @default(0) @db.Decimal(14, 2)
+  label     String?
+
+  entry   JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  account Account      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([entryId, position])
+  @@index([accountId])
+}
+
+// Dernier numéro attribué par journal et exercice, incrémenté sous verrou de ligne dans la transaction de
+// comptabilisation (pas de SEQUENCE PostgreSQL : un rollback ne laisse aucun trou).
+model EntryCounter {
+  journalId    String @db.Uuid
+  fiscalYearId String @db.Uuid
+  lastNumber   Int
+
+  journal    Journal    @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
+
+  @@id([journalId, fiscalYearId])
 }

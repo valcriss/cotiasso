@@ -53,7 +53,7 @@ Points à trancher ou à ne pas perdre de vue avant de découper plus finement :
 
 2a.1 Domaine : montants décimaux, arrondis, écriture/lignes, invariants
 2a.2 Exercices, journaux, plan de comptes versionné, numérotation concurrente-safe — **tranche 1 faite** ([ADR 0009](decisions/0009-structure-comptable-exercices-journaux-comptes.md)) : exercices sans chevauchement, journaux, plan de comptes par import/saisie, garanties SQL, onglet web. **Reste** : versionnement du plan et des rubriques, compteur de numérotation (avec 2a.3)
-2a.3 Validation atomique, contrepassation/correction, verrouillage vs clôture (CA-03, CA-04)
+2a.3 Validation atomique, contrepassation/correction, verrouillage vs clôture (CA-03, CA-04) — **API faite** ([ADR 0010](decisions/0010-ecritures-comptabilisation-et-contrepassation.md)) : brouillons, comptabilisation atomique et numérotée, contrepassation, immuabilité, verrou d'exercice testé en concurrence. **Reste** : écran web de saisie, clôture d'exercice (contrôles, ouverture suivante), projet/tiers sur les lignes, lien de correction (remplacement après contrepassation)
 2a.4 Noyau projet : projet, projet permanent, allocations analytiques (CA-06)
 2a.5 Grand livre, balance, journaux (lecture)
 

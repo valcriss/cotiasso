@@ -115,6 +115,12 @@ export class AccountingService {
     const end = patch.end ?? day(current.end);
     if (start > end) throw new AccountingConflictError("La fin de l'exercice précède son début.");
     await this.assertNoOverlap(start, end, id);
+    const stranded = await this.prisma.journalEntry.count({
+      where: { fiscalYearId: id, OR: [{ date: { lt: asDate(start) } }, { date: { gt: asDate(end) } }] },
+    });
+    if (stranded > 0) {
+      throw new AccountingConflictError(`Ces dates excluraient ${stranded} écriture(s) de l'exercice.`);
+    }
 
     const updated = await this.guard(() =>
       this.prisma.fiscalYear.update({

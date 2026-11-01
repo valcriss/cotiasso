@@ -29,6 +29,11 @@ const ACTION_LABELS: Record<string, string> = {
   'account.created': 'Compte créé',
   'account.updated': 'Compte modifié',
   'account.imported': 'Plan de comptes importé',
+  'entry.created': 'Écriture créée (brouillon)',
+  'entry.updated': 'Brouillon modifié',
+  'entry.deleted': 'Brouillon supprimé',
+  'entry.posted': 'Écriture comptabilisée',
+  'entry.reversed': 'Écriture contrepassée',
   'module.activated': 'Module activé',
   'module.deactivated': 'Module désactivé',
 };
