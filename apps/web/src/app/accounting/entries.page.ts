@@ -37,7 +37,7 @@ import { ENTRY_STATUS_LABELS, EntryEditor } from './entry-editor';
   `,
   template: `
     <header class="head">
-      <h1 class="title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">menu_book</mat-icon><span>Comptabilité</span></h1>
+      <h2>Écritures</h2>
       @if (canCreate()) {
         <button mat-flat-button type="button" (click)="startNew()">
           <mat-icon fontSet="material-icons-outlined">add</mat-icon>

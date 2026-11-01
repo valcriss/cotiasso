@@ -57,7 +57,30 @@ export const routes: Routes = [
         title: 'Comptabilité',
         canActivate: [permissionGuard],
         data: { permission: 'entries:view' },
-        loadComponent: () => import('./accounting/entries.page').then((m) => m.EntriesPage),
+        loadComponent: () => import('./accounting/accounting-shell').then((m) => m.AccountingShell),
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            title: 'Comptabilité',
+            loadComponent: () => import('./accounting/entries.page').then((m) => m.EntriesPage),
+          },
+          {
+            path: 'grand-livre',
+            title: 'Grand livre',
+            loadComponent: () => import('./accounting/ledger.page').then((m) => m.LedgerPage),
+          },
+          {
+            path: 'balance',
+            title: 'Balance',
+            loadComponent: () => import('./accounting/trial-balance.page').then((m) => m.TrialBalancePage),
+          },
+          {
+            path: 'journaux',
+            title: 'Livre-journal',
+            loadComponent: () => import('./accounting/journal-book.page').then((m) => m.JournalBookPage),
+          },
+        ],
       },
       {
         path: 'documents',

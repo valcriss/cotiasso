@@ -197,6 +197,68 @@ export interface ClosingReportInfo {
   preview: { accountCount: number; result: { kind: 'SURPLUS' | 'DEFICIT' | 'BALANCED'; amount: string } } | null;
 }
 
+export interface LedgerLineInfo {
+  date: string;
+  journalCode: string;
+  entryId: string;
+  entryNumber: number;
+  entryLabel: string;
+  reference: string | null;
+  lineLabel: string | null;
+  debit: string;
+  credit: string;
+  balance: string;
+}
+
+export interface LedgerAccountInfo {
+  accountId: string;
+  number: string;
+  label: string;
+  totalDebit: string;
+  totalCredit: string;
+  balance: string;
+  lines: LedgerLineInfo[];
+}
+
+export interface TrialBalanceRowInfo {
+  accountId: string;
+  number: string;
+  label: string;
+  debit: string;
+  credit: string;
+  debitBalance: string;
+  creditBalance: string;
+}
+
+export interface TrialBalanceInfo {
+  rows: TrialBalanceRowInfo[];
+  totals: { debit: string; credit: string; debitBalance: string; creditBalance: string };
+  balanced: boolean;
+}
+
+export interface JournalBookEntryInfo {
+  id: string;
+  date: string;
+  journalCode: string;
+  number: number;
+  label: string;
+  reference: string | null;
+  kind: string;
+  status: string;
+  lines: { accountNumber: string; accountLabel: string; label: string | null; debit: string; credit: string }[];
+  totalDebit: string;
+  totalCredit: string;
+}
+
+export interface ReportParams {
+  fiscalYearId: string;
+  from?: string;
+  to?: string;
+  accountId?: string;
+  prefix?: string;
+  journalId?: string;
+}
+
 export type EntryStatus = 'DRAFT' | 'POSTED' | 'REVERSED';
 
 export interface EntryLineInfo {
@@ -449,6 +511,24 @@ export class AdminApiService {
     body: { surplusAccountId?: string | null; deficitAccountId?: string | null },
   ): Promise<{ openingEntryId: string }> {
     return firstValueFrom(this.http.post<{ openingEntryId: string }>(`/api/fiscal-years/${id}/closing/close`, body));
+  }
+
+  private reportParams(params: ReportParams): HttpParams {
+    let query = new HttpParams();
+    for (const [key, value] of Object.entries(params)) if (value) query = query.set(key, value);
+    return query;
+  }
+
+  ledger(params: ReportParams): Promise<{ accounts: LedgerAccountInfo[] }> {
+    return firstValueFrom(this.http.get<{ accounts: LedgerAccountInfo[] }>('/api/reports/ledger', { params: this.reportParams(params) }));
+  }
+
+  trialBalance(params: ReportParams): Promise<TrialBalanceInfo> {
+    return firstValueFrom(this.http.get<TrialBalanceInfo>('/api/reports/trial-balance', { params: this.reportParams(params) }));
+  }
+
+  journalBook(params: ReportParams): Promise<{ entries: JournalBookEntryInfo[] }> {
+    return firstValueFrom(this.http.get<{ entries: JournalBookEntryInfo[] }>('/api/reports/journal', { params: this.reportParams(params) }));
   }
 
   listEntries(filters: EntryFilters = {}): Promise<{ entries: EntryInfo[]; next: string | null }> {
