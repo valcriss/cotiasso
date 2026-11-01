@@ -12,7 +12,7 @@ coverage/
 .vscode/
 # Données locales : jamais de données d'association dans le dépôt
 /data/
-/storage/
+**/storage/
 /backups/
 *.ofx
 .claude/settings.local.json

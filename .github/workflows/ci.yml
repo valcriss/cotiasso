@@ -66,11 +66,33 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Variables lues par docker-compose.yml à chaque commande (démarrage, journaux, arrêt).
+    env:
+      POSTGRES_PASSWORD: ci-only-password
+      COTIASSO_VERSION: ci
+      COTIASSO_HTTP_PORT: 8088
     steps:
       - uses: actions/checkout@v7
 
-      - name: Image API
-        run: docker build --target api -t cotiasso-api:ci .
+      - name: Démarrage réel de la stack de production
+        # Construit les deux images et démarre base, API et web : un plantage au démarrage (dépendance manquante dans
+        # l'image, migration, configuration) est détecté ici, ce qu'un simple build ne montre pas.
+        run: |
+          # Clé générée une seule fois, mise à disposition des étapes suivantes.
+          KEY="$(openssl rand -base64 32)"
+          echo "MFA_ENCRYPTION_KEY=$KEY" >> "$GITHUB_ENV"
+          export MFA_ENCRYPTION_KEY="$KEY"
+          docker compose up -d --build --wait --wait-timeout 240
 
-      - name: Image web
-        run: docker build --target web -t cotiasso-web:ci .
+      - name: Vérification de la santé via le proxy
+        run: |
+          curl --fail --silent --show-error http://localhost:8088/api/health | grep '"database":"up"'
+          curl --fail --silent --show-error http://localhost:8088/api/setup/status
+
+      - name: Journaux en cas d'échec
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Arrêt
+        if: always()
+        run: docker compose down -v

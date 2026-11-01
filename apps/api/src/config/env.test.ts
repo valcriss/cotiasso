@@ -14,6 +14,8 @@ describe("readEnv", () => {
       cookieSecure: true,
       trustProxy: false,
       mfaKey: Buffer.alloc(32, 5),
+      documentsDir: "./storage/documents",
+      documentsMaxBytes: 25 * 1024 * 1024,
     });
   });
 
@@ -42,6 +44,13 @@ describe("readEnv", () => {
     expect(env.session).toEqual({ idleMinutes: 30, maxHours: 8 });
     expect(env.cookieSecure).toBe(false);
     expect(env.trustProxy).toBe(true);
+  });
+
+  it("lit le dossier et la taille maximale des documents", () => {
+    const env = readEnv({ ...base, DOCUMENTS_DIR: "/data/documents", DOCUMENTS_MAX_MB: "5" });
+    expect(env.documentsDir).toBe("/data/documents");
+    expect(env.documentsMaxBytes).toBe(5 * 1024 * 1024);
+    expect(() => readEnv({ ...base, DOCUMENTS_MAX_MB: "0" })).toThrow(/DOCUMENTS_MAX_MB/);
   });
 
   it("refuse des durées ou des booléens invalides", () => {

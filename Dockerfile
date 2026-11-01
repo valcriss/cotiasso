@@ -25,7 +25,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
 COPY packages/accounting-domain/package.json packages/accounting-domain/
-RUN npm ci --omit=dev --workspace=@cotiasso/api --workspace=@cotiasso/accounting-domain
+RUN npm ci --omit=dev --workspace=@cotiasso/api --workspace=@cotiasso/accounting-domain && mkdir -p apps/api/node_modules packages/accounting-domain/node_modules
 
 # ---------- API ----------
 FROM ${NODE_IMAGE} AS api
@@ -35,6 +35,9 @@ ENV NODE_ENV=production \
 WORKDIR /app/apps/api
 
 COPY --from=api-deps --chown=node:node /app/node_modules /app/node_modules
+# Dépendances que npm ne hisse pas à la racine (versions en conflit avec un autre workspace) : sans elles, le démarrage échoue.
+COPY --from=api-deps --chown=node:node /app/apps/api/node_modules /app/apps/api/node_modules
+COPY --from=api-deps --chown=node:node /app/packages/accounting-domain/node_modules /app/packages/accounting-domain/node_modules
 COPY --from=build --chown=node:node /app/packages/accounting-domain/package.json /app/packages/accounting-domain/package.json
 COPY --from=build --chown=node:node /app/packages/accounting-domain/dist /app/packages/accounting-domain/dist
 COPY --from=build --chown=node:node /app/apps/api/package.json ./package.json
@@ -43,6 +46,11 @@ COPY --from=build --chown=node:node /app/apps/api/prisma ./prisma
 COPY --from=build --chown=node:node /app/apps/api/prisma.config.ts ./prisma.config.ts
 COPY --chown=node:node docker/api-entrypoint.sh /usr/local/bin/api-entrypoint
 RUN chmod +x /usr/local/bin/api-entrypoint
+
+# Stockage privé des documents : volume persistant, écrit par l'utilisateur non privilégié.
+ENV DOCUMENTS_DIR=/data/documents
+RUN mkdir -p /data/documents && chown node:node /data/documents
+VOLUME ["/data/documents"]
 
 USER node
 EXPOSE 3000

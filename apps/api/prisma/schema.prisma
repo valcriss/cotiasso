@@ -190,3 +190,56 @@ model ModuleActivation {
   activatedBy   String?   @db.Uuid
   deactivatedBy String?   @db.Uuid
 }
+
+// Document logique : un seul enregistrement, des versions immuables, des liens multiples vers d'autres objets.
+// Un document ne se supprime pas : il s'archive.
+model Document {
+  id         String            @id @default(uuid()) @db.Uuid
+  title      String
+  category   String
+  // Un document restreint exige la permission documents.restricted:view, quel que soit le projet ou l'objet lié.
+  restricted Boolean           @default(false)
+  createdAt  DateTime          @default(now()) @db.Timestamptz(3)
+  createdBy  String?           @db.Uuid
+  updatedAt  DateTime          @updatedAt @db.Timestamptz(3)
+  archivedAt DateTime?         @db.Timestamptz(3)
+  versions   DocumentVersion[]
+  links      DocumentLink[]
+
+  @@index([category])
+}
+
+// Version d'un document. Immuable (déclencheur SQL) : remplacer un fichier crée une nouvelle version.
+model DocumentVersion {
+  id           String   @id @default(uuid()) @db.Uuid
+  documentId   String   @db.Uuid
+  document     Document @relation(fields: [documentId], references: [id])
+  number       Int
+  // Nom d'origine, purement informatif : il ne sert jamais de chemin sur le serveur.
+  originalName String
+  mimeType     String
+  size         Int
+  sha256       String
+  // Clé opaque du fichier dans le stockage privé.
+  storageKey   String   @unique
+  comment      String?
+  uploadedAt   DateTime @default(now()) @db.Timestamptz(3)
+  uploadedBy   String?  @db.Uuid
+
+  @@unique([documentId, number])
+  @@index([sha256])
+}
+
+// Lien d'un document vers un objet métier (membre, projet, transaction, subvention...). Plusieurs liens possibles.
+model DocumentLink {
+  id         String   @id @default(uuid()) @db.Uuid
+  documentId String   @db.Uuid
+  document   Document @relation(fields: [documentId], references: [id])
+  objectType String
+  objectId   String
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  createdBy  String?  @db.Uuid
+
+  @@unique([documentId, objectType, objectId])
+  @@index([objectType, objectId])
+}

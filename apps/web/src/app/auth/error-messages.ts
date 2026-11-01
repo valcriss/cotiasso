@@ -24,6 +24,9 @@ export function describeHttpError(error: unknown, fallback: string): FormError {
       return { message: 'Identifiants invalides.', details: [] };
     case 403:
       return { message: typeof body?.message === 'string' ? body.message : 'Accès refusé.', details: [] };
+    case 404:
+    case 413:
+    case 415:
     case 429:
       return { message, details: [] };
     case 400:

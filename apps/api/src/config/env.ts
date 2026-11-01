@@ -16,6 +16,10 @@ export interface AppEnv {
   trustProxy: boolean;
   /** Clé AES-256 qui chiffre les secrets TOTP au repos. À sauvegarder avec la base. */
   mfaKey: Buffer;
+  /** Dossier privé des documents déposés : à sauvegarder avec la base, jamais servi directement. */
+  documentsDir: string;
+  /** Taille maximale d'un fichier déposé, en octets. */
+  documentsMaxBytes: number;
 }
 
 function readPositiveInteger(source: NodeJS.ProcessEnv, key: string, fallback: number): number {
@@ -64,5 +68,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     cookieSecure: readBoolean(source, "COOKIE_SECURE", true),
     trustProxy: readBoolean(source, "TRUST_PROXY", false),
     mfaKey: readKey(source, "MFA_ENCRYPTION_KEY"),
+    documentsDir: source.DOCUMENTS_DIR || "./storage/documents",
+    documentsMaxBytes: readPositiveInteger(source, "DOCUMENTS_MAX_MB", 25) * 1024 * 1024,
   };
 }

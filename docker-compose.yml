@@ -38,6 +38,10 @@ services:
       TRUST_PROXY: "true"
       # Chiffre les secrets de l'authentification à deux facteurs. À sauvegarder avec la base : sans cette clé, les secrets sont illisibles.
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?Renseigner MFA_ENCRYPTION_KEY dans .env.prod (openssl rand -base64 32)}
+      DOCUMENTS_MAX_MB: ${DOCUMENTS_MAX_MB:-25}
+    volumes:
+      # Documents déposés : à sauvegarder avec la base (cohérence base et fichiers, cadrage §24.2).
+      - documents-data:/data/documents
 
   web:
     image: cotiasso-web:${COTIASSO_VERSION}
@@ -56,3 +60,4 @@ services:
 
 volumes:
   db-data:
+  documents-data:

@@ -92,6 +92,60 @@ export interface IntegrityReport {
   reason: string | null;
 }
 
+export interface DocumentSummary {
+  id: string;
+  title: string;
+  category: string;
+  restricted: boolean;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  versionCount: number;
+  linkCount: number;
+  latest: { number: number; originalName: string; mimeType: string; size: number; uploadedAt: string };
+}
+
+export interface DocumentVersionInfo {
+  number: number;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  sha256: string;
+  comment: string | null;
+  uploadedAt: string;
+  uploadedBy: string | null;
+}
+
+export interface DocumentLinkInfo {
+  id: string;
+  objectType: string;
+  objectId: string;
+  createdAt: string;
+}
+
+export interface DocumentDetail extends DocumentSummary {
+  versions: DocumentVersionInfo[];
+  links: DocumentLinkInfo[];
+}
+
+export interface DocumentOptions {
+  categories: { key: string; label: string }[];
+  objectTypes: string[];
+  allowedExtensions: string[];
+}
+
+export interface DocumentFilters {
+  q?: string;
+  category?: string;
+  includeArchived?: boolean;
+  page?: number;
+}
+
+export interface DocumentUploadResult {
+  document: DocumentDetail;
+  duplicates: { documentId: string; title: string }[];
+}
+
 /** Appels de l'API d'administration (utilisateurs, rôles, attributions). Le serveur applique les droits. */
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
@@ -182,6 +236,52 @@ export class AdminApiService {
 
   verifyAudit(): Promise<IntegrityReport> {
     return firstValueFrom(this.http.get<IntegrityReport>('/api/audit/verify'));
+  }
+
+  documentOptions(): Promise<DocumentOptions> {
+    return firstValueFrom(this.http.get<DocumentOptions>('/api/documents/options'));
+  }
+
+  listDocuments(filters: DocumentFilters): Promise<{ items: DocumentSummary[]; total: number; pageSize: number }> {
+    let params = new HttpParams();
+    if (filters.q) params = params.set('q', filters.q);
+    if (filters.category) params = params.set('category', filters.category);
+    if (filters.includeArchived) params = params.set('includeArchived', 'true');
+    if (filters.page && filters.page > 1) params = params.set('page', String(filters.page));
+    return firstValueFrom(this.http.get<{ items: DocumentSummary[]; total: number; pageSize: number }>('/api/documents', { params }));
+  }
+
+  getDocument(id: string): Promise<DocumentDetail> {
+    return firstValueFrom(this.http.get<DocumentDetail>(`/api/documents/${id}`));
+  }
+
+  uploadDocument(form: FormData): Promise<DocumentUploadResult> {
+    return firstValueFrom(this.http.post<DocumentUploadResult>('/api/documents', form));
+  }
+
+  addDocumentVersion(id: string, form: FormData): Promise<DocumentUploadResult> {
+    return firstValueFrom(this.http.post<DocumentUploadResult>(`/api/documents/${id}/versions`, form));
+  }
+
+  updateDocument(id: string, changes: { title?: string; category?: string; restricted?: boolean }): Promise<DocumentDetail> {
+    return firstValueFrom(this.http.patch<DocumentDetail>(`/api/documents/${id}`, changes));
+  }
+
+  setDocumentArchived(id: string, archived: boolean): Promise<DocumentDetail> {
+    return firstValueFrom(this.http.post<DocumentDetail>(`/api/documents/${id}/${archived ? 'archive' : 'unarchive'}`, {}));
+  }
+
+  addDocumentLink(id: string, objectType: string, objectId: string): Promise<DocumentDetail> {
+    return firstValueFrom(this.http.post<DocumentDetail>(`/api/documents/${id}/links`, { objectType, objectId }));
+  }
+
+  removeDocumentLink(id: string, linkId: string): Promise<DocumentDetail> {
+    return firstValueFrom(this.http.delete<DocumentDetail>(`/api/documents/${id}/links/${linkId}`));
+  }
+
+  /** Lien de téléchargement : le navigateur envoie son cookie de session, le serveur contrôle l'accès. */
+  documentDownloadUrl(id: string, version?: number): string {
+    return `/api/documents/${id}/download${version ? `?version=${version}` : ''}`;
   }
 
   changeOwnPassword(currentPassword: string, newPassword: string): Promise<void> {

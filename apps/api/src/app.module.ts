@@ -7,11 +7,12 @@ import { PermissionsGuard } from "./authz/permissions.guard.js";
 import { DATABASE_PING, HealthController } from "./health/health.controller.js";
 import { PrismaModule } from "./prisma/prisma.module.js";
 import { PrismaService } from "./prisma/prisma.service.js";
+import { DocumentsModule } from "./documents/documents.module.js";
 import { SettingsModule } from "./settings/settings.module.js";
 import { SetupModule } from "./setup/setup.module.js";
 
 @Module({
-  imports: [PrismaModule, AuthzModule, AuthModule, SetupModule, SettingsModule],
+  imports: [PrismaModule, AuthzModule, AuthModule, SetupModule, SettingsModule, DocumentsModule],
   controllers: [HealthController],
   providers: [
     // Refus par défaut : toute route exige une session, sauf si elle est marquée @Public().
