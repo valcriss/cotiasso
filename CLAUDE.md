@@ -30,6 +30,7 @@ Workspaces :
 Conventions de l'API :
 - Injection explicite avec `@Inject(TOKEN)` partout : le code est exécuté par tsx/esbuild, qui n'émet pas `emitDecoratorMetadata`.
 - Imports relatifs avec extension `.js` (ESM NodeNext).
+- Authentification (`apps/api/src/auth/`, conception dans l'[ADR 0007](docs/decisions/0007-authentification-conception.md)) : hachage argon2id avec `node:crypto` (pas de dépendance native), politique de mot de passe locale, `UsersService` (création, vérification des identifiants à temps égal, changement de mot de passe). Les comptes ne se suppriment jamais (déclencheur SQL) : on les désactive. Les tests d'intégration créent des emails uniques en `@test.invalid` sans nettoyage.
 - Le client Prisma généré (`apps/api/src/generated/`) n'est pas versionné.
 - Les garanties comptables critiques s'écrivent en SQL dans les migrations (ex. `AuditEvent` en ajout seul par déclencheur), avec un test d'intégration.
 
