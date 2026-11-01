@@ -41,6 +41,7 @@ const transaction = (overrides: Record<string, unknown> = {}) => ({
   reference: null,
   origin: 'MANUAL',
   externalId: null,
+  bankIdentified: false,
   projectId: null,
   projectCode: null,
   counterpartAccountId: null,
@@ -191,7 +192,7 @@ describe('AccountsPage', () => {
     await create(['financial-accounts:view']);
     await openTransactions([
       transaction(),
-      transaction({ id: 't2', amount: '100.00', label: 'Cotisations', counterpartAccountNumber: '706', qualified: true, projectCode: 'ATELIERS', origin: 'IMPORT' }),
+      transaction({ id: 't2', amount: '100.00', label: 'Cotisations', counterpartAccountNumber: '706', qualified: true, projectCode: 'ATELIERS', origin: 'IMPORT', bankIdentified: true, externalId: 'FIT-2' }),
     ]);
     const rows = Array.from(root.querySelectorAll('section tbody tr')).map((r) => r.textContent!);
     expect(rows[0]).toContain('-30,50');
@@ -255,7 +256,7 @@ describe('AccountsPage', () => {
 
   it("une transaction importée n'envoie que sa qualification à la modification", async () => {
     await create(['financial-accounts:view', 'transactions:manage']);
-    await openTransactions([transaction({ origin: 'IMPORT', externalId: 'FIT-1' })]);
+    await openTransactions([transaction({ origin: 'IMPORT', externalId: 'FIT-1', bankIdentified: true })]);
     await click('Modifier Frais');
     await click('Enregistrer');
     const patch = controller.expectOne('/api/transactions/t1');

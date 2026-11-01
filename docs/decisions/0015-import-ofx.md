@@ -1,0 +1,20 @@
+# ADR 0015 — Import de relevés OFX
+
+Statut : retenu (1er novembre 2026, lot 2b.3). Applique le cadrage §10.1 et §10.2, CA-01 et CA-02.
+
+## Décisions
+
+1. **Deux temps.** L'**analyse** d'un fichier ne crée **aucune transaction** : elle conserve les lignes brutes, les classe et attend. La **confirmation** crée ou rattache, **tout ou rien**, sous verrou de l'import. Une analyse non confirmée peut être annulée ; rien n'est jamais supprimé (lots d'import, lignes, relevés restent en base).
+2. **Analyseur OFX écrit pour l'occasion**, sans analyseur XML : aucune entité, DTD ni ressource externe n'est lue ou résolue, par construction ; un fichier contenant `DOCTYPE`, `ENTITY` ou `CDATA` est refusé. Variantes prises en charge : **OFX 1.x (SGML) et 2.x (XML)**, encodages UTF-8, Windows-1252 et ISO-8859-1 (déclarés dans l'en-tête), dates `AAAAMMJJ[HHMMSS[.XXX][fuseau]]`, montants à point ou virgule décimale et deux décimales au plus (calculés en centimes entiers). **Refusés explicitement, avec leur raison** : cartes bancaires, placements, prêts, plusieurs comptes, autre devise que l'euro, erreur signalée par la banque, fichier tronqué, encodage inconnu. Taille maximale 5 Mo, 5000 opérations.
+3. **Pas d'identifiant, pas d'import.** Une ligne sans identifiant bancaire (`FITID`) est **refusée avec son motif** (aucune clé synthétique) : sans identifiant, aucune idempotence fiable ni distinction de deux paiements identiques. Les autres lignes restent importables.
+4. **Doublons (CA-01).** L'identifiant bancaire est unique **par compte et par source** (index partiel en base). Un même fichier confirmé ne se reconfirme pas (empreinte SHA-256, index partiel) ; un fichier modifié dont les mouvements existent déjà les classe **doublons** et n'en crée aucun. Un doublon ne se crée jamais, y compris sur décision. Un identifiant répété dans le fichier ou deux imports concurrents d'un même mouvement : un seul réussit, l'autre est refusé en entier.
+5. **Deux paiements légitimes identiques** (même montant, même jour, identifiants différents) sont **deux lignes distinctes**, jamais fusionnées.
+6. **Rapprochement avec une saisie manuelle (CA-02).** Une ligne nouvelle dont une saisie manuelle encore sans identifiant bancaire a le **même montant exact** et une date d'opération à **moins de 5 jours** est classée « ressemble à une saisie » avec ses candidates (jusqu'à trois, classées par date puis libellé). **Aucune décision par défaut** : l'utilisateur **rattache** (la saisie garde ses données et reçoit l'identifiant bancaire, une seule fois), **crée quand même** (paiement distinct) ou **ignore**. Une saisie ne se rattache qu'à une seule ligne.
+7. **Gel par l'identifiant bancaire.** Une transaction qui porte un identifiant bancaire — importée ou rattachée — ne change plus de montant, de date, de compte ni d'identifiant et ne se supprime plus ; seules la qualification et les informations descriptives restent modifiables. (Remplace la règle de l'ADR 0014 fondée sur l'origine seule.)
+8. **Données brutes jamais réécrites** : chaque ligne du fichier est conservée telle quelle (JSON, valeurs lues sans transformation) ; le fichier d'origine n'est pas stocké, seulement son empreinte et un compte rendu. Ligne, classement et import sont immuables en base une fois l'analyse écrite, seule la décision se renseigne, tant que l'import n'est ni confirmé ni annulé.
+9. **Solde du relevé.** À la confirmation, le solde de clôture du fichier peut être enregistré comme **solde de relevé** (preuve datée de l'ADR 0014) : il mesure un écart, il ne rapproche pas le compte (2b.5).
+10. **Droits** : envoi, confirmation et annulation `imports:post` ; consultation `financial-accounts:view`. Étapes auditées (`import.analyzed`, `import.committed`, `import.cancelled`).
+
+## Limites
+
+Pas de fichier réel de banque dans le dépôt : l'analyseur est validé sur des fichiers fictifs conformes aux spécifications OFX 1.x et 2.x, à compléter avec des exports anonymisés des banques de l'association pilote avant toute affirmation de compatibilité. Le fichier d'origine pourra être déposé comme document (lien générique) si une preuve complète est requise.

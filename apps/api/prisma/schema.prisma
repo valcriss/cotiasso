@@ -454,6 +454,7 @@ model FinancialAccount {
   journal      Journal         @relation(fields: [journalId], references: [id], onDelete: Restrict)
   transactions Transaction[]
   statements   BankStatement[]
+  imports      ImportBatch[]
 }
 
 // Solde fourni par un relevé à une date : sert de preuve et de point de contrôle, en ajout seul. Un solde non contrôlé
@@ -501,6 +502,83 @@ model Transaction {
   financialAccount   FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Restrict)
   project            Project?         @relation(fields: [projectId], references: [id], onDelete: Restrict)
   counterpartAccount Account?         @relation(fields: [counterpartAccountId], references: [id], onDelete: Restrict)
+  importedFrom       ImportLine[]     @relation("ImportResult")
+  matchedBy          ImportLine[]     @relation("ImportMatch")
 
   @@index([financialAccountId, operationDate])
+}
+
+enum ImportBatchStatus {
+  ANALYZED
+  COMMITTED
+  CANCELLED
+}
+
+enum ImportLineStatus {
+  NEW
+  DUPLICATE
+  PROBABLE_MATCH
+  ERROR
+}
+
+enum ImportDecision {
+  CREATE
+  LINK
+  SKIP
+}
+
+// Import d'un relevé : l'analyse n'écrit aucune transaction ; la confirmation crée ou rattache, dans une transaction
+// unique. Un même fichier (empreinte) ne se confirme qu'une fois par compte (idempotence).
+model ImportBatch {
+  id                 String            @id @default(uuid()) @db.Uuid
+  financialAccountId String            @db.Uuid
+  fileName           String
+  fileHash           String
+  format             String
+  status             ImportBatchStatus @default(ANALYZED)
+  periodStart        DateTime?         @db.Date
+  periodEnd          DateTime?         @db.Date
+  ledgerBalance      Decimal?          @db.Decimal(14, 2)
+  ledgerBalanceDate  DateTime?         @db.Date
+  // Fin du numéro de compte du fichier, pour que l'utilisateur vérifie qu'il importe sur le bon compte.
+  accountHint        String?
+  summary            Json
+  createdAt          DateTime          @default(now()) @db.Timestamptz(3)
+  createdBy          String?           @db.Uuid
+  committedAt        DateTime?         @db.Timestamptz(3)
+  committedBy        String?           @db.Uuid
+
+  financialAccount FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Restrict)
+  lines            ImportLine[]
+
+  @@index([financialAccountId, createdAt])
+}
+
+// Ligne d'un relevé : données brutes conservées telles quelles, classement de l'analyse, puis décision de l'utilisateur.
+model ImportLine {
+  id                   String           @id @default(uuid()) @db.Uuid
+  batchId              String           @db.Uuid
+  position             Int
+  raw                  Json
+  fitId                String?
+  operationDate        DateTime?        @db.Date
+  amount               Decimal?         @db.Decimal(14, 2)
+  label                String
+  reference            String?
+  status               ImportLineStatus
+  errors               Json
+  // Transactions saisies à la main qui ressemblent à la ligne (rapprochement proposé, jamais automatique).
+  candidates           Json
+  // Pour un doublon : la transaction déjà enregistrée avec le même identifiant bancaire.
+  matchedTransactionId String?          @db.Uuid
+  decision             ImportDecision?
+  // Transaction créée (CREATE) ou rattachée (LINK) à la confirmation.
+  transactionId        String?          @db.Uuid
+
+  batch              ImportBatch  @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  matchedTransaction Transaction? @relation("ImportMatch", fields: [matchedTransactionId], references: [id], onDelete: Restrict)
+  transaction        Transaction? @relation("ImportResult", fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@unique([batchId, position])
+  @@index([transactionId])
 }

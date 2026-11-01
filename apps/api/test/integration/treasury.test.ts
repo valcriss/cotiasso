@@ -286,7 +286,7 @@ describe("Trésorerie : comptes financiers, soldes, relevés et transactions (ba
       expect((await call("DELETE", `/transactions/${imported.id}`, treasurer)).statusCode).toBe(409);
       expect(await sqlError(`DELETE FROM "Transaction" WHERE "origin"='IMPORT'`)).toContain("importée");
       expect(await sqlError(`UPDATE "Transaction" SET "amount"=-99 WHERE "origin"='IMPORT'`)).toContain("transaction importée");
-      expect(await sqlError(`TRUNCATE "Transaction"`)).toContain("TRUNCATE refusé");
+      expect(await sqlError(`TRUNCATE "Transaction" CASCADE`)).toContain("TRUNCATE refusé");
     });
 
     it("filtre par période, texte, origine, qualification, projet et montant, et pagine", async () => {

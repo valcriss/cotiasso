@@ -69,6 +69,8 @@ export interface TransactionView {
   reference: string | null;
   origin: "MANUAL" | "IMPORT";
   externalId: string | null;
+  /** Identifiée par la banque (importée, ou saisie rattachée à une ligne de relevé) : données financières figées. */
+  bankIdentified: boolean;
   projectId: string | null;
   projectCode: string | null;
   counterpartAccountId: string | null;
@@ -97,6 +99,7 @@ const view = (t: Loaded): TransactionView => ({
   reference: t.reference,
   origin: t.origin,
   externalId: t.externalId,
+  bankIdentified: t.externalId !== null,
   projectId: t.projectId,
   projectCode: t.project?.code ?? null,
   counterpartAccountId: t.counterpartAccountId,
@@ -112,6 +115,7 @@ const REFUSALS = [
   "projet archivé",
   "Une transaction importée",
   "données financières d'une transaction importée",
+  "identifiant bancaire",
 ];
 
 /**
@@ -195,8 +199,8 @@ export class TransactionsService {
     const { version, operationDate, valueDate, ...patch } = parse(transactionPatch, body);
     const current = await this.prisma.transaction.findUnique({ where: { id } });
     if (!current) throw new AccountingNotFoundError("Transaction");
-    if (current.origin === "IMPORT" && (patch.amount !== undefined || operationDate !== undefined)) {
-      throw new AccountingConflictError("Le montant et la date d'une transaction importée ne changent pas : les données brutes sont conservées.");
+    if (current.externalId !== null && (patch.amount !== undefined || operationDate !== undefined)) {
+      throw new AccountingConflictError("Le montant et la date d'une transaction importée ou rattachée à un relevé ne changent pas : les données de la banque sont conservées.");
     }
     // Contrôle de version optimiste : personne n'a modifié la transaction entre-temps.
     const changed = await this.prisma.transaction
@@ -226,7 +230,9 @@ export class TransactionsService {
   async remove(id: string, actorId: string): Promise<void> {
     const current = await this.prisma.transaction.findUnique({ where: { id } });
     if (!current) throw new AccountingNotFoundError("Transaction");
-    if (current.origin !== "MANUAL") throw new AccountingConflictError("Une transaction importée ne se supprime pas.");
+    if (current.origin !== "MANUAL" || current.externalId !== null) {
+      throw new AccountingConflictError("Une transaction importée ou rattachée à un relevé ne se supprime pas.");
+    }
     await this.prisma.transaction.delete({ where: { id } }).catch((error) => this.rethrow(error));
     await this.audit.record({ action: "transaction.deleted", objectType: "Transaction", objectId: id, actorId, details: { accountId: current.financialAccountId } });
   }

@@ -16,11 +16,12 @@ import {
 import { centsToApi, formatApiAmount, parseAmountToCents } from '../accounting/amount';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
+import { ImportPanel } from './import-panel';
 
 /** Transactions d'un compte : liste filtrable, saisie manuelle et qualification (projet, compte de contrepartie). */
 @Component({
   selector: 'app-transactions-panel',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [ImportPanel, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -39,12 +40,23 @@ import { describeHttpError } from '../auth/error-messages';
     <section class="panel" [attr.aria-label]="'Transactions de ' + account().name">
       <div class="head">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">swap_horiz</mat-icon><span>Transactions de {{ account().name }}</span></h3>
+        <div class="actions">
+        @if (canImport() && !account().archivedOn) {
+          <button mat-stroked-button type="button" (click)="importing.set(!importing())">
+            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload_file</mat-icon> Importer un relevé OFX
+          </button>
+        }
         @if (canManage() && !account().archivedOn) {
           <button mat-flat-button type="button" (click)="startNew()">
             <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Ajouter une transaction
           </button>
         }
+        </div>
       </div>
+
+      @if (importing()) {
+        <app-import-panel [account]="account()" (imported)="onImported()" (closed)="importing.set(false)" />
+      }
 
       @if (error(); as message) {
         <p class="alert" role="alert">{{ message }}</p>
@@ -164,8 +176,8 @@ import { describeHttpError } from '../auth/error-messages';
                 <td>{{ item.operationDate }}</td>
                 <td>
                   {{ item.label }}
-                  @if (item.origin === 'IMPORT') {
-                    <span class="chip">Importée</span>
+                  @if (item.bankIdentified) {
+                    <span class="chip">{{ item.origin === 'IMPORT' ? 'Importée' : 'Rapprochée du relevé' }}</span>
                   }
                   @if (item.reference) {
                     <div class="muted">Réf. {{ item.reference }}</div>
@@ -211,12 +223,17 @@ export class TransactionsPanel {
   protected readonly error = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
   protected readonly editing = signal<'new' | 'edit' | null>(null);
+  protected readonly importing = signal(false);
   protected readonly selectedId = signal<string | null>(null);
   protected readonly amount = formatApiAmount;
 
   protected readonly canManage = computed(() => {
     this.auth.permissions();
     return this.auth.can('transactions:manage');
+  });
+  protected readonly canImport = computed(() => {
+    this.auth.permissions();
+    return this.auth.can('imports:post');
   });
   /** Comptes de contrepartie proposés : tous les comptes actifs sauf le compte de trésorerie lui-même. */
   protected readonly counterparts = computed(() =>
@@ -300,6 +317,11 @@ export class TransactionsPanel {
     }
   }
 
+  protected async onImported(): Promise<void> {
+    this.changed.emit();
+    await this.search();
+  }
+
   protected async save(): Promise<void> {
     const body = this.body();
     if (!body) return;
@@ -307,8 +329,8 @@ export class TransactionsPanel {
     const current = this.transactions().find((t) => t.id === this.selectedId());
     await this.run(async () => {
       if (mode === 'edit' && current) {
-        // Les données financières d'une transaction importée ne changent pas : seule la qualification est envoyée.
-        const patch = current.origin === 'IMPORT' ? { projectId: body.projectId, counterpartAccountId: body.counterpartAccountId, label: body.label, reference: body.reference } : body;
+        // Les données financières d'une transaction identifiée par la banque ne changent pas : seule la qualification est envoyée.
+        const patch = current.bankIdentified ? { projectId: body.projectId, counterpartAccountId: body.counterpartAccountId, label: body.label, reference: body.reference } : body;
         await this.api.updateTransaction(current.id, { ...patch, version: current.version });
         this.notice.set('Transaction enregistrée.');
       } else {

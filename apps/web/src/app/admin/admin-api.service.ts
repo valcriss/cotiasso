@@ -282,6 +282,7 @@ export interface TransactionInfo {
   reference: string | null;
   origin: 'MANUAL' | 'IMPORT';
   externalId: string | null;
+  bankIdentified: boolean;
   projectId: string | null;
   projectCode: string | null;
   counterpartAccountId: string | null;
@@ -297,6 +298,59 @@ export interface TransactionBody {
   reference: string | null;
   projectId: string | null;
   counterpartAccountId: string | null;
+}
+
+export interface ImportCandidateInfo {
+  transactionId: string;
+  operationDate: string;
+  label: string;
+  score: number;
+}
+
+export interface ImportLineInfo {
+  id: string;
+  position: number;
+  status: 'NEW' | 'DUPLICATE' | 'PROBABLE_MATCH' | 'ERROR';
+  fitId: string | null;
+  operationDate: string | null;
+  amount: string | null;
+  label: string;
+  reference: string | null;
+  errors: string[];
+  candidates: ImportCandidateInfo[];
+  matchedTransactionId: string | null;
+  decision: 'CREATE' | 'LINK' | 'SKIP' | null;
+  transactionId: string | null;
+}
+
+export interface ImportInfo {
+  id: string;
+  financialAccountId: string;
+  fileName: string;
+  format: string;
+  status: 'ANALYZED' | 'COMMITTED' | 'CANCELLED';
+  periodStart: string | null;
+  periodEnd: string | null;
+  ledgerBalance: string | null;
+  ledgerBalanceDate: string | null;
+  accountHint: string | null;
+  summary: {
+    total: number;
+    new: number;
+    duplicate: number;
+    probableMatch: number;
+    error: number;
+    result?: { created: number; linked: number; skipped: number };
+  };
+  createdAt: string;
+  committedAt: string | null;
+  lines: ImportLineInfo[];
+}
+
+export interface ImportDecisionBody {
+  lineId: string;
+  action: 'CREATE' | 'LINK' | 'SKIP';
+  transactionId?: string;
 }
 
 export interface TransactionFilters {
@@ -661,6 +715,20 @@ export class AdminApiService {
 
   deleteTransaction(id: string): Promise<void> {
     return firstValueFrom(this.http.delete<void>(`/api/transactions/${id}`));
+  }
+
+  analyzeImport(accountId: string, file: File): Promise<ImportInfo> {
+    const body = new FormData();
+    body.append('file', file, file.name);
+    return firstValueFrom(this.http.post<ImportInfo>(`/api/financial-accounts/${accountId}/imports`, body));
+  }
+
+  commitImport(id: string, body: { decisions: ImportDecisionBody[]; recordStatement: boolean }): Promise<ImportInfo> {
+    return firstValueFrom(this.http.post<ImportInfo>(`/api/imports/${id}/commit`, body));
+  }
+
+  cancelImport(id: string): Promise<ImportInfo> {
+    return firstValueFrom(this.http.post<ImportInfo>(`/api/imports/${id}/cancel`, {}));
   }
 
   listProjects(): Promise<ProjectInfo[]> {
