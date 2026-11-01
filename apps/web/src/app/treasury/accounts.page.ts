@@ -37,8 +37,8 @@ import { TransactionsPanel } from './transactions-panel';
       box-shadow: var(--app-shadow-sm);
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      padding: 16px 18px;
+      gap: 10px;
+      padding: 24px 28px;
     }
     .account-card.current {
       border-color: var(--mat-sys-primary);

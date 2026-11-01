@@ -191,8 +191,15 @@ h4 {
   min-width: 200px;
 }
 
+// Un tableau est une carte (surface, bordure, ombre) ; dans un panneau ou une section il reste plat pour ne pas doubler le cadre.
 .table {
-  border-collapse: collapse;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-collapse: separate;
+  border-radius: var(--app-radius);
+  border-spacing: 0;
+  box-shadow: var(--app-shadow-sm);
+  margin: 0 0 20px;
   width: 100%;
 
   th {
@@ -204,18 +211,31 @@ h4 {
     text-align: left;
   }
 
-  th:first-child {
-    border-top-left-radius: 8px;
-  }
-
-  th:last-child {
-    border-top-right-radius: 8px;
-  }
-
   td {
     border-bottom: 1px solid var(--app-border);
     padding: var(--app-cell-pad);
     vertical-align: top;
+  }
+
+  // Les coins suivent l'arrondi de la carte ; la dernière ligne n'a pas de filet.
+  thead tr:first-child th:first-child {
+    border-top-left-radius: calc(var(--app-radius) - 1px);
+  }
+
+  thead tr:first-child th:last-child {
+    border-top-right-radius: calc(var(--app-radius) - 1px);
+  }
+
+  > :last-child > tr:last-child > td {
+    border-bottom: 0;
+  }
+
+  > :last-child > tr:last-child > td:first-child {
+    border-bottom-left-radius: calc(var(--app-radius) - 1px);
+  }
+
+  > :last-child > tr:last-child > td:last-child {
+    border-bottom-right-radius: calc(var(--app-radius) - 1px);
   }
 
   tbody tr:hover td {
@@ -235,6 +255,15 @@ h4 {
     text-align: right;
     white-space: nowrap;
   }
+}
+
+.panel .table,
+.group .table,
+.link-card .table {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
 }
 
 .chip {
@@ -319,7 +348,7 @@ h4 {
   box-shadow: var(--app-shadow-xs);
   display: flex;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: 20px 24px;
 }
 
 .permissions {
@@ -422,7 +451,7 @@ details pre {
 .accent-sample {
   align-self: flex-start;
   flex: 0 0 auto;
-  border-radius: 999px;
+  border-radius: 8px;
   color: #ffffff;
   font: var(--mat-sys-label-large);
   padding: 8px 18px;
@@ -499,4 +528,45 @@ details pre {
 
 .group p {
   margin: 0 0 8px;
+}
+
+// Boîtes de dialogue (design.md §4) : trois largeurs, plein écran sur petit écran.
+.app-dialog.cdk-overlay-pane {
+  max-width: 95vw;
+}
+
+.app-dialog-sm.cdk-overlay-pane {
+  width: 480px;
+}
+
+.app-dialog-md.cdk-overlay-pane {
+  width: 680px;
+}
+
+.app-dialog-lg.cdk-overlay-pane {
+  width: 920px;
+}
+
+.app-dialog .mat-mdc-dialog-surface {
+  box-shadow: var(--app-shadow-md);
+}
+
+.app-dialog .mat-mdc-dialog-content {
+  padding-top: 8px;
+}
+
+@media (max-width: 600px) {
+  .app-dialog.cdk-overlay-pane {
+    height: 100dvh;
+    max-height: 100dvh;
+    max-width: 100vw;
+    width: 100vw;
+  }
+
+  .app-dialog .mat-mdc-dialog-container,
+  .app-dialog .mat-mdc-dialog-surface {
+    border-radius: 0;
+    height: 100%;
+    max-height: 100%;
+  }
 }

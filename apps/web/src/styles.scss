@@ -35,9 +35,17 @@ html {
   --app-success: light-dark(#1b7a3d, #6fcf8f);
 
   // Densité (réglage de l'utilisateur, voir ThemeService) : espacements des panneaux, tableaux et formulaires.
-  --app-panel-pad: 20px;
-  --app-cell-pad: 12px;
+  --app-panel-pad: 28px;
+  --app-cell-pad: 16px;
   --app-field-gap: 4px;
+
+  // Boutons : rectangles aux angles arrondis (et non en pilule), de la même famille que les champs et les cartes.
+  --app-button-radius: 8px;
+  --mat-button-filled-container-shape: var(--app-button-radius);
+  --mat-button-outlined-container-shape: var(--app-button-radius);
+  --mat-button-text-container-shape: var(--app-button-radius);
+  --mat-button-tonal-container-shape: var(--app-button-radius);
+  --mat-button-protected-container-shape: var(--app-button-radius);
 
   // Champs : contour net et fond de la surface, pour qu'ils se lisent comme saisissables et non désactivés.
   --mat-form-field-outlined-outline-color: var(--app-field-border);
@@ -79,8 +87,8 @@ html.theme-dark {
 }
 
 html.density-compact {
-  --app-panel-pad: 14px;
-  --app-cell-pad: 6px;
+  --app-panel-pad: 18px;
+  --app-cell-pad: 8px;
   --app-field-gap: 0;
   @include mat.theme((density: -3));
 }

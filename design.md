@@ -48,12 +48,16 @@ La comptabilité reste exacte et rigoureuse (c'est le rôle du logiciel), mais *
 
 ### ActionBar (barre d'action)
 
-- Alignée à droite du titre ; **sous le titre sur mobile**.
+- **Une barre d'outils sous le titre et la description** (jamais à droite du titre), présentée comme une carte : surface, bordure fine, ombre légère. Boutons alignés à gauche, **le bouton principal en premier**.
 - **Un seul bouton principal** (plein, avec icône) : l'action la plus probable de la page (« Nouveau projet »). Les autres actions sont secondaires (contour). Au-delà de trois actions, les moins fréquentes passent dans un menu « Plus d'actions ».
-- Les boutons absents faute de droit sont **masqués**.
+- Les boutons absents faute de droit sont **masqués** ; sans aucun bouton, la barre n'est pas affichée.
 - Pas de barre collante au défilement dans un premier temps.
 - Les **filtres** ne sont pas dans la barre d'action : ils restent dans un bloc sous l'en-tête.
 
+### Cartes et boutons
+
+- **Chaque zone de contenu est une carte** (panneau ou tableau : surface, bordure, ombre douce) posée sur le fond de page, jamais à plat. Un tableau est une carte par défaut ; dans un panneau il reste plat pour ne pas doubler le cadre.
+- **Les boutons sont des rectangles aux angles arrondis** (8 px), pas des pilules : même famille de formes que les champs et les cartes. Les pastilles d'état (étiquettes) peuvent rester arrondies.
 ## 3. Descriptions de page (proposition de texte)
 
 Phrases à afficher sous chaque titre. Elles sont volontairement pédagogiques ; les ajuster à l'usage.
@@ -126,10 +130,23 @@ Une exception de plus doit être décidée et notée ici.
 
 Une boîte de dialogue se rend dans la couche de superposition (hors du composant testé) : les spécifications interrogent le conteneur de la couche, via un utilitaire commun (ouvrir, saisir, valider, lire les erreurs). Chaque formulaire couvre : ouverture, validation, succès (fermeture + bandeau), erreur serveur (boîte ouverte, saisie conservée), abandon confirmé.
 
+### Recette d'un formulaire en boîte de dialogue
+
+Composants dans `apps/web/src/app/ui/` : `PageHeader`, `ActionBar`, `FormDialog`, `ConfirmDialog`, services `Dialogs` (ouvrir une boîte, demander une confirmation) et `Notifier` (bandeau de succès). **Modèle de référence : `accounting/project-dialog.ts` et `accounting/projects.page.ts`.**
+
+1. Un composant de boîte (`xxx-dialog.ts`) reçoit ses données par `MAT_DIALOG_DATA`, porte son `<form [formGroup]>` autour de `<app-form-dialog title=… [dirty]="form.dirty" [busy] [error] [details]>` et ferme la boîte avec `MatDialogRef.close(résultat)` **uniquement au succès**.
+2. Un formulaire invalide ne part pas : marquer les champs (`markAllAsTouched`), dire quoi vérifier, afficher des `mat-error` en langage courant. Une erreur du serveur s'affiche dans la boîte (`describeHttpError`), la saisie est conservée.
+3. La page ouvre la boîte avec `dialogs.open<Résultat>(Composant, { size: 'md', data })` ; si un résultat revient, elle appelle `notifier.success('Projet FESTIVAL créé.')` puis recharge sa liste.
+4. Une action irréversible demande `dialogs.confirm({ title, message, confirmLabel, danger: true })` avant d'agir.
+
+### Tests des boîtes de dialogue
+
+Fournir `NO_MATERIAL_ANIMATIONS` (sinon la fermeture attend l'animation) et utiliser `DialogTester` (`apps/web/src/app/testing/dialog-harness.ts`) : `dialog`, `title`, `error`, `snackbar`, `type`, `click`, `submit`, `pressEscape`, `closeAll` (à appeler en `afterEach`). Une boîte se rend dans la couche de superposition : ne jamais l'interroger depuis la racine du composant.
+
 ### Ordre de réalisation
 
-1. **Fondations** : `PageHeader`, `ActionBar`, `FormDialog`, `Notifier`, utilitaire de test, styles.
-2. **Pages simples** : Projets, Comptes (nouveau compte, solde de relevé), Paramètres › Comptabilité (exercice, journal, compte), Rôles, Utilisateurs (invitation).
+1. **Fondations** — *faites* : `PageHeader`, `ActionBar`, `FormDialog`, `ConfirmDialog`, `Dialogs`, `Notifier`, utilitaire de test, styles ; page pilote **Projets** convertie.
+2. **Pages simples** : ~~Projets~~ (fait), Comptes (nouveau compte, solde de relevé), Paramètres › Comptabilité (exercice, journal, compte), Rôles, Utilisateurs (invitation).
 3. **Pages lourdes** : transactions (nouvelle, modification), documents (dépôt, modification), clôture d'exercice, puis les deux pages dédiées (écriture, import).
 4. **Déploiement des en-têtes** sur toutes les pages, suppression des anciens titres et des messages verts en page.
 
