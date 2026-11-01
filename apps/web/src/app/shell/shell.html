@@ -50,7 +50,7 @@
 
       <div class="account">
         @if (!collapsed()) {
-          <span class="who" [title]="user()?.email ?? ''">{{ user()?.displayName }}</span>
+          <a class="who" routerLink="/compte" [title]="user()?.email ?? ''">{{ user()?.displayName }}</a>
         }
         <button
           type="button"

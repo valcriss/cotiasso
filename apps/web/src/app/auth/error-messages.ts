@@ -19,7 +19,7 @@ export function describeHttpError(error: unknown, fallback: string): FormError {
     case 401:
       return { message: 'Identifiants invalides.', details: [] };
     case 403:
-      return { message: 'Jeton d\'installation invalide.', details: [] };
+      return { message: typeof body?.message === 'string' ? body.message : 'Accès refusé.', details: [] };
     case 429:
       return { message, details: [] };
     case 400:

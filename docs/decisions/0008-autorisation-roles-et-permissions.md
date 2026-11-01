@@ -21,8 +21,8 @@ Statut : accepté — 1er novembre 2026. Met en œuvre la [matrice des droits v0
 - **Restrictions documentaires** et `documents.restricted:view` : appliquées avec les documents.
 - **Mandats et fonctions** liés aux rôles (cadrage §5) : avec le module Membres.
 - **Quatre yeux** : paramètre d'association, avec les paramètres versionnés.
-- **Écran web de gestion** des rôles et des attributions, et création d'utilisateurs par un administrateur : à venir.
-- **Désactivation d'un compte** : devra appeler `lockLockout` et `assertAdministratorRemains` de `RolesService`.
+- **Écrans web** de gestion des utilisateurs, rôles et attributions : faits (1er novembre 2026).
+- **Désactivation d'un compte** : faite ; elle appelle `lockLockout` et `assertAdministratorRemains` de `RolesService`, refuse son propre compte, et révoque les sessions.
 
 ## Conséquences
 

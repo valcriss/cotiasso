@@ -33,13 +33,42 @@ export const routes: Routes = [
         title: overview!.label,
         loadComponent: () => import('./pages/overview.page').then((m) => m.OverviewPage),
       },
-      ...[...others, SETTINGS_ITEM].map((item) => ({
+      ...others.map((item) => ({
         path: item.path,
         title: item.label,
         canActivate: [permissionGuard],
         data: { title: item.label, permission: item.permission },
         loadComponent: () => import('./pages/placeholder.page').then((m) => m.PlaceholderPage),
       })),
+      {
+        path: 'compte',
+        title: 'Mon compte',
+        loadComponent: () => import('./admin/account.page').then((m) => m.AccountPage),
+      },
+      {
+        path: SETTINGS_ITEM.path,
+        title: SETTINGS_ITEM.label,
+        canActivate: [permissionGuard],
+        data: { permission: SETTINGS_ITEM.permission },
+        loadComponent: () => import('./admin/settings.page').then((m) => m.SettingsPage),
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'utilisateurs' },
+          {
+            path: 'utilisateurs',
+            title: 'Utilisateurs',
+            canActivate: [permissionGuard],
+            data: { permission: 'users:view' },
+            loadComponent: () => import('./admin/users.page').then((m) => m.UsersPage),
+          },
+          {
+            path: 'roles',
+            title: 'Rôles',
+            canActivate: [permissionGuard],
+            data: { permission: 'users:view' },
+            loadComponent: () => import('./admin/roles.page').then((m) => m.RolesPage),
+          },
+        ],
+      },
     ],
   },
   { path: '**', redirectTo: '' },

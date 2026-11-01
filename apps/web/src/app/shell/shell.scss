@@ -118,7 +118,9 @@ nav {
   padding: 4px 4px 0 12px;
 
   .who {
+    color: inherit;
     font: var(--mat-sys-label-medium);
+    text-decoration: none;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

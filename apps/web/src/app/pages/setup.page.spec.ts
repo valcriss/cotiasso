@@ -84,7 +84,7 @@ describe('SetupPage', () => {
   it("signale un jeton d'installation invalide", async () => {
     fill({});
     const done = submit();
-    controller.expectOne('/api/setup').flush({ message: 'Jeton invalide.' }, { status: 403, statusText: 'Forbidden' });
+    controller.expectOne('/api/setup').flush({ message: "Jeton d'installation invalide." }, { status: 403, statusText: 'Forbidden' });
     await done;
     await fixture.whenStable();
     expect(root.querySelector('[role="alert"]')!.textContent).toContain("Jeton d'installation invalide.");
