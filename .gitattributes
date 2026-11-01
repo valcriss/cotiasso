@@ -1,0 +1,14 @@
+# Fins de ligne : LF dans le dépôt et dans la copie de travail, quel que soit l'OS.
+* text=auto eol=lf
+
+# Fichiers binaires
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+*.ofx -text
