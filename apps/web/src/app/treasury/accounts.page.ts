@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { RouterLink } from '@angular/router';
 import {
   AdminApiService,
   type AccountInfo,
@@ -22,7 +23,7 @@ import { TransactionsPanel } from './transactions-panel';
 /** Comptes : banques et caisses avec leurs soldes (ouverture, calculé, comptable, relevé) et leurs transactions. */
 @Component({
   selector: 'app-accounts-page',
-  imports: [MatButtonModule, MatIconModule, PageHeader, TransactionsPanel],
+  imports: [MatButtonModule, MatIconModule, RouterLink, PageHeader, TransactionsPanel],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .accounts {
@@ -122,6 +123,14 @@ import { TransactionsPanel } from './transactions-panel';
               <dd>{{ amount(account.balances.opening) }}</dd>
               <dt>Solde comptable (écritures)</dt>
               <dd>{{ amount(account.balances.accounting) }}</dd>
+              <dt>Rapprochement</dt>
+              <dd>
+                @if (account.balances.reconciled; as reconciled) {
+                  Rapproché au {{ reconciled.periodEnd }}
+                } @else {
+                  <span class="muted">Pas encore rapproché</span>
+                }
+              </dd>
               @if (account.balances.lastStatement; as statement) {
                 <dt>Relevé au {{ statement.periodEnd }}</dt>
                 <dd>{{ amount(statement.closingBalance) }}</dd>
@@ -133,6 +142,9 @@ import { TransactionsPanel } from './transactions-panel';
               <button mat-stroked-button type="button" [attr.aria-label]="'Ouvrir ' + account.name" (click)="select(account.id)">
                 <mat-icon fontSet="material-icons-outlined" aria-hidden="true">list</mat-icon> Transactions
               </button>
+              @if (!account.archivedOn) {
+                <a mat-button [routerLink]="['/comptes', account.id, 'rapprochement']" [attr.aria-label]="'Rapprocher ' + account.name">Rapprocher</a>
+              }
               @if (canStatement() && !account.archivedOn) {
                 <button mat-button type="button" [attr.aria-label]="'Relevé de ' + account.name" (click)="statement(account)">Solde de relevé</button>
               }

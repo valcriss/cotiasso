@@ -207,6 +207,19 @@ export class ClosingService {
         message: `${missing} compte(s) utilisé(s) n'ont pas de rubrique de rapport : ils n'apparaîtront pas dans les états.`,
       });
     }
+    const unreconciled = await db.$queryRaw<{ name: string }[]>`
+      SELECT f."name" AS name FROM "FinancialAccount" f
+      WHERE f."archivedOn" IS NULL AND f."openedOn" <= ${year.end}
+        AND NOT EXISTS (SELECT 1 FROM "Reconciliation" r
+          WHERE r."financialAccountId" = f."id" AND r."status" = 'VALIDATED' AND r."periodEnd" >= ${year.end})
+      ORDER BY f."name"`;
+    for (const account of unreconciled) {
+      checks.push({
+        code: "UNRECONCILED_ACCOUNT",
+        level: "WARNING",
+        message: `Le compte « ${account.name} » n'est pas rapproché jusqu'au ${day(year.end)} : comparez-le à son relevé (Comptes › Rapprocher) pour être sûr des soldes reportés.`,
+      });
+    }
     return checks;
   }
 

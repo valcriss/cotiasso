@@ -90,6 +90,13 @@ export const routes: Routes = [
         ],
       },
       {
+        path: 'comptes/:id/rapprochement',
+        title: 'Rapprochement bancaire',
+        canActivate: [permissionGuard],
+        data: { permission: 'financial-accounts:view' },
+        loadComponent: () => import('./treasury/reconciliation.page').then((m) => m.ReconciliationPage),
+      },
+      {
         path: 'comptes/:id/import',
         title: 'Importer un relevé',
         canActivate: [permissionGuard],

@@ -344,11 +344,11 @@ model JournalEntry {
   createdAt     DateTime    @default(now()) @db.Timestamptz(3)
   createdBy     String?     @db.Uuid
 
-  fiscalYear  FiscalYear    @relation("EntryYear", fields: [fiscalYearId], references: [id], onDelete: Restrict)
-  carriesFrom FiscalYear?   @relation("Carry", fields: [carriesFromId], references: [id], onDelete: Restrict)
-  journal     Journal       @relation(fields: [journalId], references: [id], onDelete: Restrict)
-  reversalOf  JournalEntry? @relation("Reversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
-  reversedBy  JournalEntry? @relation("Reversal")
+  fiscalYear  FiscalYear      @relation("EntryYear", fields: [fiscalYearId], references: [id], onDelete: Restrict)
+  carriesFrom FiscalYear?     @relation("Carry", fields: [carriesFromId], references: [id], onDelete: Restrict)
+  journal     Journal         @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  reversalOf  JournalEntry?   @relation("Reversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedBy  JournalEntry?   @relation("Reversal")
   lines       JournalLine[]
   matches     TreasuryMatch[]
 
@@ -451,12 +451,13 @@ model FinancialAccount {
   createdAt      DateTime             @default(now()) @db.Timestamptz(3)
   createdBy      String?              @db.Uuid
 
-  account      Account         @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  journal      Journal         @relation(fields: [journalId], references: [id], onDelete: Restrict)
-  transactions Transaction[]
-  statements   BankStatement[]
-  imports      ImportBatch[]
-  matches      TreasuryMatch[]
+  account         Account          @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  journal         Journal          @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  transactions    Transaction[]
+  statements      BankStatement[]
+  imports         ImportBatch[]
+  matches         TreasuryMatch[]
+  reconciliations Reconciliation[]
 }
 
 // Solde fourni par un relevé à une date : sert de preuve et de point de contrôle, en ajout seul. Un solde non contrôlé
@@ -471,6 +472,7 @@ model BankStatement {
   createdBy          String?  @db.Uuid
 
   financialAccount FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Restrict)
+  reconciliations  Reconciliation[]
 
   @@index([financialAccountId, periodEnd])
 }
@@ -497,6 +499,8 @@ model Transaction {
   // Qualification : projet et compte de contrepartie proposés (préremplissent l'écriture, ne la créent pas).
   projectId            String?           @db.Uuid
   counterpartAccountId String?           @db.Uuid
+  // Rapprochement bancaire dans lequel la transaction est pointée (ADR 0018).
+  reconciliationId     String?           @db.Uuid
   version              Int               @default(1)
   createdAt            DateTime          @default(now()) @db.Timestamptz(3)
   createdBy            String?           @db.Uuid
@@ -504,6 +508,7 @@ model Transaction {
   financialAccount   FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Restrict)
   project            Project?         @relation(fields: [projectId], references: [id], onDelete: Restrict)
   counterpartAccount Account?         @relation(fields: [counterpartAccountId], references: [id], onDelete: Restrict)
+  reconciliation     Reconciliation?  @relation(fields: [reconciliationId], references: [id], onDelete: Restrict)
   importedFrom       ImportLine[]     @relation("ImportResult")
   matchedBy          ImportLine[]     @relation("ImportMatch")
   matches            TreasuryMatch[]
@@ -549,6 +554,37 @@ model Transfer {
 
   outTransaction Transaction @relation("TransferOut", fields: [outTransactionId], references: [id], onDelete: Restrict)
   inTransaction  Transaction @relation("TransferIn", fields: [inTransactionId], references: [id], onDelete: Restrict)
+}
+
+enum ReconciliationStatus {
+  IN_PROGRESS
+  VALIDATED
+  CANCELLED
+}
+
+// Rapprochement d'un compte avec un relevé par pointage de transactions (ADR 0018). Un seul en cours par compte, un seul
+// non annulé par relevé (index partiels en SQL) ; les règles de validation et de figement sont dans les déclencheurs.
+model Reconciliation {
+  id                 String               @id @default(uuid()) @db.Uuid
+  financialAccountId String               @db.Uuid
+  statementId        String               @db.Uuid
+  periodEnd          DateTime             @db.Date
+  // Solde rapproché de départ : celui du dernier rapprochement validé, ou le solde d'ouverture du compte.
+  openingBalance     Decimal              @db.Decimal(14, 2)
+  closingBalance     Decimal              @db.Decimal(14, 2)
+  status             ReconciliationStatus @default(IN_PROGRESS)
+  createdAt          DateTime             @default(now()) @db.Timestamptz(3)
+  createdBy          String?              @db.Uuid
+  validatedAt        DateTime?            @db.Timestamptz(3)
+  validatedBy        String?              @db.Uuid
+  cancelledAt        DateTime?            @db.Timestamptz(3)
+  cancelledBy        String?              @db.Uuid
+
+  financialAccount FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Restrict)
+  statement        BankStatement    @relation(fields: [statementId], references: [id], onDelete: Restrict)
+  transactions     Transaction[]
+
+  @@index([financialAccountId, periodEnd])
 }
 
 enum ImportBatchStatus {

@@ -28,6 +28,7 @@ export interface TransactionDialogData {
 }
 
 const LOCK_DESCRIPTIONS = {
+  RECONCILED: "Cette transaction a été rapprochée de votre relevé bancaire : son montant et sa date ne changent plus. Pour les corriger, annulez d'abord le rapprochement (page Rapprochement du compte).",
   NONE: "Une transaction est un mouvement d'argent sur ce compte. Vous pourrez la transformer ensuite en écriture comptable.",
   BANK: 'Cette transaction vient de votre relevé bancaire : son montant et sa date ne changent pas, vous pouvez compléter le reste.',
   ENTRY: "Cette transaction est liée à une écriture comptable : son montant et sa date ne changent plus. Pour les corriger, contrepassez l'écriture (l'annuler par une écriture inverse).",

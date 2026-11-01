@@ -159,6 +159,11 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
                       <span class="muted">À comptabiliser</span>
                     }
                   }
+                  @if (item.reconciliation?.status === 'VALIDATED') {
+                    <div><span class="status ok"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">verified</mat-icon> Rapprochée</span></div>
+                  } @else if (item.reconciliation) {
+                    <div class="muted">Pointée (rapprochement en cours)</div>
+                  }
                   @if (item.transfer; as transfer) {
                     <div class="muted">
                       Virement {{ transfer.direction === 'OUT' ? 'vers' : 'depuis' }} {{ transfer.otherAccountName }}

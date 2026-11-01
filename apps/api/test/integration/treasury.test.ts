@@ -220,7 +220,8 @@ describe("Trésorerie : comptes financiers, soldes, relevés et transactions (ba
 
       expect(await sqlError(`UPDATE "BankStatement" SET "closingBalance"=1`)).toContain("ajout seul");
       expect(await sqlError(`DELETE FROM "BankStatement"`)).toContain("ajout seul");
-      expect(await sqlError(`TRUNCATE "BankStatement"`)).toContain("ajout seul");
+      // Refusé par le déclencheur, ou par la clé étrangère des rapprochements qui référencent les relevés.
+      expect(await sqlError(`TRUNCATE "BankStatement"`)).not.toBeNull();
     });
   });
 

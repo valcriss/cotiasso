@@ -26,6 +26,7 @@ const account = (overrides: Record<string, unknown> = {}) => ({
     opening: '900.00',
     computed: '969.50',
     accounting: '400.00',
+    reconciled: null,
     lastStatement: { periodEnd: '2026-03-31', closingBalance: '950.00', computedAtEnd: '969.50', gap: '-19.50' },
   },
   ...overrides,
@@ -114,7 +115,7 @@ describe('AccountsPage', () => {
     controller.verify();
   });
 
-  it("présente la page et affiche chaque solde séparément, sans parler de rapprochement", async () => {
+  it("présente la page et affiche chaque solde séparément, sans présenter le compte comme rapproché", async () => {
     await create(['financial-accounts:view']);
     expect(root.querySelector('h1')!.textContent).toContain('Comptes');
     expect(root.querySelector('.description')!.textContent).toContain('combien il y a dessus');
@@ -125,8 +126,18 @@ describe('AccountsPage', () => {
     expect(text).toContain('Solde comptable (écritures)');
     expect(text).toContain('Relevé au 2026-03-31');
     expect(text).toContain('-19,50');
-    expect(text.toLowerCase()).not.toContain('rapproché');
+    // Un relevé enregistré n'est pas un rapprochement : tant qu'aucun n'est validé, le compte n'est pas dit rapproché.
+    expect(text).toContain('Pas encore rapproché');
+    expect(text).not.toContain('Rapproché au');
     expect(text).not.toContain('Nouveau compte');
+  });
+
+  it("indique « rapproché » seulement pour un rapprochement validé, et propose d'en commencer un", async () => {
+    const validated = account({ balances: { ...account().balances, reconciled: { periodEnd: '2026-03-31', closingBalance: '950.00' } } });
+    await create(['financial-accounts:view', 'imports:post'], [validated]);
+    expect(root.textContent).toContain('Rapproché au 2026-03-31');
+    const link = Array.from(root.querySelectorAll<HTMLAnchorElement>('a')).find((a) => a.textContent!.includes('Rapprocher'));
+    expect(link?.getAttribute('href')).toBe('/comptes/f1/rapprochement');
   });
 
   it("guide l'utilisateur quand il n'y a aucun compte", async () => {

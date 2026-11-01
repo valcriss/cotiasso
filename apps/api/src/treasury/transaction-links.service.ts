@@ -5,6 +5,7 @@ import { parse } from "../accounting/schemas.js";
 import { AuditService } from "../audit/audit.service.js";
 import { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
+import { triggerMessage } from "./db-refusal.js";
 import { transactionInclude, transactionView, type TransactionView } from "./transactions.service.js";
 
 const prepareInput = z.object({ journalId: z.uuid().optional() }).strict();
@@ -34,6 +35,8 @@ const REFUSALS = [
 ];
 
 export function linkRefusal(error: unknown): string | null {
+  const raised = triggerMessage(error);
+  if (raised && REFUSALS.some((fragment) => raised.includes(fragment))) return raised;
   const text = `${(error as Error)?.message ?? ""}\n${String((error as { cause?: unknown })?.cause ?? "")}`;
   const line = text.split("\n").find((candidate) => REFUSALS.some((fragment) => candidate.includes(fragment)));
   return line ? line.replace(/^.*?ERROR:\s*/, "").trim() : null;

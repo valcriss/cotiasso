@@ -63,7 +63,7 @@ Points à trancher ou à ne pas perdre de vue avant de découper plus finement :
 2b.2 Transactions : saisie manuelle, ventilation, statuts distincts (§9.2) — **fait** pour la saisie manuelle, les filtres et la qualification ; **reste** : ventilation d'une transaction, statuts de comptabilisation et de rapprochement (avec 2b.4 et 2b.5)
 2b.3 Import OFX : analyse sans validation, doublons, idempotence (CA-01, CA-02), parseur sûr — **fait** ([ADR 0015](decisions/0015-import-ofx.md)) ; **reste** : validation sur des exports réels anonymisés des banques de l'association, dépôt du fichier d'origine comme document
 2b.4 Virements internes (CA-05), liaison transaction → écriture (TreasuryMatch) — **fait** ([ADR 0017](decisions/0017-virements-internes-et-liaison-transaction-ecriture.md)) : préparation d'un brouillon ou association d'une écriture existante, états de comptabilisation, fin de liaison à la contrepassation, virement en deux transactions et un brouillon banque à banque ; **reste** : paiements partiels ou groupés, compte 580 (à valider), ventilation d'une transaction
-2b.5 Rapprochement bancaire avec relevé
+2b.5 Rapprochement bancaire avec relevé — **fait** ([ADR 0018](decisions/0018-rapprochement-bancaire.md)) : pointage des transactions sur un relevé, écart nul exigé, transactions pointées comptabilisées, figement, annulation du dernier, avertissement à la clôture ; **reste** : rapprochement sans relevé de clôture, reprise de rapprochements antérieurs (2b.6)
 2b.6 Import en masse et lots de reprise abandonnables (§20.2)
 
 ### Lot 2c — États

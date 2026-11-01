@@ -88,15 +88,18 @@ export interface TransactionView {
   /** Virement interne dont la transaction fait partie : sens et compte de l'autre côté. */
   transfer: { id: string; direction: "OUT" | "IN"; otherAccountId: string; otherAccountName: string } | null;
   /** Montant, date et compte figés (identifiant bancaire, écriture liée ou virement). */
-  financialLock: "BANK" | "ENTRY" | "TRANSFER" | null;
+  financialLock: "RECONCILED" | "BANK" | "ENTRY" | "TRANSFER" | null;
   /** Peut encore être supprimée (saisie manuelle jamais identifiée, liée ni virée). */
   deletable: boolean;
+  /** Rapprochement bancaire où la transaction est pointée (ADR 0018) ; « validé » = rapprochée. */
+  reconciliation: { id: string; status: "IN_PROGRESS" | "VALIDATED"; periodEnd: string } | null;
   version: number;
 }
 
 export const transactionInclude = {
   project: { select: { code: true } },
   counterpartAccount: { select: { number: true } },
+  reconciliation: { select: { id: true, status: true, periodEnd: true } },
   matches: { select: { status: true, entry: { select: { id: true, status: true, number: true, journal: { select: { code: true } } } } } },
   transferOut: { select: { id: true, inTransaction: { select: { financialAccount: { select: { id: true, name: true } } } } } },
   transferIn: { select: { id: true, outTransaction: { select: { financialAccount: { select: { id: true, name: true } } } } } },
@@ -109,7 +112,7 @@ const asDate = (value: string | null | undefined) => (value ? new Date(`${value}
 
 export const transactionView = (t: Loaded): TransactionView => view(t);
 
-function accountingOf(t: Loaded): Pick<TransactionView, "accounting" | "entry" | "financialLock" | "transfer" | "deletable"> {
+function accountingOf(t: Loaded): Pick<TransactionView, "accounting" | "entry" | "financialLock" | "transfer" | "deletable" | "reconciliation"> {
   const active = t.matches.find((m) => m.status === "ACTIVE");
   const entry = active && active.entry.status !== "REVERSED" ? { id: active.entry.id, status: active.entry.status as "DRAFT" | "POSTED", journalCode: active.entry.journal.code, number: active.entry.number } : null;
   const transfer = t.transferOut
@@ -121,8 +124,9 @@ function accountingOf(t: Loaded): Pick<TransactionView, "accounting" | "entry" |
     accounting: entry ? (entry.status === "DRAFT" ? "IN_PROGRESS" : "POSTED") : "NONE",
     entry,
     transfer,
-    financialLock: t.externalId !== null ? "BANK" : t.matches.length > 0 ? "ENTRY" : transfer ? "TRANSFER" : null,
-    deletable: t.origin === "MANUAL" && t.externalId === null && t.matches.length === 0 && transfer === null,
+    financialLock: t.reconciliation?.status === "VALIDATED" ? "RECONCILED" : t.externalId !== null ? "BANK" : t.matches.length > 0 ? "ENTRY" : transfer ? "TRANSFER" : null,
+    deletable: t.origin === "MANUAL" && t.externalId === null && t.matches.length === 0 && transfer === null && t.reconciliation === null,
+    reconciliation: t.reconciliation && t.reconciliation.status !== "CANCELLED" ? { id: t.reconciliation.id, status: t.reconciliation.status, periodEnd: day(t.reconciliation.periodEnd) } : null,
   };
 }
 
@@ -156,6 +160,8 @@ const REFUSALS = [
   "identifiant bancaire",
   "liée à une écriture",
   "ne correspond",
+  "rapproch",
+  "pointé",
 ];
 
 /**

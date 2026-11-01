@@ -254,6 +254,8 @@ export interface BalanceInfo {
   opening: string;
   computed: string;
   accounting: string;
+  /** Dernier rapprochement validé : seul cas où le compte est dit « rapproché ». */
+  reconciled: { periodEnd: string; closingBalance: string } | null;
   lastStatement: { periodEnd: string; closingBalance: string; computedAtEnd: string; gap: string } | null;
 }
 
@@ -293,9 +295,50 @@ export interface TransactionInfo {
   entry: { id: string; status: 'DRAFT' | 'POSTED'; journalCode: string; number: number | null } | null;
   transfer: { id: string; direction: 'OUT' | 'IN'; otherAccountId: string; otherAccountName: string } | null;
   /** Montant et date figés : identifiant bancaire, écriture liée ou virement. */
-  financialLock: 'BANK' | 'ENTRY' | 'TRANSFER' | null;
+  financialLock: 'RECONCILED' | 'BANK' | 'ENTRY' | 'TRANSFER' | null;
   deletable: boolean;
+  /** Rapprochement où la transaction est pointée ; « validé » = rapprochée. */
+  reconciliation: { id: string; status: 'IN_PROGRESS' | 'VALIDATED'; periodEnd: string } | null;
   version: number;
+}
+
+export interface StatementInfo {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  closingBalance: string;
+}
+
+export interface ReconciliationCheckInfo {
+  code: 'GAP' | 'UNPOSTED_POINTED' | 'ENTRIES_WITHOUT_TRANSACTION';
+  level: 'BLOCKING' | 'WARNING';
+  message: string;
+}
+
+export interface ReconciliationInfo {
+  id: string;
+  financialAccountId: string;
+  statementId: string;
+  periodEnd: string;
+  status: 'IN_PROGRESS' | 'VALIDATED' | 'CANCELLED';
+  openingBalance: string;
+  closingBalance: string;
+  pointedCount: number;
+  pointedTotal: string;
+  pointedBalance: string;
+  gap: string;
+  outstandingCount: number;
+  outstandingTotal: string;
+  checks: ReconciliationCheckInfo[];
+  canValidate: boolean;
+  createdAt: string;
+  validatedAt: string | null;
+  cancelledAt: string | null;
+}
+
+export interface PointableTransactionInfo {
+  transaction: TransactionInfo;
+  pointed: boolean;
 }
 
 export interface EntryCandidateInfo {
@@ -724,6 +767,42 @@ export class AdminApiService {
 
   archiveFinancialAccount(id: string): Promise<FinancialAccountInfo> {
     return firstValueFrom(this.http.patch<FinancialAccountInfo>(`/api/financial-accounts/${id}`, { archived: true }));
+  }
+
+  listStatements(accountId: string): Promise<StatementInfo[]> {
+    return firstValueFrom(this.http.get<StatementInfo[]>(`/api/financial-accounts/${accountId}/statements`));
+  }
+
+  listReconciliations(accountId: string): Promise<ReconciliationInfo[]> {
+    return firstValueFrom(this.http.get<ReconciliationInfo[]>(`/api/financial-accounts/${accountId}/reconciliations`));
+  }
+
+  startReconciliation(accountId: string, statementId: string): Promise<ReconciliationInfo> {
+    return firstValueFrom(this.http.post<ReconciliationInfo>(`/api/financial-accounts/${accountId}/reconciliations`, { statementId }));
+  }
+
+  reconciliationTransactions(id: string): Promise<PointableTransactionInfo[]> {
+    return firstValueFrom(this.http.get<PointableTransactionInfo[]>(`/api/reconciliations/${id}/transactions`));
+  }
+
+  pointTransactions(id: string, transactionIds: string[]): Promise<ReconciliationInfo> {
+    return firstValueFrom(this.http.post<ReconciliationInfo>(`/api/reconciliations/${id}/point`, { transactionIds }));
+  }
+
+  unpointTransactions(id: string, transactionIds: string[]): Promise<ReconciliationInfo> {
+    return firstValueFrom(this.http.post<ReconciliationInfo>(`/api/reconciliations/${id}/unpoint`, { transactionIds }));
+  }
+
+  pointImportedTransactions(id: string): Promise<ReconciliationInfo> {
+    return firstValueFrom(this.http.post<ReconciliationInfo>(`/api/reconciliations/${id}/point-imported`, {}));
+  }
+
+  validateReconciliation(id: string): Promise<ReconciliationInfo> {
+    return firstValueFrom(this.http.post<ReconciliationInfo>(`/api/reconciliations/${id}/validate`, {}));
+  }
+
+  cancelReconciliation(id: string): Promise<void> {
+    return firstValueFrom(this.http.post<void>(`/api/reconciliations/${id}/cancel`, {}));
   }
 
   recordStatement(id: string, body: { periodStart: string; periodEnd: string; closingBalance: string }): Promise<unknown> {

@@ -121,6 +121,7 @@ const REFUSAL_FRAGMENTS = [
   "projet archivé",
   "Seules les lignes de charge",
   "ne correspond plus à la transaction",
+  "déjà rapprochée",
 ];
 
 /** Texte lisible d'un refus levé par un déclencheur SQL (RAISE EXCEPTION), ou `null` si l'erreur est autre. */

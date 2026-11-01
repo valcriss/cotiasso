@@ -32,6 +32,7 @@ import {
   type ImportListItem,
   type ImportView,
 } from "./imports.service.js";
+import { ReconciliationsService, type PointableTransaction, type ReconciliationView } from "./reconciliations.service.js";
 import { TransactionLinksService, type EntryCandidate } from "./transaction-links.service.js";
 import { TransactionsService, type TransactionView } from "./transactions.service.js";
 import { TransfersService, type TransferView } from "./transfers.service.js";
@@ -62,6 +63,7 @@ export class TreasuryController {
     @Inject(ImportsService) private readonly imports: ImportsService,
     @Inject(TransactionLinksService) private readonly links: TransactionLinksService,
     @Inject(TransfersService) private readonly transfers: TransfersService,
+    @Inject(ReconciliationsService) private readonly reconciliations: ReconciliationsService,
   ) {}
 
   @RequirePermission("financial-accounts:view")
@@ -189,6 +191,79 @@ export class TreasuryController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async cancelTransfer(@Param("id", ParseUUIDPipe) id: string, @Req() request: AuthenticatedRequest): Promise<void> {
     await translate(() => this.transfers.cancel(id, request.auth!.user.id));
+  }
+
+  // --- Rapprochement bancaire par pointage sur un relevé (ADR 0018) ---
+
+  @RequirePermission("financial-accounts:view")
+  @Get("financial-accounts/:id/reconciliations")
+  listReconciliations(@Param("id", ParseUUIDPipe) id: string): Promise<ReconciliationView[]> {
+    return translate(() => this.reconciliations.list(id));
+  }
+
+  @RequirePermission("imports:post")
+  @Post("financial-accounts/:id/reconciliations")
+  startReconciliation(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<ReconciliationView> {
+    return translate(() => this.reconciliations.start(id, body, request.auth!.user.id));
+  }
+
+  @RequirePermission("financial-accounts:view")
+  @Get("reconciliations/:id")
+  getReconciliation(@Param("id", ParseUUIDPipe) id: string): Promise<ReconciliationView> {
+    return translate(() => this.reconciliations.get(id));
+  }
+
+  @RequirePermission("financial-accounts:view")
+  @Get("reconciliations/:id/transactions")
+  reconciliationTransactions(@Param("id", ParseUUIDPipe) id: string): Promise<PointableTransaction[]> {
+    return translate(() => this.reconciliations.transactions(id));
+  }
+
+  @RequirePermission("imports:post")
+  @Post("reconciliations/:id/point")
+  @HttpCode(HttpStatus.OK)
+  pointTransactions(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<ReconciliationView> {
+    return translate(() => this.reconciliations.point(id, body, request.auth!.user.id));
+  }
+
+  @RequirePermission("imports:post")
+  @Post("reconciliations/:id/unpoint")
+  @HttpCode(HttpStatus.OK)
+  unpointTransactions(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<ReconciliationView> {
+    return translate(() => this.reconciliations.unpoint(id, body, request.auth!.user.id));
+  }
+
+  @RequirePermission("imports:post")
+  @Post("reconciliations/:id/point-imported")
+  @HttpCode(HttpStatus.OK)
+  pointImported(@Param("id", ParseUUIDPipe) id: string, @Req() request: AuthenticatedRequest): Promise<ReconciliationView> {
+    return translate(() => this.reconciliations.pointImported(id, request.auth!.user.id));
+  }
+
+  @RequirePermission("imports:post")
+  @Post("reconciliations/:id/validate")
+  @HttpCode(HttpStatus.OK)
+  validateReconciliation(@Param("id", ParseUUIDPipe) id: string, @Req() request: AuthenticatedRequest): Promise<ReconciliationView> {
+    return translate(() => this.reconciliations.validate(id, request.auth!.user.id));
+  }
+
+  @RequirePermission("imports:post")
+  @Post("reconciliations/:id/cancel")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async cancelReconciliation(@Param("id", ParseUUIDPipe) id: string, @Req() request: AuthenticatedRequest): Promise<void> {
+    await translate(() => this.reconciliations.cancel(id, request.auth!.user.id));
   }
 
   // --- Import de relevés OFX : analyse sans écriture, puis confirmation ---

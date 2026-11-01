@@ -52,6 +52,8 @@ export interface BalanceView {
   computed: string;
   /** Solde des écritures comptabilisées sur le compte de trésorerie liée (peut différer tant que tout n'est pas comptabilisé). */
   accounting: string;
+  /** Dernier rapprochement validé : seul état dans lequel le compte est dit « rapproché ». */
+  reconciled: { periodEnd: string; closingBalance: string } | null;
   lastStatement: {
     periodEnd: string;
     closingBalance: string;
@@ -279,9 +281,15 @@ export class FinancialAccountsService {
         gap: closing.subtract(computedAtEnd).toString(),
       };
     }
+    const validated = await this.prisma.reconciliation.findFirst({
+      where: { financialAccountId: account.id, status: "VALIDATED" },
+      orderBy: { periodEnd: "desc" },
+      select: { periodEnd: true, closingBalance: true },
+    });
     return {
       opening: opening.toString(),
       computed: computed.toString(),
+      reconciled: validated ? { periodEnd: day(validated.periodEnd), closingBalance: money(validated.closingBalance).toString() } : null,
       accounting: money(ledger?.net ?? "0").toString(),
       lastStatement,
     };
