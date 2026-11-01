@@ -130,6 +130,17 @@ export class TreasuryController {
   }
 
   @RequirePermission("transactions:manage")
+  @Post("financial-accounts/:id/transactions/qualify")
+  @HttpCode(HttpStatus.OK)
+  qualifyTransactions(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<{ updated: number }> {
+    return translate(() => this.transactions.qualifyMany(id, body, request.auth!.user.id));
+  }
+
+  @RequirePermission("transactions:manage")
   @Patch("transactions/:id")
   updateTransaction(
     @Param("id", ParseUUIDPipe) id: string,

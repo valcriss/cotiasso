@@ -341,6 +341,47 @@ export interface PointableTransactionInfo {
   pointed: boolean;
 }
 
+export interface RecoveryBatchInfo {
+  id: string;
+  name: string;
+  note: string | null;
+  status: 'OPEN' | 'COMPLETED' | 'ABANDONED';
+  createdAt: string;
+  closedAt: string | null;
+  abandonedAt: string | null;
+  drafts: number;
+  posted: number;
+  total: number;
+}
+
+export interface RecoveryItemInfo {
+  entryId: string;
+  kind: 'OPENING' | 'TRANSACTION';
+  financialAccountId: string;
+  financialAccountName: string;
+  date: string;
+  label: string;
+  status: 'DRAFT' | 'POSTED' | 'REVERSED';
+  journalCode: string;
+  number: number | null;
+  amount: string;
+}
+
+export type SkipReasonInfo = 'NOT_QUALIFIED' | 'ALREADY_LINKED' | 'TRANSFER' | 'NO_FISCAL_YEAR' | 'YEAR_NOT_OPEN' | 'REFUSED';
+
+export interface PrepareReportInfo {
+  created: number;
+  skipped: { transactionId: string; date: string; label: string; amount: string; reason: SkipReasonInfo; message: string }[];
+  skippedByReason: Partial<Record<SkipReasonInfo, number>>;
+}
+
+export interface PostReportInfo {
+  posted: number;
+  failed: { entryId: string; date: string; label: string; messages: string[] }[];
+  remainingDrafts: number;
+  completed: boolean;
+}
+
 export interface EntryCandidateInfo {
   id: string;
   date: string;
@@ -767,6 +808,38 @@ export class AdminApiService {
 
   archiveFinancialAccount(id: string): Promise<FinancialAccountInfo> {
     return firstValueFrom(this.http.patch<FinancialAccountInfo>(`/api/financial-accounts/${id}`, { archived: true }));
+  }
+
+  listRecoveryBatches(): Promise<RecoveryBatchInfo[]> {
+    return firstValueFrom(this.http.get<RecoveryBatchInfo[]>('/api/recovery-batches'));
+  }
+
+  getRecoveryBatch(id: string): Promise<{ batch: RecoveryBatchInfo; items: RecoveryItemInfo[] }> {
+    return firstValueFrom(this.http.get<{ batch: RecoveryBatchInfo; items: RecoveryItemInfo[] }>(`/api/recovery-batches/${id}`));
+  }
+
+  createRecoveryBatch(body: { name: string; note?: string }): Promise<RecoveryBatchInfo> {
+    return firstValueFrom(this.http.post<RecoveryBatchInfo>('/api/recovery-batches', body));
+  }
+
+  prepareRecoveryEntries(id: string, body: { financialAccountId: string; from?: string; to?: string }): Promise<PrepareReportInfo> {
+    return firstValueFrom(this.http.post<PrepareReportInfo>(`/api/recovery-batches/${id}/prepare-entries`, body));
+  }
+
+  prepareRecoveryOpening(id: string, body: { financialAccountId: string; counterpartAccountId: string; explanation: string }): Promise<RecoveryItemInfo> {
+    return firstValueFrom(this.http.post<RecoveryItemInfo>(`/api/recovery-batches/${id}/opening`, body));
+  }
+
+  postRecoveryBatch(id: string): Promise<PostReportInfo> {
+    return firstValueFrom(this.http.post<PostReportInfo>(`/api/recovery-batches/${id}/post`, {}));
+  }
+
+  abandonRecoveryBatch(id: string): Promise<{ deleted: number; kept: number }> {
+    return firstValueFrom(this.http.post<{ deleted: number; kept: number }>(`/api/recovery-batches/${id}/abandon`, {}));
+  }
+
+  qualifyTransactions(accountId: string, body: { transactionIds: string[]; counterpartAccountId?: string; projectId?: string }): Promise<{ updated: number }> {
+    return firstValueFrom(this.http.post<{ updated: number }>(`/api/financial-accounts/${accountId}/transactions/qualify`, body));
   }
 
   listStatements(accountId: string): Promise<StatementInfo[]> {

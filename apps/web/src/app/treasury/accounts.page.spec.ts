@@ -480,4 +480,37 @@ describe('AccountsPage', () => {
     await reloadAfterWrite([]);
     expect(ui.snackbar).toContain('Virement annulé');
   });
+
+  it("qualifie une sélection de transactions d'un coup, sans toucher à ce qu'on laisse sur « Ne pas changer »", async () => {
+    await create(FULL);
+    await openTransactions([transaction({ id: 't1', label: 'Frais' }), transaction({ id: 't2', label: 'Loyer' }), transaction({ id: 't3', label: 'Autre' })]);
+    expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Qualifier la sélection'))).toBe(false);
+
+    const boxes = Array.from(root.querySelectorAll<HTMLInputElement>('app-transactions-panel td mat-checkbox input'));
+    boxes[0]!.click();
+    await settle();
+    boxes[1]!.click();
+    await settle();
+    await click('Qualifier la sélection (2)');
+    expect(ui.title).toBe('Qualifier 2 transaction(s)');
+
+    // Rien n'est choisi : on l'explique sans appeler le serveur.
+    await ui.submit();
+    expect(ui.error).toContain('Choisissez un compte de contrepartie');
+    await ui.choose('mat-select[formcontrolname="counterpartAccountId"]', 'Prestations');
+    await ui.submit();
+    const request = controller.expectOne('/api/financial-accounts/f1/transactions/qualify');
+    expect(request.request.body).toEqual({ transactionIds: ['t1', 't2'], counterpartAccountId: 'a706' });
+    request.flush({ updated: 2 });
+    await settle();
+    controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: [], next: null });
+    await settle();
+    expect(ui.snackbar).toContain('2 transaction(s) qualifiée(s)');
+  });
+
+  it("n'offre pas la sélection sans le droit de gérer les transactions", async () => {
+    await create(['financial-accounts:view']);
+    await openTransactions([transaction()]);
+    expect(root.querySelector('app-transactions-panel td mat-checkbox')).toBeNull();
+  });
 });

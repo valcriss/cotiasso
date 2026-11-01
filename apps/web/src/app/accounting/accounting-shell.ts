@@ -9,6 +9,7 @@ export const ACCOUNTING_TABS = [
   { path: 'grand-livre', label: 'Grand livre', icon: 'menu_book', exact: false },
   { path: 'balance', label: 'Balance', icon: 'balance', exact: false },
   { path: 'journaux', label: 'Livre-journal', icon: 'auto_stories', exact: false },
+  { path: 'reprise', label: 'Reprise', icon: 'inventory_2', exact: false },
 ] as const;
 
 @Component({

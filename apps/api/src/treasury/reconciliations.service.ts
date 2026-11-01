@@ -320,7 +320,8 @@ export class ReconciliationsService {
     const since = last?.periodEnd ?? new Date(account.openedOn.getTime() - 86_400_000);
     const [orphans] = await this.prisma.$queryRaw<{ count: bigint }[]>`
       SELECT count(*) AS count FROM "JournalEntry" e
-      WHERE e."status" = 'POSTED' AND e."kind" = 'NORMAL' AND e."date" > ${since} AND e."date" <= ${rec.periodEnd}
+      WHERE e."status" = 'POSTED' AND e."kind" = 'NORMAL' AND e."date" > ${since}
+        AND NOT EXISTS (SELECT 1 FROM "Journal" j WHERE j."id" = e."journalId" AND j."type" = 'OPENING') AND e."date" <= ${rec.periodEnd}
         AND EXISTS (SELECT 1 FROM "JournalLine" l WHERE l."entryId" = e."id" AND l."accountId" = ${account.accountId}::uuid)
         AND NOT EXISTS (SELECT 1 FROM "TreasuryMatch" m WHERE m."entryId" = e."id" AND m."financialAccountId" = ${rec.financialAccountId}::uuid AND m."status" = 'ACTIVE')`;
     const orphanCount = Number(orphans?.count ?? 0);

@@ -43,6 +43,18 @@ const transactionPatch = z
   })
   .strict();
 
+const qualifyInput = z
+  .object({
+    transactionIds: z.array(z.uuid()).min(1, "Cochez au moins une transaction.").max(200, "200 transactions au plus à la fois."),
+    counterpartAccountId: z.uuid().optional(),
+    projectId: z.uuid().optional(),
+  })
+  .strict()
+  .refine((value) => value.counterpartAccountId !== undefined || value.projectId !== undefined, {
+    message: "Choisissez un compte de contrepartie et/ou un projet à appliquer.",
+    path: ["counterpartAccountId"],
+  });
+
 const listQuery = z
   .object({
     from: isoDate.optional(),
@@ -242,6 +254,37 @@ export class TransactionsService {
       .catch((error) => this.rethrow(error));
     await this.audit.record({ action: "transaction.created", objectType: "Transaction", objectId: created.id, actorId, details: { accountId } });
     return view(created);
+  }
+
+  /** Applique un compte de contrepartie et/ou un projet à une sélection de transactions d'un compte (tout ou rien). */
+  async qualifyMany(accountId: string, body: unknown, actorId: string): Promise<{ updated: number }> {
+    const input = parse(qualifyInput, body);
+    await this.assertAccount(accountId);
+    const ids = [...new Set(input.transactionIds)];
+    const updated = await this.prisma
+      .$transaction(async (db) => {
+        const result = await db.transaction.updateMany({
+          where: { id: { in: ids }, financialAccountId: accountId },
+          data: {
+            ...(input.counterpartAccountId !== undefined && { counterpartAccountId: input.counterpartAccountId }),
+            ...(input.projectId !== undefined && { projectId: input.projectId }),
+            version: { increment: 1 },
+          },
+        });
+        if (result.count !== ids.length) {
+          throw new AccountingConflictError("Certaines transactions n'appartiennent pas à ce compte : rien n'a été modifié.");
+        }
+        return result.count;
+      })
+      .catch((error) => this.rethrow(error));
+    await this.audit.record({
+      action: "transactions.qualified",
+      objectType: "FinancialAccount",
+      objectId: accountId,
+      actorId,
+      details: { count: updated, counterpart: input.counterpartAccountId !== undefined, project: input.projectId !== undefined },
+    });
+    return { updated };
   }
 
   async update(id: string, body: unknown, actorId: string): Promise<TransactionView> {

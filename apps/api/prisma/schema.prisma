@@ -344,13 +344,14 @@ model JournalEntry {
   createdAt     DateTime    @default(now()) @db.Timestamptz(3)
   createdBy     String?     @db.Uuid
 
-  fiscalYear  FiscalYear      @relation("EntryYear", fields: [fiscalYearId], references: [id], onDelete: Restrict)
-  carriesFrom FiscalYear?     @relation("Carry", fields: [carriesFromId], references: [id], onDelete: Restrict)
-  journal     Journal         @relation(fields: [journalId], references: [id], onDelete: Restrict)
-  reversalOf  JournalEntry?   @relation("Reversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
-  reversedBy  JournalEntry?   @relation("Reversal")
-  lines       JournalLine[]
-  matches     TreasuryMatch[]
+  fiscalYear   FiscalYear         @relation("EntryYear", fields: [fiscalYearId], references: [id], onDelete: Restrict)
+  carriesFrom  FiscalYear?        @relation("Carry", fields: [carriesFromId], references: [id], onDelete: Restrict)
+  journal      Journal            @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  reversalOf   JournalEntry?      @relation("Reversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedBy   JournalEntry?      @relation("Reversal")
+  lines        JournalLine[]
+  matches      TreasuryMatch[]
+  recoveryItem RecoveryBatchItem?
 
   @@unique([journalId, fiscalYearId, number])
   @@index([fiscalYearId, date])
@@ -451,13 +452,14 @@ model FinancialAccount {
   createdAt      DateTime             @default(now()) @db.Timestamptz(3)
   createdBy      String?              @db.Uuid
 
-  account         Account          @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  journal         Journal          @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  account         Account             @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  journal         Journal             @relation(fields: [journalId], references: [id], onDelete: Restrict)
   transactions    Transaction[]
   statements      BankStatement[]
   imports         ImportBatch[]
   matches         TreasuryMatch[]
   reconciliations Reconciliation[]
+  recoveryItems   RecoveryBatchItem[]
 }
 
 // Solde fourni par un relevé à une date : sert de preuve et de point de contrôle, en ajout seul. Un solde non contrôlé
@@ -554,6 +556,48 @@ model Transfer {
 
   outTransaction Transaction @relation("TransferOut", fields: [outTransactionId], references: [id], onDelete: Restrict)
   inTransaction  Transaction @relation("TransferIn", fields: [inTransactionId], references: [id], onDelete: Restrict)
+}
+
+enum RecoveryBatchStatus {
+  OPEN
+  COMPLETED
+  ABANDONED
+}
+
+enum RecoveryItemKind {
+  OPENING
+  TRANSACTION
+}
+
+// Lot de reprise : brouillons créés en masse, comptabilisés ensemble ou abandonnés (ADR 0019). Jamais supprimé.
+model RecoveryBatch {
+  id          String              @id @default(uuid()) @db.Uuid
+  name        String
+  note        String?
+  status      RecoveryBatchStatus @default(OPEN)
+  createdAt   DateTime            @default(now()) @db.Timestamptz(3)
+  createdBy   String?             @db.Uuid
+  closedAt    DateTime?           @db.Timestamptz(3)
+  abandonedAt DateTime?           @db.Timestamptz(3)
+  abandonedBy String?             @db.Uuid
+
+  items RecoveryBatchItem[]
+}
+
+// Une écriture d'un lot. Un brouillon supprimé emporte son élément ; une écriture comptabilisée le garde (historique).
+model RecoveryBatchItem {
+  id                 String           @id @default(uuid()) @db.Uuid
+  batchId            String           @db.Uuid
+  entryId            String           @unique @db.Uuid
+  kind               RecoveryItemKind
+  financialAccountId String           @db.Uuid
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
+
+  batch            RecoveryBatch    @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  entry            JournalEntry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  financialAccount FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Restrict)
+
+  @@index([batchId])
 }
 
 enum ReconciliationStatus {

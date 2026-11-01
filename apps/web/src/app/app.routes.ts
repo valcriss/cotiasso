@@ -83,6 +83,11 @@ export const routes: Routes = [
             loadComponent: () => import('./accounting/trial-balance.page').then((m) => m.TrialBalancePage),
           },
           {
+            path: 'reprise',
+            title: 'Reprise',
+            loadComponent: () => import('./accounting/recovery.page').then((m) => m.RecoveryPage),
+          },
+          {
             path: 'journaux',
             title: 'Livre-journal',
             loadComponent: () => import('./accounting/journal-book.page').then((m) => m.JournalBookPage),

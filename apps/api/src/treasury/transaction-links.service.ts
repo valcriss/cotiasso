@@ -56,6 +56,48 @@ export function rethrowLink(error: unknown): never {
 
 const day = (date: Date) => date.toISOString().slice(0, 10);
 
+/** Transaction qualifiée, avec ce qu'il faut pour préparer son brouillon d'écriture. */
+export interface DraftSource {
+  id: string;
+  label: string;
+  reference: string | null;
+  amount: Prisma.Decimal;
+  operationDate: Date;
+  projectId: string | null;
+  counterpartAccountId: string;
+  counterpartAccount: { number: string };
+  financialAccount: { accountId: string; journalId: string };
+}
+
+/**
+ * Brouillon d'écriture d'une transaction : ligne de trésorerie + ligne de contrepartie (+ projet proposé pour les classes
+ * 6 et 7, ADR 0013). Partagé par la préparation unitaire (ADR 0017) et par les lots de reprise (ADR 0019).
+ */
+export function draftDataFor(tx: DraftSource, fiscalYearId: string, actorId: string, journalId?: string): Prisma.JournalEntryUncheckedCreateInput {
+  const absolute = tx.amount.abs().toFixed(2);
+  const incoming = tx.amount.gt(0);
+  return {
+    fiscalYearId,
+    journalId: journalId ?? tx.financialAccount.journalId,
+    date: tx.operationDate,
+    label: tx.label,
+    reference: tx.reference,
+    createdBy: actorId,
+    lines: {
+      create: [
+        { position: 1, accountId: tx.financialAccount.accountId, debit: incoming ? absolute : "0", credit: incoming ? "0" : absolute },
+        {
+          position: 2,
+          accountId: tx.counterpartAccountId,
+          debit: incoming ? "0" : absolute,
+          credit: incoming ? absolute : "0",
+          ...(tx.projectId && /^[67]/.test(tx.counterpartAccount.number) && { allocations: { create: [{ projectId: tx.projectId, amount: absolute }] } }),
+        },
+      ],
+    },
+  };
+}
+
 /**
  * Liaison d'une transaction à l'écriture qui la comptabilise (ADR 0017) : préparation d'un brouillon, association d'une
  * écriture existante, dissociation d'un brouillon. L'invariant (la ligne de banque de l'écriture égale la transaction) et
@@ -86,34 +128,10 @@ export class TransactionLinksService {
     });
     if (!year) throw new AccountingConflictError("Aucun exercice ne couvre la date de cette transaction. Créez l'exercice d'abord.");
 
-    const absolute = tx.amount.abs().toFixed(2);
-    const incoming = tx.amount.gt(0);
-    const bankLine = { accountId: tx.financialAccount.accountId, debit: incoming ? absolute : "0", credit: incoming ? "0" : absolute };
-    const counterpartLine = {
-      accountId: tx.counterpartAccountId,
-      debit: incoming ? "0" : absolute,
-      credit: incoming ? absolute : "0",
-      // Seules les charges et produits (classes 6 et 7) se ventilent par projet (ADR 0013).
-      ...(tx.projectId && /^[67]/.test(tx.counterpartAccount.number) && { allocations: { create: [{ projectId: tx.projectId, amount: absolute }] } }),
-    };
-
     const entryId = await this.prisma
       .$transaction(async (db) => {
         const entry = await db.journalEntry.create({
-          data: {
-            fiscalYearId: year.id,
-            journalId: input.journalId ?? tx.financialAccount.journalId,
-            date: tx.operationDate,
-            label: tx.label,
-            reference: tx.reference,
-            createdBy: actorId,
-            lines: {
-              create: [
-                { position: 1, ...bankLine },
-                { position: 2, ...counterpartLine },
-              ],
-            },
-          },
+          data: draftDataFor({ ...tx, counterpartAccountId: tx.counterpartAccountId!, counterpartAccount: tx.counterpartAccount! }, year.id, actorId, input.journalId),
           select: { id: true },
         });
         await db.treasuryMatch.create({

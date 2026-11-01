@@ -1,6 +1,7 @@
 import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -19,12 +20,13 @@ import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { LinkEntryDialog, type LinkEntryDialogData } from './link-entry-dialog';
+import { QualifyDialog, type QualifyDialogData } from './qualify-dialog';
 import { TransactionDialog, type TransactionDialogData, type TransactionDialogResult } from './transaction-dialog';
 
 /** Transactions d'un compte : liste filtrable, saisie (boîte de dialogue) et accès à l'import d'un relevé. */
 @Component({
   selector: 'app-transactions-panel',
-  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -56,6 +58,11 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
             <a mat-stroked-button [routerLink]="['/comptes', account().id, 'import']">
               <mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload_file</mat-icon> Importer un relevé OFX
             </a>
+          }
+          @if (canManage() && selectedIds().length > 0) {
+            <button mat-stroked-button type="button" (click)="qualifySelection()">
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">label</mat-icon> Qualifier la sélection ({{ selectedIds().length }})
+            </button>
           }
           @if (canManage() && !account().archivedOn) {
             <button mat-flat-button type="button" (click)="open(null)">
@@ -121,6 +128,9 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
           <caption class="sr-only">Transactions</caption>
           <thead>
             <tr>
+              @if (canManage()) {
+                <th scope="col"><span class="sr-only">Sélection</span></th>
+              }
               <th scope="col">Date</th>
               <th scope="col">Libellé</th>
               <th scope="col">Projet</th>
@@ -133,6 +143,15 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
           <tbody>
             @for (item of transactions(); track item.id) {
               <tr>
+                @if (canManage()) {
+                  <td>
+                    <mat-checkbox
+                      [checked]="selection().has(item.id)"
+                      [attr.aria-label]="'Sélectionner ' + item.label"
+                      (change)="select(item.id, $event.checked)"
+                    />
+                  </td>
+                }
                 <td class="date">{{ item.operationDate }}</td>
                 <td>
                   {{ item.label }}
@@ -273,6 +292,30 @@ export class TransactionsPanel {
   }
 
   protected readonly busy = signal(false);
+  /** Transactions cochées pour une qualification en masse. */
+  protected readonly selection = signal<ReadonlySet<string>>(new Set());
+  protected readonly selectedIds = computed(() => [...this.selection()]);
+
+  protected select(id: string, checked: boolean): void {
+    this.selection.update((current) => {
+      const next = new Set(current);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  /** Applique un compte de contrepartie et/ou un projet à toutes les transactions cochées. */
+  protected async qualifySelection(): Promise<void> {
+    const result = await this.dialogs.open<{ updated: number }, QualifyDialogData>(QualifyDialog, {
+      size: 'md',
+      data: { account: this.account(), accounts: this.accounts(), projects: this.projects(), transactionIds: this.selectedIds() },
+    });
+    if (!result) return;
+    this.notifier.success(`${result.updated} transaction(s) qualifiée(s).`);
+    this.selection.set(new Set());
+    await this.search();
+  }
 
   /** Prépare le brouillon d'écriture de la transaction, puis l'ouvre pour qu'on le relise. */
   protected async prepare(item: TransactionInfo): Promise<void> {
