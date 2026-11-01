@@ -74,6 +74,7 @@ Conventions de l'API :
 
 - [cadrage-gestion-associative.md](cadrage-gestion-associative.md) : cadrage fonctionnel et technique v1.0 (source de vérité). Les mentions *Retenu* / *Proposé* / *À décider* y distinguent le niveau de décision ; ne jamais traiter un *Proposé* comme acquis.
 - [design.md](design.md) : guide de conception de l'interface et principes pédagogiques (public cible : trésoriers sans formation comptable). À suivre pour tout écran.
+- [docs/roadmap.md](docs/roadmap.md) : feuille de route — ce qui est fait et ce qui reste, par priorité (à tenir à jour à chaque lot livré).
 - [docs/decoupage.md](docs/decoupage.md) : découpage en lots/epics, dépendances et questions ouvertes (document de travail).
 - `docs/decisions/` : une décision d'architecture ou de règle métier par fichier (ADR), à créer au fil de l'eau.
 
