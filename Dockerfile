@@ -52,6 +52,7 @@ ENTRYPOINT ["api-entrypoint"]
 
 # ---------- Web : fichiers statiques servis par nginx, /api proxifié vers l'API ----------
 FROM ${NGINX_IMAGE} AS web
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+ENV TRUSTED_PROXY_CIDR=127.0.0.1/32
+COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/apps/web/dist/web/browser /usr/share/nginx/html
 EXPOSE 8080

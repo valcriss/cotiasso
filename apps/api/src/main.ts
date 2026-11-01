@@ -6,7 +6,7 @@ import { readEnv } from "./config/env.js";
 
 async function bootstrap(): Promise<void> {
   const env = readEnv();
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ trustProxy: env.trustProxy }));
   app.enableShutdownHooks();
   await app.listen(env.port, env.host);
 }

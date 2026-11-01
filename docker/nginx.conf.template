@@ -1,3 +1,9 @@
+# IP réelle du client : seules les adresses de TRUSTED_PROXY_CIDR (votre reverse proxy HTTPS) peuvent la fournir
+# via X-Forwarded-For. Sans cela, l'en-tête envoyé par un client est ignoré (pas de contournement du délai par IP).
+set_real_ip_from ${TRUSTED_PROXY_CIDR};
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+
 server {
     listen 8080;
     server_name _;
@@ -14,7 +20,7 @@ server {
         proxy_pass http://api:3000/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
         client_max_body_size 25m;
     }

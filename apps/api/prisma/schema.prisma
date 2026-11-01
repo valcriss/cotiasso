@@ -36,4 +36,35 @@ model User {
   createdAt    DateTime   @default(now()) @db.Timestamptz(3)
   updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
   version      Int        @default(1)
+  sessions     Session[]
+}
+
+model Session {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  user       User      @relation(fields: [userId], references: [id])
+  // Empreinte SHA-256 du jeton du cookie : le jeton lui-même n'est jamais stocké.
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  lastSeenAt DateTime  @default(now()) @db.Timestamptz(3)
+  // Fin absolue de la session ; l'inactivité se calcule à partir de lastSeenAt.
+  expiresAt  DateTime  @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+  ipAddress  String?
+  userAgent  String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model LoginAttempt {
+  id         String   @id @default(uuid()) @db.Uuid
+  occurredAt DateTime @default(now()) @db.Timestamptz(3)
+  // Email normalisé tel que saisi, qu'il corresponde ou non à un compte (évite d'en révéler l'existence).
+  email      String?
+  ipAddress  String?
+  success    Boolean
+
+  @@index([email, occurredAt])
+  @@index([ipAddress, occurredAt])
 }

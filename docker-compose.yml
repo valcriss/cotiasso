@@ -34,6 +34,8 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://cotiasso:${POSTGRES_PASSWORD}@db:5432/cotiasso
+      # L'API n'est joignable que par le conteneur web (nginx) : X-Forwarded-For y est fiable.
+      TRUST_PROXY: "true"
 
   web:
     image: cotiasso-web:${COTIASSO_VERSION}
@@ -44,6 +46,9 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    environment:
+      # Adresse (CIDR) de votre reverse proxy HTTPS, autorisé à fournir l'IP réelle des clients.
+      TRUSTED_PROXY_CIDR: ${TRUSTED_PROXY_CIDR:-127.0.0.1/32}
     ports:
       - "${COTIASSO_HTTP_PORT:-8080}:8080"
 

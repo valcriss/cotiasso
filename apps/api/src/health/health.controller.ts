@@ -1,4 +1,5 @@
 import { Controller, Get, Inject, ServiceUnavailableException } from "@nestjs/common";
+import { Public } from "../auth/public.decorator.js";
 
 export interface DatabasePing {
   ping(): Promise<void>;
@@ -15,6 +16,7 @@ export interface HealthReport {
 export class HealthController {
   constructor(@Inject(DATABASE_PING) private readonly database: DatabasePing) {}
 
+  @Public()
   @Get()
   async check(): Promise<HealthReport> {
     try {
