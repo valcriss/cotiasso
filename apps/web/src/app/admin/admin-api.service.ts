@@ -156,6 +156,32 @@ export interface BackupEntryInfo {
   archivePresent: boolean;
 }
 
+export interface FiscalYearInfo {
+  id: string;
+  label: string;
+  start: string;
+  end: string;
+  status: 'OPEN' | 'CLOSING' | 'CLOSED';
+}
+
+export type JournalType = 'BANK' | 'CASH' | 'PURCHASES' | 'REVENUE' | 'MISC' | 'OPENING';
+
+export interface JournalInfo {
+  id: string;
+  code: string;
+  label: string;
+  type: JournalType;
+  active: boolean;
+}
+
+export interface AccountInfo {
+  id: string;
+  number: string;
+  label: string;
+  active: boolean;
+  reportLine: string | null;
+}
+
 export interface OperationsInfo {
   version: string;
   backups: {
@@ -302,6 +328,46 @@ export class AdminApiService {
   /** Lien de téléchargement : le navigateur envoie son cookie de session, le serveur contrôle l'accès. */
   documentDownloadUrl(id: string, version?: number): string {
     return `/api/documents/${id}/download${version ? `?version=${version}` : ''}`;
+  }
+
+  listFiscalYears(): Promise<FiscalYearInfo[]> {
+    return firstValueFrom(this.http.get<FiscalYearInfo[]>('/api/fiscal-years'));
+  }
+
+  createFiscalYear(body: { label: string; start: string; end: string }): Promise<FiscalYearInfo> {
+    return firstValueFrom(this.http.post<FiscalYearInfo>('/api/fiscal-years', body));
+  }
+
+  updateFiscalYear(id: string, body: { label?: string; start?: string; end?: string }): Promise<FiscalYearInfo> {
+    return firstValueFrom(this.http.patch<FiscalYearInfo>(`/api/fiscal-years/${id}`, body));
+  }
+
+  listJournals(): Promise<JournalInfo[]> {
+    return firstValueFrom(this.http.get<JournalInfo[]>('/api/journals'));
+  }
+
+  createJournal(body: { code: string; label: string; type: JournalType }): Promise<JournalInfo> {
+    return firstValueFrom(this.http.post<JournalInfo>('/api/journals', body));
+  }
+
+  updateJournal(id: string, body: { label?: string; active?: boolean }): Promise<JournalInfo> {
+    return firstValueFrom(this.http.patch<JournalInfo>(`/api/journals/${id}`, body));
+  }
+
+  listAccounts(): Promise<AccountInfo[]> {
+    return firstValueFrom(this.http.get<AccountInfo[]>('/api/accounts'));
+  }
+
+  createAccount(body: { number: string; label: string }): Promise<AccountInfo> {
+    return firstValueFrom(this.http.post<AccountInfo>('/api/accounts', body));
+  }
+
+  updateAccount(id: string, body: { label?: string; active?: boolean }): Promise<AccountInfo> {
+    return firstValueFrom(this.http.patch<AccountInfo>(`/api/accounts/${id}`, body));
+  }
+
+  importAccounts(accounts: { number: string; label: string }[]): Promise<{ created: number; skipped: number }> {
+    return firstValueFrom(this.http.post<{ created: number; skipped: number }>('/api/accounts/import', { accounts }));
   }
 
   operations(): Promise<OperationsInfo> {

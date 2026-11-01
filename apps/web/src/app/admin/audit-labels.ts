@@ -22,6 +22,13 @@ const ACTION_LABELS: Record<string, string> = {
   'role.assigned': 'Rôle attribué',
   'role.revoked': 'Rôle retiré',
   'settings.updated': 'Paramètres modifiés',
+  'fiscal-year.created': 'Exercice créé',
+  'fiscal-year.updated': 'Exercice modifié',
+  'journal.created': 'Journal créé',
+  'journal.updated': 'Journal modifié',
+  'account.created': 'Compte créé',
+  'account.updated': 'Compte modifié',
+  'account.imported': 'Plan de comptes importé',
   'module.activated': 'Module activé',
   'module.deactivated': 'Module désactivé',
 };

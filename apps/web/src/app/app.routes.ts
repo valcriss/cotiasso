@@ -101,6 +101,13 @@ export const routes: Routes = [
             loadComponent: () => import('./admin/audit.page').then((m) => m.AuditPage),
           },
           {
+            path: 'comptabilite',
+            title: 'Comptabilité',
+            canActivate: [permissionGuard],
+            data: { permission: 'entries:view' },
+            loadComponent: () => import('./admin/accounting.page').then((m) => m.AccountingPage),
+          },
+          {
             path: 'exploitation',
             title: 'Exploitation',
             canActivate: [permissionGuard],

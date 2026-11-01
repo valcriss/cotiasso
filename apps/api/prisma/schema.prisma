@@ -243,3 +243,52 @@ model DocumentLink {
   @@unique([documentId, objectType, objectId])
   @@index([objectType, objectId])
 }
+
+enum FiscalYearStatus {
+  OPEN
+  CLOSING
+  CLOSED
+}
+
+// Exercice comptable aux dates paramétrables. Pas de chevauchement (contrainte d'exclusion en base) ; jamais supprimé.
+model FiscalYear {
+  id        String           @id @default(uuid()) @db.Uuid
+  label     String
+  start     DateTime         @db.Date
+  end       DateTime         @db.Date
+  status    FiscalYearStatus @default(OPEN)
+  createdAt DateTime         @default(now()) @db.Timestamptz(3)
+  createdBy String?          @db.Uuid
+}
+
+enum JournalType {
+  BANK
+  CASH
+  PURCHASES
+  REVENUE
+  MISC
+  OPENING
+}
+
+// Journal comptable. Le code et le type ne changent plus une fois créés (la numérotation en dépend) ; jamais supprimé.
+model Journal {
+  id        String      @id @default(uuid()) @db.Uuid
+  code      String      @unique
+  label     String
+  type      JournalType
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now()) @db.Timestamptz(3)
+  createdBy String?     @db.Uuid
+}
+
+// Compte du plan comptable. Le numéro est définitif ; un compte se désactive, il ne se supprime jamais.
+model Account {
+  id         String   @id @default(uuid()) @db.Uuid
+  number     String   @unique
+  label      String
+  active     Boolean  @default(true)
+  // Rubrique de rapport (bilan, compte de résultat) ; absente = « non classé », signalé par un contrôle.
+  reportLine String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  createdBy  String?  @db.Uuid
+}
