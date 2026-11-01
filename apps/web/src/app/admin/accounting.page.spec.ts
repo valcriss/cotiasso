@@ -23,6 +23,7 @@ describe('AccountingPage', () => {
     controller.expectOne('/api/fiscal-years').flush([year]);
     controller.expectOne('/api/journals').flush([journal]);
     controller.expectOne('/api/accounts').flush(accounts);
+    controller.expectOne('/api/accounting/settings').flush({ projectRequired: true });
     await settle();
   };
   const create = async (permissions: string[]) => {
@@ -48,6 +49,26 @@ describe('AccountingPage', () => {
     expect(text).toContain('mais pas la modifier');
     expect(root.querySelector('form')).toBeNull();
     expect(root.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it('affiche l’obligation de projet sans permettre de la modifier sans droit', async () => {
+    await create(['entries:view']);
+    const box = root.querySelector<HTMLInputElement>('mat-checkbox input')!;
+    expect(box.checked).toBe(true);
+    expect(box.disabled).toBe(true);
+  });
+
+  it('désactive l’obligation de projet avec settings.accounting:admin', async () => {
+    await create(['entries:view', 'settings.accounting:admin']);
+    root.querySelector<HTMLInputElement>('mat-checkbox input')!.click();
+    await settle();
+    const put = controller.expectOne('/api/accounting/settings');
+    expect(put.request.method).toBe('PUT');
+    expect(put.request.body).toEqual({ projectRequired: false });
+    put.flush({ changed: true, value: { projectRequired: false } });
+    await settle();
+    await flushLists();
+    expect(root.querySelector('[role="status"]')!.textContent).toContain('plus obligatoire');
   });
 
   it('crée un exercice puis recharge les listes', async () => {

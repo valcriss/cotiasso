@@ -103,6 +103,8 @@ describe("Écritures comptables : brouillon, comptabilisation, contrepassation (
       payload: { token, email: "admin@asso.test", displayName: "Admin", password: PASSWORD },
     });
     await prisma.role.updateMany({ data: { requiresMfa: false } });
+    // Ces tests ne portent pas sur l'analytique : l'obligation de projet (active par défaut) est levée.
+    await prisma.settingsVersion.create({ data: { section: "accounting", payload: { projectRequired: false } } });
     treasurer = await userWith("treasurer");
     boardMember = await userWith("board-member");
     reader = await userWith("reader");

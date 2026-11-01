@@ -11,6 +11,7 @@ import {
   type EntryStatus,
   type FiscalYearInfo,
   type JournalInfo,
+  type ProjectInfo,
 } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
@@ -55,6 +56,7 @@ import { ENTRY_STATUS_LABELS, EntryEditor } from './entry-editor';
         [entryId]="selectedId()"
         [journals]="journals()"
         [accounts]="activeAccounts()"
+        [projects]="activeProjects()"
         (changed)="onChanged($event.id)"
         (closed)="close()"
       />
@@ -140,6 +142,8 @@ export class EntriesPage {
   protected readonly journals = signal<JournalInfo[]>([]);
   private readonly accounts = signal<AccountInfo[]>([]);
   protected readonly activeAccounts = computed(() => this.accounts().filter((a) => a.active));
+  private readonly projects = signal<ProjectInfo[]>([]);
+  protected readonly activeProjects = computed(() => this.projects().filter((p) => p.status !== 'ARCHIVED'));
 
   protected readonly entries = signal<EntryInfo[]>([]);
   protected readonly next = signal<string | null>(null);
@@ -238,6 +242,8 @@ export class EntriesPage {
     } catch (failure) {
       this.error.set(describeHttpError(failure, 'Impossible de charger la structure comptable.').message);
     }
+    // La liste des projets exige projects:view ; sans ce droit, la ventilation n'est simplement pas proposée.
+    this.projects.set(await this.api.listProjects().catch(() => []));
     await this.search();
   }
 }

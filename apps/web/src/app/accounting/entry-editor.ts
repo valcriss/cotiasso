@@ -8,13 +8,18 @@ import { MatSelectModule } from '@angular/material/select';
 import {
   AdminApiService,
   type AccountInfo,
+  type AllocationInfo,
   type EntryDraftBody,
   type EntryInfo,
   type JournalInfo,
+  type ProjectInfo,
 } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from './amount';
+
+/** Valeur du sélecteur de projet pour une ligne déjà ventilée entre plusieurs projets : la ventilation est conservée. */
+export const MULTI_PROJECT = '__multi';
 
 export const ENTRY_STATUS_LABELS = {
   DRAFT: 'Brouillon',
@@ -47,20 +52,24 @@ export const ENTRY_STATUS_LABELS = {
     }
     .lines th:nth-child(1),
     .lines td:nth-child(1) {
-      width: 30%;
+      width: 25%;
     }
     .lines th:nth-child(2),
     .lines td:nth-child(2) {
-      width: 26%;
-    }
-    .lines th:nth-child(3),
-    .lines td:nth-child(3),
-    .lines th:nth-child(4),
-    .lines td:nth-child(4) {
       width: 17%;
     }
+    .lines th:nth-child(3),
+    .lines td:nth-child(3) {
+      width: 19%;
+    }
+    .lines th:nth-child(4),
+    .lines td:nth-child(4),
     .lines th:nth-child(5),
     .lines td:nth-child(5) {
+      width: 14%;
+    }
+    .lines th:nth-child(6),
+    .lines td:nth-child(6) {
       width: 56px;
     }
     .lines mat-form-field {
@@ -131,6 +140,7 @@ export const ENTRY_STATUS_LABELS = {
               <tr>
                 <th scope="col">Compte</th>
                 <th scope="col">Libellé de ligne</th>
+                <th scope="col">Projet</th>
                 <th scope="col" class="amount">Débit</th>
                 <th scope="col" class="amount">Crédit</th>
                 <th scope="col"><span class="sr-only">Actions</span></th>
@@ -154,6 +164,24 @@ export const ENTRY_STATUS_LABELS = {
                       <mat-label>Libellé</mat-label>
                       <input matInput formControlName="label" />
                     </mat-form-field>
+                  </td>
+                  <td>
+                    @if (needsProject(i)) {
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <mat-label>Projet</mat-label>
+                        <mat-select formControlName="projectId" [attr.aria-label]="'Projet de la ligne ' + (i + 1)">
+                          <mat-option value="">Aucun</mat-option>
+                          @if (isSplit(i)) {
+                            <mat-option [value]="multi">Plusieurs projets</mat-option>
+                          }
+                          @for (project of projects(); track project.id) {
+                            <mat-option [value]="project.id">{{ project.code }} — {{ project.name }}</mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+                    } @else {
+                      <span class="muted">—</span>
+                    }
                   </td>
                   <td>
                     <mat-form-field appearance="outline" subscriptSizing="dynamic">
@@ -183,7 +211,7 @@ export const ENTRY_STATUS_LABELS = {
             </tbody>
             <tfoot>
               <tr>
-                <td colspan="2"><button mat-button type="button" (click)="addLine()">+ Ajouter une ligne</button></td>
+                <td colspan="3"><button mat-button type="button" (click)="addLine()">+ Ajouter une ligne</button></td>
                 <td class="amount num">{{ totals().debit }}</td>
                 <td class="amount num">{{ totals().credit }}</td>
                 <td></td>
@@ -228,6 +256,7 @@ export const ENTRY_STATUS_LABELS = {
             <tr>
               <th scope="col">Compte</th>
               <th scope="col">Libellé</th>
+              <th scope="col">Projet</th>
               <th scope="col" class="amount">Débit</th>
               <th scope="col" class="amount">Crédit</th>
             </tr>
@@ -237,6 +266,7 @@ export const ENTRY_STATUS_LABELS = {
               <tr>
                 <td>{{ line.accountNumber }} — {{ line.accountLabel }}</td>
                 <td>{{ line.label }}</td>
+                <td>{{ projectsOf(line.allocations) }}</td>
                 <td class="amount num">{{ line.debit === '0.00' ? '' : format(line.debit) }}</td>
                 <td class="amount num">{{ line.credit === '0.00' ? '' : format(line.credit) }}</td>
               </tr>
@@ -244,7 +274,7 @@ export const ENTRY_STATUS_LABELS = {
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="2">Totaux</td>
+              <td colspan="3">Totaux</td>
               <td class="amount num">{{ format(e.totalDebit) }}</td>
               <td class="amount num">{{ format(e.totalCredit) }}</td>
             </tr>
@@ -274,6 +304,8 @@ export class EntryEditor {
   readonly entryId = input<string | null>(null);
   readonly journals = input.required<JournalInfo[]>();
   readonly accounts = input.required<AccountInfo[]>();
+  /** Projets proposés pour la ventilation (non archivés) ; vide si l'utilisateur ne peut pas les consulter. */
+  readonly projects = input<ProjectInfo[]>([]);
   /** Émis quand la liste doit être rechargée ; `id` désigne l'écriture à garder ouverte, absent si elle disparaît. */
   readonly changed = output<{ id: string | null }>();
   readonly closed = output<void>();
@@ -337,6 +369,7 @@ export class EntryEditor {
   });
 
   protected readonly format = formatApiAmount;
+  protected readonly multi = MULTI_PROJECT;
 
   constructor() {
     this.form.valueChanges.subscribe(() => this.linesChanged.update((n) => n + 1));
@@ -352,6 +385,20 @@ export class EntryEditor {
 
   protected statusLabel(status: EntryInfo['status']): string {
     return ENTRY_STATUS_LABELS[status];
+  }
+
+  /** Une ligne de charge ou de produit (classes 6 et 7) se ventile par projet ; les autres non. */
+  protected needsProject(index: number): boolean {
+    const id = this.lines.at(index).getRawValue().accountId;
+    return /^[67]/.test(this.accounts().find((a) => a.id === id)?.number ?? '');
+  }
+
+  protected isSplit(index: number): boolean {
+    return this.lines.at(index).getRawValue().projectId === MULTI_PROJECT;
+  }
+
+  protected projectsOf(allocations: AllocationInfo[]): string {
+    return allocations.map((a) => (allocations.length > 1 ? `${a.projectCode} (${formatApiAmount(a.amount)})` : a.projectCode)).join(', ');
   }
 
   protected addLine(): void {
@@ -449,6 +496,8 @@ export class EntryEditor {
           label: line.label ?? '',
           debit: line.debit === '0.00' ? '' : line.debit,
           credit: line.credit === '0.00' ? '' : line.credit,
+          projectId: line.allocations.length === 0 ? '' : line.allocations.length === 1 ? line.allocations[0]!.projectId : MULTI_PROJECT,
+          splits: line.allocations,
         }),
       );
     }
@@ -462,12 +511,17 @@ export class EntryEditor {
     this.reverseForm.patchValue({ date: entry?.date ?? '' });
   }
 
-  private newLine(value: { accountId?: string; label?: string; debit?: string; credit?: string } = {}) {
+  private newLine(
+    value: { accountId?: string; label?: string; debit?: string; credit?: string; projectId?: string; splits?: AllocationInfo[] } = {},
+  ) {
     return this.fb.group({
       accountId: [value.accountId ?? '', [Validators.required]],
       label: [value.label ?? ''],
       debit: [value.debit ?? ''],
       credit: [value.credit ?? ''],
+      projectId: [value.projectId ?? ''],
+      // Ventilation entre plusieurs projets, conservée telle quelle tant que l'utilisateur ne la remplace pas.
+      splits: [value.splits ?? ([] as AllocationInfo[])],
     });
   }
 
@@ -500,11 +554,20 @@ export class EntryEditor {
         this.error.set(`Ligne ${index + 1} : saisissez un montant.`);
         return null;
       }
+      const amount = centsToApi(debit > 0 ? debit : credit);
+      const analytic = /^[67]/.test(this.accounts().find((a) => a.id === line.accountId)?.number ?? '');
+      const allocations: AllocationInfo[] =
+        !analytic || line.projectId === ''
+          ? []
+          : line.projectId === MULTI_PROJECT
+            ? line.splits.map((s) => ({ projectId: s.projectId, amount: s.amount }))
+            : [{ projectId: line.projectId, amount }];
       lines.push({
         accountId: line.accountId,
         debit: centsToApi(debit),
         credit: centsToApi(credit),
         ...(line.label.trim() !== '' && { label: line.label.trim() }),
+        ...(allocations.length > 0 && { allocations }),
       });
     }
     return {

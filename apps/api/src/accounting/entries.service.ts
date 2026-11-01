@@ -21,6 +21,8 @@ export interface EntryLineView {
   debit: string;
   credit: string;
   label: string | null;
+  /** Ventilation par projet (lignes de charge ou de produit) ; vide si la ligne n'est pas ventilée. */
+  allocations: { projectId: string; projectCode: string; amount: string }[];
 }
 
 export interface EntryView {
@@ -59,7 +61,13 @@ const money = (value: { toFixed(places: number): string }) => value.toFixed(2);
 const withLines = {
   journal: { select: { code: true } },
   reversedBy: { select: { id: true } },
-  lines: { orderBy: { position: "asc" as const }, include: { account: { select: { number: true, label: true } } } },
+  lines: {
+    orderBy: { position: "asc" as const },
+    include: {
+      account: { select: { number: true, label: true } },
+      allocations: { include: { project: { select: { code: true } } }, orderBy: { project: { code: "asc" as const } } },
+    },
+  },
 } satisfies Prisma.JournalEntryInclude;
 
 type LoadedEntry = Prisma.JournalEntryGetPayload<{ include: typeof withLines }>;
@@ -92,6 +100,7 @@ function view(entry: LoadedEntry): EntryView {
       debit: money(l.debit),
       credit: money(l.credit),
       label: l.label,
+      allocations: l.allocations.map((a) => ({ projectId: a.projectId, projectCode: a.project.code, amount: money(a.amount) })),
     })),
   };
 }
@@ -106,6 +115,11 @@ const REFUSAL_FRAGMENTS = [
   "immuable",
   "ne se supprime pas",
   "exercice clôturé",
+  "Projet obligatoire",
+  "ventilation par projet",
+  "ventilation analytique",
+  "projet archivé",
+  "Seules les lignes de charge",
 ];
 
 /** Texte lisible d'un refus levé par un déclencheur SQL (RAISE EXCEPTION), ou `null` si l'erreur est autre. */
@@ -155,7 +169,7 @@ export class EntriesService {
           label: input.label,
           reference: input.reference ?? null,
           createdBy: actorId,
-          lines: { create: this.lineData(input) },
+          lines: { create: this.lineData(input).map((line) => ({ ...line, allocations: { create: line.allocations } })) },
         },
         select: { id: true },
       });
@@ -189,7 +203,9 @@ export class EntriesService {
         throw new AccountingConflictError("Ce brouillon a été modifié entre-temps. Rechargez-le avant de l'enregistrer.");
       }
       await tx.journalLine.deleteMany({ where: { entryId: id } });
-      await tx.journalLine.createMany({ data: this.lineData(input).map((line) => ({ ...line, entryId: id })) });
+      for (const line of this.lineData(input)) {
+        await tx.journalLine.create({ data: { ...line, entryId: id, allocations: { create: line.allocations } } });
+      }
     }).catch((error) => this.rethrow(error));
     await this.audit.record({ action: "entry.updated", objectType: "JournalEntry", objectId: id, actorId });
     return this.get(id);
@@ -216,11 +232,16 @@ export class EntriesService {
     const check = checkEntryForPosting(
       {
         date: day(entry.date),
-        lines: entry.lines.map((l) => ({ accountNumber: l.account.number, debit: money(l.debit), credit: money(l.credit) })),
+        lines: entry.lines.map((l) => ({
+          accountNumber: l.account.number,
+          debit: money(l.debit),
+          credit: money(l.credit),
+          ...(l.allocations[0] && { projectId: l.allocations[0].projectId }),
+        })),
       },
       {
         fiscalYear: { start: day(year.start), end: day(year.end), status: year.status.toLowerCase() as "open" | "closing" | "closed" },
-        projectRequiredOnIncomeAndExpense: false,
+        projectRequiredOnIncomeAndExpense: await this.projectRequired(),
       },
     );
     if (!check.ok) throw new EntryPostingRefusedError(check.errors satisfies PostingError[]);
@@ -279,6 +300,7 @@ export class EntriesService {
                 debit: l.credit,
                 credit: l.debit,
                 label: l.label,
+                allocations: { create: l.allocations.map((a) => ({ projectId: a.projectId, amount: a.amount })) },
               })),
             },
           },
@@ -322,6 +344,12 @@ export class EntriesService {
     return year.id;
   }
 
+  /** Obligation de projet en vigueur : la même fonction que celle qui la fait respecter à la comptabilisation. */
+  private async projectRequired(): Promise<boolean> {
+    const rows = await this.prisma.$queryRaw<{ required: boolean }[]>`SELECT accounting_project_required() AS required`;
+    return rows[0]?.required ?? true;
+  }
+
   private lineData(input: EntryDraftInput) {
     return input.lines.map((line, index) => ({
       position: index + 1,
@@ -329,6 +357,7 @@ export class EntriesService {
       debit: line.debit,
       credit: line.credit,
       label: line.label ?? null,
+      allocations: (line.allocations ?? []).map((a) => ({ projectId: a.projectId, amount: a.amount })),
     }));
   }
 

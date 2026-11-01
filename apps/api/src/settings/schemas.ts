@@ -37,13 +37,24 @@ export const brandingSchema = z
     path: ["accentColor"],
   });
 
+/**
+ * Paramètres comptables. L'obligation de projet sur les charges et produits est active en configuration initiale
+ * (cadrage §14.2, CA-06) ; elle est lue par la base à la comptabilisation (fonction accounting_project_required).
+ */
+export const accountingSchema = z.strictObject({ projectRequired: z.boolean() });
+
 export type Identity = z.infer<typeof identitySchema>;
 export type Branding = z.infer<typeof brandingSchema>;
+export type AccountingSettings = z.infer<typeof accountingSchema>;
 
 export const SETTINGS_SECTIONS = {
   identity: {
     schema: identitySchema,
     defaults: { name: "Mon association", address: "", postalCode: "", city: "", email: "", phone: "", rna: "", siren: "" } satisfies Identity,
+  },
+  accounting: {
+    schema: accountingSchema,
+    defaults: { projectRequired: true } satisfies AccountingSettings,
   },
   branding: {
     schema: brandingSchema,
@@ -53,6 +64,9 @@ export const SETTINGS_SECTIONS = {
 
 export type SettingsSection = keyof typeof SETTINGS_SECTIONS;
 
+/** Rubriques qui ne passent pas par l'API générique des paramètres : leurs droits propres sont portés par leur module. */
+export const MODULE_OWNED_SECTIONS: readonly SettingsSection[] = ["accounting"];
+
 export function isSettingsSection(value: string): value is SettingsSection {
-  return Object.hasOwn(SETTINGS_SECTIONS, value);
+  return Object.hasOwn(SETTINGS_SECTIONS, value) && !MODULE_OWNED_SECTIONS.includes(value as SettingsSection);
 }

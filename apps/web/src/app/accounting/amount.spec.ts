@@ -27,5 +27,7 @@ describe('montants', () => {
     expect(formatCents(125005)).toBe('1 250,05');
     expect(formatCents(0)).toBe('0,00');
     expect(formatApiAmount('1250.50')).toBe('1 250,50');
+    expect(formatApiAmount('-60.00')).toBe('-60,00');
+    expect(formatApiAmount('-0.00')).toBe('0,00');
   });
 });

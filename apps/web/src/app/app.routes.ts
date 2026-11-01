@@ -45,7 +45,7 @@ export const routes: Routes = [
         title: overview!.label,
         loadComponent: () => import('./pages/overview.page').then((m) => m.OverviewPage),
       },
-      ...others.filter((item) => item.path !== 'documents' && item.path !== 'comptabilite').map((item) => ({
+      ...others.filter((item) => item.path !== 'documents' && item.path !== 'comptabilite' && item.path !== 'projets').map((item) => ({
         path: item.path,
         title: item.label,
         canActivate: [permissionGuard],
@@ -81,6 +81,13 @@ export const routes: Routes = [
             loadComponent: () => import('./accounting/journal-book.page').then((m) => m.JournalBookPage),
           },
         ],
+      },
+      {
+        path: 'projets',
+        title: 'Projets',
+        canActivate: [permissionGuard],
+        data: { permission: 'projects:view' },
+        loadComponent: () => import('./accounting/projects.page').then((m) => m.ProjectsPage),
       },
       {
         path: 'documents',

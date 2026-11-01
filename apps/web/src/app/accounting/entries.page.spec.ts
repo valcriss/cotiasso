@@ -18,6 +18,7 @@ const line = (position: number, accountId: string, debit: string, credit: string
   debit,
   credit,
   label: null,
+  allocations: [],
 });
 const entry = (overrides: Record<string, unknown> = {}) => ({
   id: 'e1',
@@ -50,7 +51,8 @@ describe('EntriesPage', () => {
     fixture.detectChanges();
     await fixture.whenStable();
   };
-  const create = async (permissions: string[], listed = [entry()]) => {
+  const festival = { id: 'p1', code: 'FESTIVAL', name: 'Festival', description: '', status: 'ACTIVE', permanent: false, startDate: null, endDate: null, managerId: null };
+  const create = async (permissions: string[], listed = [entry()], projects: object[] = []) => {
     await TestBed.configureTestingModule({
       imports: [EntriesPage],
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions)],
@@ -62,6 +64,8 @@ describe('EntriesPage', () => {
     controller.expectOne('/api/fiscal-years').flush([year]);
     controller.expectOne('/api/journals').flush([journal]);
     controller.expectOne('/api/accounts').flush([bank, sales]);
+    await settle();
+    controller.expectOne('/api/projects').flush(projects);
     await settle();
     controller.expectOne((r) => r.url === '/api/entries').flush({ entries: listed, next: null });
     await settle();
@@ -186,6 +190,62 @@ describe('EntriesPage', () => {
     await settle();
     expect(root.textContent).toContain('Contrepassation comptabilisée : OD n° 4');
     expect(root.textContent).not.toContain('Contrepasser');
+  });
+
+  it('envoie la ventilation par projet des lignes de produit avec leur montant', async () => {
+    const withProject = entry({
+      lines: [line(1, 'a1', '50.00', '0.00'), { ...line(2, 'a2', '0.00', '50.00'), allocations: [{ projectId: 'p1', projectCode: 'FESTIVAL', amount: '50.00' }] }],
+    });
+    await create(['entries:view', 'entries:create'], [withProject], [festival]);
+    await openFirst(withProject);
+    // Seule la ligne de produit (706) propose un projet ; la ligne de banque n'en a pas.
+    expect(root.querySelectorAll('mat-select[formcontrolname="projectId"]')).toHaveLength(1);
+    await click('Enregistrer le brouillon');
+    const put = controller.expectOne('/api/entries/e1');
+    expect(put.request.body.lines[0].allocations).toBeUndefined();
+    expect(put.request.body.lines[1].allocations).toEqual([{ projectId: 'p1', amount: '50.00' }]);
+    put.flush(withProject);
+    await settle();
+    controller.expectOne((r) => r.url === '/api/entries').flush({ entries: [withProject], next: null });
+    await settle();
+  });
+
+  it("conserve une ventilation entre plusieurs projets tant qu'on ne la remplace pas", async () => {
+    const split = entry({
+      lines: [
+        line(1, 'a1', '100.00', '0.00'),
+        {
+          ...line(2, 'a2', '0.00', '100.00'),
+          allocations: [
+            { projectId: 'p1', projectCode: 'FESTIVAL', amount: '60.00' },
+            { projectId: 'p2', projectCode: 'ATELIERS', amount: '40.00' },
+          ],
+        },
+      ],
+    });
+    await create(['entries:view', 'entries:create'], [split], [festival]);
+    await openFirst(split);
+    await click('Enregistrer le brouillon');
+    const put = controller.expectOne('/api/entries/e1');
+    expect(put.request.body.lines[1].allocations).toEqual([
+      { projectId: 'p1', amount: '60.00' },
+      { projectId: 'p2', amount: '40.00' },
+    ]);
+    put.flush(split);
+    await settle();
+    controller.expectOne((r) => r.url === '/api/entries').flush({ entries: [split], next: null });
+    await settle();
+  });
+
+  it('une écriture comptabilisée affiche le projet de ses lignes', async () => {
+    const posted = entry({
+      status: 'POSTED',
+      number: 3,
+      lines: [line(1, 'a1', '50.00', '0.00'), { ...line(2, 'a2', '0.00', '50.00'), allocations: [{ projectId: 'p1', projectCode: 'FESTIVAL', amount: '50.00' }] }],
+    });
+    await create(['entries:view'], [posted], [festival]);
+    await openFirst(posted);
+    expect(root.textContent).toContain('FESTIVAL');
   });
 
   it('sans droit de comptabiliser, ni bouton Comptabiliser ni Contrepasser', async () => {

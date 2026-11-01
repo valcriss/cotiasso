@@ -27,6 +27,8 @@ const ACTION_LABELS: Record<string, string> = {
   'fiscal-year.closing-started': 'Exercice fermé à la saisie',
   'fiscal-year.closing-cancelled': "Fermeture de l'exercice annulée",
   'fiscal-year.closed': 'Exercice clôturé',
+  'project.created': 'Projet créé',
+  'project.updated': 'Projet modifié',
   'journal.created': 'Journal créé',
   'journal.updated': 'Journal modifié',
   'account.created': 'Compte créé',

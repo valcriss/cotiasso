@@ -27,8 +27,11 @@ export function formatCents(cents: number): string {
 
 /** Chaîne décimale de l'API → affichage français. */
 export function formatApiAmount(value: string): string {
-  const cents = parseAmountToCents(value);
-  return cents === null ? value : formatCents(cents);
+  // Un résultat peut être négatif (déficit) : le signe est lu à part, le montant reste exact.
+  const negative = value.startsWith('-');
+  const cents = parseAmountToCents(negative ? value.slice(1) : value);
+  if (cents === null) return value;
+  return negative && cents !== 0 ? `-${formatCents(cents)}` : formatCents(cents);
 }
 
 /** Solde (débit − crédit) de l'API en affichage français, avec son sens : « 1 180,00 D » ou « 300,00 C ». */

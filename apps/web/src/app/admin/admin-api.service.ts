@@ -261,6 +261,37 @@ export interface ReportParams {
 
 export type EntryStatus = 'DRAFT' | 'POSTED' | 'REVERSED';
 
+export type ProjectStatus = 'PREPARATION' | 'ACTIVE' | 'FINISHED' | 'ARCHIVED';
+
+export interface ProjectInfo {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  status: ProjectStatus;
+  permanent: boolean;
+  startDate: string | null;
+  endDate: string | null;
+  managerId: string | null;
+}
+
+export interface ProjectTotalsInfo {
+  charges: string;
+  produits: string;
+  result: string;
+}
+
+export interface ProjectSummaryInfo {
+  total: ProjectTotalsInfo;
+  years: ({ fiscalYearId: string; label: string } & ProjectTotalsInfo)[];
+}
+
+export interface AllocationInfo {
+  projectId: string;
+  projectCode?: string;
+  amount: string;
+}
+
 export interface EntryLineInfo {
   position: number;
   accountId: string;
@@ -269,6 +300,7 @@ export interface EntryLineInfo {
   debit: string;
   credit: string;
   label: string | null;
+  allocations: AllocationInfo[];
 }
 
 export interface EntryInfo {
@@ -296,7 +328,7 @@ export interface EntryDraftBody {
   date: string;
   label: string;
   reference: string | null;
-  lines: { accountId: string; debit: string; credit: string; label?: string | null }[];
+  lines: { accountId: string; debit: string; credit: string; label?: string | null; allocations?: AllocationInfo[] }[];
 }
 
 export interface EntryFilters {
@@ -529,6 +561,30 @@ export class AdminApiService {
 
   journalBook(params: ReportParams): Promise<{ entries: JournalBookEntryInfo[] }> {
     return firstValueFrom(this.http.get<{ entries: JournalBookEntryInfo[] }>('/api/reports/journal', { params: this.reportParams(params) }));
+  }
+
+  listProjects(): Promise<ProjectInfo[]> {
+    return firstValueFrom(this.http.get<ProjectInfo[]>('/api/projects'));
+  }
+
+  createProject(body: Partial<ProjectInfo> & { code: string; name: string }): Promise<ProjectInfo> {
+    return firstValueFrom(this.http.post<ProjectInfo>('/api/projects', body));
+  }
+
+  updateProject(id: string, body: Partial<Omit<ProjectInfo, 'id' | 'code' | 'permanent'>>): Promise<ProjectInfo> {
+    return firstValueFrom(this.http.patch<ProjectInfo>(`/api/projects/${id}`, body));
+  }
+
+  projectSummary(id: string): Promise<ProjectSummaryInfo> {
+    return firstValueFrom(this.http.get<ProjectSummaryInfo>(`/api/projects/${id}/summary`));
+  }
+
+  accountingSettings(): Promise<{ projectRequired: boolean }> {
+    return firstValueFrom(this.http.get<{ projectRequired: boolean }>('/api/accounting/settings'));
+  }
+
+  updateAccountingSettings(body: { projectRequired: boolean }): Promise<{ changed: boolean }> {
+    return firstValueFrom(this.http.put<{ changed: boolean }>('/api/accounting/settings', body));
   }
 
   listEntries(filters: EntryFilters = {}): Promise<{ entries: EntryInfo[]; next: string | null }> {

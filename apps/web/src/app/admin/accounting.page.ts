@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -60,7 +61,7 @@ export function parseAccountCsv(text: string): ParsedAccounts {
 
 @Component({
   selector: 'app-accounting-page',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ClosingPanel],
+  imports: [MatCheckboxModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ClosingPanel],
   styleUrl: './admin-pages.scss',
   template: `
     <h2><mat-icon fontSet="material-icons-outlined" aria-hidden="true">menu_book</mat-icon><span>Comptabilité</span></h2>
@@ -73,6 +74,17 @@ export function parseAccountCsv(text: string): ParsedAccounts {
     @if (notice(); as message) {
       <p class="success" role="status">{{ message }}</p>
     }
+
+    <section class="panel" aria-labelledby="rules-title">
+      <h3 id="rules-title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">rule</mat-icon><span>Règles de comptabilisation</span></h3>
+      <mat-checkbox [checked]="projectRequired()" [disabled]="!canEdit() || busy()" (change)="setProjectRequired($event.checked)">
+        Projet obligatoire sur les charges et les produits
+      </mat-checkbox>
+      <p class="muted">
+        Une écriture de charge ou de produit sans projet reste enregistrable en brouillon, mais ne peut pas être comptabilisée.
+        Les opérations générales se ventilent sur le projet permanent « Fonctionnement ».
+      </p>
+    </section>
 
     <section class="panel" aria-labelledby="fy-title">
       <h3 id="fy-title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">event</mat-icon><span>Exercices</span></h3>
@@ -252,6 +264,7 @@ export class AccountingPage {
   });
   protected readonly closingYearId = signal<string | null>(null);
   protected readonly closingYear = computed(() => this.years().find((y) => y.id === this.closingYearId()) ?? null);
+  protected readonly projectRequired = signal(true);
   protected readonly years = signal<FiscalYearInfo[]>([]);
   protected readonly journals = signal<JournalInfo[]>([]);
   protected readonly accounts = signal<AccountInfo[]>([]);
@@ -349,13 +362,22 @@ export class AccountingPage {
     });
   }
 
+  protected async setProjectRequired(value: boolean): Promise<void> {
+    await this.run(async () => {
+      await this.api.updateAccountingSettings({ projectRequired: value });
+      this.projectRequired.set(value);
+    }, value ? 'Le projet est désormais obligatoire.' : "Le projet n'est plus obligatoire.");
+  }
+
   protected async load(): Promise<void> {
     try {
-      const [years, journals, accounts] = await Promise.all([
+      const [years, journals, accounts, rules] = await Promise.all([
         this.api.listFiscalYears(),
         this.api.listJournals(),
         this.api.listAccounts(),
+        this.api.accountingSettings(),
       ]);
+      this.projectRequired.set(rules.projectRequired);
       this.years.set(years);
       this.journals.set(journals);
       this.accounts.set(accounts);

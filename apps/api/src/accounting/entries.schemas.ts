@@ -11,15 +11,23 @@ const isoDate = z
 /** Montant décimal positif en chaîne, deux décimales au plus, jamais de `number` (colonne NUMERIC(14,2)). */
 const amount = z.string().regex(/^\d{1,12}(\.\d{1,2})?$/, "Montant invalide (12 chiffres et 2 décimales au plus).");
 
+/** Part de projet d'une ligne de charge ou de produit ; le total des parts doit égaler le montant de la ligne. */
+const allocation = z.object({ projectId: z.uuid("Projet invalide."), amount: amount.refine((v) => Number(v) > 0, "La part doit être positive.") }).strict();
+
 const line = z
   .object({
     accountId: z.uuid("Compte invalide."),
     debit: amount.default("0"),
     credit: amount.default("0"),
     label: z.string().trim().max(200).nullish(),
+    allocations: z.array(allocation).max(20, "Au plus 20 projets par ligne.").optional(),
   })
   .strict()
   .superRefine((value, context) => {
+    const projects = (value.allocations ?? []).map((a) => a.projectId);
+    if (new Set(projects).size !== projects.length) {
+      context.addIssue({ code: "custom", message: "Un projet ne figure qu'une fois par ligne." });
+    }
     const debit = Number(value.debit);
     const credit = Number(value.credit);
     if (debit > 0 && credit > 0) {
