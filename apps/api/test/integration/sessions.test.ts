@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { Test } from "@nestjs/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AuthModule } from "../../src/auth/auth.module.js";
@@ -115,7 +115,9 @@ describe("LoginThrottleService (base réelle)", () => {
   });
 
   const email = () => `t-${randomUUID()}@test.invalid`;
-  const ip = () => `198.51.100.${Math.floor(Math.random() * 250) + 1}`;
+  // Adresses de la plage 10.0.0.0/8 tirées sur 24 bits : la base de développement est partagée entre exécutions
+  // et le compteur par IP couvre 15 minutes, une collision avec un run précédent doit rester négligeable.
+  const ip = () => `10.${randomInt(256)}.${randomInt(256)}.${randomInt(256)}`;
 
   it("tolère 5 échecs puis impose un délai croissant par compte", async () => {
     const e = email();

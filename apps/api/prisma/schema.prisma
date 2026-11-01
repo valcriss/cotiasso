@@ -10,6 +10,10 @@ datasource db {
 // Journal d'audit en ajout seul : les UPDATE et DELETE sont refusés par un déclencheur (voir la migration).
 model AuditEvent {
   id            String   @id @default(uuid()) @db.Uuid
+  // Ordre de la chaîne d'intégrité ; les événements antérieurs à la chaîne n'ont pas d'empreinte.
+  seq           BigInt   @unique @default(autoincrement())
+  hash          String?
+  previousHash  String?
   occurredAt    DateTime @default(now()) @db.Timestamptz(3)
   actorId       String?  @db.Uuid
   action        String

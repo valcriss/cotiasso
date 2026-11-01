@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
@@ -58,6 +58,38 @@ export interface ModuleInfo {
   reason: string | null;
   requires: string[];
   activatedAt: string | null;
+}
+
+export interface AuditEntry {
+  seq: number;
+  id: string;
+  occurredAt: string;
+  action: string;
+  objectType: string;
+  objectId: string | null;
+  justification: string | null;
+  details: unknown;
+  actor: { id: string; displayName: string; email: string } | null;
+}
+
+export interface AuditPageResult {
+  items: AuditEntry[];
+  nextCursor: number | null;
+}
+
+export interface AuditFilters {
+  action?: string;
+  objectType?: string;
+  from?: string;
+  to?: string;
+}
+
+export interface IntegrityReport {
+  ok: boolean;
+  checked: number;
+  unchained: number;
+  firstBrokenSeq: number | null;
+  reason: string | null;
 }
 
 /** Appels de l'API d'administration (utilisateurs, rôles, attributions). Le serveur applique les droits. */
@@ -135,6 +167,21 @@ export class AdminApiService {
 
   deactivateModule(key: string): Promise<void> {
     return firstValueFrom(this.http.post<void>(`/api/modules/${key}/deactivate`, {}));
+  }
+
+  listAudit(filters: AuditFilters, before?: number): Promise<AuditPageResult> {
+    let params = new HttpParams().set('limit', '50');
+    for (const [key, value] of Object.entries(filters)) if (value) params = params.set(key, value);
+    if (before !== undefined) params = params.set('before', String(before));
+    return firstValueFrom(this.http.get<AuditPageResult>('/api/audit', { params }));
+  }
+
+  auditFacets(): Promise<{ actions: string[]; objectTypes: string[] }> {
+    return firstValueFrom(this.http.get<{ actions: string[]; objectTypes: string[] }>('/api/audit/facets'));
+  }
+
+  verifyAudit(): Promise<IntegrityReport> {
+    return firstValueFrom(this.http.get<IntegrityReport>('/api/audit/verify'));
   }
 
   changeOwnPassword(currentPassword: string, newPassword: string): Promise<void> {

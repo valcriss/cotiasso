@@ -326,3 +326,29 @@ h4 {
   flex-shrink: 0;
   gap: 12px;
 }
+
+.filters {
+  align-items: flex-start;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  mat-form-field {
+    flex: 1 1 160px;
+  }
+}
+
+.more {
+  justify-content: center;
+  margin-top: 12px;
+}
+
+details pre {
+  background: var(--mat-sys-surface-container-low);
+  border-radius: 6px;
+  font: var(--mat-sys-body-small);
+  margin: 4px 0 0;
+  overflow: auto;
+  padding: 8px;
+  white-space: pre-wrap;
+}

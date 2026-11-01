@@ -87,6 +87,13 @@ export const routes: Routes = [
             loadComponent: () => import('./admin/users.page').then((m) => m.UsersPage),
           },
           {
+            path: 'journal',
+            title: "Journal d'audit",
+            canActivate: [permissionGuard],
+            data: { permission: 'audit:view' },
+            loadComponent: () => import('./admin/audit.page').then((m) => m.AuditPage),
+          },
+          {
             path: 'roles',
             title: 'Rôles',
             canActivate: [permissionGuard],

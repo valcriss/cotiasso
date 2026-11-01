@@ -14,6 +14,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { path: 'modules', label: 'Modules', permission: 'settings.association:view' },
   { path: 'utilisateurs', label: 'Utilisateurs', permission: 'users:view' },
   { path: 'roles', label: 'Rôles', permission: 'users:view' },
+  { path: 'journal', label: "Journal d'audit", permission: 'audit:view' },
 ];
 
 @Component({

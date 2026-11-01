@@ -4,6 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["test/integration/**/*.test.ts"],
+    setupFiles: ["test/integration/support/bigint-json.ts"],
     testTimeout: 20000,
     hookTimeout: 30000,
     fileParallelism: false,
