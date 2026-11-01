@@ -15,6 +15,8 @@ coverage/
 **/storage/
 /backups/
 *.ofx
+# Exception : fichiers de test fictifs (aucune donnée réelle), nécessaires aux tests de l'import
+!apps/api/test/fixtures/ofx/*.ofx
 .claude/settings.local.json
 
 # Client Prisma généré

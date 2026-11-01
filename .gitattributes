@@ -12,3 +12,6 @@
 *.woff2 binary
 *.pdf binary
 *.ofx -text
+
+# Relevés OFX de test : octets conservés tels quels (Windows-1252, fins de ligne CRLF)
+apps/api/test/fixtures/ofx/*.ofx binary
