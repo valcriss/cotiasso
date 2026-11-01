@@ -2,16 +2,28 @@ import { Module } from "@nestjs/common";
 import { AuditModule } from "../audit/audit.module.js";
 import { AuthzModule } from "../authz/authz.module.js";
 import { PrismaModule } from "../prisma/prisma.module.js";
+import { AccountService } from "./account.service.js";
+import { AccountsController } from "./accounts.controller.js";
 import { AuthController } from "./auth.controller.js";
 import { AuthGuard } from "./auth.guard.js";
 import { LoginThrottleService } from "./login-throttle.service.js";
+import { PasswordTokenService } from "./password-token.service.js";
 import { SessionService } from "./session.service.js";
+import { UsersAdminService } from "./users-admin.service.js";
 import { UsersService } from "./users.service.js";
 
 @Module({
   imports: [PrismaModule, AuditModule, AuthzModule],
-  controllers: [AuthController],
-  providers: [UsersService, SessionService, LoginThrottleService, AuthGuard],
-  exports: [UsersService, SessionService, LoginThrottleService, AuthGuard],
+  controllers: [AuthController, AccountsController],
+  providers: [
+    UsersService,
+    SessionService,
+    LoginThrottleService,
+    AuthGuard,
+    PasswordTokenService,
+    UsersAdminService,
+    AccountService,
+  ],
+  exports: [UsersService, SessionService, LoginThrottleService, AuthGuard, PasswordTokenService, UsersAdminService],
 })
 export class AuthModule {}

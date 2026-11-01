@@ -12,6 +12,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/login.page').then((m) => m.LoginPage),
   },
   {
+    path: 'reinitialisation',
+    title: 'Nouveau mot de passe',
+    loadComponent: () => import('./pages/reset-password.page').then((m) => m.ResetPasswordPage),
+  },
+  {
     path: 'installation',
     title: 'Installation',
     canActivate: [setupGuard],

@@ -40,7 +40,7 @@ Points à trancher ou à ne pas perdre de vue avant de découper plus finement :
 ### Lot 1 — Socle
 
 1.1 Squelette dépôt, CI, Docker/Compose, migrations, config d'environnement
-1.2 Identity & Access : utilisateurs, auth, sessions, récupération, MFA (option), désactivation — conception dans l'[ADR 0007](decisions/0007-authentification-conception.md), 6 tâches
+1.2 Identity & Access : utilisateurs, auth, sessions, récupération, MFA (option), désactivation — conception dans l'[ADR 0007](decisions/0007-authentification-conception.md), 6 tâches. **Faites** : 1 utilisateurs et mots de passe, 2 sessions/CSRF/anti-brute-force, 3 assistant initial, 4 réinitialisation et administration des comptes (API et page web de réinitialisation). **Restent** : 5 MFA TOTP (obligation par rôle, codes de secours), 6 OIDC optionnel, et les écrans web d'administration des utilisateurs et de changement de mot de passe
 1.3 Permissions : rôles, portées globale/projet, moteur de résolution (§6.2), écran « Accès effectifs » — **tranche 1 faite** ([ADR 0008](decisions/0008-autorisation-roles-et-permissions.md)) : rôles et permissions globaux, refus par défaut, protection du dernier administrateur, API des accès effectifs, menu web filtré. **Reste** : portée projet et héritage (avec Project, 2a.4), restrictions documentaires (1.6), écran web de gestion des rôles et attributions
 1.4 Association : assistant initial, identité, marque blanche, paramètres versionnés
 1.4b Registre des modules activables : activation datée et auditée, modules indisponibles explicites ([ADR 0002](decisions/0002-modules-activables-et-regles-comptables.md))

@@ -64,6 +64,11 @@ export class AuthService {
     this.applySession(response);
   }
 
+  /** Définit le mot de passe avec un jeton d'invitation ou de réinitialisation ; ne connecte pas l'utilisateur. */
+  async resetPassword(token: string, password: string): Promise<void> {
+    await firstValueFrom(this.http.post<void>('/api/auth/password-reset', { token, password }));
+  }
+
   async logout(): Promise<void> {
     try {
       await firstValueFrom(this.http.post<void>('/api/auth/logout', {}));

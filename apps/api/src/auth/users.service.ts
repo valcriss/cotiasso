@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma, UserStatus } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
@@ -43,10 +44,24 @@ export class UsersService {
     const issues = checkPasswordPolicy(input.password, { email });
     if (issues.length > 0) throw new WeakPasswordError(issues);
 
-    const passwordHash = await hashPassword(input.password);
+    return this.insert(email, input.displayName, await hashPassword(input.password), db);
+  }
+
+  /**
+   * Crée un compte sans mot de passe utilisable : le mot de passe est un secret aléatoire que personne ne connaît.
+   * L'utilisateur en définit un via un jeton d'invitation (voir PasswordTokenService).
+   */
+  async createInvited(input: { email: string; displayName: string }, db: UserWriter = this.prisma): Promise<PublicUser> {
+    const email = normalizeEmail(input.email);
+    if (!email) throw new InvalidEmailError();
+    const unusable = await hashPassword(randomBytes(32).toString("base64url"));
+    return this.insert(email, input.displayName, unusable, db);
+  }
+
+  private async insert(email: string, displayName: string, passwordHash: string, db: UserWriter): Promise<PublicUser> {
     try {
       return await db.user.create({
-        data: { email, displayName: input.displayName.trim(), passwordHash },
+        data: { email, displayName: displayName.trim(), passwordHash },
         select: PUBLIC_FIELDS,
       });
     } catch (error) {
@@ -84,14 +99,14 @@ export class UsersService {
     return publicUser;
   }
 
-  async setPassword(userId: string, password: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+  async setPassword(userId: string, password: string, db: UserWriter = this.prisma): Promise<void> {
+    const user = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
     if (!user) throw new UserNotFoundError();
 
     const issues = checkPasswordPolicy(password, { email: user.email });
     if (issues.length > 0) throw new WeakPasswordError(issues);
 
-    await this.prisma.user.update({
+    await db.user.update({
       where: { id: userId },
       data: { passwordHash: await hashPassword(password), version: { increment: 1 } },
     });

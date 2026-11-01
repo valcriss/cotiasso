@@ -41,3 +41,24 @@ export class AlreadySetUpError extends Error {
     this.name = "AlreadySetUpError";
   }
 }
+
+export class InvalidPasswordTokenError extends Error {
+  constructor() {
+    super("Lien invalide ou expiré.");
+    this.name = "InvalidPasswordTokenError";
+  }
+}
+
+export class WrongCurrentPasswordError extends Error {
+  constructor() {
+    super("Le mot de passe actuel est incorrect.");
+    this.name = "WrongCurrentPasswordError";
+  }
+}
+
+export class SelfDisableError extends Error {
+  constructor() {
+    super("Vous ne pouvez pas désactiver votre propre compte.");
+    this.name = "SelfDisableError";
+  }
+}
