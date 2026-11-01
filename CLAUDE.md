@@ -18,6 +18,10 @@ Node épinglé dans `mise.toml` (26.12.1) ; gestionnaire de paquets : npm (works
 - `npm run db:generate` (client Prisma, requis après `npm install` et tout changement de schéma) ; `npm run db:migrate` crée/applique une migration.
 - `npm run test:integration` : tests sur la vraie base (nécessite `db:up` et les migrations appliquées). `npm test` n'a pas besoin de base.
 
+CI : `.github/workflows/ci.yml` (GitHub Actions, Node 26.12.1, PostgreSQL 17 en service) rejoue sur chaque push vers `main` et chaque pull request : `npm ci`, `db:generate`, typecheck, tests, build, migrations, tests d'intégration. Toute nouvelle vérification locale doit être ajoutée à ce workflow.
+
+Production : `Dockerfile` multi-étapes avec deux cibles, `api` (Node 26.12.1, utilisateur non root, applique `prisma migrate deploy` au démarrage puis lance `dist/main.js`) et `web` (nginx non privilégié sur le port 8080, sert l'Angular compilé et proxifie `/api/` vers `api:3000`). `docker-compose.yml` est l'exemple de déploiement : `cp .env.prod.example .env.prod`, renseigner `POSTGRES_PASSWORD` et `COTIASSO_VERSION`, puis `docker compose --env-file .env.prod up -d --build`. La base n'est jamais publiée ; le HTTPS est à la charge du reverse proxy placé devant `COTIASSO_HTTP_PORT`. `prisma` est une dépendance (pas une devDependency) de l'API car l'image l'exécute au démarrage. Le Compose de développement (`docker-compose.dev.yml`) reste distinct.
+
 Workspaces :
 - `packages/accounting-domain` : TypeScript pur, Vitest.
 - `apps/api` : NestJS 12 + Fastify (ESM), Prisma 7 (adaptateur `pg`). `GET /health` vérifie la base. L'API écoute sur `API_HOST:API_PORT` (3000 par défaut).

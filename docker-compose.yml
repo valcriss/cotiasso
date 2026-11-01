@@ -1,0 +1,51 @@
+# Exemple de déploiement : une installation = une association.
+#
+#   cp .env.prod.example .env.prod      # puis renseigner POSTGRES_PASSWORD et COTIASSO_VERSION
+#   docker compose --env-file .env.prod up -d --build
+#
+# L'application est servie en HTTP sur COTIASSO_HTTP_PORT : placer un reverse proxy (HTTPS, nom de domaine)
+# devant ce port. La base n'est jamais exposée à l'extérieur.
+name: cotiasso
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cotiasso
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Renseigner POSTGRES_PASSWORD dans .env.prod}
+      POSTGRES_DB: cotiasso
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cotiasso -d cotiasso"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    image: cotiasso-api:${COTIASSO_VERSION:?Renseigner COTIASSO_VERSION dans .env.prod}
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://cotiasso:${POSTGRES_PASSWORD}@db:5432/cotiasso
+
+  web:
+    image: cotiasso-web:${COTIASSO_VERSION}
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${COTIASSO_HTTP_PORT:-8080}:8080"
+
+volumes:
+  db-data:

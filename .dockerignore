@@ -1,0 +1,16 @@
+.git
+.github
+.claude
+.env
+.env.*
+!.env.example
+node_modules
+**/node_modules
+**/dist
+apps/web/.angular
+apps/api/src/generated
+docs
+*.md
+!package.json
+docker-compose*.yml
+*.log
