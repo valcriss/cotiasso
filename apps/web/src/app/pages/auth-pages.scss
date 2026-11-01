@@ -1,0 +1,50 @@
+.page {
+  align-items: center;
+  background: var(--app-sidebar-bg);
+  display: flex;
+  justify-content: center;
+  min-height: 100%;
+  padding: 24px 16px;
+}
+
+.card {
+  max-width: 440px;
+  width: 100%;
+}
+
+h1 {
+  font: var(--mat-sys-headline-small);
+  margin: 8px 0 16px;
+}
+
+.intro {
+  color: var(--mat-sys-on-surface-variant);
+  margin: 0 0 16px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.error {
+  background: var(--mat-sys-error-container);
+  border-radius: 8px;
+  color: var(--mat-sys-on-error-container);
+  margin: 0 0 12px;
+  padding: 8px 12px;
+
+  p {
+    margin: 0;
+  }
+
+  ul {
+    margin: 4px 0 0;
+    padding-left: 20px;
+  }
+}
+
+p.error {
+  margin: 0 0 12px;
+}

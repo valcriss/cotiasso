@@ -45,6 +45,22 @@
           <span>{{ settings.label }}</span>
         }
       </a>
+
+      <div class="account">
+        @if (!collapsed()) {
+          <span class="who" [title]="user()?.email ?? ''">{{ user()?.displayName }}</span>
+        }
+        <button
+          type="button"
+          class="toggle"
+          (click)="logout()"
+          aria-label="Se déconnecter"
+          [matTooltip]="collapsed() ? 'Se déconnecter' : ''"
+          matTooltipPosition="right"
+        >
+          <mat-icon fontSet="material-icons-outlined">logout</mat-icon>
+        </button>
+      </div>
     </footer>
   </aside>
 

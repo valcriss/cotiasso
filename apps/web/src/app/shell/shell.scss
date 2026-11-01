@@ -103,7 +103,29 @@ nav {
     grid-template-columns: 64px minmax(0, 1fr);
   }
   .shell .name,
+  .shell .who,
   .shell .item span {
     display: none;
   }
+}
+
+.account {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding: 4px 4px 0 12px;
+
+  .who {
+    font: var(--mat-sys-label-medium);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.collapsed .account {
+  justify-content: center;
+  padding: 4px 0 0;
 }
