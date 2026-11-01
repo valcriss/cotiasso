@@ -9,7 +9,7 @@ Application web de gestion associative et de comptabilité en partie double, en 
 Node épinglé dans `mise.toml` (26.12.1) ; gestionnaire de paquets : npm (workspaces). Préfixer par `mise exec --` si les shims ne sont pas actifs. Toutes les commandes se lancent à la racine :
 
 - `npm install` : installe le monorepo.
-- `npm run dev` : mode développement (watch) de chaque workspace qui en définit un.
+- `npm run dev` : lance en parallèle (via `concurrently`) le watch du domaine, l'API et le front ; `npm run dev:api` et `npm run dev:frontend` lancent chacun seul. (`npm run … --workspaces` exécute les workspaces l'un après l'autre : le watch de l'API bloquerait le front.)
 - `npm run build` : compile tous les workspaces.
 - `npm test` : lance les tests de tous les workspaces ; `npm run test:watch` en continu.
 - `npm run typecheck` : vérification des types.
