@@ -286,6 +286,71 @@ describe("Parcours simplifiés : catégories, saisie guidée et vue d'ensemble (
       expect(refused.json().message).toContain("virement");
     });
 
+    describe("enregistrement en masse des mouvements classés", () => {
+      let acc: string;
+      const classified = async (date: string, amount: string, label: string, counterpart: string | null) => {
+        const res = await call("POST", `/financial-accounts/${acc}/transactions`, treasurer, { operationDate: date, amount, label, ...(counterpart && { counterpartAccountId: counterpart }) });
+        expect(res.statusCode, res.body).toBe(201);
+        return res.json().id as string;
+      };
+      beforeAll(async () => {
+        const accounts = (await call("GET", "/accounts", treasurer)).json() as { id: string; number: string }[];
+        ids.p616 = accounts.find((a) => a.number === "616")!.id;
+        ids.p756 = accounts.find((a) => a.number === "756")!.id;
+        ids.p511 = (await call("POST", "/accounts", treasurer, { number: "5125", label: "Banque 2" })).json().id;
+        const created = await call("POST", "/financial-accounts", treasurer, { name: "Banque 2", type: "BANK", accountId: ids.p511, openedOn: "2026-01-01", openingBalance: "0.00" });
+        acc = created.json().id;
+      });
+
+      it("enregistre tout ce qui est classé, dans l'ordre, isole les refus et dit pourquoi chaque mouvement est ignoré", async () => {
+        const a = await classified("2026-04-02", "-15.00", "Assurance avril", ids.p616!);
+        const b = await classified("2026-04-01", "25.00", "Cotisation de Jean", ids.p756!);
+        const unclassified = await classified("2026-04-03", "-3.00", "Inconnu", null);
+        const outOfYear = await classified("2030-01-01", "-9.00", "Hors exercice", ids.p616!);
+
+        // Sélection explicite : les raisons de chaque refus sont rendues, les autres passent.
+        const selected = await call("POST", `/financial-accounts/${acc}/transactions/book`, treasurer, { transactionIds: [a, unclassified, outOfYear] });
+        expect(selected.statusCode, selected.body).toBe(200);
+        expect(selected.json()).toMatchObject({ booked: 1, posted: 1, drafts: 0 });
+        const reasons = Object.fromEntries(selected.json().ignored.map((i: { transactionId: string; reason: string }) => [i.transactionId, i.reason]));
+        expect(reasons[unclassified]).toContain("Pas encore classé");
+        expect(reasons[outOfYear]).toContain("Aucun exercice ne couvre");
+
+        // Sans sélection : tous les classés restants (b), jamais deux fois le même (a est déjà enregistré, il n'est même pas rappelé).
+        const all = await call("POST", `/financial-accounts/${acc}/transactions/book`, treasurer, {});
+        expect(all.json()).toMatchObject({ booked: 1, posted: 1 });
+        // Le mouvement hors exercice reste classé mais refusé : il est rappelé à chaque fois, avec sa raison.
+        expect(all.json().ignored.map((i: { transactionId: string }) => i.transactionId)).toEqual([outOfYear]);
+        const again = await call("POST", `/financial-accounts/${acc}/transactions/book`, treasurer, {});
+        expect(again.json()).toMatchObject({ booked: 0 });
+        expect(again.json().ignored).toHaveLength(1);
+        const list = (await call("GET", `/financial-accounts/${acc}/transactions`, treasurer)).json().transactions as { id: string; accounting: string }[];
+        expect(list.find((t) => t.id === a)!.accounting).toBe("POSTED");
+        expect(list.find((t) => t.id === b)!.accounting).toBe("POSTED");
+        expect(list.find((t) => t.id === unclassified)!.accounting).toBe("NONE");
+        // Dans un même lot, l'ordre est chronologique : saisi en second, le 10 avril reçoit le numéro le plus petit.
+        const late = await classified("2026-04-12", "-2.00", "Plus tard", ids.p616!);
+        const early = await classified("2026-04-10", "-1.00", "Plus tôt", ids.p616!);
+        const batch = await call("POST", `/financial-accounts/${acc}/transactions/book`, treasurer, { transactionIds: [late, early] });
+        expect(batch.json()).toMatchObject({ booked: 2, posted: 2 });
+        const numbers = await prisma.journalEntry.findMany({ where: { matches: { some: { transactionId: { in: [late, early] } } } }, orderBy: { number: "asc" }, select: { date: true } });
+        expect(numbers.map((n) => n.date.toISOString().slice(0, 10))).toEqual(["2026-04-10", "2026-04-12"]);
+      });
+
+      it("sans le droit de comptabiliser, prépare des brouillons ; refuse sans droit de saisie", async () => {
+        const c = await classified("2026-04-05", "-4.00", "Timbres avril", ids.p616!);
+        const role = await prisma.role.create({ data: { key: `masse-${randomUUID()}`, name: `Masse ${randomUUID()}`, permissions: ["financial-accounts:view", "transactions:manage", "entries:create"], requiresMfa: false } });
+        const user = await users.createUser({ email: `b-${randomUUID()}@test.invalid`, displayName: "B", password: PASSWORD });
+        await prisma.roleAssignment.create({ data: { userId: user.id, roleId: role.id } });
+        const login = await app.inject({ method: "POST", url: "/auth/login", payload: { email: user.email, password: PASSWORD }, remoteAddress: "198.51.100.88" });
+        const limited = { cookie: String(login.headers["set-cookie"]).split(";")[0]!, csrf: login.json().csrfToken };
+        const done = await call("POST", `/financial-accounts/${acc}/transactions/book`, limited, { transactionIds: [c] });
+        expect(done.json()).toMatchObject({ booked: 1, posted: 0, drafts: 1 });
+        expect((await call("POST", `/financial-accounts/${acc}/transactions/book`, reader, {})).statusCode).toBe(403);
+        expect((await call("POST", `/financial-accounts/${acc}/transactions/book`, treasurer, { transactionIds: [] })).statusCode).toBe(400);
+      });
+    });
+
     it("le rôle « Expert-comptable » lit les comptes et les rapports mais ne peut rien saisir", async () => {
       const accountant = await userWith("accountant");
       expect((await call("GET", "/entries", accountant)).statusCode).toBe(200);

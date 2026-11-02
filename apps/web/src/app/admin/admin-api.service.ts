@@ -309,6 +309,13 @@ export interface GuidedOperationBody {
   post?: boolean;
 }
 
+export interface BulkBookInfo {
+  booked: number;
+  posted: number;
+  drafts: number;
+  ignored: { transactionId: string; label: string; date: string; reason: string }[];
+}
+
 export interface GuidedOperationResult {
   transactionId: string;
   entryId: string;
@@ -1951,6 +1958,10 @@ export class AdminApiService {
 
   bookTransaction(id: string, body: { categoryId: string; projectId?: string | null; post?: boolean }): Promise<GuidedOperationResult> {
     return firstValueFrom(this.http.post<GuidedOperationResult>(`/api/transactions/${id}/book`, body));
+  }
+
+  bookTransactions(accountId: string, body: { transactionIds?: string[]; post?: boolean }): Promise<BulkBookInfo> {
+    return firstValueFrom(this.http.post<BulkBookInfo>(`/api/financial-accounts/${accountId}/transactions/book`, body));
   }
 
   recordOperation(body: GuidedOperationBody): Promise<GuidedOperationResult> {

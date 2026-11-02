@@ -3,6 +3,7 @@ import { z } from "zod";
 import { AccountingConflictError, AccountingNotFoundError } from "../accounting/errors.js";
 import { parse } from "../accounting/schemas.js";
 import { AuditService } from "../audit/audit.service.js";
+import type { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { triggerMessage } from "../treasury/db-refusal.js";
 import { draftDataFor, rethrowLink } from "../treasury/transaction-links.service.js";
@@ -23,6 +24,22 @@ const bookInput = z
     post: z.boolean().default(true),
   })
   .strict();
+
+const MAX_BULK = 200;
+const bulkInput = z
+  .object({
+    /** Absent : tous les mouvements classés du compte qui ne sont pas encore enregistrés. */
+    transactionIds: z.array(z.uuid()).min(1, "Choisissez au moins un mouvement.").max(MAX_BULK, `${MAX_BULK} mouvements au plus à la fois.`).optional(),
+    post: z.boolean().default(true),
+  })
+  .strict();
+
+export interface BulkBookResult {
+  booked: number;
+  posted: number;
+  drafts: number;
+  ignored: { transactionId: string; label: string; date: string; reason: string }[];
+}
 
 const operationInput = z
   .object({
@@ -179,10 +196,88 @@ export class OperationsService {
         incoming ? "Ce mouvement est de l'argent reçu : choisissez une catégorie d'argent reçu." : "Ce mouvement est de l'argent dépensé : choisissez une catégorie d'argent dépensé.",
       );
     }
+    return this.bookRow(tx, category.account, input.projectId ?? tx.projectId ?? null, post, actorId);
+  }
+
+  /**
+   * Enregistre dans les comptes les mouvements **déjà classés** d'un compte (tous, ou une sélection), dans l'ordre
+   * chronologique. Chaque mouvement est traité **à part** : un refus n'empêche pas les autres, et le compte rendu dit
+   * pourquoi chaque mouvement ignoré l'a été. Relancer ne crée aucun doublon (les mouvements déjà enregistrés sont ignorés).
+   */
+  async bookMany(accountId: string, body: unknown, actorId: string, canPost: boolean): Promise<BulkBookResult> {
+    const input = parse(bulkInput, body);
+    const post = input.post && canPost;
+    const account = await this.prisma.financialAccount.findUnique({ where: { id: accountId }, select: { id: true, archivedOn: true } });
+    if (!account) throw new AccountingNotFoundError("Compte");
+    if (account.archivedOn) throw new AccountingConflictError("Ce compte est archivé : on n'y enregistre plus d'opération.");
+
+    const rows = await this.prisma.transaction.findMany({
+      where: {
+        financialAccountId: accountId,
+        ...(input.transactionIds ? { id: { in: input.transactionIds } } : { counterpartAccountId: { not: null }, matches: { none: { status: "ACTIVE" } }, transferOut: null, transferIn: null }),
+      },
+      include: { financialAccount: true, counterpartAccount: true, matches: { where: { status: "ACTIVE" } }, transferOut: true, transferIn: true },
+      orderBy: [{ operationDate: "asc" }, { id: "asc" }],
+      take: MAX_BULK + 1,
+    });
+    if (rows.length > MAX_BULK) {
+      throw new AccountingConflictError(`Il y a plus de ${MAX_BULK} mouvements à enregistrer d'un coup : sélectionnez-en moins (par période, par exemple), puis recommencez.`);
+    }
+
+    const ignored: BulkBookResult["ignored"] = [];
+    let booked = 0;
+    let posted = 0;
+    for (const tx of rows) {
+      const refuse = (reason: string) => ignored.push({ transactionId: tx.id, label: tx.label, date: tx.operationDate.toISOString().slice(0, 10), reason });
+      if (tx.matches.length > 0) {
+        refuse("Déjà enregistré dans les comptes (ou en brouillon).");
+        continue;
+      }
+      if (tx.transferOut || tx.transferIn) {
+        refuse("Fait partie d'un virement entre vos comptes : il s'enregistre avec le virement.");
+        continue;
+      }
+      if (!tx.counterpartAccount) {
+        refuse("Pas encore classé : choisissez d'abord sa catégorie.");
+        continue;
+      }
+      try {
+        const result = await this.bookRow(tx, tx.counterpartAccount, tx.projectId, post, actorId, false);
+        booked++;
+        if (result.posted) posted++;
+      } catch (error) {
+        if (error instanceof AccountingConflictError || error instanceof AccountingNotFoundError) refuse(error.message);
+        else refuse("Refusé par les contrôles de la comptabilité. Ouvrez ce mouvement pour voir pourquoi.");
+      }
+    }
+    await this.audit.record({ action: "operations.booked-many", objectType: "FinancialAccount", objectId: accountId, actorId, details: { booked, posted, ignored: ignored.length } });
+    return { booked, posted, drafts: booked - posted, ignored };
+  }
+
+  /** Cœur commun de « classer et enregistrer » : exercice, projet par défaut, écriture, liaison, comptabilisation — tout ou rien pour ce mouvement. */
+  private async bookRow(
+    tx: {
+      id: string;
+      label: string;
+      reference: string | null;
+      amount: Prisma.Decimal;
+      operationDate: Date;
+      projectId: string | null;
+      financialAccountId: string;
+      financialAccount: { accountId: string; journalId: string };
+    },
+    counterpart: { id: string; number: string; label: string },
+    wantedProjectId: string | null,
+    post: boolean,
+    actorId: string,
+    auditEach = true,
+  ): Promise<OperationResult> {
+    const category = { accountId: counterpart.id, account: counterpart };
+    const projectIdWanted = wantedProjectId;
     const year = await this.prisma.fiscalYear.findFirst({ where: { start: { lte: tx.operationDate }, end: { gte: tx.operationDate } }, select: { id: true, status: true } });
     if (!year) throw new AccountingConflictError("Aucun exercice ne couvre la date de ce mouvement. Créez l'exercice dans Paramètres › Comptabilité.");
     if (year.status !== "OPEN") throw new AccountingConflictError("L'exercice de ce mouvement est fermé à la saisie.");
-    let projectId = input.projectId ?? tx.projectId ?? null;
+    let projectId = projectIdWanted;
     if (!projectId && /^[67]/.test(category.account.number)) {
       projectId = (await this.prisma.project.findFirst({ where: { permanent: true }, select: { id: true } }))?.id ?? null;
     }
@@ -228,7 +323,7 @@ export class OperationsService {
         return rethrowLink(error);
       });
     if (!journalCode) journalCode = (await this.prisma.journal.findUniqueOrThrow({ where: { id: tx.financialAccount.journalId }, select: { code: true } })).code;
-    await this.audit.record({ action: "operation.booked", objectType: "Transaction", objectId: tx.id, actorId, details: { entryId, posted: post } });
+    if (auditEach) await this.audit.record({ action: "operation.booked", objectType: "Transaction", objectId: tx.id, actorId, details: { entryId, posted: post } });
     return { transactionId: tx.id, entryId, posted: post, journalCode, number };
   }
 }

@@ -541,6 +541,59 @@ describe('AccountsPage', () => {
       expect(ui.snackbar).toContain('enregistré dans les comptes');
     });
 
+    const classed = (id: string, label: string) => transaction({ id, label, counterpartAccountId: 'a616', counterpartAccountNumber: '616' });
+    const reload = async (list: object[]) => {
+      controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: list, next: null });
+      await settle();
+      controller.expectOne('/api/financial-accounts').flush([account()]);
+      await settle();
+    };
+
+    it('enregistre d’un coup tous les mouvements classés après confirmation, et rend compte de chaque refus avec sa raison', async () => {
+      await openSimple([classed('t1', 'Assurance avril'), classed('t2', 'Facture hors exercice'), transaction({ id: 't3', label: 'Inconnu' })]);
+      await click('Enregistrer tous les mouvements classés');
+      expect(ui.title).toBe('Enregistrer tous les mouvements classés dans les comptes ?');
+      expect(ui.text).toContain('dans l\'ordre des dates');
+      expect(ui.text).toContain('Chaque mouvement est traité séparément');
+      await ui.click('Enregistrer');
+      const request = controller.expectOne('/api/financial-accounts/f1/transactions/book');
+      expect(request.request.body).toEqual({ post: true });
+      request.flush({
+        booked: 1,
+        posted: 1,
+        drafts: 0,
+        ignored: [{ transactionId: 't2', label: 'Facture hors exercice', date: '2030-01-01', reason: 'Aucun exercice ne couvre la date de ce mouvement.' }],
+      });
+      await settle();
+      await reload([]);
+      expect(ui.title).toContain('1 mouvement(s) à regarder');
+      expect(ui.text).toContain('1 mouvement(s) enregistré(s) dans les comptes');
+      expect(ui.text).toContain('Facture hors exercice');
+      expect(ui.text).toContain('Aucun exercice ne couvre la date de ce mouvement.');
+      expect(ui.text).toContain('reprendra seulement ce qui reste');
+    });
+
+    it('n’envoie que la sélection quand des mouvements sont cochés, et confirme par un bandeau si tout est passé', async () => {
+      await openSimple([classed('t1', 'Assurance avril'), classed('t2', 'Timbres')]);
+      root.querySelector<HTMLInputElement>('mat-checkbox input')!.click();
+      await settle();
+      await click('Enregistrer la sélection dans les comptes');
+      expect(ui.title).toBe('Enregistrer 1 mouvement(s) dans les comptes ?');
+      await ui.click('Enregistrer');
+      const request = controller.expectOne('/api/financial-accounts/f1/transactions/book');
+      expect(request.request.body).toEqual({ transactionIds: ['t1'], post: true });
+      request.flush({ booked: 1, posted: 1, drafts: 0, ignored: [] });
+      await settle();
+      await reload([]);
+      expect(ui.snackbar).toContain('1 mouvement(s) enregistré(s) dans les comptes');
+      expect(ui.isOpen).toBe(false);
+    });
+
+    it('ne propose rien quand aucun mouvement n’est classé, ni en affichage comptable', async () => {
+      await openSimple([transaction({ id: 't3', label: 'Inconnu' })]);
+      expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Enregistrer tous'))).toBe(false);
+    });
+
     it('classe la sélection avec des catégories plutôt qu’avec des numéros de compte', async () => {
       await openSimple([transaction({ id: 't1', label: 'Frais' })]);
       root.querySelector<HTMLInputElement>('mat-checkbox input')!.click();

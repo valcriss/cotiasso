@@ -11,6 +11,7 @@ import {
   AdminApiService,
   type AccountInfo,
   type FinancialAccountInfo,
+  type BulkBookInfo,
   type GuidedOperationResult,
   type OperationCategoryInfo,
   type ProjectInfo,
@@ -23,6 +24,7 @@ import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { ThemeService } from '../theme/theme.service';
 import { BookDialog, type BookDialogData } from './book-dialog';
+import { BulkBookResultDialog, type BulkBookResultData } from './bulk-book-result-dialog';
 import { LinkEntryDialog, type LinkEntryDialogData } from './link-entry-dialog';
 import { QualifyDialog, type QualifyDialogData } from './qualify-dialog';
 import { TransactionDialog, type TransactionDialogData, type TransactionDialogResult } from './transaction-dialog';
@@ -66,6 +68,12 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
           @if (canManage() && selectedIds().length > 0) {
             <button mat-stroked-button type="button" (click)="qualifySelection()">
               <mat-icon fontSet="material-icons-outlined" aria-hidden="true">label</mat-icon> {{ simple() ? 'Classer la sélection' : 'Qualifier la sélection' }} ({{ selectedIds().length }})
+            </button>
+          }
+          @if (simple() && canLink() && !account().archivedOn && bookableCount() > 0) {
+            <button mat-flat-button type="button" [disabled]="busy()" (click)="bookMany()">
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">playlist_add_check</mat-icon>
+              {{ selectedIds().length > 0 ? 'Enregistrer la sélection dans les comptes' : 'Enregistrer tous les mouvements classés' }}
             </button>
           }
           @if (canManage() && !account().archivedOn && !simple()) {
@@ -342,6 +350,48 @@ export class TransactionsPanel {
     if (item.transfer) return { label: 'Virement entre vos comptes', icon: 'sync_alt', ok: false };
     if (item.counterpartAccountId) return { label: 'Classé', icon: 'sell', ok: false };
     return { label: 'À classer', icon: 'radio_button_unchecked', ok: false };
+  }
+
+  /** Mouvements classés, pas encore enregistrés dans les comptes (parmi ceux affichés). */
+  protected readonly bookableCount = computed(() => this.transactions().filter((t) => t.accounting === 'NONE' && t.counterpartAccountId && !t.transfer).length);
+
+  /**
+   * Enregistre dans les comptes les mouvements classés (la sélection, sinon tous ceux du compte) : un compte rendu dit ce qui
+   * est passé et, pour chaque mouvement laissé de côté, pourquoi.
+   */
+  protected async bookMany(): Promise<void> {
+    const ids = this.selectedIds();
+    const confirmed = await this.dialogs.confirm({
+      title: ids.length > 0 ? `Enregistrer ${ids.length} mouvement(s) dans les comptes ?` : 'Enregistrer tous les mouvements classés dans les comptes ?',
+      message:
+        (ids.length > 0 ? 'Les mouvements cochés' : 'Tous les mouvements classés de ce compte') +
+        ` seront enregistrés dans les comptes, dans l'ordre des dates, avec la catégorie choisie pour chacun. Chaque mouvement est traité séparément : si l'un d'eux ne peut pas l'être, les autres le sont quand même et vous saurez pourquoi. ${
+          this.auth.can('entries:post')
+            ? 'Une opération enregistrée se corrige en l\'annulant : rien n\'est effacé.'
+            : 'Vous n\'avez pas le droit d\'enregistrer définitivement : les opérations seront mises en brouillon pour être relues.'
+        }`,
+      confirmLabel: 'Enregistrer',
+    });
+    if (!confirmed) return;
+    this.error.set(null);
+    this.busy.set(true);
+    let result: BulkBookInfo | undefined;
+    try {
+      result = await this.api.bookTransactions(this.account().id, { ...(ids.length > 0 && { transactionIds: ids }), post: this.auth.can('entries:post') });
+    } catch (failure) {
+      this.error.set(describeHttpError(failure, "L'enregistrement n'a pas pu se faire. Réessayez dans un instant.").message);
+    } finally {
+      this.busy.set(false);
+    }
+    if (!result) return;
+    this.selection.set(new Set());
+    await this.search();
+    this.changed.emit();
+    if (result.ignored.length > 0 || result.booked === 0) {
+      await this.dialogs.open<boolean, BulkBookResultData>(BulkBookResultDialog, { size: 'md', data: { result }, dismissible: true });
+    } else {
+      this.notifier.success(`${result.booked} mouvement(s) enregistré(s) dans les comptes.`);
+    }
   }
 
   /** « Classer et enregistrer » : choisir la catégorie suffit, le logiciel prépare et enregistre l'écriture. */

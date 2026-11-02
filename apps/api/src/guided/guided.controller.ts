@@ -19,7 +19,7 @@ import type { AuthenticatedRequest } from "../auth/auth.guard.js";
 import { Authenticated, RequirePermission } from "../authz/decorators.js";
 import { AuthorizationService } from "../authz/authorization.service.js";
 import { CategoriesService, type CategoryView, type TemplateResult } from "./categories.service.js";
-import { OperationsService, type OperationResult } from "./operations.service.js";
+import { OperationsService, type BulkBookResult, type OperationResult } from "./operations.service.js";
 import { OverviewService, type OverviewView } from "./overview.service.js";
 
 async function translate<T>(operation: () => Promise<T>): Promise<T> {
@@ -97,5 +97,14 @@ export class GuidedController {
     const userId = request.auth!.user.id;
     const canPost = (await this.authz.permissionsFor(userId)).has("entries:post");
     return translate(() => this.operations.book(id, body, userId, canPost));
+  }
+
+  @RequirePermission("transactions:manage", "entries:create")
+  @HttpCode(HttpStatus.OK)
+  @Post("financial-accounts/:id/transactions/book")
+  async bookMany(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<BulkBookResult> {
+    const userId = request.auth!.user.id;
+    const canPost = (await this.authz.permissionsFor(userId)).has("entries:post");
+    return translate(() => this.operations.bookMany(id, body ?? {}, userId, canPost));
   }
 }
