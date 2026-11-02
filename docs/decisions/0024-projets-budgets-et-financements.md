@@ -40,6 +40,12 @@ Les points marqués **À valider** ne sont pas tranchés par le cadrage : ne pas
 
 ### 4.4 — Affectation des dépenses aux financements et comptes rendus
 
+**Décidé avec l'utilisateur (2 novembre 2026) :**
+- **Dépassement du montant accordé : avertir, avec un motif possible.** On n'empêche pas d'affecter plus de dépenses que le montant accordé ; l'avertissement est visible sur la subvention et dans le compte rendu, et un **cofinancement documenté** (motif obligatoire) permet d'expliquer le dépassement.
+- **Période financée : avertir.** Une dépense datée hors de la période financée peut être affectée, mais elle est signalée « hors période financée » à l'écran et dans le compte rendu. Sans période renseignée sur la subvention, aucun contrôle.
+- **Compte rendu : un modèle générique d'abord**, imprimable (PDF par impression du navigateur) et en CSV sûr : pour une subvention, dépenses affectées regroupées **par poste (compte)**, versements reçus, reliquat, sur la période choisie. Les modèles propres à chaque financeur, et leur paramétrage déclaratif, attendent des conventions réelles (question 4 ci-dessous).
+- **Reliquat : calculé et montré, sans écriture.** Reliquat = montant **reçu** − dépenses **affectées** (comptabilisées). Affiché sur la subvention et dans le compte rendu, et proposé comme valeur de départ à la clôture. C'est un suivi de gestion : aucun fonds dédié n'est calculé.
+
 - **Affectation dépense ↔ financement** (`FundingExpenseAllocation`) : rattache une part d'une **ligne de charge ventilée sur un projet** à une subvention. Plafond en base : Σ des affectations d'une ligne ≤ son montant (et ≤ la part du projet) ; au niveau de la subvention, **avertissement** (pas blocage, cadrage §15 : « sauf montage explicitement documenté ») quand le total affecté dépasse le montant accordé ; un **montage de cofinancement documenté** (motif obligatoire) autorise un dépassement du montant de la dépense jusqu'à un plafond saisi. Affectation immuable : annulation motivée.
 - **Compte rendu financeur** : état distinct du compte de résultat (cadrage §15) : pour une subvention, dépenses affectées par poste, versements reçus, reliquat, justificatifs liés ; période choisie ; **modèles de restitution** déclaratifs (liste de colonnes et regroupements, pas de script, ADR 0002). Les modèles réels des financeurs sont à recueillir (risque cadrage §24) : livrer **un modèle générique** et rendre le reste configurable.
 - **Fonds dédiés** : **non calculés** ici. Le reliquat d'une subvention est un suivi de gestion ; le traitement comptable (fonds dédiés, produits constatés d'avance) reste le module 6.5, après avis externe (ADR 0003 et 0006).
@@ -128,4 +134,4 @@ Décisions prises à la réalisation (à relire) :
 1. ~~Granularité du budget : annuelle ou mensuelle ?~~ Tranchée en 4.1 : dates explicites par ligne (voir ci-dessus), à relire.
 2. Coûts communs : clé de répartition dès 4.2 ou plus tard ? (4.2)
 3. ~~Visibilité des subventions pour un responsable de projet.~~ Tranchée avec l'utilisateur : lecture via les projets financés (voir 4.3). Restent hors de ce lot : répartition libre avant l'accord, reliquat sans écriture.
-4. Le trésorier pilote peut-il fournir une convention et un compte rendu réels (anonymisés) pour caler le modèle générique ? (4.4)
+4. Le trésorier pilote peut-il fournir une convention et un compte rendu réels (anonymisés) pour caler les modèles propres à chaque financeur ? (après 4.4 : le modèle générique est livré sans cela)
