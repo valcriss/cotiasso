@@ -11,7 +11,7 @@
   },
   "scripts": {
     "dev": "npm run build -w @cotiasso/accounting-domain && concurrently -k -n domain,api,web -c gray,blue,green \"npm run dev -w @cotiasso/accounting-domain\" \"npm run dev -w @cotiasso/api\" \"npm run dev -w @cotiasso/web\"",
-    "dev:api": "npm run dev -w @cotiasso/api",
+    "dev:api": "npm run build -w @cotiasso/accounting-domain && npm run dev -w @cotiasso/api",
     "dev:frontend": "npm run dev -w @cotiasso/web",
     "build": "npm run build -w @cotiasso/accounting-domain && npm run build --workspaces --if-present",
     "test": "npm run build -w @cotiasso/accounting-domain && npm run test --workspaces --if-present",

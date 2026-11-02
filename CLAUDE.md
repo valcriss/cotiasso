@@ -22,7 +22,7 @@ Une fonction n'est pas terminée tant qu'une personne sans connaissance comptabl
 Node épinglé dans `mise.toml` (26.12.1) ; gestionnaire de paquets : npm (workspaces). Préfixer par `mise exec --` si les shims ne sont pas actifs. Toutes les commandes se lancent à la racine :
 
 - `npm install` : installe le monorepo.
-- `npm run dev` : lance en parallèle (via `concurrently`, après avoir compilé le domaine) le watch du domaine, l'API et le front ; `npm run dev:api` et `npm run dev:frontend` lancent chacun seul. (`npm run … --workspaces` exécute les workspaces l'un après l'autre : le watch de l'API bloquerait le front.)
+- `npm run dev` : lance en parallèle (via `concurrently`, après avoir compilé le domaine) le watch du domaine, l'API et le front ; `npm run dev:api` (qui compile d'abord le domaine, sans le surveiller) et `npm run dev:frontend` lancent chacun seul. (`npm run … --workspaces` exécute les workspaces l'un après l'autre : le watch de l'API bloquerait le front.)
 - `npm run build` : compile tous les workspaces. **L'API importe `@cotiasso/accounting-domain` depuis son `dist`** : `dev`, `build`, `typecheck`, `test` et `test:integration` compilent donc d'abord le domaine (`npm run … --workspaces` suit l'ordre alphabétique, `apps/` avant `packages/`).
 - `npm test` : lance les tests de tous les workspaces ; `npm run test:watch` en continu.
 - `npm run typecheck` : vérification des types.
