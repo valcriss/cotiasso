@@ -92,7 +92,7 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | 2.3 | ~~**Écrans d'administration des droits**~~ **fait** : « Voir les accès » et attributions avec portée | L'API existe ; manque la vue qui permet de comprendre qui peut quoi | 2.1 |
 | 2.4 | **Étapes de l'assistant initial** au-delà du premier compte : exercices, plan de comptes, comptes bancaires, projet permanent, rôles, mode de démarrage | Aujourd'hui ces réglages se font un par un dans Paramètres ; l'assistant guiderait un trésorier débutant | 1.1 |
 | 2.5 | **Exploitation** : copie hors site automatique, sauvegarde automatique avant mise à jour, notes de version | Les sauvegardes existent mais restent sur le serveur | [exploitation.md](exploitation.md) |
-| 2.6 | **Dépôt du fichier OFX d'origine comme document** (preuve jointe à l'import) | Complète la traçabilité des imports | Documents (lot 1.6) |
+| 2.6 | ~~**Dépôt du fichier OFX d'origine comme document**~~ **fait** (ADR 0025) : conservé à l'analyse, restreint, archivé si l'import est annulé | Complète la traçabilité des imports | Documents (lot 1.6) |
 | 2.7 | **Suites de la comptabilité** : versionnement du plan de comptes et des rubriques, lien de correction (remplacement après contrepassation), ventilation d'une transaction | Améliorations de fond identifiées pendant les lots 2a et 2b | 1.1 |
 
 ### Priorité 3 — fonctions associatives complètes
@@ -104,7 +104,7 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | 3.3 | **Tableau de progression de la reprise** par exercice, compte et anomalie (5.4) | Donne une vue d'ensemble de ce qui reste à reprendre | Lots de reprise (ADR 0019) |
 | 3.4 | **Rapports figés** à la clôture et ouverture suivante complète (5.5) | S'appuie sur la clôture déjà livrée | 1.2 |
 | 3.5 | **Authentification OIDC optionnelle** | Décidée comme optionnelle (ADR 0005) | — |
-| 3.6 | **Export du journal d'audit** | Besoin de contrôle ou d'archivage hors application | — |
+| 3.6 | ~~**Export du journal d'audit**~~ **fait** (ADR 0025) : CSV sûr avec les empreintes de la chaîne, 20 000 événements au plus | Besoin de contrôle ou d'archivage hors application | — |
 
 ### Priorité 4 — différé
 

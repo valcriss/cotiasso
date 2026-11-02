@@ -12,6 +12,7 @@ import {
 } from '../admin/admin-api.service';
 import { formatApiAmount } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
+import { AuthService } from '../auth/auth.service';
 import { Notifier } from '../ui/notifier.service';
 
 const STATUS_LABELS: Record<ImportLineInfo['status'], string> = {
@@ -84,6 +85,14 @@ const LINK = 'LINK:';
             · compte se terminant par {{ b.accountHint }}
           }
         </p>
+        @if (b.documentId) {
+          <p class="muted">
+            Le fichier d'origine est conservé comme document restreint, pour garder la preuve de cet import.
+            @if (canOpenOriginal()) {
+              <a [href]="originalUrl(b.documentId)">Télécharger le fichier d'origine</a>
+            }
+          </p>
+        }
         <div class="counts">
           <span class="chip">{{ b.summary.total }} opération(s)</span>
           <span class="chip">{{ b.summary.new }} nouvelle(s)</span>
@@ -178,6 +187,16 @@ const LINK = 'LINK:';
 export class ImportPanel {
   private readonly api = inject(AdminApiService);
   private readonly notifier = inject(Notifier);
+  private readonly auth = inject(AuthService);
+
+  /** Le fichier d'origine est un document restreint : il faut pouvoir lire les documents ET les documents restreints. */
+  protected readonly canOpenOriginal = computed(() => {
+    this.auth.permissions();
+    return this.auth.can('documents:view') && this.auth.can('documents.restricted:view');
+  });
+  protected originalUrl(documentId: string): string {
+    return this.api.documentDownloadUrl(documentId);
+  }
 
   readonly account = input.required<FinancialAccountInfo>();
   /** Émis après une confirmation : les transactions et les soldes ont changé. */

@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AccountingModule } from "../accounting/accounting.module.js";
 import { AuditModule } from "../audit/audit.module.js";
+import { DocumentsModule } from "../documents/documents.module.js";
 import { PrismaModule } from "../prisma/prisma.module.js";
 import { FinancialAccountsService } from "./financial-accounts.service.js";
 import { ImportsService } from "./imports.service.js";
@@ -13,7 +14,7 @@ import { TransfersService } from "./transfers.service.js";
 import { TreasuryController } from "./treasury.controller.js";
 
 @Module({
-  imports: [PrismaModule, AuditModule, AccountingModule],
+  imports: [PrismaModule, AuditModule, AccountingModule, DocumentsModule],
   controllers: [TreasuryController, RecoveryController],
   providers: [FinancialAccountsService, TransactionsService, ImportsService, TransactionLinksService, TransfersService, ReconciliationsService, RecoveryService],
   exports: [FinancialAccountsService, TransactionsService],

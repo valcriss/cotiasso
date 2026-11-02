@@ -685,6 +685,8 @@ export interface ImportInfo {
   };
   createdAt: string;
   committedAt: string | null;
+  /** Document qui conserve le fichier OFX d'origine (restreint), s'il existe. */
+  documentId?: string | null;
   lines: ImportLineInfo[];
 }
 

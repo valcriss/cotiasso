@@ -1,4 +1,5 @@
 import type { ReadStream } from "node:fs";
+import { Readable } from "node:stream";
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "../audit/audit.service.js";
 import type { Prisma } from "../generated/prisma/client.js";
@@ -78,11 +79,25 @@ export class DocumentsService {
     @Inject(AuditService) private readonly audit: AuditService,
   ) {}
 
+  /**
+   * Dépose un fichier que l'application détient déjà en mémoire (le relevé d'un import) : mêmes contrôles et mêmes garanties
+   * qu'un dépôt, mais avec les types réservés au système. Le fichier écrit est retiré si quoi que ce soit échoue.
+   */
+  async createFromBytes(
+    input: { title: string; category: string; restricted: boolean; comment?: string; links?: { objectType: string; objectId: string }[] },
+    file: { name: string; bytes: Buffer },
+    viewer: Viewer,
+  ): Promise<{ document: DocumentDetail; duplicates: DuplicateInfo[] }> {
+    const stored = await this.storage.save(Readable.from(file.bytes));
+    return this.create(input, { ...stored, originalName: file.name }, viewer, { system: true });
+  }
+
   /** Crée un document et sa première version. Le fichier est déjà sur disque : il est retiré si quoi que ce soit échoue. */
   async create(
     input: { title: string; category: string; restricted: boolean; comment?: string; links?: { objectType: string; objectId: string }[] },
     file: IncomingFile,
     viewer: Viewer,
+    options: { system?: boolean } = {},
   ): Promise<{ document: DocumentDetail; duplicates: DuplicateInfo[] }> {
     try {
       const title = this.title(input.title);
@@ -91,7 +106,7 @@ export class DocumentsService {
       if (input.restricted && viewer.scope) throw new ScopeAccessError("Rendre un document restreint est réservé aux droits globaux.");
       const links = (input.links ?? []).map((link) => this.link(link));
       if (viewer.scope) await this.assertScopedLinks(links, viewer, true);
-      const version = this.version(file);
+      const version = this.version(file, options.system === true);
 
       const created = await this.prisma.$transaction(async (tx) => {
         const document = await tx.document.create({
@@ -413,10 +428,10 @@ export class DocumentsService {
   }
 
   /** Contrôle le fichier déposé d'après son contenu et son extension, puis prépare les champs de la version. */
-  private version(file: IncomingFile) {
+  private version(file: IncomingFile, system = false) {
     const originalName = sanitizeFilename(file.originalName);
     if (file.size === 0) throw new InvalidFileError("Le fichier est vide.");
-    const type = detectFileType(file.head, originalName);
+    const type = detectFileType(file.head, originalName, { system });
     if (!type) {
       throw new InvalidFileError("Type de fichier non autorisé, ou contenu qui ne correspond pas à l'extension.");
     }

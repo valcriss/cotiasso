@@ -9,6 +9,32 @@ const PNG = bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13);
 const JPEG = bytes(0xff, 0xd8, 0xff, 0xe0, 0, 16);
 const ZIP = bytes(0x50, 0x4b, 0x03, 0x04, 20, 0);
 
+describe("detectFileType : OFX, réservé au système", () => {
+  const OFX1 = text("OFXHEADER:100\nDATA:OFXSGML\nVERSION:102\n\n<OFX><SIGNONMSGSRSV1></SIGNONMSGSRSV1></OFX>");
+  const OFX2 = text('<?xml version="1.0" encoding="UTF-8"?>\n<?OFX OFXHEADER="200" VERSION="220"?>\n<OFX></OFX>');
+  const OFX_1252 = Uint8Array.from(Buffer.from("OFXHEADER:100\nCHARSET:1252\n\n<OFX><NAME>CAF\u00c9 </OFX>", "latin1"));
+
+  it("n'est jamais accepté au dépôt ordinaire, quel que soit le contenu", () => {
+    expect(detectFileType(OFX1, "releve.ofx")).toBeNull();
+    expect(detectFileType(OFX2, "releve.ofx", { system: false })).toBeNull();
+  });
+
+  it("est reconnu en contexte système, en OFX 1.x, 2.x et en Windows-1252", () => {
+    for (const content of [OFX1, OFX2, OFX_1252]) {
+      expect(detectFileType(content, "releve.ofx", { system: true })).toEqual({ extension: "ofx", mimeType: "application/x-ofx" });
+    }
+  });
+
+  it("exige que le contenu soit bien un relevé OFX et que l'extension concorde", () => {
+    expect(detectFileType(text("<html><script>alert(1)</script></html>"), "releve.ofx", { system: true })).toBeNull();
+    expect(detectFileType(PDF, "releve.ofx", { system: true })).toBeNull();
+    expect(detectFileType(Uint8Array.from([...OFX1, 0, 1, 2]), "releve.ofx", { system: true })).toBeNull();
+    expect(detectFileType(OFX1, "releve.html", { system: true })).toBeNull();
+    // Le contexte système n'ouvre que l'OFX : les autres types interdits le restent.
+    expect(detectFileType(text("<svg/>"), "logo.svg", { system: true })).toBeNull();
+  });
+});
+
 describe("detectFileType", () => {
   it("accepte un fichier dont la signature correspond à l'extension", () => {
     expect(detectFileType(PDF, "facture.pdf")).toEqual({ extension: "pdf", mimeType: "application/pdf" });

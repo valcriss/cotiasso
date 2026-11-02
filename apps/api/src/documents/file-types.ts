@@ -7,7 +7,7 @@ export interface DetectedFileType {
 
 interface AllowedType {
   mimeType: string;
-  kind: "pdf" | "png" | "jpeg" | "zip" | "text";
+  kind: "pdf" | "png" | "jpeg" | "zip" | "text" | "ofx";
 }
 
 /**
@@ -29,6 +29,14 @@ const ALLOWED: Record<string, AllowedType> = {
   txt: { mimeType: "text/plain; charset=utf-8", kind: "text" },
 };
 
+/**
+ * Types que seule l'application dépose elle-même (jamais un utilisateur) : le fichier d'origine d'un import bancaire. Ils restent
+ * hors de la liste proposée au dépôt, mais passent les mêmes contrôles (contenu ET extension) et sont servis en pièce jointe.
+ */
+const SYSTEM_ONLY: Record<string, AllowedType> = {
+  ofx: { mimeType: "application/x-ofx", kind: "ofx" },
+};
+
 export const ALLOWED_EXTENSIONS = Object.keys(ALLOWED);
 
 const startsWith = (head: Uint8Array, signature: number[]): boolean =>
@@ -45,6 +53,12 @@ function isUtf8Text(head: Uint8Array): boolean {
   }
 }
 
+/** Un relevé OFX est du texte (UTF-8 ou Windows-1252, donc sans test d'encodage) qui s'annonce par OFXHEADER ou une balise OFX. */
+function isOfx(head: Uint8Array): boolean {
+  if (head.length === 0 || head.includes(0)) return false;
+  return /OFXHEADER|<OFX[\s>]/i.test(Buffer.from(head).toString("latin1"));
+}
+
 export function extensionOf(filename: string): string {
   const index = filename.lastIndexOf(".");
   return index <= 0 ? "" : filename.slice(index + 1).toLowerCase();
@@ -54,9 +68,9 @@ export function extensionOf(filename: string): string {
  * Détermine le type d'un fichier d'après son contenu (signature) ET son extension : les deux doivent concorder.
  * Renvoie null si le type est absent de la liste blanche ou si le contenu contredit l'extension.
  */
-export function detectFileType(head: Uint8Array, filename: string): DetectedFileType | null {
+export function detectFileType(head: Uint8Array, filename: string, options: { system?: boolean } = {}): DetectedFileType | null {
   const extension = extensionOf(filename);
-  const allowed = ALLOWED[extension];
+  const allowed = ALLOWED[extension] ?? (options.system ? SYSTEM_ONLY[extension] : undefined);
   if (!allowed) return null;
 
   const matches =
@@ -64,7 +78,8 @@ export function detectFileType(head: Uint8Array, filename: string): DetectedFile
     (allowed.kind === "png" && startsWith(head, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ||
     (allowed.kind === "jpeg" && startsWith(head, [0xff, 0xd8, 0xff])) ||
     (allowed.kind === "zip" && startsWith(head, [0x50, 0x4b, 0x03, 0x04])) ||
-    (allowed.kind === "text" && head.length > 0 && isUtf8Text(head));
+    (allowed.kind === "text" && head.length > 0 && isUtf8Text(head)) ||
+    (allowed.kind === "ofx" && isOfx(head));
 
   return matches ? { extension, mimeType: allowed.mimeType } : null;
 }

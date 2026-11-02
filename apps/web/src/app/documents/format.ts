@@ -13,6 +13,7 @@ export const OBJECT_TYPE_LABELS: Record<string, string> = {
   transaction: 'Transaction',
   expense: 'Dépense',
   'journal-entry': 'Écriture',
+  import: 'Import bancaire',
 };
 
 export function objectTypeLabel(type: string): string {

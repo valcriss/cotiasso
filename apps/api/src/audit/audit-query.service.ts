@@ -41,6 +41,22 @@ export interface IntegrityReport {
   reason: string | null;
 }
 
+/** Au-delà, un export demande de restreindre la période plutôt que de tronquer en silence. */
+export const AUDIT_EXPORT_MAX = 20_000;
+
+export class AuditExportTooLargeError extends Error {
+  constructor(readonly count: number) {
+    super(`Cet export contient ${count} événements, au-delà de la limite de ${AUDIT_EXPORT_MAX}. Restreignez la période ou les filtres.`);
+    this.name = "AuditExportTooLargeError";
+  }
+}
+
+/** Un événement du journal tel qu'il est exporté, avec ses empreintes pour une vérification hors application. */
+export interface AuditExportRow extends AuditEntry {
+  hash: string | null;
+  previousHash: string | null;
+}
+
 const MAX_LIMIT = 200;
 const VERIFY_BATCH = 1000;
 
@@ -84,6 +100,44 @@ export class AuditQueryService {
       })),
       nextCursor: rows.length > limit ? Number(page[page.length - 1]!.seq) : null,
     };
+  }
+
+  /**
+   * Événements à exporter, dans l'ordre chronologique (du plus ancien au plus récent), avec leurs empreintes. Même filtres que
+   * la liste. Refusé au-delà de `AUDIT_EXPORT_MAX` : jamais de troncature silencieuse.
+   */
+  async exportRows(filters: AuditFilters): Promise<AuditExportRow[]> {
+    const where: Prisma.AuditEventWhereInput = {
+      ...(filters.action && { action: filters.action }),
+      ...(filters.objectType && { objectType: filters.objectType }),
+      ...(filters.objectId && { objectId: filters.objectId }),
+      ...(filters.actorId && { actorId: filters.actorId }),
+      ...((filters.from || filters.to) && {
+        occurredAt: { ...(filters.from && { gte: filters.from }), ...(filters.to && { lte: filters.to }) },
+      }),
+    };
+    const count = await this.prisma.auditEvent.count({ where });
+    if (count > AUDIT_EXPORT_MAX) throw new AuditExportTooLargeError(count);
+
+    const rows = await this.prisma.auditEvent.findMany({ where, orderBy: { seq: "asc" } });
+    const actorIds = [...new Set(rows.flatMap((row) => (row.actorId ? [row.actorId] : [])))];
+    const actors = actorIds.length
+      ? await this.prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, displayName: true, email: true } })
+      : [];
+    const byId = new Map(actors.map((actor) => [actor.id, actor]));
+    return rows.map((row) => ({
+      seq: Number(row.seq),
+      id: row.id,
+      occurredAt: row.occurredAt,
+      action: row.action,
+      objectType: row.objectType,
+      objectId: row.objectId,
+      justification: row.justification,
+      details: row.details,
+      actor: row.actorId ? (byId.get(row.actorId) ?? null) : null,
+      hash: row.hash,
+      previousHash: row.previousHash,
+    }));
   }
 
   /** Valeurs proposées par les filtres de l'écran. */

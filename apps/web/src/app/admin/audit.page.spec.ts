@@ -111,6 +111,26 @@ describe('AuditPage', () => {
     expect(root.querySelectorAll('tbody tr')).toHaveLength(1);
   });
 
+  it("propose l'export CSV du journal complet, puis des seuls critères réellement recherchés", async () => {
+    await create({ items: [entry(5)], nextCursor: null });
+    const link = () => root.querySelector<HTMLAnchorElement>('a[download]')!;
+    expect(link().getAttribute('href')).toBe('/api/audit/csv?');
+    expect(link().textContent).toContain('Exporter (CSV)');
+
+    // Saisir un critère sans lancer la recherche ne change pas l'export : il reprend ce qui est affiché.
+    const dates = root.querySelectorAll<HTMLInputElement>('input[type="date"]');
+    dates[0]!.value = '2026-11-01';
+    dates[0]!.dispatchEvent(new Event('input'));
+    await settle();
+    expect(link().getAttribute('href')).toBe('/api/audit/csv?');
+
+    root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
+    await settle();
+    controller.expectOne((req) => req.url === '/api/audit').flush({ items: [entry(9)], nextCursor: null });
+    await settle();
+    expect(link().getAttribute('href')).toBe(`/api/audit/csv?from=${encodeURIComponent(dayBound('2026-11-01', false)!)}`);
+  });
+
   it("annonce une chaîne intacte, avec les événements antérieurs non vérifiables", async () => {
     await create({ items: [entry(1)], nextCursor: null });
     buttonWith("Vérifier l'intégrité")!.click();

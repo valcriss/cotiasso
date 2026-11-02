@@ -1,6 +1,9 @@
 import "reflect-metadata";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Test } from "@nestjs/testing";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
@@ -23,9 +26,12 @@ interface Session {
 }
 
 /** Corps multipart/form-data sans dépendance. */
-function multipart(files: { name: string; content: Buffer }[]) {
+function multipart(files: { name: string; content: Buffer }[], fields: Record<string, string> = {}) {
   const boundary = `----cotiasso${randomUUID()}`;
   const chunks: Buffer[] = [];
+  for (const [name, value] of Object.entries(fields)) {
+    chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`));
+  }
   for (const file of files) {
     chunks.push(
       Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${file.name}"\r\nContent-Type: application/octet-stream\r\n\r\n`),
@@ -50,6 +56,7 @@ function ofx(lines: { fitId?: string; date: string; amount: string; name: string
 
 describe("Import OFX : analyse, doublons, rapprochement et confirmation (base vierge)", () => {
   let db: TempDatabase;
+  let storageDir: string;
   let app: NestFastifyApplication;
   let prisma: PrismaService;
   let users: UsersService;
@@ -115,7 +122,9 @@ describe("Import OFX : analyse, doublons, rapprochement et confirmation (base vi
 
   beforeAll(async () => {
     db = await createTempDatabase();
-    const env: AppEnv = { ...readEnv(), databaseUrl: db.url, cookieSecure: true };
+    // Chaque analyse conserve le fichier d'origine comme document : un stockage temporaire, jamais celui du dépôt.
+    storageDir = await mkdtemp(join(tmpdir(), "cotiasso-e2e-imports-"));
+    const env: AppEnv = { ...readEnv(), databaseUrl: db.url, cookieSecure: true, documentsDir: storageDir };
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(ENV).useValue(env).compile();
     app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
     await configureApp(app, env);
@@ -144,6 +153,7 @@ describe("Import OFX : analyse, doublons, rapprochement et confirmation (base vi
   afterAll(async () => {
     await app.close();
     await db.drop();
+    await rm(storageDir, { recursive: true, force: true });
   });
 
   it("réserve l'envoi à imports:post et la consultation à financial-accounts:view", async () => {
@@ -386,6 +396,105 @@ describe("Import OFX : analyse, doublons, rapprochement et confirmation (base vi
       expect(await prisma.importBatch.findUniqueOrThrow({ where: { id: refused.id } }).then((x) => x.status)).toBe("ANALYZED");
       const other = refused === a ? "X2" : "X3";
       expect(await prisma.transaction.count({ where: { externalId: other } })).toBe(0);
+    });
+  });
+
+  describe("fichier d'origine conservé comme document", () => {
+    const documentOf = async (batchId: string) =>
+      prisma.document.findFirst({ where: { links: { some: { objectType: "import", objectId: batchId } } }, include: { versions: true, links: true } });
+    const filesOnDisk = async () => (await readdir(storageDir, { recursive: true, withFileTypes: true })).filter((e) => e.isFile()).length;
+
+    it("conserve le fichier tel qu'il a été envoyé, en document restreint relié à l'import", async () => {
+      const content = ofx([{ fitId: "ORIG-1", date: "20260401", amount: "-12,00", name: "ORIGINE" }]);
+      const batch = await analyze(content);
+      const document = await documentOf(batch.id);
+      expect(document).toMatchObject({ category: "releve", restricted: true, archivedAt: null });
+      expect(document!.title).toBe("Relevé OFX — Compte courant — releve.ofx");
+      expect(document!.links).toEqual([expect.objectContaining({ objectType: "import", objectId: batch.id })]);
+      expect(document!.versions).toHaveLength(1);
+      expect(document!.versions[0]).toMatchObject({ originalName: "releve.ofx", mimeType: "application/x-ofx", size: content.length });
+      // L'empreinte du document est celle de l'import : c'est bien le même fichier.
+      expect(document!.versions[0]!.sha256).toBe((await prisma.importBatch.findUniqueOrThrow({ where: { id: batch.id } })).fileHash);
+      expect(batch.documentId).toBe(document!.id);
+      ids.originBatch = batch.id;
+      ids.originDoc = document!.id;
+    });
+
+    it("le rend téléchargeable à l'identique par qui peut lire les documents restreints, et à personne d'autre", async () => {
+      const download = await call("GET", `/documents/${ids.originDoc}/download`, treasurer);
+      expect(download.statusCode).toBe(200);
+      expect(download.headers["content-type"]).toContain("application/x-ofx");
+      expect(download.headers["content-disposition"]).toContain("attachment");
+      expect(download.rawPayload.equals(ofx([{ fitId: "ORIG-1", date: "20260401", amount: "-12,00", name: "ORIGINE" }]))).toBe(true);
+      // Le membre du bureau et le lecteur lisent les documents, mais pas les restreints.
+      for (const session of [boardMember, reader]) {
+        expect((await call("GET", `/documents/${ids.originDoc}`, session)).statusCode).toBe(404);
+        expect((await call("GET", `/documents/${ids.originDoc}/download`, session)).statusCode).toBe(404);
+      }
+      // Le téléchargement d'un document restreint est audité.
+      expect(await prisma.auditEvent.count({ where: { action: "document.downloaded", objectId: ids.originDoc! } })).toBe(1);
+    });
+
+    it("ajoute l'extension .ofx à un fichier qui n'en a pas, sans changer le contenu", async () => {
+      const response = await upload(treasurer, ids.fBank!, ofx([{ fitId: "ORIG-2", date: "20260402", amount: "-3,00", name: "SANS EXTENSION" }]), "releve-mars.txt");
+      expect(response.statusCode, response.body).toBe(201);
+      const document = await documentOf(response.json().id);
+      expect(document!.versions[0]!.originalName).toBe("releve-mars.txt.ofx");
+      expect(document!.title).toContain("releve-mars.txt");
+    });
+
+    it("ne rend pas le type OFX disponible au dépôt ordinaire de documents", async () => {
+      const options = await call("GET", "/documents/options", treasurer);
+      expect(options.json().allowedExtensions).not.toContain("ofx");
+      expect(options.json().objectTypes).toContain("import");
+      const { payload, contentType } = multipart(
+        [{ name: "releve.ofx", content: ofx([{ fitId: "X", date: "20260401", amount: "-1,00", name: "X" }]) }],
+        { title: "Relevé déposé à la main", category: "releve" },
+      );
+      const refused = await app.inject({
+        method: "POST",
+        url: "/documents",
+        payload,
+        remoteAddress: "198.51.100.200",
+        headers: { "content-type": contentType, cookie: treasurer.cookie, "x-csrf-token": treasurer.csrf },
+      });
+      expect(refused.statusCode).toBe(415);
+    });
+
+    it("n'en conserve aucun quand l'analyse est refusée, et archive celui d'un import annulé", async () => {
+      const documentsBefore = await prisma.document.count();
+      const filesBefore = await filesOnDisk();
+      const refused = await upload(treasurer, ids.fBank!, Buffer.from("OFXHEADER:100\nceci n'est pas un relevé"));
+      expect(refused.statusCode).toBeGreaterThanOrEqual(400);
+      expect(await prisma.document.count()).toBe(documentsBefore);
+      expect(await filesOnDisk()).toBe(filesBefore);
+
+      const batch = await analyze(ofx([{ fitId: "ORIG-3", date: "20260403", amount: "-4,00", name: "A ANNULER" }]));
+      expect((await documentOf(batch.id))!.archivedAt).toBeNull();
+      expect((await call("POST", `/imports/${batch.id}/cancel`, treasurer, {})).statusCode).toBe(200);
+      const archived = await documentOf(batch.id);
+      expect(archived!.archivedAt).not.toBeNull();
+      // Rien n'est supprimé : le fichier reste lisible, mais il disparaît de la liste par défaut.
+      expect((await call("GET", `/documents/${archived!.id}/download`, treasurer)).statusCode).toBe(200);
+      const idsOf = async (query: string) => (await call("GET", `/documents?q=Relev%C3%A9%20OFX${query}`, treasurer)).json().items.map((d: { id: string }) => d.id);
+      expect(await idsOf("")).not.toContain(archived!.id);
+      expect(await idsOf("&includeArchived=true")).toContain(archived!.id);
+    });
+
+    it("garde le fichier d'un import confirmé, et trace sa conservation dans l'audit", async () => {
+      const confirmed = await commit(ids.originBatch!);
+      expect(confirmed.statusCode, confirmed.body).toBe(200);
+      expect((await documentOf(ids.originBatch!))!.archivedAt).toBeNull();
+      expect(confirmed.json().documentId).toBe(ids.originDoc);
+      const event = await prisma.auditEvent.findFirstOrThrow({ where: { action: "import.analyzed", objectId: ids.originBatch! } });
+      expect(event.details).toMatchObject({ documentId: ids.originDoc });
+      expect(await prisma.auditEvent.count({ where: { action: "document.created", objectId: ids.originDoc! } })).toBe(1);
+    });
+
+    it("ne l'expose pas dans la liste des imports d'un compte (seulement dans le détail)", async () => {
+      const list = (await call("GET", `/financial-accounts/${ids.fBank}/imports`, treasurer)).json();
+      expect(list.length).toBeGreaterThan(0);
+      expect(list.every((item: Record<string, unknown>) => !("documentId" in item))).toBe(true);
     });
   });
 

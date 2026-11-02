@@ -1,9 +1,11 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import { z } from "zod";
 import { AccountingConflictError, AccountingNotFoundError } from "../accounting/errors.js";
 import { parse } from "../accounting/schemas.js";
 import { AuditService } from "../audit/audit.service.js";
+import { DocumentsService, type Viewer } from "../documents/documents.service.js";
+import { extensionOf } from "../documents/file-types.js";
 import type { ImportBatch, ImportLine, Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { rankCandidates, MATCH_WINDOW_DAYS, type MatchCandidate } from "./ofx/matching.js";
@@ -82,10 +84,12 @@ export interface ImportView {
   summary: ImportSummary;
   createdAt: string;
   committedAt: string | null;
+  /** Document qui conserve le fichier OFX d'origine (preuve de l'import), s'il existe. */
+  documentId: string | null;
   lines: ImportLineView[];
 }
 
-export interface ImportListItem extends Omit<ImportView, "lines"> {}
+export interface ImportListItem extends Omit<ImportView, "lines" | "documentId"> {}
 
 const day = (date: Date | null) => (date ? date.toISOString().slice(0, 10) : null);
 const asDate = (value: string | null | undefined) => (value ? new Date(`${value}T00:00:00Z`) : null);
@@ -142,7 +146,19 @@ export class ImportsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(DocumentsService) private readonly documents: DocumentsService,
   ) {}
+
+  /** Lecteur « système » : l'application dépose et archive elle-même le fichier d'origine, au nom de la personne qui importe. */
+  private systemViewer(userId: string): Viewer {
+    return { userId, canSeeRestricted: true };
+  }
+
+  /** Document qui conserve le fichier d'origine d'un import. */
+  private async originalDocumentId(batchId: string): Promise<string | null> {
+    const link = await this.prisma.documentLink.findFirst({ where: { objectType: "import", objectId: batchId }, select: { documentId: true } });
+    return link?.documentId ?? null;
+  }
 
   async list(accountId: string): Promise<ImportListItem[]> {
     await this.assertAccount(accountId);
@@ -153,7 +169,7 @@ export class ImportsService {
   async get(id: string): Promise<ImportView> {
     const batch = await this.prisma.importBatch.findUnique({ where: { id }, include: { lines: { orderBy: { position: "asc" } } } });
     if (!batch) throw new AccountingNotFoundError("Import");
-    return { ...batchView(batch), lines: batch.lines.map(lineView) };
+    return { ...batchView(batch), documentId: await this.originalDocumentId(id), lines: batch.lines.map(lineView) };
   }
 
   /** Analyse un fichier OFX sans rien créer côté transactions ; renvoie l'import à confirmer. */
@@ -236,43 +252,68 @@ export class ImportsService {
       error: lines.filter((l) => l.status === "ERROR").length,
     };
 
-    const batch = await this.prisma.importBatch.create({
-      data: {
-        financialAccountId: accountId,
-        fileName: safeFileName(file.name),
-        fileHash,
-        format: statement.format,
-        periodStart: asDate(statement.periodStart),
-        periodEnd: asDate(statement.periodEnd),
-        ledgerBalance: statement.ledgerBalance?.amount ?? null,
-        ledgerBalanceDate: asDate(statement.ledgerBalance?.date),
-        accountHint: statement.account.accountId ? statement.account.accountId.slice(-4) : null,
-        summary: summary as unknown as Prisma.InputJsonObject,
-        createdBy: actorId,
-        lines: {
-          create: lines.map(({ line, errors, duplicateOf, candidates, status }) => ({
-            position: line.index,
-            raw: line.raw as Prisma.InputJsonObject,
-            fitId: line.fitId,
-            operationDate: asDate(line.date),
-            amount: line.amount,
-            label: line.label,
-            reference: line.reference,
-            status,
-            errors: errors as unknown as Prisma.InputJsonArray,
-            candidates: candidates as unknown as Prisma.InputJsonArray,
-            matchedTransactionId: duplicateOf ?? null,
-          })),
-        },
+    // Le fichier d'origine est conservé comme document avant toute création : si la conservation échoue, l'analyse échoue (rien n'est
+    // gardé à moitié). Restreint par défaut : un relevé bancaire porte des identifiants et des soldes.
+    const batchId = randomUUID();
+    const originalName = safeFileName(file.name);
+    const stored = await this.documents.createFromBytes(
+      {
+        title: `Relevé OFX — ${account.name} — ${originalName}`,
+        category: "releve",
+        restricted: true,
+        comment: "Fichier d'origine conservé à l'analyse de l'import.",
+        links: [{ objectType: "import", objectId: batchId }],
       },
-      select: { id: true },
-    });
+      { name: extensionOf(originalName) === "ofx" ? originalName : `${originalName}.ofx`, bytes: file.bytes },
+      this.systemViewer(actorId),
+    );
+    const documentId = stored.document.id;
+
+    let batch: { id: string };
+    try {
+      batch = await this.prisma.importBatch.create({
+        data: {
+          id: batchId,
+          financialAccountId: accountId,
+          fileName: safeFileName(file.name),
+          fileHash,
+          format: statement.format,
+          periodStart: asDate(statement.periodStart),
+          periodEnd: asDate(statement.periodEnd),
+          ledgerBalance: statement.ledgerBalance?.amount ?? null,
+          ledgerBalanceDate: asDate(statement.ledgerBalance?.date),
+          accountHint: statement.account.accountId ? statement.account.accountId.slice(-4) : null,
+          summary: summary as unknown as Prisma.InputJsonObject,
+          createdBy: actorId,
+          lines: {
+            create: lines.map(({ line, errors, duplicateOf, candidates, status }) => ({
+              position: line.index,
+              raw: line.raw as Prisma.InputJsonObject,
+              fitId: line.fitId,
+              operationDate: asDate(line.date),
+              amount: line.amount,
+              label: line.label,
+              reference: line.reference,
+              status,
+              errors: errors as unknown as Prisma.InputJsonArray,
+              candidates: candidates as unknown as Prisma.InputJsonArray,
+              matchedTransactionId: duplicateOf ?? null,
+            })),
+          },
+        },
+        select: { id: true },
+      });
+    } catch (error) {
+      // Le lot n'a pas pu être créé : le fichier conservé n'a plus d'objet, il est archivé (un document ne se supprime pas).
+      await this.documents.setArchived(documentId, true, this.systemViewer(actorId)).catch(() => undefined);
+      throw error;
+    }
     await this.audit.record({
       action: "import.analyzed",
       objectType: "ImportBatch",
       objectId: batch.id,
       actorId,
-      details: { accountId, fileHash: fileHash.slice(0, 12), ...summary },
+      details: { accountId, fileHash: fileHash.slice(0, 12), documentId, ...summary },
     });
     return this.get(batch.id);
   }
@@ -283,6 +324,9 @@ export class ImportsService {
       await this.get(id);
       throw new AccountingConflictError("Cet import est déjà confirmé ou annulé.");
     }
+    // Un import annulé n'a rien créé : son fichier d'origine n'est plus une preuve, il est archivé (jamais supprimé).
+    const documentId = await this.originalDocumentId(id);
+    if (documentId) await this.documents.setArchived(documentId, true, this.systemViewer(actorId));
     await this.audit.record({ action: "import.cancelled", objectType: "ImportBatch", objectId: id, actorId });
     return this.get(id);
   }

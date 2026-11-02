@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { mockAuth } from '../testing/auth-mock';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { ImportPanel } from './import-panel';
 import type { FinancialAccountInfo, ImportInfo, ImportLineInfo } from '../admin/admin-api.service';
@@ -67,10 +68,10 @@ describe('ImportPanel', () => {
     fixture.detectChanges();
     await fixture.whenStable();
   };
-  const create = async () => {
+  const create = async (permissions: string[] = []) => {
     await TestBed.configureTestingModule({
       imports: [ImportPanel],
-      providers: [provideHttpClient(), provideHttpClientTesting(), NO_MATERIAL_ANIMATIONS],
+      providers: [provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(ImportPanel);
@@ -120,6 +121,25 @@ describe('ImportPanel', () => {
     expect(text).toContain('Déjà importée');
     expect(text).toContain('Identifiant bancaire (FITID) absent.');
     expect(root.querySelectorAll('tbody tr')).toHaveLength(4);
+  });
+
+  it("dit que le fichier d'origine est conservé, et ne propose de le télécharger qu'à qui peut lire les documents restreints", async () => {
+    await create(['financial-accounts:view', 'documents:view']);
+    await upload(batch(mixed, { documentId: 'd1' }));
+    expect(root.textContent).toContain("Le fichier d'origine est conservé comme document restreint");
+    expect(root.querySelector('a[href="/api/documents/d1/download"]')).toBeNull();
+
+    TestBed.resetTestingModule();
+    await create(['financial-accounts:view', 'documents:view', 'documents.restricted:view']);
+    await upload(batch(mixed, { documentId: 'd1' }));
+    expect(root.querySelector('a[href="/api/documents/d1/download"]')!.textContent).toContain("Télécharger le fichier d'origine");
+  });
+
+  it("n'annonce rien quand aucun fichier d'origine n'est conservé", async () => {
+    await create(['documents:view', 'documents.restricted:view']);
+    await upload(batch(mixed, { documentId: null }));
+    expect(root.textContent).not.toContain("fichier d'origine");
+    expect(root.querySelector('a[href^="/api/documents/"]')).toBeNull();
   });
 
   it('exige un choix explicite pour une ligne à rapprocher, sans valeur par défaut', async () => {

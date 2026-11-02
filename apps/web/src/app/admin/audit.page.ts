@@ -9,6 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { describeHttpError } from '../auth/error-messages';
 import { ActionBar } from '../ui/action-bar';
 import { AdminApiService, type AuditEntry, type AuditFilters, type IntegrityReport } from './admin-api.service';
+import { ExportLink } from '../reports/export-link';
 import { actionLabel } from './audit-labels';
 
 /** Début de journée locale (from) ou fin de journée locale (to) au format ISO, pour des bornes inclusives. */
@@ -20,7 +21,7 @@ export function dayBound(value: string, end: boolean): string | undefined {
 
 @Component({
   selector: 'app-audit-page',
-  imports: [ActionBar, DatePipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [ActionBar, DatePipe, ExportLink, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: './admin-pages.scss',
   template: `
     <app-action-bar
@@ -31,6 +32,7 @@ export function dayBound(value: string, end: boolean): string | undefined {
         <mat-icon fontSet="material-icons-outlined">verified_user</mat-icon>
         Vérifier l'intégrité
       </button>
+      <app-export-link base="/api/audit/csv" [params]="applied()" />
     </app-action-bar>
 
     @if (report(); as result) {
@@ -144,6 +146,8 @@ export class AuditPage {
   private readonly api = inject(AdminApiService);
 
   protected readonly filters = inject(FormBuilder).nonNullable.group({ action: '', objectType: '', from: '', to: '' });
+  /** Critères de la dernière recherche : l'export reprend exactement ce qui est affiché, pas ce qui est saisi sans être recherché. */
+  protected readonly applied = signal<Record<string, string>>({});
   protected readonly entries = signal<AuditEntry[]>([]);
   protected readonly nextCursor = signal<number | null>(null);
   protected readonly actions = signal<string[]>([]);
@@ -216,6 +220,7 @@ export class AuditPage {
         ...(dayBound(from, false) && { from: dayBound(from, false)! }),
         ...(dayBound(to, true) && { to: dayBound(to, true)! }),
       };
+      if (before === undefined) this.applied.set(Object.fromEntries(Object.entries(criteria).filter(([, value]) => value)) as Record<string, string>);
       const page = await this.api.listAudit(criteria, before);
       this.entries.update((current) => [...current, ...page.items]);
       this.nextCursor.set(page.nextCursor);

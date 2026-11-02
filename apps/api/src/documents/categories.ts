@@ -16,7 +16,7 @@ export function isDocumentCategory(value: string): value is DocumentCategory {
 }
 
 /** Types d'objets auxquels un document peut être lié ; la liste s'étendra avec les modules concernés. */
-export const LINKABLE_OBJECT_TYPES = ["member", "project", "grant", "transaction", "expense", "journal-entry"] as const;
+export const LINKABLE_OBJECT_TYPES = ["member", "project", "grant", "transaction", "expense", "journal-entry", "import"] as const;
 
 export type LinkableObjectType = (typeof LINKABLE_OBJECT_TYPES)[number];
 
