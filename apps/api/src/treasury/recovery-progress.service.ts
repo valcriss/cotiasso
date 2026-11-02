@@ -100,7 +100,7 @@ export class RecoveryProgressService {
     if (years.length === 0) return { generatedAt: now.toISOString(), years: [] };
 
     const yearIds = years.map((y) => y.id);
-    const [counts, openings, reconciliations, statements, documents, drafts] = await Promise.all([
+    const [counts, openings, reconciliations, statements, documents, drafts, situation] = await Promise.all([
       this.counts(yearIds),
       this.prisma.recoveryBatchItem.findMany({
         where: { kind: "OPENING" },
@@ -110,6 +110,11 @@ export class RecoveryProgressService {
       this.prisma.bankStatement.groupBy({ by: ["financialAccountId"], _max: { periodEnd: true } }),
       this.documents(yearIds),
       this.draftDiagnoses(yearIds),
+      // Situation d'ouverture (ADR 0029) : une seule écriture reprend les soldes de plusieurs comptes à la fois.
+      this.prisma.openingSituation.findFirst({
+        where: { entry: { status: { not: "REVERSED" } } },
+        select: { entry: { select: { status: true, lines: { select: { accountId: true } } } } },
+      }),
     ]);
 
     const accounts = await this.prisma.financialAccount.findMany({ orderBy: { name: "asc" } });
@@ -158,7 +163,7 @@ export class RecoveryProgressService {
         let opening: AccountProgress["opening"] = null;
         if (account.openedOn >= year.start && account.openedOn <= year.end) {
           const amount = account.openingBalance.toFixed(2);
-          const entryStatus = openingState.get(account.id);
+          const entryStatus = situation?.entry.lines.some((l) => l.accountId === account.accountId) ? situation.entry.status : openingState.get(account.id);
           const state: OpeningState = account.openingBalance.isZero() ? "NOT_NEEDED" : entryStatus === "POSTED" ? "POSTED" : entryStatus === "DRAFT" ? "DRAFT" : entryStatus === "REVERSED" ? "REVERSED" : "TO_PREPARE";
           opening = { state, amount };
           const base = { financialAccountId: account.id, financialAccountName: account.name, count: 1 };

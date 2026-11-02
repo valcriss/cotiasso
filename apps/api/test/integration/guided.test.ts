@@ -95,7 +95,7 @@ describe("Parcours simplifiés : catégories, saisie guidée et vue d'ensemble (
     const response = await call("GET", "/overview", treasurer);
     expect(response.statusCode).toBe(200);
     const overview = response.json();
-    expect(overview.setup).toEqual({ fiscalYear: false, accounts: false, financialAccount: false, categories: false });
+    expect(overview.setup).toEqual({ fiscalYear: false, accounts: false, financialAccount: false, categories: false, startMode: null, openingSituation: "NONE" });
     expect(overview.todo.map((t: { code: string }) => t.code)).toEqual(["NO_FISCAL_YEAR", "NO_FINANCIAL_ACCOUNT"]);
   });
 
@@ -266,7 +266,7 @@ describe("Parcours simplifiés : catégories, saisie guidée et vue d'ensemble (
 
     it("la vue d'ensemble compte l'argent, le mois et les brouillons à relire", async () => {
       const overview = (await call("GET", "/overview", treasurer)).json();
-      expect(overview.setup).toEqual({ fiscalYear: true, accounts: true, financialAccount: true, categories: true });
+      expect(overview.setup).toEqual({ fiscalYear: true, accounts: true, financialAccount: true, categories: true, startMode: null, openingSituation: "NONE" });
       expect(overview.cash.total).toBe("109.50");
       expect(overview.todo.map((t: { code: string }) => t.code)).toContain("DRAFTS");
       expect(overview.todo.find((t: { code: string }) => t.code === "TO_VERIFY")).toMatchObject({ level: "INFO" });

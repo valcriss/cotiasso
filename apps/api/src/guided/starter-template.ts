@@ -22,6 +22,10 @@ export const TEMPLATE_ACCOUNTS: readonly TemplateAccount[] = [
   { number: "110", label: "Report à nouveau" },
   { number: "120", label: "Résultat de l'exercice (excédent)" },
   { number: "129", label: "Résultat de l'exercice (déficit)" },
+  { number: "401", label: "Fournisseurs (factures à payer)" },
+  { number: "411", label: "Adhérents et usagers (sommes à recevoir)" },
+  { number: "441", label: "Subventions à recevoir" },
+  { number: "467", label: "Autres comptes débiteurs ou créditeurs" },
   { number: "512", label: "Banque" },
   { number: "530", label: "Caisse" },
   { number: "606", label: "Achats non stockés (fournitures, petit matériel)" },
@@ -61,4 +65,25 @@ export const TEMPLATE_CATEGORIES: readonly TemplateCategory[] = [
   { direction: "IN", label: "Vente (buvette, objets…)", hint: "Ventes de produits : buvette, vide-grenier, objets.", accountNumber: "707" },
   { direction: "IN", label: "Intérêts bancaires", hint: "Intérêts versés par la banque sur un livret.", accountNumber: "768" },
   { direction: "IN", label: "Autre recette", hint: "À utiliser si aucune autre catégorie ne convient.", accountNumber: "758" },
+];
+
+/**
+ * Lignes proposées pour une situation d'ouverture (ADR 0029) : ce qu'on vous doit (créance, au débit) et ce que vous devez
+ * (dette, au crédit), en langage courant, chacune rattachée à un compte du plan. Le trésorier choisit une phrase, pas un
+ * numéro ; le compte doit exister et être actif dans le plan (sinon la ligne est indisponible, jamais devinée).
+ */
+export interface OpeningKind {
+  key: string;
+  side: "RECEIVABLE" | "PAYABLE";
+  label: string;
+  hint: string;
+  accountNumber: string;
+}
+
+export const OPENING_KINDS: readonly OpeningKind[] = [
+  { key: "MEMBERSHIP_DUE", side: "RECEIVABLE", label: "Cotisation ou participation pas encore reçue", hint: "Un adhérent ou un participant vous doit encore de l'argent.", accountNumber: "411" },
+  { key: "GRANT_DUE", side: "RECEIVABLE", label: "Subvention accordée, pas encore versée", hint: "Un financeur a décidé de vous verser une somme qui n'est pas encore arrivée.", accountNumber: "441" },
+  { key: "OTHER_DUE", side: "RECEIVABLE", label: "Autre somme qu'on vous doit", hint: "Toute autre somme qui doit encore vous être versée.", accountNumber: "467" },
+  { key: "SUPPLIER_OWED", side: "PAYABLE", label: "Facture reçue, pas encore payée", hint: "Un fournisseur ou un prestataire attend votre paiement.", accountNumber: "401" },
+  { key: "OTHER_OWED", side: "PAYABLE", label: "Autre somme que vous devez", hint: "Toute autre somme que l'association doit encore verser.", accountNumber: "467" },
 ];

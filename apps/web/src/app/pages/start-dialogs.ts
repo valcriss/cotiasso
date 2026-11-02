@@ -111,6 +111,8 @@ export class StartYearDialog {
 export interface StartAccountDialogData {
   /** Comptes financiers déjà créés : un compte du plan ne sert qu'à un seul d'entre eux. */
   existing: FinancialAccountInfo[];
+  /** Date de départ proposée (début de l'exercice quand on repart d'une situation d'ouverture) ; sinon aujourd'hui. */
+  defaultDate?: string | null;
 }
 
 /**
@@ -176,7 +178,7 @@ export class StartAccountDialog {
   protected readonly form = this.fb.group({
     type: ['BANK' as 'BANK' | 'CASH'],
     name: ['', [Validators.required]],
-    openedOn: [new Date().toISOString().slice(0, 10), [Validators.required]],
+    openedOn: [this.data.defaultDate ?? new Date().toISOString().slice(0, 10), [Validators.required]],
     openingBalance: ['0'],
   });
 

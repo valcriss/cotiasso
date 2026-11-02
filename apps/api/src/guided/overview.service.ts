@@ -3,6 +3,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { AuthorizationService } from "../authz/authorization.service.js";
 import type { Permission } from "../authz/permissions.js";
 import { PrismaService } from "../prisma/prisma.service.js";
+import { OpeningSituationService } from "./opening-situation.service.js";
 
 export type TodoLevel = "TODO" | "WARNING" | "INFO";
 
@@ -20,7 +21,15 @@ export interface TodoItem {
 
 export interface OverviewView {
   /** Ce qui est installé : sert à l'assistant de démarrage et aux états vides. */
-  setup: { fiscalYear: boolean; accounts: boolean; financialAccount: boolean; categories: boolean };
+  setup: {
+    fiscalYear: boolean;
+    accounts: boolean;
+    financialAccount: boolean;
+    categories: boolean;
+    /** Mode de démarrage choisi (vide tant que non choisi) et état de la situation d'ouverture (ADR 0029). */
+    startMode: "HISTORY" | "OPENING" | null;
+    openingSituation: "NONE" | "DRAFT" | "POSTED";
+  };
   /** Argent disponible sur les comptes de banque et de caisse (somme du solde de chaque compte), absent sans droit de lecture. */
   cash: { total: string; accounts: { id: string; name: string; balance: string }[] } | null;
   /** Argent entré et sorti depuis le début du mois (les virements entre vos comptes ne comptent pas). */
@@ -39,6 +48,7 @@ export class OverviewService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AuthorizationService) private readonly authz: AuthorizationService,
+    @Inject(OpeningSituationService) private readonly situation: OpeningSituationService,
   ) {}
 
   async overview(userId: string, now: Date = new Date()): Promise<OverviewView> {
@@ -51,7 +61,15 @@ export class OverviewService {
       this.prisma.financialAccount.count({ where: { archivedOn: null } }),
       this.prisma.operationCategory.count({ where: { active: true } }),
     ]);
-    const setup = { fiscalYear: fiscalYears > 0, accounts: planAccounts > 0, financialAccount: financialAccounts > 0, categories: categories > 0 };
+    const [startMode, situation] = await Promise.all([this.situation.mode(), this.situation.existing()]);
+    const setup = {
+      fiscalYear: fiscalYears > 0,
+      accounts: planAccounts > 0,
+      financialAccount: financialAccounts > 0,
+      categories: categories > 0,
+      startMode,
+      openingSituation: (situation ? situation.status : "NONE") as "NONE" | "DRAFT" | "POSTED",
+    };
 
     const todo: TodoItem[] = [];
     if (can("settings.accounting:admin")) {
@@ -82,6 +100,20 @@ export class OverviewService {
         detail: "C'est sur lui que vous enregistrerez l'argent reçu et dépensé. Ajoutez aussi la caisse si vous en avez une.",
         link: "/demarrage",
         actionLabel: "Ajouter",
+      });
+    }
+
+    if (setup.financialAccount && startMode === "OPENING" && setup.openingSituation !== "POSTED" && can("settings.accounting:admin")) {
+      todo.push({
+        code: "OPENING_SITUATION",
+        level: "TODO",
+        title: setup.openingSituation === "DRAFT" ? "Enregistrer votre situation de départ" : "Indiquer votre situation de départ",
+        detail:
+          setup.openingSituation === "DRAFT"
+            ? "Elle est préparée mais pas encore enregistrée dans les comptes : relisez-la puis enregistrez-la."
+            : "Dites combien d'argent vous avez au départ, ce qu'on vous doit et ce que vous devez : c'est le point de départ de vos comptes.",
+        link: "/demarrage",
+        actionLabel: "Continuer",
       });
     }
 

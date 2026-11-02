@@ -2,15 +2,16 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
-import { AdminApiService, type FinancialAccountInfo, type FiscalYearInfo, type OverviewInfo } from '../admin/admin-api.service';
+import { AdminApiService, type FinancialAccountInfo, type FiscalYearInfo, type OpeningSituationInfo, type OverviewInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { PageHeader } from '../ui/page-header';
+import { OpeningSituationDialog, type OpeningSituationDialogData } from './opening-situation-dialog';
 import { StartAccountDialog, StartYearDialog, type StartAccountDialogData } from './start-dialogs';
 
 interface Step {
-  key: 'year' | 'categories' | 'account';
+  key: 'mode' | 'year' | 'categories' | 'account' | 'situation';
   title: string;
   why: string;
   done: boolean;
@@ -72,7 +73,7 @@ interface Step {
     <app-page-header
       title="Démarrer"
       icon="rocket_launch"
-      description="Trois étapes pour préparer votre association : la période de vos comptes, des catégories prêtes à l’emploi, puis votre compte bancaire. Aucune connaissance en comptabilité n’est nécessaire."
+      description="Quelques étapes pour préparer votre association : comment vous commencez, la période de vos comptes, des catégories prêtes à l’emploi, votre compte bancaire et, si vous repartez de zéro, votre situation de départ. Aucune connaissance en comptabilité n’est nécessaire."
     />
 
     @if (error(); as message) {
@@ -87,7 +88,21 @@ interface Step {
             <div class="text">
               <h3>{{ index + 1 }}. {{ step.title }} @if (step.done) { <span class="chip">Fait</span> }</h3>
               <p class="muted">{{ step.why }}</p>
-              @if (!step.done) {
+              @if (step.key === 'mode') {
+                <div class="actions">
+                  <button mat-flat-button type="button" [disabled]="busy() || view.setup.startMode === 'OPENING'" (click)="chooseMode('OPENING')">
+                    Je pars d’une situation de départ
+                  </button>
+                  <button mat-stroked-button type="button" [disabled]="busy() || view.setup.startMode === 'HISTORY'" (click)="chooseMode('HISTORY')">
+                    Je reprends mon historique
+                  </button>
+                </div>
+              } @else if (step.key === 'situation' && view.setup.openingSituation === 'DRAFT') {
+                <p class="alert" role="status">
+                  La situation est préparée mais pas encore enregistrée dans les comptes : une personne autorisée à comptabiliser doit la valider
+                  (Comptabilité › Écritures).
+                </p>
+              } @else if (!step.done) {
                 <div class="actions">
                   <button mat-flat-button type="button" [disabled]="step.locked || busy()" (click)="run(step.key)">
                     {{ label(step.key) }}
@@ -130,17 +145,31 @@ export class StartPage {
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
   private accounts: FinancialAccountInfo[] = [];
+  /** Début du premier exercice : date de départ proposée aux comptes quand on repart d'une situation d'ouverture. */
+  private defaultStart: string | null = null;
 
   protected readonly steps = computed<Step[]>(() => {
     const setup = this.overview()?.setup;
     if (!setup) return [];
     return [
       {
+        key: 'mode',
+        title: 'Comment commencez-vous ?',
+        why:
+          setup.startMode === 'OPENING'
+            ? 'Vous repartez d’une situation de départ : l’argent que vous avez, ce qu’on vous doit et ce que vous devez à une date donnée. Vous n’avez pas à reprendre les anciens relevés.'
+            : setup.startMode === 'HISTORY'
+              ? 'Vous reprenez votre historique : vous importerez les relevés des périodes passées, mouvement par mouvement, depuis le début.'
+              : 'Deux façons de commencer. « Situation de départ » : plus simple, recommandée si vous n’avez pas de relevés anciens à reprendre. « Historique » : vous importez vos relevés depuis la création de l’association. Vous pourrez changer d’avis tant que rien n’est engagé.',
+        done: setup.startMode !== null,
+        locked: false,
+      },
+      {
         key: 'year',
         title: 'La période de votre comptabilité',
         why: 'Une association arrête ses comptes une fois par an. Indiquez le premier et le dernier jour de la période (souvent l’année civile).',
         done: setup.fiscalYear,
-        locked: false,
+        locked: setup.startMode === null && !setup.fiscalYear,
       },
       {
         key: 'categories',
@@ -156,21 +185,63 @@ export class StartPage {
         done: setup.financialAccount,
         locked: !setup.categories,
       },
+      ...(setup.startMode === 'OPENING'
+        ? [
+            {
+              key: 'situation' as const,
+              title: 'Votre situation de départ',
+              why: 'L’argent que vous avez au départ, ce qu’on vous doit et ce que vous devez. Le logiciel calcule le reste, que vous confirmez : c’est le point de départ de vos comptes.',
+              done: setup.openingSituation === 'POSTED',
+              locked: !setup.financialAccount,
+            },
+          ]
+        : []),
     ];
   });
-  protected readonly allDone = computed(() => this.steps().length > 0 && this.steps().every((s) => s.done));
+  /** Le choix du mode ne bloque pas « Tout est prêt » : une installation déjà commencée avant ce choix reste utilisable. */
+  protected readonly allDone = computed(() => {
+    const steps = this.steps().filter((s) => s.key !== 'mode');
+    return steps.length > 0 && steps.every((s) => s.done);
+  });
 
   constructor() {
     void this.load();
   }
 
   protected label(key: Step['key']): string {
-    return { year: 'Définir la période', categories: 'Installer les catégories', account: 'Ajouter mon compte' }[key];
+    return { mode: 'Choisir', year: 'Définir la période', categories: 'Installer les catégories', account: 'Ajouter mon compte', situation: 'Indiquer ma situation' }[key];
+  }
+
+  protected async chooseMode(mode: 'HISTORY' | 'OPENING'): Promise<void> {
+    this.error.set(null);
+    this.busy.set(true);
+    try {
+      await this.api.setStartMode(mode);
+      this.notifier.success(mode === 'OPENING' ? 'Vous repartez d’une situation de départ.' : 'Vous reprenez votre historique.');
+    } catch (failure) {
+      this.error.set(describeHttpError(failure, "Le choix n'a pas pu être enregistré. Réessayez dans un instant.").message);
+      return;
+    } finally {
+      this.busy.set(false);
+    }
+    await this.load();
   }
 
   protected async run(key: Step['key']): Promise<void> {
     this.error.set(null);
-    if (key === 'year') {
+    if (key === 'situation') {
+      let situation: OpeningSituationInfo;
+      try {
+        situation = await this.api.openingSituation();
+      } catch (failure) {
+        this.error.set(describeHttpError(failure, "La situation de départ n'a pas pu être chargée. Réessayez dans un instant.").message);
+        return;
+      }
+      const result = await this.dialogs.open<{ posted: boolean }, OpeningSituationDialogData>(OpeningSituationDialog, { size: 'lg', data: { situation } });
+      if (result) {
+        this.notifier.success(result.posted ? 'Situation de départ enregistrée dans les comptes.' : 'Situation de départ préparée : elle reste à valider.');
+      }
+    } else if (key === 'year') {
       const created = await this.dialogs.open<FiscalYearInfo>(StartYearDialog, { size: 'md' });
       if (created) this.notifier.success(`Période enregistrée : ${created.label}.`);
     } else if (key === 'categories') {
@@ -192,7 +263,7 @@ export class StartPage {
         this.busy.set(false);
       }
     } else {
-      const created = await this.dialogs.open<FinancialAccountInfo, StartAccountDialogData>(StartAccountDialog, { size: 'md', data: { existing: this.accounts } });
+      const created = await this.dialogs.open<FinancialAccountInfo, StartAccountDialogData>(StartAccountDialog, { size: 'md', data: { existing: this.accounts, defaultDate: this.defaultStart } });
       if (created) this.notifier.success(`Compte « ${created.name} » ajouté.`);
     }
     await this.load();
@@ -200,8 +271,9 @@ export class StartPage {
 
   private async load(): Promise<void> {
     try {
-      const [overview, accounts] = await Promise.all([this.api.overview(), this.api.listFinancialAccounts()]);
+      const [overview, accounts, years] = await Promise.all([this.api.overview(), this.api.listFinancialAccounts(), this.api.listFiscalYears()]);
       this.accounts = accounts;
+      this.defaultStart = overview.setup.startMode === 'OPENING' ? ([...years].map((y) => y.start).sort()[0] ?? null) : null;
       this.overview.set(overview);
     } catch (failure) {
       this.error.set(describeHttpError(failure, "L'assistant n'a pas pu être chargé. Rechargez la page dans un instant.").message);

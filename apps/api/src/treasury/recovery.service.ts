@@ -240,6 +240,9 @@ export class RecoveryService {
     const account = await this.prisma.financialAccount.findUnique({ where: { id: input.financialAccountId }, include: { account: { select: { number: true } } } });
     if (!account) throw new AccountingNotFoundError("Compte financier");
     const opening = account.openingBalance;
+    if (await this.prisma.openingSituation.count({ where: { entry: { status: { not: "REVERSED" } } } })) {
+      throw new AccountingConflictError("Les soldes de départ sont déjà repris par la situation d'ouverture : les reprendre aussi ici les ferait compter deux fois. Supprimez ou annulez d'abord la situation d'ouverture.");
+    }
     if (opening.isZero()) {
       throw new AccountingConflictError(`Le compte « ${account.name} » a un solde d'ouverture nul : il n'y a rien à reprendre.`);
     }

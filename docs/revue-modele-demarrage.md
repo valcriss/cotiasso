@@ -16,6 +16,10 @@ Pour chaque ligne des tableaux : **valider**, **corriger le numéro ou le libell
 | 110 | Report à nouveau | | |
 | 120 | Résultat de l'exercice (excédent) | | |
 | 129 | Résultat de l'exercice (déficit) | | |
+| 401 | Fournisseurs (factures à payer) | | |
+| 411 | Adhérents et usagers (sommes à recevoir) | | |
+| 441 | Subventions à recevoir | | |
+| 467 | Autres comptes débiteurs ou créditeurs | | |
 | 512 | Banque | | |
 | 530 | Caisse | | |
 | 606 | Achats non stockés (fournitures, petit matériel) | | |
@@ -62,19 +66,32 @@ Une catégorie est le mot que voit le trésorier (« Assurance »). Elle désign
 
 Le **rôle particulier** désigne la catégorie proposée d'office quand on rattache un règlement de cotisation (« cotisations ») ou un versement de subvention (« subventions ») à l'argent reçu : une seule catégorie par rôle.
 
+## 2 bis. Lignes de la « situation d'ouverture » (ADR 0029)
+
+Quand une association repart d'une situation de départ au lieu de reprendre son historique, le trésorier indique, en mots courants, ce qu'on lui doit (créances, au débit) et ce qu'elle doit (dettes, au crédit). Chaque phrase renvoie à un compte ci-dessus ; le reste (argent, fonds de l'association) est calculé et se confirme.
+
+| Sens | Phrase proposée | Compte | Avis | Remarque |
+| --- | --- | --- | --- | --- |
+| On vous doit | Cotisation ou participation pas encore reçue | 411 | | |
+| On vous doit | Subvention accordée, pas encore versée | 441 | | |
+| On vous doit | Autre somme qu'on vous doit | 467 | | |
+| Vous devez | Facture reçue, pas encore payée | 401 | | |
+| Vous devez | Autre somme que vous devez | 467 | | |
+
 ## 3. Ce que le logiciel fait avec ces comptes (à vérifier)
 
 - **Saisie guidée** (« J'ai reçu / J'ai dépensé de l'argent ») : une écriture à deux lignes, banque/caisse et catégorie ; le projet « Fonctionnement » est mis par défaut sur les lignes de charges et de produits ; l'écriture est comptabilisée immédiatement si la personne en a le droit, sinon laissée en brouillon.
 - **Compte du résultat à la clôture** : excédent proposé sur **120**, déficit sur **129**, à défaut **110** (report à nouveau). L'écriture d'à-nouveaux reprend les soldes des classes 1 à 5 et le résultat des classes 6-7 ; l'affectation par l'assemblée générale reste une écriture à saisir à la main.
 - **Comptes de banque et de caisse** : 512 (puis 5121, 5122… pour un second compte bancaire) et 530 (puis 5301…), un compte du plan par compte financier.
 - **Virements entre comptes de l'association** : écriture de banque à banque, **sans** compte de virements internes (580) ; à valider (ADR 0017).
-- **Cotisations** : produit constaté à l'**encaissement**, sans créance (ADR 0002 et 0004).
+- **Cotisations** : produit constaté à l'**encaissement**, sans créance (ADR 0002 et 0004). Les comptes 411 et 441 ne servent **qu'à la situation d'ouverture** : aucune créance n'est constatée ailleurs.
+- **Situation d'ouverture** : une **seule écriture** du journal des à-nouveaux, à la date de départ des comptes : banque et caisse (soldes de départ), sommes à recevoir (débit), sommes à payer (crédit), et le **fonds de l'association** (écart calculé) au compte de capitaux choisi (102 proposé, sinon 110), avec l'origine écrite par le trésorier. Aucun compte d'équilibrage automatique.
 
 ## 4. Questions ouvertes
 
 1. Le plan est-il **adapté à une petite association** (recettes : cotisations, dons, subventions, billetterie, ventes, intérêts) ? Quels comptes manquent pour un cas courant (dons manuels 7541 ? mécénat ? contributions volontaires en nature classe 8 ?).
 2. Les numéros **754 « Dons et libéralités »**, **756 « Cotisations »** et **740 « Subventions d'exploitation »** conviennent-ils, ou faut-il des sous-comptes (7541, 7561…) ?
-3. Faut-il prévoir d'office des comptes de **tiers** (adhérents, fournisseurs : 411, 401, 467) pour les cotisations non réglées ou les factures non parvenues ? Aujourd'hui, **aucune créance** n'est constatée : le produit apparaît à l'encaissement.
+3. Les comptes de **tiers** 411, 401, 441 et 467 sont maintenant installés **uniquement pour la situation d'ouverture** (sommes à recevoir et à payer au jour du départ). Conviennent-ils, ou faut-il d'autres comptes (4141, 4091, 448…) ? Pour le reste, **aucune créance** n'est constatée : le produit apparaît à l'encaissement.
 4. Les **catégories de dépenses** couvrent-elles les postes habituels ? (Absents volontairement : salaires et charges sociales, impôts et taxes, amortissements, fonds dédiés — modules à valider.)
 5. Les rubriques par défaut du **compte de résultat et du bilan** (`Account.reportLine`, catalogue en code, ADR 0020) sont-elles cohérentes avec ces numéros ?
 6. Les intitulés sont-ils acceptables **face à un commissaire aux comptes ou à un financeur** ? Lesquels remplacer ?

@@ -43,12 +43,16 @@ export const brandingSchema = z
  */
 export const accountingSchema = z.strictObject({ projectRequired: z.boolean() });
 
+/** Mode de démarrage (ADR 0029) : reprendre l'historique ou partir d'une situation d'ouverture ; vide tant que non choisi. */
+const startSchema = z.object({ mode: z.enum(["HISTORY", "OPENING"]).nullable() }).strict();
+
 export type Identity = z.infer<typeof identitySchema>;
 /** Adhésion effective (ADR 0004, 0023) : mode proposé aux nouvelles campagnes, figé sur chaque campagne à sa création. */
 const membershipSchema = z.object({ effectiveMode: z.enum(["PAYMENT", "VALIDATION", "START_DATE"]) }).strict();
 
 export type Branding = z.infer<typeof brandingSchema>;
 export type MembershipSettings = z.infer<typeof membershipSchema>;
+export type StartSettings = z.infer<typeof startSchema>;
 export type AccountingSettings = z.infer<typeof accountingSchema>;
 
 export const SETTINGS_SECTIONS = {
@@ -64,6 +68,10 @@ export const SETTINGS_SECTIONS = {
     schema: membershipSchema,
     defaults: { effectiveMode: "PAYMENT" } satisfies MembershipSettings,
   },
+  start: {
+    schema: startSchema,
+    defaults: { mode: null } satisfies StartSettings,
+  },
   branding: {
     schema: brandingSchema,
     defaults: { appName: "cotiasso", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55", accentColor: DEFAULT_ACCENT } satisfies Branding,
@@ -73,7 +81,7 @@ export const SETTINGS_SECTIONS = {
 export type SettingsSection = keyof typeof SETTINGS_SECTIONS;
 
 /** Rubriques qui ne passent pas par l'API générique des paramètres : leurs droits propres sont portés par leur module. */
-export const MODULE_OWNED_SECTIONS: readonly SettingsSection[] = ["accounting"];
+export const MODULE_OWNED_SECTIONS: readonly SettingsSection[] = ["accounting", "start"];
 
 export function isSettingsSection(value: string): value is SettingsSection {
   return Object.hasOwn(SETTINGS_SECTIONS, value) && !MODULE_OWNED_SECTIONS.includes(value as SettingsSection);

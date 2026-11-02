@@ -361,6 +361,7 @@ model JournalEntry {
   lines        JournalLine[]
   matches      TreasuryMatch[]
   recoveryItem RecoveryBatchItem?
+  openingSituation OpeningSituation?
   settledCommitments Commitment[]
 
   @@unique([journalId, fiscalYearId, number])
@@ -1170,4 +1171,16 @@ model OperationCategory {
   createdBy String?            @db.Uuid
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+}
+
+// Situation d'ouverture (ADR 0029) : l'écriture unique qui reprend les soldes de départ (argent, sommes à recevoir et à
+// payer, fonds de l'association). Une seule vivante à la fois ; la corriger = supprimer son brouillon ou l'annuler.
+model OpeningSituation {
+  id        String   @id @default(uuid()) @db.Uuid
+  entryId   String   @unique @db.Uuid
+  date      DateTime @db.Date
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  createdBy String?  @db.Uuid
+
+  entry JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
 }

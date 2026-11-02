@@ -293,10 +293,50 @@ export interface TodoItemInfo {
 }
 
 export interface OverviewInfo {
-  setup: { fiscalYear: boolean; accounts: boolean; financialAccount: boolean; categories: boolean };
+  setup: {
+    fiscalYear: boolean;
+    accounts: boolean;
+    financialAccount: boolean;
+    categories: boolean;
+    startMode: 'HISTORY' | 'OPENING' | null;
+    openingSituation: 'NONE' | 'DRAFT' | 'POSTED';
+  };
   cash: { total: string; accounts: { id: string; name: string; balance: string }[] } | null;
   month: { from: string; to: string; received: string; spent: string } | null;
   todo: TodoItemInfo[];
+}
+
+export type StartModeInfo = 'HISTORY' | 'OPENING' | null;
+
+export interface OpeningSituationInfo {
+  mode: StartModeInfo;
+  date: string | null;
+  accounts: { id: string; name: string; openedOn: string; openingBalance: string }[];
+  misaligned: { id: string; name: string; openedOn: string }[];
+  kinds: { key: string; side: 'RECEIVABLE' | 'PAYABLE'; label: string; hint: string; available: boolean }[];
+  equityAccounts: { id: string; number: string; label: string }[];
+  suggestedEquityAccountId: string | null;
+  existing: { entryId: string; date: string; status: 'DRAFT' | 'POSTED' } | null;
+  fiscalYear: boolean;
+}
+
+export interface OpeningSituationBody {
+  date: string;
+  receivables: { kind: string; label: string; amount: string }[];
+  payables: { kind: string; label: string; amount: string }[];
+  equityAmount: string;
+  equityAccountId?: string | null;
+  explanation?: string | null;
+  post?: boolean;
+}
+
+export interface OpeningSituationResultInfo {
+  entryId: string;
+  posted: boolean;
+  journalCode: string;
+  number: number | null;
+  equity: string;
+  lines: number;
 }
 
 export interface GuidedOperationBody {
@@ -1940,6 +1980,18 @@ export class AdminApiService {
 
   releaseNotes(): Promise<ReleaseNotesInfo> {
     return firstValueFrom(this.http.get<ReleaseNotesInfo>('/api/operations/release-notes'));
+  }
+
+  setStartMode(mode: StartModeInfo): Promise<{ mode: StartModeInfo }> {
+    return firstValueFrom(this.http.put<{ mode: StartModeInfo }>('/api/start-mode', { mode }));
+  }
+
+  openingSituation(): Promise<OpeningSituationInfo> {
+    return firstValueFrom(this.http.get<OpeningSituationInfo>('/api/opening-situation'));
+  }
+
+  recordOpeningSituation(body: OpeningSituationBody): Promise<OpeningSituationResultInfo> {
+    return firstValueFrom(this.http.post<OpeningSituationResultInfo>('/api/opening-situation', body));
   }
 
   overview(): Promise<OverviewInfo> {

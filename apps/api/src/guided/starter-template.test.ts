@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { TEMPLATE_ACCOUNTS, TEMPLATE_CATEGORIES } from "./starter-template.js";
+import { OPENING_KINDS, TEMPLATE_ACCOUNTS, TEMPLATE_CATEGORIES } from "./starter-template.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const sheet = readFileSync(join(here, "../../../../docs/revue-modele-demarrage.md"), "utf8");
@@ -31,6 +31,18 @@ describe("modèle de démarrage", () => {
   it("figure en entier dans la fiche de relecture de l'expert-comptable (la fiche ne dérive pas du code)", () => {
     for (const account of TEMPLATE_ACCOUNTS) expect(sheet, `compte ${account.number}`).toContain(`| ${account.number} | ${account.label} |`);
     for (const category of TEMPLATE_CATEGORIES) expect(sheet, `catégorie ${category.label}`).toContain(`| ${category.label} |`);
+  });
+
+  it("rattache chaque ligne de la situation d'ouverture à un compte du modèle, de tiers, et la fait relire", () => {
+    const numbers = TEMPLATE_ACCOUNTS.map((a) => a.number);
+    expect(new Set(OPENING_KINDS.map((k) => k.key)).size).toBe(OPENING_KINDS.length);
+    for (const kind of OPENING_KINDS) {
+      expect(numbers, kind.label).toContain(kind.accountNumber);
+      expect(kind.accountNumber.startsWith("4"), kind.label).toBe(true);
+      expect(sheet, kind.label).toContain(`| ${kind.label} | ${kind.accountNumber} |`);
+    }
+    expect(OPENING_KINDS.some((k) => k.side === "RECEIVABLE")).toBe(true);
+    expect(OPENING_KINDS.some((k) => k.side === "PAYABLE")).toBe(true);
   });
 
   it("dit que le modèle est une proposition sans affirmation de conformité", () => {

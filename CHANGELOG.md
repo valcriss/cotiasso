@@ -15,6 +15,7 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 ### Nouveautés
 
+- Démarrage : l'assistant « Démarrer » demande d'abord comment vous commencez. « Situation de départ » (recommandé sans relevés anciens) reprend en une seule écriture l'argent de vos comptes, ce qu'on vous doit et ce que vous devez ; le fonds de l'association est calculé, à confirmer et expliquer. « Historique » garde la reprise existante. Le modèle de départ gagne quatre comptes de tiers (401, 411, 441, 467), à faire relire.
 - **Un règlement, un geste** : en rattachant un règlement de cotisation ou un versement de subvention, une case permet de l'enregistrer aussi dans les comptes (catégorie désignée dans Paramètres › Comptabilité › Catégories, rôle « Cotisations » ou « Subventions »). Si l'enregistrement est refusé, le rattachement est conservé et le motif est donné.
 - **Préparer la validation** : protocole de test avec des trésoriers novices (docs/test-usage-tresoriers.md) et fiche de relecture du modèle de démarrage pour l'expert-comptable (docs/revue-modele-demarrage.md).
 - **Vocabulaire simplifié sur les derniers écrans** (affichage Simple) : le rapprochement bancaire devient « Vérification avec la banque », les virements internes « Déplacer de l'argent entre mes comptes », les rapports, l'import de relevé et les projets parlent de période, de dépenses et de recettes et d'opérations enregistrées. L'affichage Comptable garde les termes de l'expert.

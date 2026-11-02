@@ -12,6 +12,8 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
+  Query,
   Req,
 } from "@nestjs/common";
 import { AccountingConflictError, AccountingNotFoundError, AccountingValidationError } from "../accounting/errors.js";
@@ -19,6 +21,7 @@ import type { AuthenticatedRequest } from "../auth/auth.guard.js";
 import { Authenticated, RequirePermission } from "../authz/decorators.js";
 import { AuthorizationService } from "../authz/authorization.service.js";
 import { CategoriesService, type CategoryView, type TemplateResult } from "./categories.service.js";
+import { OpeningSituationService, type OpeningSituationResult, type OpeningSituationView, type StartMode } from "./opening-situation.service.js";
 import { OperationsService, type BulkBookResult, type OperationResult } from "./operations.service.js";
 import { OverviewService, type OverviewView } from "./overview.service.js";
 
@@ -43,6 +46,7 @@ export class GuidedController {
     @Inject(CategoriesService) private readonly categories: CategoriesService,
     @Inject(OperationsService) private readonly operations: OperationsService,
     @Inject(OverviewService) private readonly overviewService: OverviewService,
+    @Inject(OpeningSituationService) private readonly situation: OpeningSituationService,
     @Inject(AuthorizationService) private readonly authz: AuthorizationService,
   ) {}
 
@@ -106,5 +110,26 @@ export class GuidedController {
     const userId = request.auth!.user.id;
     const canPost = (await this.authz.permissionsFor(userId)).has("entries:post");
     return translate(() => this.operations.bookMany(id, body ?? {}, userId, canPost));
+  }
+
+  /** Mode de démarrage (ADR 0029) : reprise de l'historique ou situation d'ouverture. */
+  @RequirePermission("settings.accounting:admin")
+  @Put("start-mode")
+  setStartMode(@Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<{ mode: StartMode }> {
+    return translate(() => this.situation.setMode(body, request.auth!.user.id));
+  }
+
+  @RequirePermission("settings.accounting:admin")
+  @Get("opening-situation")
+  openingSituation(@Query("date") date?: string): Promise<OpeningSituationView> {
+    return translate(() => this.situation.view(date));
+  }
+
+  @RequirePermission("settings.accounting:admin", "entries:create")
+  @Post("opening-situation")
+  async recordOpeningSituation(@Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<OpeningSituationResult> {
+    const userId = request.auth!.user.id;
+    const canPost = (await this.authz.permissionsFor(userId)).has("entries:post");
+    return translate(() => this.situation.record(body, userId, canPost));
   }
 }

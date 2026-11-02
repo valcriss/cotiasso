@@ -20,4 +20,4 @@ Statut : retenu (2 novembre 2026), décisions prises avec l'utilisateur avant la
 
 - Progression des **membres, cotisations et subventions** reprises, ou des pièces jointes aux mouvements importés en masse : non faite.
 - Pourcentage pondéré par les montants, export CSV du tableau, historique d'avancement dans le temps : non faits.
-- Reprise par **situation d'ouverture** sans historique (autre mode de démarrage) : non faite.
+- Reprise par **situation d'ouverture** sans historique (autre mode de démarrage) : faite ensuite ([ADR 0029](0029-situation-d-ouverture-mode-de-demarrage.md)) ; le tableau compte les comptes qu'elle reprend.
