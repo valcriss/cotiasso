@@ -261,6 +261,8 @@ export class ProgressPage {
         return anomaly.financialAccountId && this.auth.can('financial-accounts:view')
           ? { path: ['/comptes', anomaly.financialAccountId, 'rapprochement'], label: 'Rapprocher' }
           : null;
+      case 'THIRD_PARTIES':
+        return { path: '/comptabilite/tiers', label: 'Voir les tiers' };
       case 'DOCUMENTS':
         return this.auth.can('documents:view') ? { path: '/documents', label: 'Ouvrir les documents' } : null;
       default:

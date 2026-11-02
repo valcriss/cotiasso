@@ -13,12 +13,14 @@ import {
   type EntryInfo,
   type JournalInfo,
   type ProjectInfo,
+  type ThirdPartyInfo,
 } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from './amount';
+import { ThirdPartyDialog } from './third-party-dialog';
 
 /** Valeur du sélecteur de projet pour une ligne déjà ventilée entre plusieurs projets : la ventilation est conservée. */
 export const MULTI_PROJECT = '__multi';
@@ -181,6 +183,7 @@ export const ENTRY_STATUS_LABELS = {
                 <th scope="col">Compte</th>
                 <th scope="col">Libellé de ligne</th>
                 <th scope="col">Projet</th>
+                <th scope="col">Qui ?</th>
                 <th scope="col" class="amount">Débit</th>
                 <th scope="col" class="amount">Crédit</th>
                 <th scope="col"><span class="sr-only">Actions</span></th>
@@ -224,6 +227,21 @@ export const ENTRY_STATUS_LABELS = {
                     }
                   </td>
                   <td>
+                    @if (needsParty(i)) {
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <mat-label>Qui ?</mat-label>
+                        <mat-select formControlName="thirdPartyId" [attr.aria-label]="'Tiers de la ligne ' + (i + 1)">
+                          <mat-option value="">Personne en particulier</mat-option>
+                          @for (party of partyOptions(); track party.id) {
+                            <mat-option [value]="party.id">{{ party.name }}</mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+                    } @else {
+                      <span class="muted">—</span>
+                    }
+                  </td>
+                  <td>
                     <mat-form-field appearance="outline" subscriptSizing="dynamic">
                       <mat-label>Débit</mat-label>
                       <input matInput class="amount" inputmode="decimal" formControlName="debit" />
@@ -251,7 +269,12 @@ export const ENTRY_STATUS_LABELS = {
             </tbody>
             <tfoot>
               <tr>
-                <td colspan="3"><button mat-button type="button" (click)="addLine()">+ Ajouter une ligne</button></td>
+                <td colspan="4">
+                  <button mat-button type="button" (click)="addLine()">+ Ajouter une ligne</button>
+                  @if (canAddParty()) {
+                    <button mat-button type="button" (click)="addParty()">+ Ajouter un tiers (adhérent, financeur, fournisseur…)</button>
+                  }
+                </td>
                 <td class="amount num">{{ totals().debit }}</td>
                 <td class="amount num">{{ totals().credit }}</td>
                 <td></td>
@@ -297,6 +320,7 @@ export const ENTRY_STATUS_LABELS = {
               <th scope="col">Compte</th>
               <th scope="col">Libellé</th>
               <th scope="col">Projet</th>
+              <th scope="col">Qui ?</th>
               <th scope="col" class="amount">Débit</th>
               <th scope="col" class="amount">Crédit</th>
             </tr>
@@ -307,6 +331,7 @@ export const ENTRY_STATUS_LABELS = {
                 <td>{{ line.accountNumber }} — {{ line.accountLabel }}</td>
                 <td>{{ line.label }}</td>
                 <td>{{ projectsOf(line.allocations) }}</td>
+                <td>{{ line.thirdParty?.name ?? '' }}</td>
                 <td class="amount num">{{ line.debit === '0.00' ? '' : format(line.debit) }}</td>
                 <td class="amount num">{{ line.credit === '0.00' ? '' : format(line.credit) }}</td>
               </tr>
@@ -314,7 +339,7 @@ export const ENTRY_STATUS_LABELS = {
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="3">Totaux</td>
+              <td colspan="4">Totaux</td>
               <td class="amount num">{{ format(e.totalDebit) }}</td>
               <td class="amount num">{{ format(e.totalCredit) }}</td>
             </tr>
@@ -349,6 +374,14 @@ export class EntryEditor {
   readonly accounts = input.required<AccountInfo[]>();
   /** Projets proposés pour la ventilation (non archivés) ; vide si l'utilisateur ne peut pas les consulter. */
   readonly projects = input<ProjectInfo[]>([]);
+  /** Tiers proposés (ADR 0030) : adhérents, financeurs, fournisseurs…; vide si la personne ne peut pas les consulter. */
+  readonly thirdParties = input<ThirdPartyInfo[]>([]);
+  /** Tiers ajoutés depuis cet écran ou déjà portés par l'écriture ouverte (même archivés, pour qu'ils restent lisibles). */
+  private readonly addedParties = signal<ThirdPartyInfo[]>([]);
+  protected readonly partyOptions = computed(() => {
+    const seen = new Set<string>();
+    return [...this.thirdParties(), ...this.addedParties()].filter((p) => !seen.has(p.id) && seen.add(p.id));
+  });
   /** Émis quand la liste doit être rechargée ; `id` désigne l'écriture à garder ouverte, absent si elle disparaît. */
   readonly changed = output<{ id: string | null }>();
   readonly closed = output<void>();
@@ -455,6 +488,24 @@ export class EntryEditor {
   protected needsProject(index: number): boolean {
     const id = this.lines.at(index).getRawValue().accountId;
     return /^[67]/.test(this.accounts().find((a) => a.id === id)?.number ?? '');
+  }
+
+  /** Le tiers se demande sur les comptes de tiers (classe 4) et là où il est déjà renseigné. */
+  protected needsParty(index: number): boolean {
+    const raw = this.lines.at(index).getRawValue();
+    return raw.thirdPartyId !== '' || /^4/.test(this.accounts().find((a) => a.id === raw.accountId)?.number ?? '');
+  }
+
+  protected canAddParty(): boolean {
+    return this.auth.can('entries:create');
+  }
+
+  protected async addParty(): Promise<void> {
+    const created = await this.dialogs.open<ThirdPartyInfo>(ThirdPartyDialog, { size: 'md' });
+    if (created) {
+      this.addedParties.update((list) => [...list, created]);
+      this.notifier.success(`« ${created.name} » ajouté aux tiers.`);
+    }
   }
 
   protected isSplit(index: number): boolean {
@@ -571,8 +622,13 @@ export class EntryEditor {
           credit: line.credit === '0.00' ? '' : line.credit,
           projectId: line.allocations.length === 0 ? '' : line.allocations.length === 1 ? line.allocations[0]!.projectId : MULTI_PROJECT,
           splits: line.allocations,
+          thirdPartyId: line.thirdParty?.id ?? '',
         }),
       );
+      if (line.thirdParty) {
+        const known = line.thirdParty;
+        this.addedParties.update((list) => (list.some((p) => p.id === known.id) ? list : [...list, { id: known.id, kind: known.kind, name: known.name, memberId: null, funderId: null, note: '', archived: false }]));
+      }
     }
     while (this.lines.length < 2) this.lines.push(this.newLine());
     this.form.patchValue({
@@ -585,7 +641,7 @@ export class EntryEditor {
   }
 
   private newLine(
-    value: { accountId?: string; label?: string; debit?: string; credit?: string; projectId?: string; splits?: AllocationInfo[] } = {},
+    value: { accountId?: string; label?: string; debit?: string; credit?: string; projectId?: string; splits?: AllocationInfo[]; thirdPartyId?: string } = {},
   ) {
     return this.fb.group({
       accountId: [value.accountId ?? '', [Validators.required]],
@@ -593,6 +649,7 @@ export class EntryEditor {
       debit: [value.debit ?? ''],
       credit: [value.credit ?? ''],
       projectId: [value.projectId ?? ''],
+      thirdPartyId: [value.thirdPartyId ?? ''],
       // Ventilation entre plusieurs projets, conservée telle quelle tant que l'utilisateur ne la remplace pas.
       splits: [value.splits ?? ([] as AllocationInfo[])],
     });
@@ -641,6 +698,7 @@ export class EntryEditor {
         credit: centsToApi(credit),
         ...(line.label.trim() !== '' && { label: line.label.trim() }),
         ...(allocations.length > 0 && { allocations }),
+        ...(line.thirdPartyId !== '' && { thirdPartyId: line.thirdPartyId }),
       });
     }
     return {

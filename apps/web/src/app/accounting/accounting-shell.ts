@@ -11,6 +11,7 @@ export const ACCOUNTING_TABS = [
   { path: 'journaux', label: 'Livre-journal', icon: 'auto_stories', exact: false },
   { path: 'reprise', label: 'Reprise', icon: 'inventory_2', exact: false },
   { path: 'progression', label: 'Progression', icon: 'checklist', exact: false },
+  { path: 'tiers', label: 'Tiers', icon: 'groups', exact: false },
 ] as const;
 
 @Component({

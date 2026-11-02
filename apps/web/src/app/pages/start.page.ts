@@ -237,7 +237,9 @@ export class StartPage {
         this.error.set(describeHttpError(failure, "La situation de départ n'a pas pu être chargée. Réessayez dans un instant.").message);
         return;
       }
-      const result = await this.dialogs.open<{ posted: boolean }, OpeningSituationDialogData>(OpeningSituationDialog, { size: 'lg', data: { situation } });
+      // La liste des tiers demande entries:view ; sans ce droit, on propose seulement d'écrire un nom.
+      const thirdParties = await this.api.listThirdParties().catch(() => []);
+      const result = await this.dialogs.open<{ posted: boolean }, OpeningSituationDialogData>(OpeningSituationDialog, { size: 'lg', data: { situation, thirdParties } });
       if (result) {
         this.notifier.success(result.posted ? 'Situation de départ enregistrée dans les comptes.' : 'Situation de départ préparée : elle reste à valider.');
       }

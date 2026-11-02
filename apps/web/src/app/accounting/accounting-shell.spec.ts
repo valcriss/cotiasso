@@ -22,6 +22,7 @@ describe('AccountingShell', () => {
               { path: 'journaux', component: Stub },
               { path: 'reprise', component: Stub },
               { path: 'progression', component: Stub },
+              { path: 'tiers', component: Stub },
             ],
           },
         ]),
@@ -35,10 +36,10 @@ describe('AccountingShell', () => {
     return harness.routeNativeElement as HTMLElement;
   };
 
-  it('propose les six rubriques et marque uniquement la rubrique courante', async () => {
+  it('propose les sept rubriques et marque uniquement la rubrique courante', async () => {
     const root = await setup('/comptabilite/balance');
     const tabs = Array.from(root.querySelectorAll('nav.tabs a'));
-    expect(tabs.map((a) => a.querySelector('span')!.textContent)).toEqual(['Écritures', 'Grand livre', 'Balance', 'Livre-journal', 'Reprise', 'Progression']);
+    expect(tabs.map((a) => a.querySelector('span')!.textContent)).toEqual(['Écritures', 'Grand livre', 'Balance', 'Livre-journal', 'Reprise', 'Progression', 'Tiers']);
     expect(tabs.filter((a) => a.classList.contains('active')).map((a) => a.querySelector('span')!.textContent)).toEqual(['Balance']);
     expect(root.querySelector('p.stub')!.textContent).toBe('contenu');
   });

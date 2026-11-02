@@ -5,6 +5,7 @@ import { AccountingConflictError } from "../accounting/errors.js";
 import { parse } from "../accounting/schemas.js";
 import { AuditService } from "../audit/audit.service.js";
 import { PrismaService } from "../prisma/prisma.service.js";
+import { ThirdPartiesService, thirdPartyInclude, thirdPartyName } from "../accounting/third-parties.service.js";
 import { SettingsService } from "../settings/settings.service.js";
 import { triggerMessage } from "../treasury/db-refusal.js";
 import { OPENING_KINDS, type OpeningKind } from "./starter-template.js";
@@ -23,7 +24,17 @@ const positiveAmount = z
   .refine((value) => Number(value) > 0, "Le montant doit être supérieur à zéro.");
 
 const MAX_ITEMS = 50;
-const item = z.object({ kind: z.string().min(1), label: z.string().trim().min(1, "Dites de qui ou de quoi il s'agit.").max(80, "Texte trop long (80 caractères)."), amount: positiveAmount }).strict();
+const item = z
+  .object({
+    kind: z.string().min(1),
+    /** Nom de la personne ou de l'organisme, quand aucune fiche existante n'est choisie : une fiche « tiers » est alors créée. */
+    label: z.string().trim().max(120, "Texte trop long (120 caractères).").optional(),
+    /** Fiche tiers existante (adhérent, financeur, fournisseur…). */
+    thirdPartyId: z.uuid("Tiers invalide.").nullish(),
+    amount: positiveAmount,
+  })
+  .strict()
+  .refine((value) => Boolean(value.thirdPartyId) || Boolean(value.label), { message: "Dites de qui ou de quoi il s'agit (choisissez un tiers ou écrivez un nom).", path: ["label"] });
 
 const recordInput = z
   .object({
@@ -85,6 +96,7 @@ export class OpeningSituationService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(SettingsService) private readonly settings: SettingsService,
+    @Inject(ThirdPartiesService) private readonly thirdParties: ThirdPartiesService,
   ) {}
 
   async mode(): Promise<StartMode> {
@@ -176,7 +188,9 @@ export class OpeningSituationService {
       );
     }
 
-    type Line = { accountId: string; debit: string; credit: string; label: string };
+    /** Tiers de la ligne : une fiche existante (id) ou un nom à créer (fournisseur pour une dette fournisseur, sinon « autre »). */
+    type Party = { id: string } | { name: string; kind: "SUPPLIER" | "OTHER" };
+    type Line = { accountId: string; debit: string; credit: string; label: string; party?: Party };
     const lines: Line[] = [];
     for (const a of accounts) {
       if (a.openingBalance.isZero()) continue;
@@ -194,11 +208,13 @@ export class OpeningSituationService {
         if (!account) {
           throw new AccountingConflictError(`« ${kind.label} » n'est pas disponible : le compte ${kind.accountNumber} n'existe pas (ou est désactivé) dans votre plan. Installez le modèle de démarrage ou créez ce compte.`);
         }
-        out.push({ accountId: account.id, debit: side === "RECEIVABLE" ? entry.amount : "0", credit: side === "PAYABLE" ? entry.amount : "0", label: `${kind.label} — ${entry.label}`.slice(0, 200) });
+        const party: Party = entry.thirdPartyId ? { id: entry.thirdPartyId } : { name: entry.label!, kind: kind.key === "SUPPLIER_OWED" ? "SUPPLIER" : "OTHER" };
+        out.push({ accountId: account.id, debit: side === "RECEIVABLE" ? entry.amount : "0", credit: side === "PAYABLE" ? entry.amount : "0", label: kind.label, party });
       }
       return out;
     };
     lines.push(...(await resolve(input.receivables, "RECEIVABLE")), ...(await resolve(input.payables, "PAYABLE")));
+    await this.thirdParties.assertUsable(lines.flatMap((l) => (l.party && "id" in l.party ? [l.party.id] : [])));
     if (lines.length === 0) {
       throw new AccountingConflictError("Il n'y a rien à reprendre : aucun compte n'a de solde de départ et aucune somme à recevoir ou à payer n'est indiquée.");
     }
@@ -222,8 +238,29 @@ export class OpeningSituationService {
 
     const entryLabel = `Situation d'ouverture au ${frDate(input.date)}${input.explanation ? ` — ${input.explanation}` : ""}`.slice(0, 200);
     let number: number | null = null;
+    const createdParties: string[] = [];
     const created = await this.prisma
       .$transaction(async (db) => {
+        // Chaque ligne « on vous doit / vous devez » désigne un tiers : fiche choisie, ou fiche créée (ou retrouvée par son nom).
+        const stored = [];
+        for (const l of lines) {
+          if (!l.party) {
+            stored.push({ ...l, thirdPartyId: null as string | null });
+            continue;
+          }
+          let partyId: string;
+          let partyName: string;
+          if ("id" in l.party) {
+            partyId = l.party.id;
+            partyName = thirdPartyName((await db.thirdParty.findUniqueOrThrow({ where: { id: partyId }, include: thirdPartyInclude })));
+          } else {
+            const ensured = await this.thirdParties.ensureNamed(db, l.party.name, l.party.kind, actorId);
+            partyId = ensured.id;
+            partyName = l.party.name;
+            if (ensured.created) createdParties.push(ensured.id);
+          }
+          stored.push({ ...l, thirdPartyId: partyId as string | null, label: `${l.label} — ${partyName}`.slice(0, 200) });
+        }
         const entry = await db.journalEntry.create({
           data: {
             fiscalYearId: year.id,
@@ -231,7 +268,7 @@ export class OpeningSituationService {
             date,
             label: entryLabel,
             createdBy: actorId,
-            lines: { create: lines.map((l, index) => ({ position: index + 1, accountId: l.accountId, debit: l.debit, credit: l.credit, label: l.label })) },
+            lines: { create: stored.map((l, index) => ({ position: index + 1, accountId: l.accountId, thirdPartyId: l.thirdPartyId, debit: l.debit, credit: l.credit, label: l.label })) },
           },
           select: { id: true },
         });
@@ -248,6 +285,9 @@ export class OpeningSituationService {
         throw error;
       });
 
+    for (const id of createdParties) {
+      await this.audit.record({ action: "third-party.created", objectType: "ThirdParty", objectId: id, actorId, details: { via: "opening-situation" } });
+    }
     await this.audit.record({
       action: "opening-situation.recorded",
       objectType: "JournalEntry",

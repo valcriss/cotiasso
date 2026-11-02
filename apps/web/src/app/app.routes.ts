@@ -93,6 +93,11 @@ export const routes: Routes = [
             loadComponent: () => import('./accounting/progress.page').then((m) => m.ProgressPage),
           },
           {
+            path: 'tiers',
+            title: 'Tiers',
+            loadComponent: () => import('./accounting/third-parties.page').then((m) => m.ThirdPartiesPage),
+          },
+          {
             path: 'journaux',
             title: 'Livre-journal',
             loadComponent: () => import('./accounting/journal-book.page').then((m) => m.JournalBookPage),

@@ -100,7 +100,7 @@ export class RecoveryProgressService {
     if (years.length === 0) return { generatedAt: now.toISOString(), years: [] };
 
     const yearIds = years.map((y) => y.id);
-    const [counts, openings, reconciliations, statements, documents, drafts, situation] = await Promise.all([
+    const [counts, openings, reconciliations, statements, documents, drafts, situation, untracked] = await Promise.all([
       this.counts(yearIds),
       this.prisma.recoveryBatchItem.findMany({
         where: { kind: "OPENING" },
@@ -115,6 +115,7 @@ export class RecoveryProgressService {
         where: { entry: { status: { not: "REVERSED" } } },
         select: { entry: { select: { status: true, lines: { select: { accountId: true } } } } },
       }),
+      this.untrackedThirdParties(yearIds),
     ]);
 
     const accounts = await this.prisma.financialAccount.findMany({ orderBy: { name: "asc" } });
@@ -124,6 +125,7 @@ export class RecoveryProgressService {
     const statementUntil = new Map(statements.map((s) => [s.financialAccountId, s._max.periodEnd]));
     const countOf = new Map(counts.map((c) => [`${c.year_id}:${c.account_id}`, c]));
     const docOf = new Map(documents.map((d) => [d.year_id, d]));
+    const untrackedOf = new Map(untracked.map((u) => [u.year_id, Number(u.lines)]));
 
     const result: YearProgress[] = [];
     for (const year of years) {
@@ -234,6 +236,19 @@ export class RecoveryProgressService {
         });
       }
 
+      const missingParty = untrackedOf.get(year.id) ?? 0;
+      if (missingParty > 0) {
+        anomalies.push({
+          code: "THIRD_PARTY_MISSING",
+          level: "WARNING",
+          financialAccountId: null,
+          financialAccountName: null,
+          count: missingParty,
+          fix: "THIRD_PARTIES",
+          message: `${missingParty} ligne${missingParty > 1 ? "s" : ""} d'écriture sur des comptes de tiers (sommes à recevoir ou à payer) n'${missingParty > 1 ? "ont" : "a"} pas de tiers indiqué. Ce n'est pas bloquant : indiquez qui est concerné si vous voulez suivre ces sommes par personne.`,
+        });
+      }
+
       const sum = (key: keyof AccountCounts) => rows.reduce((acc, r) => acc + r[key], 0);
       const totals = { total: sum("total"), qualified: sum("qualified"), drafted: sum("drafted"), posted: sum("posted"), reconciled: sum("reconciled") };
       result.push({
@@ -282,6 +297,18 @@ export class RecoveryProgressService {
       WHERE e."status" = 'POSTED' AND e."kind" = 'NORMAL' AND e."reversalOfId" IS NULL AND j."type" <> 'OPENING'
         AND e."fiscalYearId" = ANY(${yearIds}::uuid[])
         AND NOT EXISTS (SELECT 1 FROM "TreasuryMatch" m JOIN "Transfer" tr ON tr."outTransactionId" = m."transactionId" OR tr."inTransactionId" = m."transactionId" WHERE m."entryId" = e."id")
+      GROUP BY e."fiscalYearId"`;
+  }
+
+  /** Lignes d'écritures comptabilisées sur les comptes de tiers (classe 4) sans tiers indiqué, par exercice. */
+  private untrackedThirdParties(yearIds: string[]): Promise<{ year_id: string; lines: bigint }[]> {
+    return this.prisma.$queryRaw<{ year_id: string; lines: bigint }[]>`
+      SELECT e."fiscalYearId" AS year_id, count(*) AS lines
+      FROM "JournalLine" l
+      JOIN "JournalEntry" e ON e."id" = l."entryId"
+      JOIN "Account" a ON a."id" = l."accountId"
+      WHERE e."status" = 'POSTED' AND l."thirdPartyId" IS NULL AND a."number" LIKE '4%'
+        AND e."fiscalYearId" = ANY(${yearIds}::uuid[])
       GROUP BY e."fiscalYearId"`;
   }
 

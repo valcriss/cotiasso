@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { map } from 'rxjs';
-import { AdminApiService, type AccountInfo, type JournalInfo, type ProjectInfo } from '../admin/admin-api.service';
+import { AdminApiService, type AccountInfo, type JournalInfo, type ProjectInfo, type ThirdPartyInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { PageHeader } from '../ui/page-header';
 import { EntryEditor } from './entry-editor';
@@ -30,6 +30,7 @@ import { EntryEditor } from './entry-editor';
         [journals]="journals()"
         [accounts]="activeAccounts()"
         [projects]="activeProjects()"
+        [thirdParties]="thirdParties()"
         (changed)="onChanged($event.id)"
         (closed)="back()"
       />
@@ -50,6 +51,7 @@ export class EntryPage {
   protected readonly activeAccounts = computed(() => this.accounts().filter((a) => a.active));
   private readonly projects = signal<ProjectInfo[]>([]);
   protected readonly activeProjects = computed(() => this.projects().filter((p) => p.status !== 'ARCHIVED'));
+  protected readonly thirdParties = signal<ThirdPartyInfo[]>([]);
   protected readonly ready = signal(false);
   protected readonly error = signal<string | null>(null);
 
@@ -75,6 +77,7 @@ export class EntryPage {
       this.accounts.set(accounts);
       // La liste des projets exige projects:view ; sans ce droit, la ventilation n'est simplement pas proposée.
       this.projects.set(await this.api.listProjects().catch(() => []));
+      this.thirdParties.set(await this.api.listThirdParties().catch(() => []));
       this.ready.set(true);
     } catch (failure) {
       this.error.set(describeHttpError(failure, 'Impossible de charger la structure comptable.').message);

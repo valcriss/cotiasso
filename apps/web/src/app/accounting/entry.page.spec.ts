@@ -10,6 +10,8 @@ import { EntryPage } from './entry.page';
 const journal = { id: 'j1', code: 'OD', label: 'Opérations diverses', type: 'MISC', active: true };
 const bank = { id: 'a1', number: '512', label: 'Banque', active: true, reportLine: null };
 const sales = { id: 'a2', number: '706', label: 'Prestations', active: true, reportLine: null };
+const owed = { id: 'a3', number: '411', label: 'Adhérents', active: true, reportLine: null };
+const marie = { id: 't1', kind: 'MEMBER', name: 'Marie Dupont', memberId: 'm1', funderId: null, note: '', archived: false };
 const festival = { id: 'p1', code: 'FESTIVAL', name: 'Festival', description: '', status: 'ACTIVE', permanent: false, startDate: null, endDate: null, managerId: null };
 
 const line = (position: number, accountId: string, debit: string, credit: string) => ({
@@ -55,7 +57,7 @@ describe('EntryPage', () => {
     await fixture.whenStable();
   };
   /** Ouvre la page de l'écriture `e1` avec les données déjà chargées. */
-  const create = async (permissions: string[], loaded: object = entry(), projects: object[] = [], projectRequired = false) => {
+  const create = async (permissions: string[], loaded: object = entry(), projects: object[] = [], projectRequired = false, thirdParties: object[] = []) => {
     await TestBed.configureTestingModule({
       imports: [EntryPage],
       providers: [
@@ -73,9 +75,11 @@ describe('EntryPage', () => {
     ui = new DialogTester(settle);
     await settle();
     controller.expectOne('/api/journals').flush([journal]);
-    controller.expectOne('/api/accounts').flush([bank, sales]);
+    controller.expectOne('/api/accounts').flush([bank, sales, owed]);
     await settle();
     controller.expectOne('/api/projects').flush(projects);
+    await settle();
+    controller.expectOne('/api/third-parties').flush(thirdParties);
     await settle();
     controller.expectOne('/api/entries/e1').flush(loaded);
     controller.expectOne('/api/accounting/settings').flush({ projectRequired });
@@ -291,6 +295,70 @@ describe('EntryPage', () => {
     });
     await create(['entries:view'], posted, [festival]);
     expect(root.textContent).toContain('FESTIVAL');
+  });
+
+  describe('tiers (ADR 0030)', () => {
+    const receivable = (extra: Record<string, unknown> = {}) => ({ ...line(1, 'a3', '50.00', '0.00'), accountNumber: '411', accountLabel: 'Adhérents', ...extra });
+
+    it("ne demande « Qui ? » que sur les comptes de tiers, et propose les tiers connus", async () => {
+      await create(['entries:view', 'entries:create'], entry({ lines: [receivable(), line(2, 'a2', '0.00', '50.00')] }), [], false, [marie]);
+      expect(root.querySelectorAll('mat-select[formcontrolname="thirdPartyId"]')).toHaveLength(1);
+      expect(root.textContent).toContain('Qui ?');
+    });
+
+    it("conserve le tiers d'une ligne et l'envoie avec elle, sans l'inventer pour les autres lignes", async () => {
+      const withParty = entry({ lines: [receivable({ thirdParty: { id: 't1', name: 'Marie Dupont', kind: 'MEMBER' } }), line(2, 'a2', '0.00', '50.00')] });
+      await create(['entries:view', 'entries:create'], withParty, [], false, [marie]);
+      await click('Enregistrer le brouillon');
+      const put = controller.expectOne('/api/entries/e1');
+      expect(put.request.body.lines[0].thirdPartyId).toBe('t1');
+      expect(put.request.body.lines[1].thirdPartyId).toBeUndefined();
+      put.flush(withParty);
+      await settle();
+    });
+
+    it('une écriture comptabilisée affiche le nom du tiers de ses lignes', async () => {
+      const posted = entry({ status: 'POSTED', number: 3, lines: [receivable({ thirdParty: { id: 't1', name: 'Marie Dupont', kind: 'MEMBER' } }), line(2, 'a2', '0.00', '50.00')] });
+      await create(['entries:view'], posted);
+      expect(root.querySelector('table')!.textContent).toContain('Marie Dupont');
+    });
+
+    it('ajoute un tiers depuis l’écran, sans quitter l’écriture, et le propose aussitôt', async () => {
+      await create(['entries:view', 'entries:create'], entry({ lines: [receivable(), line(2, 'a2', '0.00', '50.00')] }));
+      await click('Ajouter un tiers');
+      controller.expectOne('/api/members').flush({ members: [], next: null });
+      controller.expectOne('/api/funders').flush([]);
+      await settle();
+      expect(ui.title).toBe('Ajouter un tiers');
+      expect(ui.text).toContain('savoir, plus tard, qui vous doit quoi');
+      await ui.type('input[formcontrolname="name"]', 'Imprimerie Martin');
+      await ui.submit();
+      const post = controller.expectOne('/api/third-parties');
+      expect(post.request.method).toBe('POST');
+      expect(post.request.body).toEqual({ kind: 'SUPPLIER', name: 'Imprimerie Martin' });
+      post.flush({ id: 't9', kind: 'SUPPLIER', name: 'Imprimerie Martin', memberId: null, funderId: null, note: '', archived: false }, { status: 201, statusText: 'Created' });
+      await settle();
+      expect(ui.snackbar).toContain('« Imprimerie Martin » ajouté aux tiers');
+    });
+
+    it("explique le refus du serveur (doublon) et garde la boîte ouverte", async () => {
+      await create(['entries:view', 'entries:create']);
+      await click('Ajouter un tiers');
+      controller.expectOne('/api/members').flush({ members: [], next: null });
+      controller.expectOne('/api/funders').flush([]);
+      await settle();
+      await ui.type('input[formcontrolname="name"]', 'Imprimerie Martin');
+      await ui.submit();
+      controller.expectOne('/api/third-parties').flush({ message: '« Imprimerie Martin » existe déjà dans vos tiers.' }, { status: 409, statusText: 'Conflict' });
+      await settle();
+      expect(ui.error).toContain('existe déjà');
+      expect(ui.isOpen).toBe(true);
+    });
+
+    it("n'offre pas d'ajouter un tiers sans le droit de saisir", async () => {
+      await create(['entries:view']);
+      expect(root.textContent).not.toContain('Ajouter un tiers');
+    });
   });
 
   it('sans droit de comptabiliser, ni bouton Comptabiliser ni Contrepasser', async () => {

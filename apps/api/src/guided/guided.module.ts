@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AccountingModule } from "../accounting/accounting.module.js";
 import { AuditModule } from "../audit/audit.module.js";
 import { AuthzModule } from "../authz/authz.module.js";
 import { SettingsModule } from "../settings/settings.module.js";
@@ -10,7 +11,7 @@ import { OperationsService } from "./operations.service.js";
 import { OverviewService } from "./overview.service.js";
 
 @Module({
-  imports: [PrismaModule, AuditModule, AuthzModule, SettingsModule],
+  imports: [PrismaModule, AuditModule, AuthzModule, SettingsModule, AccountingModule],
   controllers: [GuidedController],
   providers: [CategoriesService, OperationsService, OverviewService, OpeningSituationService],
 })

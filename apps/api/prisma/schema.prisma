@@ -377,13 +377,17 @@ model JournalLine {
   debit     Decimal @default(0) @db.Decimal(14, 2)
   credit    Decimal @default(0) @db.Decimal(14, 2)
   label     String?
+  // Tiers concerné par la ligne (ADR 0030) : facultatif, jamais obligatoire à la comptabilisation.
+  thirdPartyId String? @db.Uuid
 
   entry       JournalEntry           @relation(fields: [entryId], references: [id], onDelete: Cascade)
   account     Account                @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  thirdParty  ThirdParty?            @relation(fields: [thirdPartyId], references: [id], onDelete: Restrict)
   allocations AnalyticalAllocation[]
 
   @@unique([entryId, position])
   @@index([accountId])
+  @@index([thirdPartyId])
 }
 
 // Dernier numéro attribué par journal et exercice, incrémenté sous verrou de ligne dans la transaction de
@@ -745,6 +749,7 @@ model MemberCategory {
 // Membre de l'association : jamais supprimé (l'historique comptable s'y réfère), anonymisable une fois sorti.
 model Member {
   id           String       @id @default(uuid()) @db.Uuid
+  thirdParty   ThirdParty?
   projectParticipations ProjectParticipant[]
   firstName    String
   lastName     String
@@ -1003,6 +1008,7 @@ enum FunderType {
 // Financeur (ADR 0024, tranche 4.3a) : qui finance. Jamais supprimé ; archivé, il ne reçoit plus de nouvelle demande.
 model Funder {
   id          String     @id @default(uuid()) @db.Uuid
+  thirdParty  ThirdParty?
   name        String
   type        FunderType
   contactName String     @default("")
@@ -1183,4 +1189,30 @@ model OpeningSituation {
   createdBy String?  @db.Uuid
 
   entry JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+}
+
+enum ThirdPartyKind {
+  MEMBER
+  FUNDER
+  SUPPLIER
+  OTHER
+}
+
+// Tiers (ADR 0030) : la personne ou l'organisme concerné par une ligne d'écriture. Un adhérent ou un financeur existants
+// ont une fiche liée (nom lu en direct, donc anonymisé avec le membre) ; fournisseurs et autres ont un nom propre.
+// Jamais supprimé, archivé définitivement.
+model ThirdParty {
+  id         String         @id @default(uuid()) @db.Uuid
+  kind       ThirdPartyKind
+  name       String
+  memberId   String?        @unique @db.Uuid
+  funderId   String?        @unique @db.Uuid
+  note       String         @default("")
+  archivedAt DateTime?      @db.Timestamptz(3)
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+  createdBy  String?        @db.Uuid
+
+  member Member?       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  funder Funder?       @relation(fields: [funderId], references: [id], onDelete: Restrict)
+  lines  JournalLine[]
 }

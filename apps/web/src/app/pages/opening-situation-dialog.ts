@@ -6,13 +6,15 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { AdminApiService, type OpeningSituationInfo, type OpeningSituationResultInfo } from '../admin/admin-api.service';
+import { AdminApiService, type OpeningSituationInfo, type OpeningSituationResultInfo, type ThirdPartyInfo } from '../admin/admin-api.service';
 import { centsToApi, formatCents, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
 
 export interface OpeningSituationDialogData {
   situation: OpeningSituationInfo;
+  /** Tiers existants proposés pour « Qui ? » ; vide si la personne ne peut pas les consulter. */
+  thirdParties?: ThirdPartyInfo[];
 }
 
 /**
@@ -43,7 +45,11 @@ export interface OpeningSituationDialogData {
     .item {
       display: grid;
       gap: 8px 12px;
-      grid-template-columns: minmax(180px, 2fr) minmax(140px, 2fr) minmax(110px, 1fr) auto;
+      grid-template-columns: minmax(180px, 2fr) minmax(200px, 3fr) minmax(110px, 1fr) auto;
+    }
+    .who {
+      display: flex;
+      flex-direction: column;
     }
     .num {
       font-variant-numeric: tabular-nums;
@@ -102,10 +108,23 @@ export interface OpeningSituationDialogData {
                     }
                   </mat-select>
                 </mat-form-field>
-                <mat-form-field appearance="outline">
-                  <mat-label>Qui vous doit cela ?</mat-label>
-                  <input matInput formControlName="label" placeholder="Marie Dupont" autocomplete="off" />
-                </mat-form-field>
+                <div class="who">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Qui vous doit cela ?</mat-label>
+                    <mat-select formControlName="thirdPartyId">
+                      <mat-option value="">Quelqu’un de nouveau (j’écris son nom)</mat-option>
+                      @for (party of parties; track party.id) {
+                        <mat-option [value]="party.id">{{ party.name }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  @if (row.controls.thirdPartyId.value === '') {
+                    <mat-form-field appearance="outline">
+                      <mat-label>Nom</mat-label>
+                      <input matInput formControlName="label" placeholder="Marie Dupont" autocomplete="off" />
+                    </mat-form-field>
+                  }
+                </div>
                 <mat-form-field appearance="outline">
                   <mat-label>Montant (€)</mat-label>
                   <input matInput inputmode="decimal" formControlName="amount" placeholder="0,00" autocomplete="off" />
@@ -138,10 +157,23 @@ export interface OpeningSituationDialogData {
                     }
                   </mat-select>
                 </mat-form-field>
-                <mat-form-field appearance="outline">
-                  <mat-label>À qui devez-vous cela ?</mat-label>
-                  <input matInput formControlName="label" placeholder="Imprimerie Martin" autocomplete="off" />
-                </mat-form-field>
+                <div class="who">
+                  <mat-form-field appearance="outline">
+                    <mat-label>À qui devez-vous cela ?</mat-label>
+                    <mat-select formControlName="thirdPartyId">
+                      <mat-option value="">Quelqu’un de nouveau (j’écris son nom)</mat-option>
+                      @for (party of parties; track party.id) {
+                        <mat-option [value]="party.id">{{ party.name }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  @if (row.controls.thirdPartyId.value === '') {
+                    <mat-form-field appearance="outline">
+                      <mat-label>Nom</mat-label>
+                      <input matInput formControlName="label" placeholder="Imprimerie Martin" autocomplete="off" />
+                    </mat-form-field>
+                  }
+                </div>
                 <mat-form-field appearance="outline">
                   <mat-label>Montant (€)</mat-label>
                   <input matInput inputmode="decimal" formControlName="amount" placeholder="0,00" autocomplete="off" />
@@ -206,6 +238,7 @@ export class OpeningSituationDialog {
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<OpeningSituationDialogData>(MAT_DIALOG_DATA);
   protected readonly formatCents = formatCents;
+  protected readonly parties = (this.data.thirdParties ?? []).filter((p) => !p.archived);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly details = signal<string[]>([]);
@@ -252,7 +285,8 @@ export class OpeningSituationDialog {
   protected row(side: 'RECEIVABLE' | 'PAYABLE') {
     return this.fb.group({
       kind: [this.kinds(side)[0]?.key ?? '', [Validators.required]],
-      label: ['', [Validators.required, Validators.maxLength(80)]],
+      thirdPartyId: [''],
+      label: ['', [Validators.maxLength(120)]],
       amount: ['', [Validators.required]],
     });
   }
@@ -292,12 +326,17 @@ export class OpeningSituationDialog {
       return;
     }
     const lines = (array: FormArray<ReturnType<OpeningSituationDialog['row']>>) =>
-      array.controls.map((group) => ({ kind: group.controls.kind.value, label: group.controls.label.value.trim(), amount: parseAmountToCents(group.controls.amount.value) }));
+      array.controls.map((group) => ({
+        kind: group.controls.kind.value,
+        thirdPartyId: group.controls.thirdPartyId.value,
+        label: group.controls.label.value.trim(),
+        amount: parseAmountToCents(group.controls.amount.value),
+      }));
     const receivables = lines(this.receivables);
     const payables = lines(this.payables);
-    const invalid = [...receivables, ...payables].some((l) => !l.kind || !l.label || l.amount === null || l.amount <= 0);
+    const invalid = [...receivables, ...payables].some((l) => !l.kind || (!l.thirdPartyId && !l.label) || l.amount === null || l.amount <= 0);
     if (invalid) {
-      this.error.set('Chaque ligne a besoin d’un type, d’un nom et d’un montant supérieur à zéro (par exemple 120,00). Retirez les lignes vides.');
+      this.error.set('Chaque ligne a besoin d’un type, d’une personne (choisie ou nommée) et d’un montant supérieur à zéro (par exemple 120,00). Retirez les lignes vides.');
       return;
     }
     const equity = this.equityCents();
@@ -312,8 +351,8 @@ export class OpeningSituationDialog {
       this.reference.close(
         await this.api.recordOpeningSituation({
           date: this.data.situation.date,
-          receivables: receivables.map((l) => ({ kind: l.kind, label: l.label, amount: centsToApi(l.amount!) })),
-          payables: payables.map((l) => ({ kind: l.kind, label: l.label, amount: centsToApi(l.amount!) })),
+          receivables: receivables.map((l) => ({ kind: l.kind, ...(l.thirdPartyId ? { thirdPartyId: l.thirdPartyId } : { label: l.label }), amount: centsToApi(l.amount!) })),
+          payables: payables.map((l) => ({ kind: l.kind, ...(l.thirdPartyId ? { thirdPartyId: l.thirdPartyId } : { label: l.label }), amount: centsToApi(l.amount!) })),
           equityAmount: centsToApi(equity),
           equityAccountId: equity !== 0 ? equityAccountId : null,
           explanation: equity !== 0 ? explanation.trim() : null,

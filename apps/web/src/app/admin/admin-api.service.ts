@@ -322,8 +322,8 @@ export interface OpeningSituationInfo {
 
 export interface OpeningSituationBody {
   date: string;
-  receivables: { kind: string; label: string; amount: string }[];
-  payables: { kind: string; label: string; amount: string }[];
+  receivables: { kind: string; label?: string; thirdPartyId?: string; amount: string }[];
+  payables: { kind: string; label?: string; thirdPartyId?: string; amount: string }[];
   equityAmount: string;
   equityAccountId?: string | null;
   explanation?: string | null;
@@ -666,7 +666,7 @@ export interface TreasuryStatementInfo extends StatementBaseInfo {
 }
 
 export type ProgressAnomalyLevel = 'TODO' | 'BLOCKING' | 'WARNING' | 'INFO';
-export type ProgressAnomalyFix = 'TRANSACTIONS' | 'RECOVERY' | 'ENTRY' | 'RECONCILIATION' | 'DOCUMENTS';
+export type ProgressAnomalyFix = 'TRANSACTIONS' | 'RECOVERY' | 'ENTRY' | 'RECONCILIATION' | 'DOCUMENTS' | 'THIRD_PARTIES';
 
 export interface ProgressAnomaly {
   code: string;
@@ -1162,8 +1162,45 @@ export interface EntryLineInfo {
   debit: string;
   credit: string;
   label: string | null;
+  /** Tiers concerné (adhérent, financeur, fournisseur…), nom lu en direct. */
+  thirdParty?: { id: string; name: string; kind: ThirdPartyKindInfo } | null;
   allocations: AllocationInfo[];
 }
+
+export type ThirdPartyKindInfo = 'MEMBER' | 'FUNDER' | 'SUPPLIER' | 'OTHER';
+
+export interface ThirdPartyInfo {
+  id: string;
+  kind: ThirdPartyKindInfo;
+  name: string;
+  memberId: string | null;
+  funderId: string | null;
+  note: string;
+  archived: boolean;
+}
+
+export interface ThirdPartyBalanceRowInfo {
+  id: string;
+  name: string;
+  kind: ThirdPartyKindInfo;
+  net: string;
+  owedToYou: string;
+  youOwe: string;
+  accounts: { number: string; label: string; net: string }[];
+}
+
+export interface ThirdPartyBalancesInfo {
+  fiscalYear: { id: string; label: string; start: string; end: string; status: 'OPEN' | 'CLOSING' | 'CLOSED' };
+  rows: ThirdPartyBalanceRowInfo[];
+  totals: { owedToYou: string; youOwe: string };
+  untracked: { lines: number; net: string };
+  carryWarning: string | null;
+}
+
+export type ThirdPartyBody =
+  | { kind: 'MEMBER'; memberId: string }
+  | { kind: 'FUNDER'; funderId: string }
+  | { kind: 'SUPPLIER' | 'OTHER'; name: string; note?: string };
 
 export interface EntryInfo {
   id: string;
@@ -1190,7 +1227,7 @@ export interface EntryDraftBody {
   date: string;
   label: string;
   reference: string | null;
-  lines: { accountId: string; debit: string; credit: string; label?: string | null; allocations?: AllocationInfo[] }[];
+  lines: { accountId: string; debit: string; credit: string; label?: string | null; thirdPartyId?: string | null; allocations?: AllocationInfo[] }[];
 }
 
 export interface EntryFilters {
@@ -1952,6 +1989,26 @@ export class AdminApiService {
 
   getEntry(id: string): Promise<EntryInfo> {
     return firstValueFrom(this.http.get<EntryInfo>(`/api/entries/${id}`));
+  }
+
+  listThirdParties(includeArchived = false): Promise<ThirdPartyInfo[]> {
+    return firstValueFrom(this.http.get<ThirdPartyInfo[]>('/api/third-parties', { params: includeArchived ? { includeArchived: 'true' } : {} }));
+  }
+
+  createThirdParty(body: ThirdPartyBody): Promise<ThirdPartyInfo> {
+    return firstValueFrom(this.http.post<ThirdPartyInfo>('/api/third-parties', body));
+  }
+
+  updateThirdParty(id: string, body: { name?: string; note?: string }): Promise<ThirdPartyInfo> {
+    return firstValueFrom(this.http.patch<ThirdPartyInfo>(`/api/third-parties/${id}`, body));
+  }
+
+  archiveThirdParty(id: string): Promise<ThirdPartyInfo> {
+    return firstValueFrom(this.http.post<ThirdPartyInfo>(`/api/third-parties/${id}/archive`, {}));
+  }
+
+  thirdPartyBalances(fiscalYearId?: string): Promise<ThirdPartyBalancesInfo> {
+    return firstValueFrom(this.http.get<ThirdPartyBalancesInfo>('/api/reports/third-parties', { params: fiscalYearId ? { fiscalYearId } : {} }));
   }
 
   createEntry(body: EntryDraftBody): Promise<EntryInfo> {

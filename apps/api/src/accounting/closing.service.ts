@@ -40,6 +40,8 @@ type Db = Prisma.TransactionClient;
 interface Balance {
   accountId: string;
   number: string;
+  /** Tiers du solde reporté (ADR 0030) : une ligne d'à-nouveaux par compte et par tiers, afin de garder le suivi par personne. */
+  thirdPartyId: string | null;
   net: Money;
 }
 
@@ -67,7 +69,7 @@ export class ClosingService {
     let preview: CarryPreview | null = null;
     if (year.status !== "CLOSED") {
       const carry = await this.carry(this.prisma, id);
-      preview = { accountCount: carry.balances.length, result: carry.result };
+      preview = { accountCount: new Set(carry.balances.map((b) => b.accountId)).size, result: carry.result };
     }
     return {
       fiscalYearId: id,
@@ -232,21 +234,21 @@ export class ClosingService {
 
   /** Soldes nets (débit − crédit) par compte sur les écritures comptabilisées ou contrepassées de l'exercice. */
   private async carry(db: Pick<Db, "$queryRaw">, id: string): Promise<{ balances: Balance[]; result: CarryPreview["result"]; resultNet: Money }> {
-    const rows = await db.$queryRaw<{ accountId: string; number: string; net: string }[]>`
-      SELECT a.id AS "accountId", a."number" AS "number", (sum(l."debit") - sum(l."credit"))::text AS net
+    const rows = await db.$queryRaw<{ accountId: string; number: string; thirdPartyId: string | null; net: string }[]>`
+      SELECT a.id AS "accountId", a."number" AS "number", l."thirdPartyId" AS "thirdPartyId", (sum(l."debit") - sum(l."credit"))::text AS net
       FROM "JournalLine" l
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "Account" a ON a.id = l."accountId"
       WHERE e."fiscalYearId" = ${id}::uuid AND e.status IN ('POSTED', 'REVERSED')
-      GROUP BY a.id, a."number"
-      ORDER BY a."number"`;
+      GROUP BY a.id, a."number", l."thirdPartyId"
+      ORDER BY a."number", l."thirdPartyId" NULLS FIRST`;
 
     const balances: Balance[] = [];
     let resultNet = Money.zero();
     for (const row of rows) {
       const net = Money.parse(row.net);
       if ("12345".includes(row.number[0]!)) {
-        if (!net.isZero()) balances.push({ accountId: row.accountId, number: row.number, net });
+        if (!net.isZero()) balances.push({ accountId: row.accountId, number: row.number, thirdPartyId: row.thirdPartyId, net });
       } else if ("67".includes(row.number[0]!)) {
         resultNet = resultNet.add(net);
       }
@@ -262,8 +264,9 @@ export class ClosingService {
     db: Db,
     carry: Awaited<ReturnType<ClosingService["carry"]>>,
     input: z.infer<typeof closeInput>,
-  ): Promise<{ accountId: string; debit: string; credit: string }[]> {
-    const nets = new Map<string, Money>(carry.balances.map((b) => [b.accountId, b.net]));
+  ): Promise<{ accountId: string; thirdPartyId: string | null; debit: string; credit: string }[]> {
+    // Clé « compte|tiers » : un solde par compte et par tiers (le résultat reporté s'ajoute au solde sans tiers du compte choisi).
+    const nets = new Map<string, Money>(carry.balances.map((b) => [`${b.accountId}|${b.thirdPartyId ?? ""}`, b.net]));
 
     if (!carry.resultNet.isZero()) {
       const surplus = carry.result.kind === "SURPLUS";
@@ -279,21 +282,24 @@ export class ClosingService {
         throw new AccountingConflictError("Le résultat se reporte sur un compte de bilan (classes 1 à 5).");
       }
       // Le résultat reporté prend la place des classes 6 et 7 (leur net inversé annule celui des classes 1 à 5) : excédent au crédit, déficit au débit.
-      nets.set(accountId, (nets.get(accountId) ?? Money.zero()).add(carry.resultNet));
+      const key = `${accountId}|`;
+      nets.set(key, (nets.get(key) ?? Money.zero()).add(carry.resultNet));
     }
 
-    const lines: { accountId: string; debit: string; credit: string }[] = [];
+    const lines: { accountId: string; thirdPartyId: string | null; debit: string; credit: string }[] = [];
     const ordered = [...nets.entries()].sort(([a], [b]) => a.localeCompare(b));
     let debit = Money.zero();
     let credit = Money.zero();
-    for (const [accountId, net] of ordered) {
+    for (const [key, net] of ordered) {
       if (net.isZero()) continue;
+      const [accountId, party] = key.split("|") as [string, string];
+      const thirdPartyId = party === "" ? null : party;
       if (net.isPositive()) {
-        lines.push({ accountId, debit: net.toString(), credit: "0.00" });
+        lines.push({ accountId, thirdPartyId, debit: net.toString(), credit: "0.00" });
         debit = debit.add(net);
       } else {
         const positive = Money.zero().subtract(net);
-        lines.push({ accountId, debit: "0.00", credit: positive.toString() });
+        lines.push({ accountId, thirdPartyId, debit: "0.00", credit: positive.toString() });
         credit = credit.add(positive);
       }
     }

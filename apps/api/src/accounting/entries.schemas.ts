@@ -20,6 +20,8 @@ const line = z
     debit: amount.default("0"),
     credit: amount.default("0"),
     label: z.string().trim().max(200).nullish(),
+    /** Tiers concerné (adhérent, financeur, fournisseur…), facultatif. */
+    thirdPartyId: z.uuid("Tiers invalide.").nullish(),
     allocations: z.array(allocation).max(20, "Au plus 20 projets par ligne.").optional(),
   })
   .strict()

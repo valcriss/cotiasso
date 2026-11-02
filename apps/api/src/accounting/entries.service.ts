@@ -12,6 +12,7 @@ import {
   type EntryDraftInput,
 } from "./entries.schemas.js";
 import { parse } from "./schemas.js";
+import { ThirdPartiesService, thirdPartyInclude, thirdPartyName } from "./third-parties.service.js";
 
 export interface EntryLineView {
   position: number;
@@ -21,6 +22,8 @@ export interface EntryLineView {
   debit: string;
   credit: string;
   label: string | null;
+  /** Tiers concerné, nom lu en direct ; absent si la ligne n'en a pas. */
+  thirdParty: { id: string; name: string; kind: "MEMBER" | "FUNDER" | "SUPPLIER" | "OTHER" } | null;
   /** Ventilation par projet (lignes de charge ou de produit) ; vide si la ligne n'est pas ventilée. */
   allocations: { projectId: string; projectCode: string; amount: string }[];
 }
@@ -65,6 +68,7 @@ const withLines = {
     orderBy: { position: "asc" as const },
     include: {
       account: { select: { number: true, label: true } },
+      thirdParty: { include: thirdPartyInclude },
       allocations: { include: { project: { select: { code: true } } }, orderBy: { project: { code: "asc" as const } } },
     },
   },
@@ -100,6 +104,7 @@ function view(entry: LoadedEntry): EntryView {
       debit: money(l.debit),
       credit: money(l.credit),
       label: l.label,
+      thirdParty: l.thirdParty ? { id: l.thirdParty.id, name: thirdPartyName(l.thirdParty), kind: l.thirdParty.kind } : null,
       allocations: l.allocations.map((a) => ({ projectId: a.projectId, projectCode: a.project.code, amount: money(a.amount) })),
     })),
   };
@@ -140,6 +145,7 @@ export class EntriesService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(ThirdPartiesService) private readonly thirdParties: ThirdPartiesService,
   ) {}
 
   async list(query: unknown): Promise<{ entries: EntryView[]; next: string | null }> {
@@ -166,6 +172,7 @@ export class EntriesService {
   async createDraft(body: unknown, actorId: string): Promise<EntryView> {
     const input = parse(entryDraftInput, body);
     const fiscalYearId = await this.fiscalYearFor(input.date);
+    await this.thirdParties.assertUsable(input.lines.flatMap((l) => (l.thirdPartyId ? [l.thirdPartyId] : [])));
     const created = await this.prisma.$transaction(async (tx) => {
       const entry = await tx.journalEntry.create({
         data: {
@@ -188,6 +195,7 @@ export class EntriesService {
   async updateDraft(id: string, body: unknown, actorId: string): Promise<EntryView> {
     const input = parse(entryDraftUpdate, body);
     const fiscalYearId = await this.fiscalYearFor(input.date);
+    await this.thirdParties.assertUsable(input.lines.flatMap((l) => (l.thirdPartyId ? [l.thirdPartyId] : [])));
     await this.prisma.$transaction(async (tx) => {
       const current = await tx.journalEntry.findUnique({ where: { id }, select: { status: true } });
       if (!current) throw new AccountingNotFoundError("Écriture");
@@ -291,6 +299,7 @@ export class EntriesService {
                 debit: l.credit,
                 credit: l.debit,
                 label: l.label,
+                thirdPartyId: l.thirdPartyId,
                 allocations: { create: l.allocations.map((a) => ({ projectId: a.projectId, amount: a.amount })) },
               })),
             },
@@ -376,6 +385,7 @@ export class EntriesService {
       debit: line.debit,
       credit: line.credit,
       label: line.label ?? null,
+      thirdPartyId: line.thirdPartyId ?? null,
       allocations: (line.allocations ?? []).map((a) => ({ projectId: a.projectId, amount: a.amount })),
     }));
   }

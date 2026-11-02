@@ -2,7 +2,7 @@
 export type AnomalyLevel = "TODO" | "BLOCKING" | "WARNING" | "INFO";
 
 /** Écran qui règle l'anomalie (le web en fait un lien). */
-export type AnomalyFix = "TRANSACTIONS" | "RECOVERY" | "ENTRY" | "RECONCILIATION" | "DOCUMENTS";
+export type AnomalyFix = "TRANSACTIONS" | "RECOVERY" | "ENTRY" | "RECONCILIATION" | "DOCUMENTS" | "THIRD_PARTIES";
 
 export type AnomalyCode =
   | "NOT_QUALIFIED"
@@ -15,7 +15,8 @@ export type AnomalyCode =
   | "NO_STATEMENT"
   | "NOT_RECONCILED"
   | "ENTRIES_WITHOUT_TRANSACTION"
-  | "MISSING_DOCUMENTS";
+  | "MISSING_DOCUMENTS"
+  | "THIRD_PARTY_MISSING";
 
 export interface BlockedDraft {
   entryId: string;

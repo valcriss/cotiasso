@@ -228,9 +228,40 @@ describe("Situation d'ouverture : l'autre mode de démarrage (ADR 0029, base vie
         ["102", "0.00", "960.00"],
       ]);
       expect(entry.lines[2].label).toContain("Marie Dupont");
+      // Chaque ligne « on vous doit / vous devez » désigne une fiche tiers créée à cette occasion ; l'argent et le fonds n'en ont pas.
+      expect(entry.lines.map((l: { thirdParty: { name: string; kind: string } | null }) => l.thirdParty && [l.thirdParty.name, l.thirdParty.kind])).toEqual([null, null, ["Marie Dupont", "OTHER"], ["Imprimeur", "SUPPLIER"], null]);
+      expect(await prisma.thirdParty.count()).toBe(2);
       const debit = entry.lines.reduce((s: number, l: { debit: string }) => s + Number(l.debit), 0);
       const credit = entry.lines.reduce((s: number, l: { credit: string }) => s + Number(l.credit), 0);
       expect(debit).toBe(credit);
+    });
+
+    it("retrouve un tiers existant par son nom ou par son identifiant au lieu d'en créer un second", async () => {
+      expect((await call("POST", `/entries/${ids.entry}/reverse`, treasurer, {})).statusCode).toBe(201);
+      const existing = await prisma.thirdParty.findFirstOrThrow({ where: { name: "Imprimeur" } });
+      const again = await record({
+        date: "2026-01-01",
+        receivables: [{ kind: "MEMBERSHIP_DUE", label: "MARIE DUPONT", amount: "30.00" }],
+        payables: [{ kind: "SUPPLIER_OWED", thirdPartyId: existing.id, amount: "120.00" }],
+        equityAmount: "960.00",
+        equityAccountId: ids.funds,
+        explanation: "Fonds apportés à la création",
+      });
+      expect(again.statusCode, again.body).toBe(201);
+      expect(await prisma.thirdParty.count()).toBe(2);
+      ids.entry = again.json().entryId;
+
+      const archived = await prisma.thirdParty.create({ data: { kind: "OTHER", name: "Ancien", archivedAt: new Date() } });
+      await call("POST", `/entries/${ids.entry}/reverse`, treasurer, {});
+      const refused = await record({ ...base(), payables: [{ kind: "OTHER_OWED", thirdPartyId: archived.id, amount: "120.00" }] });
+      expect(refused.statusCode).toBe(409);
+      expect(refused.json().message).toContain("archivé");
+      const noName = await record({ ...base(), receivables: [{ kind: "MEMBERSHIP_DUE", amount: "30.00" }] });
+      expect(noName.statusCode).toBe(400);
+      // On rétablit la situation initiale pour la suite des tests.
+      const restored = await record(base());
+      expect(restored.statusCode, restored.body).toBe(201);
+      ids.entry = restored.json().entryId;
     });
 
     it("n'en accepte qu'une, et la vue d'ensemble n'en demande plus", async () => {

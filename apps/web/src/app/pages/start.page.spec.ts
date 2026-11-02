@@ -217,10 +217,13 @@ describe('StartPage', () => {
       fiscalYear: true,
       ...overrides,
     });
+    const parties = [{ id: 't1', kind: 'MEMBER', name: 'Marie Dupont', memberId: 'm1', funderId: null, note: '', archived: false }];
     const open = async (view: object = situation()) => {
       await create(setup({ startMode: 'OPENING', fiscalYear: true, categories: true, financialAccount: true }), [{ id: 'f1', accountId: 'a5121', name: 'Banque' }]);
       await click('Indiquer ma situation');
       controller.expectOne('/api/opening-situation').flush(view);
+      await settle();
+      controller.expectOne('/api/third-parties').flush(parties);
       await settle();
     };
 
@@ -275,6 +278,25 @@ describe('StartPage', () => {
       expect(root.textContent).toContain('Tout est prêt');
     });
 
+    it('envoie la fiche tiers choisie au lieu d’un nom, sans ressaisie', async () => {
+      await open();
+      await ui.click('Ajouter une somme qu’on me doit');
+      await ui.choose('mat-select[formcontrolname="thirdPartyId"]', 'Marie Dupont');
+      // Une fois une fiche choisie, le champ « Nom » disparaît.
+      expect(ui.dialog!.querySelector('[formarrayname="receivables"] input[formcontrolname="label"]')).toBeNull();
+      const amount = ui.dialog!.querySelector<HTMLInputElement>('[formarrayname="receivables"] input[formcontrolname="amount"]')!;
+      amount.value = '30';
+      amount.dispatchEvent(new Event('input'));
+      await settle();
+      await ui.type('input[formcontrolname="explanation"]', 'Fonds apportés à la création');
+      await ui.submit();
+      const request = controller.expectOne('/api/opening-situation');
+      expect(request.request.body.receivables).toEqual([{ kind: 'MEMBERSHIP_DUE', thirdPartyId: 't1', amount: '30.00' }]);
+      request.flush({ entryId: 'e1', posted: true, journalCode: 'AN', number: 1, equity: '1080.00', lines: 4 }, { status: 201, statusText: 'Created' });
+      await settle();
+      await loads(setup({ startMode: 'OPENING', fiscalYear: true, categories: true, financialAccount: true, openingSituation: 'POSTED' }));
+    });
+
     it('demande d’où vient le fonds, et garde la boîte ouverte sans appeler le serveur', async () => {
       await open();
       await ui.submit();
@@ -288,7 +310,7 @@ describe('StartPage', () => {
       await ui.click('Ajouter une somme qu’on me doit');
       await ui.type('input[formcontrolname="explanation"]', 'Fonds apportés à la création');
       await ui.submit();
-      expect(ui.error).toContain('un type, d’un nom et d’un montant');
+      expect(ui.error).toContain('une personne (choisie ou nommée)');
       controller.expectNone('/api/opening-situation');
     });
 

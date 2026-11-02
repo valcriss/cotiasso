@@ -118,6 +118,9 @@ const ACTION_LABELS: Record<string, string> = {
   'operation-category.updated': "Catégorie d'opération modifiée",
   'starter-template.applied': 'Catégories et comptes de départ installés',
   'opening-situation.recorded': 'Situation de départ enregistrée',
+  'third-party.created': 'Tiers créé',
+  'third-party.updated': 'Tiers modifié',
+  'third-party.archived': 'Tiers archivé',
   'module.activated': 'Module activé',
   'module.deactivated': 'Module désactivé',
 };
