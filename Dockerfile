@@ -44,11 +44,13 @@ COPY --from=build --chown=node:node /app/apps/api/package.json ./package.json
 COPY --from=build --chown=node:node /app/apps/api/dist ./dist
 COPY --from=build --chown=node:node /app/apps/api/prisma ./prisma
 COPY --from=build --chown=node:node /app/apps/api/prisma.config.ts ./prisma.config.ts
+COPY --chown=node:node CHANGELOG.md /app/CHANGELOG.md
 COPY --chown=node:node docker/api-entrypoint.sh /usr/local/bin/api-entrypoint
 RUN chmod +x /usr/local/bin/api-entrypoint
 
 # Stockage privé des documents : volume persistant, écrit par l'utilisateur non privilégié.
-ENV DOCUMENTS_DIR=/data/documents
+ENV DOCUMENTS_DIR=/data/documents \
+    CHANGELOG_FILE=/app/CHANGELOG.md
 RUN mkdir -p /data/documents && chown node:node /data/documents
 VOLUME ["/data/documents"]
 
@@ -61,7 +63,7 @@ ENTRYPOINT ["api-entrypoint"]
 # ---------- Sauvegarde : pg_dump à la version du serveur, chiffrement, restauration et vérification ----------
 # Image séparée de l'API pour ne pas l'alourdir : l'API ne contient aucun outil de sauvegarde.
 FROM postgres:17-alpine AS backup
-RUN apk add --no-cache bash openssl tar coreutils
+RUN apk add --no-cache bash openssl tar coreutils rclone
 COPY docker/backup.sh /usr/local/bin/backup.sh
 RUN chmod +x /usr/local/bin/backup.sh
 ENTRYPOINT ["/usr/local/bin/backup.sh"]

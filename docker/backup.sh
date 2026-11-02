@@ -6,6 +6,7 @@
 #   backup.sh list              liste les sauvegardes
 #   backup.sh verify [fichier]  restaure dans une base et un dossier TEMPORAIRES et compare les comptages
 #   backup.sh restore fichier   restaure l'installation (exige CONFIRM_RESTORE=yes, API arrêtée)
+#   backup.sh offsite           copie les sauvegardes vers le stockage hors site (rclone), si configuré
 #
 # Une sauvegarde est une archive chiffrée (AES-256) contenant : la base (pg_dump), les documents et un manifeste.
 # Ordre : base d'abord, puis fichiers. Les fichiers sont immuables une fois écrits (clés opaques, versions
@@ -20,6 +21,7 @@ BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 BACKUP_KEEP_MIN="${BACKUP_KEEP_MIN:-7}"
 export PGHOST="${PGHOST:-db}" PGUSER="${PGUSER:-cotiasso}" PGDATABASE="${PGDATABASE:-cotiasso}"
 STATUS_FILE="$BACKUP_DIR/status.json"
+OFFSITE_STATUS_FILE="$BACKUP_DIR/offsite.json"
 
 log() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 die() { log "ERREUR : $*"; exit 1; }
@@ -138,11 +140,68 @@ apply_retention() {
   done < <(find "$BACKUP_DIR" -maxdepth 1 -name 'cotiasso-*.tar.enc' | sort -r)
 }
 
+# ---------- Copie hors site ----------
+# Les archives sont DÉJÀ chiffrées (AES-256) : seules des archives chiffrées quittent le serveur. La configuration est
+# déclarative, par variables d'environnement : OFFSITE_TYPE (s3, sftp, webdav, local…), OFFSITE_PATH (dossier ou bucket
+# distant) et les paramètres du type choisi (OFFSITE_PROVIDER, OFFSITE_ENDPOINT, OFFSITE_REGION, OFFSITE_ACCESS_KEY_ID,
+# OFFSITE_SECRET_ACCESS_KEY, OFFSITE_HOST, OFFSITE_PORT, OFFSITE_USER, OFFSITE_PASS, OFFSITE_URL, OFFSITE_VENDOR).
+# On COPIE sans jamais supprimer côté distant : une erreur locale ne peut pas effacer la copie de secours. La durée de
+# conservation distante se règle chez l'hébergeur du stockage (règle de cycle de vie).
+offsite_enabled() { [ -n "${OFFSITE_TYPE:-}" ] || [ -n "${OFFSITE_PATH:-}" ]; }
+
+offsite_configure() {
+  [ -n "${OFFSITE_TYPE:-}" ] && [ -n "${OFFSITE_PATH:-}" ] || return 1
+  export RCLONE_CONFIG_OFFSITE_TYPE="$OFFSITE_TYPE"
+  local key value
+  for key in PROVIDER ENDPOINT REGION ACCESS_KEY_ID SECRET_ACCESS_KEY HOST PORT USER PASS URL VENDOR; do
+    value="$(eval "printf '%s' \"\${OFFSITE_$key:-}\"")"
+    [ -z "$value" ] || export "RCLONE_CONFIG_OFFSITE_$key=$value"
+  done
+  export RCLONE_CONFIG=/dev/null
+}
+
+# Écrit l'état de la copie hors site, lu par l'API (écran Exploitation). Le dernier succès est conservé d'un cycle à l'autre.
+write_offsite_status() {
+  local success="$1" error="$2" last_success
+  last_success="$(sed -n 's/.*"lastSuccessAt": *"\([^"]*\)".*/\1/p' "$OFFSITE_STATUS_FILE" 2>/dev/null || true)"
+  [ "$success" = "yes" ] && last_success="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local tmp="$OFFSITE_STATUS_FILE.tmp"
+  printf '{\n  "lastAttemptAt": "%s",\n  "lastSuccessAt": "%s",\n  "lastError": %s,\n  "target": "%s"\n}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$last_success" \
+    "$([ -n "$error" ] && printf '"%s"' "${error//\"/\'}" || printf 'null')" \
+    "${OFFSITE_TYPE:-}:${OFFSITE_PATH:-}" > "$tmp"
+  mv "$tmp" "$OFFSITE_STATUS_FILE"
+}
+
+# Un échec de la copie ne fait jamais échouer la sauvegarde locale : il est enregistré et visible dans l'écran d'exploitation.
+cmd_offsite() {
+  offsite_enabled || { log "Copie hors site non configurée (OFFSITE_TYPE et OFFSITE_PATH)."; return 0; }
+  mkdir -p "$BACKUP_DIR"
+  if ! offsite_configure; then
+    write_offsite_status no "Configuration incomplète : OFFSITE_TYPE et OFFSITE_PATH sont tous deux nécessaires."
+    log "ERREUR : configuration de la copie hors site incomplète."
+    return 1
+  fi
+  log "Copie hors site vers ${OFFSITE_TYPE}:${OFFSITE_PATH}…"
+  # Archives d'abord, manifestes ensuite : un manifeste distant désigne toujours une archive déjà arrivée.
+  if rclone copy "$BACKUP_DIR" "offsite:$OFFSITE_PATH" --include 'cotiasso-*.tar.enc' --retries 3 --low-level-retries 5 \
+       && rclone copy "$BACKUP_DIR" "offsite:$OFFSITE_PATH" --include 'cotiasso-*.manifest.json' --retries 3; then
+    write_offsite_status yes ""
+    log "Copie hors site terminée."
+  else
+    write_offsite_status no "La copie hors site a échoué (voir les journaux du service backup)."
+    log "ERREUR : la copie hors site a échoué."
+    return 1
+  fi
+}
+
 cmd_once() {
   mkdir -p "$BACKUP_DIR"
   if do_backup; then
     write_status yes ""
     apply_retention
+    # Copie hors site : un échec est enregistré mais ne remet pas en cause la sauvegarde locale réussie.
+    cmd_offsite || log "La copie hors site a échoué ; nouvelle tentative au prochain cycle."
   else
     write_status no "La sauvegarde a échoué (voir les journaux du service backup)."
     return 1
@@ -252,5 +311,6 @@ case "${1:-}" in
   list) cmd_list ;;
   verify) shift; cmd_verify "${1:-}" ;;
   restore) shift; cmd_restore "${1:-}" ;;
-  *) echo "Usage : backup.sh {run|once|list|verify [archive]|restore archive}" >&2; exit 2 ;;
+  offsite) cmd_offsite ;;
+  *) echo "Usage : backup.sh {run|once|list|verify [archive]|restore archive|offsite}" >&2; exit 2 ;;
 esac

@@ -22,6 +22,8 @@ export interface AppEnv {
   documentsMaxBytes: number;
   /** Dossier des sauvegardes, en lecture seule pour l'API (écran d'exploitation) ; absent si non configuré. */
   backupsDir: string | null;
+  /** Fichier des notes de version (CHANGELOG.md), lu pour l'écran d'exploitation ; absent si non fourni. */
+  changelogFile: string | null;
   /** Version de l'application, fixée au déploiement (COTIASSO_VERSION). */
   appVersion: string;
 }
@@ -75,6 +77,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     documentsDir: source.DOCUMENTS_DIR || "./storage/documents",
     documentsMaxBytes: readPositiveInteger(source, "DOCUMENTS_MAX_MB", 25) * 1024 * 1024,
     backupsDir: source.BACKUPS_DIR || null,
+    changelogFile: source.CHANGELOG_FILE || null,
     appVersion: source.COTIASSO_VERSION || "développement",
   };
 }

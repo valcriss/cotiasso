@@ -80,6 +80,20 @@ services:
       BACKUP_KEEP_MIN: ${BACKUP_KEEP_MIN:-7}
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY}
       COTIASSO_VERSION: ${COTIASSO_VERSION}
+      # Copie hors site (facultative, voir docs/exploitation.md) : archives déjà chiffrées, copiées via rclone.
+      OFFSITE_TYPE: ${OFFSITE_TYPE:-}
+      OFFSITE_PATH: ${OFFSITE_PATH:-}
+      OFFSITE_PROVIDER: ${OFFSITE_PROVIDER:-}
+      OFFSITE_ENDPOINT: ${OFFSITE_ENDPOINT:-}
+      OFFSITE_REGION: ${OFFSITE_REGION:-}
+      OFFSITE_ACCESS_KEY_ID: ${OFFSITE_ACCESS_KEY_ID:-}
+      OFFSITE_SECRET_ACCESS_KEY: ${OFFSITE_SECRET_ACCESS_KEY:-}
+      OFFSITE_HOST: ${OFFSITE_HOST:-}
+      OFFSITE_PORT: ${OFFSITE_PORT:-}
+      OFFSITE_USER: ${OFFSITE_USER:-}
+      OFFSITE_PASS: ${OFFSITE_PASS:-}
+      OFFSITE_URL: ${OFFSITE_URL:-}
+      OFFSITE_VENDOR: ${OFFSITE_VENDOR:-}
     volumes:
       - documents-data:/data/documents:ro
       - backups-data:/backups

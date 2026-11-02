@@ -54,6 +54,9 @@ jobs:
       - name: Tests unitaires
         run: npm test
 
+      - name: Script de mise à jour (faux docker, ordre des étapes et arrêt avant toute modification)
+        run: bash scripts/update.test.sh
+
       - name: Build
         run: npm run build
 
@@ -72,6 +75,9 @@ jobs:
       COTIASSO_VERSION: ci
       COTIASSO_HTTP_PORT: 8088
       BACKUP_PASSPHRASE: ci-only-passphrase
+      # Copie hors site vers un dossier local du conteneur : exerce rclone et l'état écrit pour l'écran d'exploitation.
+      OFFSITE_TYPE: local
+      OFFSITE_PATH: /offsite
     steps:
       - uses: actions/checkout@v7
 
@@ -95,6 +101,12 @@ jobs:
         run: |
           docker compose exec -T backup /usr/local/bin/backup.sh once
           docker compose --profile tools run --rm tools verify
+
+      - name: Copie hors site et notes de version
+        run: |
+          docker compose exec -T backup sh -c 'ls /offsite/cotiasso-*.tar.enc /offsite/cotiasso-*.manifest.json'
+          docker compose exec -T backup cat /backups/offsite.json | tee /dev/stderr | grep '"lastError": null'
+          docker compose exec -T api test -s /app/CHANGELOG.md
 
       - name: Journaux en cas d'échec
         if: failure()

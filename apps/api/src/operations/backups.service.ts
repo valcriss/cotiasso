@@ -4,7 +4,15 @@ import { Inject, Injectable } from "@nestjs/common";
 import { z } from "zod";
 import type { AppEnv } from "../config/env.js";
 import { ENV } from "../config/tokens.js";
-import { evaluateBackupHealth, type BackupHealthReport, type BackupStatusFile } from "./backup-health.js";
+import {
+  evaluateBackupHealth,
+  evaluateOffsiteHealth,
+  type BackupHealthReport,
+  type BackupStatusFile,
+  type OffsiteHealthReport,
+  type OffsiteStatusFile,
+} from "./backup-health.js";
+import { parseReleaseNotes, type Release } from "./release-notes.js";
 
 const statusSchema = z.object({
   lastAttemptAt: z.string().nullable(),
@@ -12,6 +20,13 @@ const statusSchema = z.object({
   lastError: z.string().nullable(),
   intervalHours: z.number().positive(),
   retentionDays: z.number().positive(),
+});
+
+const offsiteSchema = z.object({
+  lastAttemptAt: z.string().nullable(),
+  lastSuccessAt: z.string().nullable(),
+  lastError: z.string().nullable(),
+  target: z.string(),
 });
 
 const manifestSchema = z.object({
@@ -48,6 +63,14 @@ export interface OperationsReport {
     status: BackupStatusFile | null;
     entries: BackupEntry[];
   };
+  /** Copie hors site des archives chiffrées ; « NONE » tant qu'elle n'est pas configurée. */
+  offsite: { report: OffsiteHealthReport; status: OffsiteStatusFile | null };
+}
+
+export interface ReleaseNotesReport {
+  version: string;
+  available: boolean;
+  releases: Release[];
 }
 
 /** Lit l'état des sauvegardes écrit par le service backup, en lecture seule : l'API ne sauvegarde ni ne restaure rien. */
@@ -58,11 +81,16 @@ export class BackupsService {
   async report(now: Date = new Date()): Promise<OperationsReport> {
     const dir = this.env.backupsDir;
     if (!dir) {
-      return { version: this.env.appVersion, backups: { configured: false, report: null, status: null, entries: [] } };
+      return {
+        version: this.env.appVersion,
+        backups: { configured: false, report: null, status: null, entries: [] },
+        offsite: { status: null, report: evaluateOffsiteHealth(null, 24, now) },
+      };
     }
 
     const status = await this.readJson(join(dir, "status.json"), statusSchema);
     const entries = await this.entries(dir);
+    const offsiteStatus = await this.readJson(join(dir, "offsite.json"), offsiteSchema);
     return {
       version: this.env.appVersion,
       backups: {
@@ -71,7 +99,20 @@ export class BackupsService {
         entries,
         report: evaluateBackupHealth(status, entries.filter((e) => e.archivePresent).length, now),
       },
+      offsite: { status: offsiteStatus, report: evaluateOffsiteHealth(offsiteStatus, status?.intervalHours ?? 24, now) },
     };
+  }
+
+  /** Notes de version du fichier CHANGELOG.md livré avec l'image ; vide si le fichier est absent ou illisible. */
+  async releaseNotes(): Promise<ReleaseNotesReport> {
+    const version = this.env.appVersion;
+    const file = this.env.changelogFile;
+    if (!file) return { version, available: false, releases: [] };
+    try {
+      return { version, available: true, releases: parseReleaseNotes(await readFile(file, "utf8"), version) };
+    } catch {
+      return { version, available: false, releases: [] };
+    }
   }
 
   private async entries(dir: string): Promise<BackupEntry[]> {

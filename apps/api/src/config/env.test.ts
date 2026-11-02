@@ -17,6 +17,7 @@ describe("readEnv", () => {
       documentsDir: "./storage/documents",
       documentsMaxBytes: 25 * 1024 * 1024,
       backupsDir: null,
+      changelogFile: null,
       appVersion: "développement",
     });
   });

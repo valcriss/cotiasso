@@ -91,7 +91,7 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | 2.2 | **Tiers sur les lignes d'écriture** | Prérequis des membres, des financeurs et d'un suivi propre des créances et dettes | Arrive avec le lot 3 |
 | 2.3 | ~~**Écrans d'administration des droits**~~ **fait** : « Voir les accès » et attributions avec portée | L'API existe ; manque la vue qui permet de comprendre qui peut quoi | 2.1 |
 | 2.4 | **Étapes de l'assistant initial** au-delà du premier compte : exercices, plan de comptes, comptes bancaires, projet permanent, rôles, mode de démarrage | Aujourd'hui ces réglages se font un par un dans Paramètres ; l'assistant guiderait un trésorier débutant | 1.1 |
-| 2.5 | **Exploitation** : copie hors site automatique, sauvegarde automatique avant mise à jour, notes de version | Les sauvegardes existent mais restent sur le serveur | [exploitation.md](exploitation.md) |
+| 2.5 | ~~**Exploitation**~~ **fait** (ADR 0026) : copie hors site automatique (rclone, archives chiffrées, état dans l'écran Exploitation), script de mise à jour qui sauvegarde et vérifie avant de changer de version, notes de version (`CHANGELOG.md`) | Les sauvegardes restaient sur le serveur | [exploitation.md](exploitation.md) |
 | 2.6 | ~~**Dépôt du fichier OFX d'origine comme document**~~ **fait** (ADR 0025) : conservé à l'analyse, restreint, archivé si l'import est annulé | Complète la traçabilité des imports | Documents (lot 1.6) |
 | 2.7 | **Suites de la comptabilité** : versionnement du plan de comptes et des rubriques, lien de correction (remplacement après contrepassation), ventilation d'une transaction | Améliorations de fond identifiées pendant les lots 2a et 2b | 1.1 |
 

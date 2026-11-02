@@ -26,6 +26,7 @@ interface Session {
 describe("Exploitation : état des sauvegardes (base vierge)", () => {
   let db: TempDatabase;
   let dir: string;
+  let changelog: string;
   let app: NestFastifyApplication;
   let prisma: PrismaService;
   let users: UsersService;
@@ -56,7 +57,12 @@ describe("Exploitation : état des sauvegardes (base vierge)", () => {
   beforeAll(async () => {
     db = await createTempDatabase();
     dir = await mkdtemp(join(tmpdir(), "cotiasso-backups-"));
-    app = await boot({ backupsDir: dir, appVersion: "1.2.3" });
+    changelog = join(dir, "..", `cotiasso-changelog-${randomUUID()}.md`);
+    await writeFile(
+      changelog,
+      "# Notes\n\n## 1.2.3 — 2026-11-10\n\n### À savoir\n\n- Sauvegardez avant de mettre à jour.\n\n## 1.1.0 — 2026-10-01\n\n- Ancienne nouveauté.\n",
+    );
+    app = await boot({ backupsDir: dir, appVersion: "1.2.3", changelogFile: changelog });
     prisma = app.get(PrismaService);
     users = app.get(UsersService);
 
@@ -69,6 +75,19 @@ describe("Exploitation : état des sauvegardes (base vierge)", () => {
     await app.close();
     await db.drop();
     await rm(dir, { recursive: true, force: true });
+    await rm(changelog, { force: true });
+  });
+
+  it("sert les notes de version aux seuls administrateurs de l'exploitation", async () => {
+    expect((await get("/operations/release-notes")).statusCode).toBe(401);
+    expect((await get("/operations/release-notes", await userWith("treasurer"))).statusCode).toBe(403);
+    const notes = (await get("/operations/release-notes", await userWith("technical-admin"))).json();
+    expect(notes).toMatchObject({ version: "1.2.3", available: true });
+    expect(notes.releases.map((r: { heading: string; current: boolean }) => [r.heading, r.current])).toEqual([
+      ["1.2.3 — 2026-11-10", true],
+      ["1.1.0 — 2026-10-01", false],
+    ]);
+    expect(notes.releases[0].groups[0]).toEqual({ title: "À savoir", items: ["Sauvegardez avant de mettre à jour."] });
   });
 
   it("réserve l'état de l'exploitation à backups:admin", async () => {
@@ -82,6 +101,7 @@ describe("Exploitation : état des sauvegardes (base vierge)", () => {
     expect(report.version).toBe("1.2.3");
     expect(report.backups).toMatchObject({ configured: true, entries: [], status: null });
     expect(report.backups.report.health).toBe("NONE");
+    expect(report.offsite).toMatchObject({ status: null, report: { health: "NONE" } });
   });
 
   it("lit les fichiers réellement produits par le script de sauvegarde", async () => {
@@ -100,6 +120,28 @@ describe("Exploitation : état des sauvegardes (base vierge)", () => {
     });
     // Les fichiers de test datent de 2026-11-01 : l'état est évalué à la date du jour d'exécution.
     expect(["OK", "STALE"]).toContain(report.backups.report.health);
+  });
+
+  it("lit l'état de la copie hors site réellement écrit par le script", async () => {
+    const report = (await get("/operations", await userWith("technical-admin"))).json();
+    expect(report.offsite.status).toEqual({
+      lastAttemptAt: "2026-11-01T17:00:00Z",
+      lastSuccessAt: "2026-11-01T17:00:00Z",
+      lastError: null,
+      target: "s3:bucket/cotiasso",
+    });
+    // Aucun identifiant n'est exposé : seule la cible lisible.
+    expect(JSON.stringify(report.offsite)).not.toMatch(/secret|password|pass"/i);
+    expect(["OK", "STALE"]).toContain(report.offsite.report.health);
+
+    await writeFile(
+      join(dir, "offsite.json"),
+      JSON.stringify({ lastAttemptAt: new Date().toISOString(), lastSuccessAt: "2026-11-01T17:00:00Z", lastError: "réseau coupé", target: "s3:bucket/cotiasso" }),
+    );
+    const failing = (await get("/operations", await userWith("technical-admin"))).json();
+    expect(failing.offsite.report.health).toBe("FAILING");
+    expect(failing.offsite.report.message).toContain("réseau coupé");
+    await cp(join(FIXTURES, "offsite.json"), join(dir, "offsite.json"));
   });
 
   it("signale une archive disparue alors que son manifeste existe", async () => {

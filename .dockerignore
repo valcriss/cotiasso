@@ -11,6 +11,7 @@ apps/web/.angular
 apps/api/src/generated
 docs
 *.md
+!CHANGELOG.md
 !package.json
 docker-compose*.yml
 *.log

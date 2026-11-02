@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateBackupHealth, type BackupStatusFile } from "./backup-health.js";
+import { evaluateBackupHealth, evaluateOffsiteHealth, type BackupStatusFile, type OffsiteStatusFile } from "./backup-health.js";
 
 const now = new Date("2026-11-10T12:00:00.000Z");
 const hoursAgo = (hours: number) => new Date(now.getTime() - hours * 3_600_000).toISOString();
@@ -49,5 +49,42 @@ describe("evaluateBackupHealth", () => {
 
   it("traite une date de réussite illisible comme un retard", () => {
     expect(evaluateBackupHealth(status({ lastSuccessAt: "pas-une-date" }), 3, now).health).toBe("STALE");
+  });
+});
+
+describe("evaluateOffsiteHealth", () => {
+  const offsite = (overrides: Partial<OffsiteStatusFile> = {}): OffsiteStatusFile => ({
+    lastAttemptAt: hoursAgo(1),
+    lastSuccessAt: hoursAgo(1),
+    lastError: null,
+    target: "s3:bucket/cotiasso",
+    ...overrides,
+  });
+
+  it("est NONE sans fichier d'état : la copie n'est pas configurée, ce n'est pas une panne", () => {
+    expect(evaluateOffsiteHealth(null, 24, now).health).toBe("NONE");
+  });
+
+  it("est OK quand la dernière copie réussie est récente", () => {
+    expect(evaluateOffsiteHealth(offsite(), 24, now).health).toBe("OK");
+  });
+
+  it("signale un échec plus récent que la dernière réussite, avec son motif", () => {
+    const report = evaluateOffsiteHealth(offsite({ lastSuccessAt: hoursAgo(25), lastError: "réseau coupé" }), 24, now);
+    expect(report.health).toBe("FAILING");
+    expect(report.message).toContain("réseau coupé");
+  });
+
+  it("ne signale pas un échec déjà suivi d'une réussite", () => {
+    expect(evaluateOffsiteHealth(offsite({ lastError: "ancien", lastAttemptAt: hoursAgo(2), lastSuccessAt: hoursAgo(1) }), 24, now).health).toBe("OK");
+  });
+
+  it("est PENDING tant qu'aucune copie n'a réussi", () => {
+    expect(evaluateOffsiteHealth(offsite({ lastSuccessAt: "", lastAttemptAt: hoursAgo(1) }), 24, now).health).toBe("PENDING");
+  });
+
+  it("signale une copie trop ancienne au-delà de deux intervalles plus une heure", () => {
+    expect(evaluateOffsiteHealth(offsite({ lastSuccessAt: hoursAgo(49) }), 24, now).health).toBe("OK");
+    expect(evaluateOffsiteHealth(offsite({ lastSuccessAt: hoursAgo(50), lastAttemptAt: hoursAgo(50) }), 24, now).health).toBe("STALE");
   });
 });

@@ -47,3 +47,53 @@ export function evaluateBackupHealth(status: BackupStatusFile | null, backupCoun
   }
   return { health: "OK", message: "Les sauvegardes sont à jour.", ageHours };
 }
+
+export interface OffsiteStatusFile {
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  lastError: string | null;
+  /** Cible lisible (type:chemin), sans aucun identifiant. */
+  target: string;
+}
+
+export type OffsiteHealth = "OK" | "FAILING" | "STALE" | "PENDING" | "NONE";
+
+export interface OffsiteHealthReport {
+  health: OffsiteHealth;
+  message: string;
+  /** Âge de la dernière copie réussie, en heures (null s'il n'y en a pas). */
+  ageHours: number | null;
+}
+
+/**
+ * Évalue la copie hors site. Sans configuration (aucun fichier d'état), elle n'est pas en échec : elle est simplement
+ * absente, ce que l'écran explique. Une copie en retard se juge sur le même rythme que la sauvegarde.
+ */
+export function evaluateOffsiteHealth(
+  status: OffsiteStatusFile | null,
+  intervalHours: number,
+  now: Date,
+): OffsiteHealthReport {
+  if (!status) {
+    return { health: "NONE", message: "La copie hors site n'est pas configurée.", ageHours: null };
+  }
+  const lastSuccess = status.lastSuccessAt ? new Date(status.lastSuccessAt) : null;
+  const validSuccess = lastSuccess && !Number.isNaN(lastSuccess.getTime()) ? lastSuccess : null;
+  const ageHours = validSuccess ? (now.getTime() - validSuccess.getTime()) / 3_600_000 : null;
+  const lastAttempt = status.lastAttemptAt ? new Date(status.lastAttemptAt) : null;
+
+  if (status.lastError && lastAttempt && (!validSuccess || lastAttempt >= validSuccess)) {
+    return { health: "FAILING", message: `La dernière copie hors site a échoué : ${status.lastError}`, ageHours };
+  }
+  if (ageHours === null) {
+    return { health: "PENDING", message: "Aucune copie hors site n'a encore réussi.", ageHours };
+  }
+  if (ageHours > intervalHours * 2 + GRACE_HOURS) {
+    return {
+      health: "STALE",
+      message: `La dernière copie hors site réussie est trop ancienne (une copie est attendue toutes les ${intervalHours} h).`,
+      ageHours,
+    };
+  }
+  return { health: "OK", message: "La copie hors site est à jour.", ageHours };
+}

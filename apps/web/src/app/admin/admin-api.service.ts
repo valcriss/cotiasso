@@ -1063,6 +1063,16 @@ export interface OperationsInfo {
     status: { lastAttemptAt: string | null; lastSuccessAt: string | null; lastError: string | null; intervalHours: number; retentionDays: number } | null;
     entries: BackupEntryInfo[];
   };
+  offsite: {
+    report: { health: 'OK' | 'FAILING' | 'STALE' | 'PENDING' | 'NONE'; message: string; ageHours: number | null };
+    status: { lastAttemptAt: string | null; lastSuccessAt: string | null; lastError: string | null; target: string } | null;
+  };
+}
+
+export interface ReleaseNotesInfo {
+  version: string;
+  available: boolean;
+  releases: { heading: string; current: boolean; groups: { title: string | null; items: string[] }[] }[];
 }
 
 /** Appels de l'API d'administration (utilisateurs, rôles, attributions). Le serveur applique les droits. */
@@ -1817,6 +1827,10 @@ export class AdminApiService {
 
   operations(): Promise<OperationsInfo> {
     return firstValueFrom(this.http.get<OperationsInfo>('/api/operations'));
+  }
+
+  releaseNotes(): Promise<ReleaseNotesInfo> {
+    return firstValueFrom(this.http.get<ReleaseNotesInfo>('/api/operations/release-notes'));
   }
 
   changeOwnPassword(currentPassword: string, newPassword: string): Promise<void> {
