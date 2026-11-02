@@ -9,7 +9,7 @@ import { IS_PUBLIC } from "../../src/auth/public.decorator.js";
 import { UsersService } from "../../src/auth/users.service.js";
 import { readEnv } from "../../src/config/env.js";
 import { ENV } from "../../src/config/tokens.js";
-import { AUTHENTICATED_ONLY, REQUIRED_PERMISSIONS } from "../../src/authz/decorators.js";
+import { AUTHENTICATED_ONLY, REQUIRED_PERMISSIONS, REQUIRED_PROJECT_ACCESS } from "../../src/authz/decorators.js";
 import { DEFAULT_ROLES } from "../../src/authz/default-roles.js";
 import { SetupService } from "../../src/setup/setup.service.js";
 import { PrismaService } from "../../src/prisma/prisma.service.js";
@@ -270,7 +270,7 @@ describe("Autorisation (base vierge)", () => {
         if (name === "constructor" || typeof handler !== "function" || Reflect.getMetadata("path", handler) === undefined) continue;
         routes += 1;
         const targets = [handler, wrapper.metatype!];
-        const declared = [IS_PUBLIC, AUTHENTICATED_ONLY, REQUIRED_PERMISSIONS].some(
+        const declared = [IS_PUBLIC, AUTHENTICATED_ONLY, REQUIRED_PERMISSIONS, REQUIRED_PROJECT_ACCESS].some(
           (key) => reflector.getAllAndOverride(key, targets) !== undefined,
         );
         if (!declared) undeclared.push(`${wrapper.metatype!.name}.${name}`);

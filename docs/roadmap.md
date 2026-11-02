@@ -48,6 +48,7 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | Virements internes | Deux transactions reliées et un brouillon banque à banque, sans charge ni produit (CA-05) | ADR 0017 |
 | Rapprochement bancaire | Pointage des transactions sur un relevé, écart nul exigé, figement, annulation du dernier, avertissement à la clôture | ADR 0018 |
 | État de trésorerie et exports (lot 2c.2) | État de trésorerie par compte avec exercice précédent ; export CSV sûr (formules neutralisées, audité) des états de synthèse et de lecture ; PDF par impression du navigateur | ADR 0021 |
+| Portée projet des droits | Attributions de rôle limitées à un projet (intersection avec les droits applicables à un projet), accès filtrés côté serveur, écran « Accès effectifs » | ADR 0022 |
 | États de synthèse (lot 2c.1) | Compte de résultat et bilan avec exercice précédent en regard, contrôle d'équilibre, avertissements (comptes sans rubrique, exercice précédent non clôturé) ; page Rapports | ADR 0020 |
 | Reprise | Lots de brouillons préparés en masse, soldes d'ouverture guidés (origine expliquée), comptabilisation chronologique avec compte rendu et reprise après erreur, abandon sans effacer le comptabilisé, qualification en masse | ADR 0019 |
 
@@ -77,9 +78,9 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 
 | # | Élément | Pourquoi | Dépend de |
 | --- | --- | --- | --- |
-| 2.1 | **Portée projet des droits** : attributions de rôle à portée globale ou projet, héritage, restrictions documentaires par projet | Droit retenu au cadrage (« droits globaux et par projet »), encore non implémenté : tout est global aujourd'hui | Projet existant (ADR 0013) |
+| 2.1 | ~~**Portée projet des droits**~~ **fait** (ADR 0022) ; reste l'héritage vers les documents, avec le lot 4 | Droit retenu au cadrage (« droits globaux et par projet »), encore non implémenté : tout est global aujourd'hui | Projet existant (ADR 0013) |
 | 2.2 | **Tiers sur les lignes d'écriture** | Prérequis des membres, des financeurs et d'un suivi propre des créances et dettes | Arrive avec le lot 3 |
-| 2.3 | **Écrans d'administration des droits** : « accès effectifs », attributions de rôle | L'API existe ; manque la vue qui permet de comprendre qui peut quoi | 2.1 |
+| 2.3 | ~~**Écrans d'administration des droits**~~ **fait** : « Voir les accès » et attributions avec portée | L'API existe ; manque la vue qui permet de comprendre qui peut quoi | 2.1 |
 | 2.4 | **Étapes de l'assistant initial** au-delà du premier compte : exercices, plan de comptes, comptes bancaires, projet permanent, rôles, mode de démarrage | Aujourd'hui ces réglages se font un par un dans Paramètres ; l'assistant guiderait un trésorier débutant | 1.1 |
 | 2.5 | **Exploitation** : copie hors site automatique, sauvegarde automatique avant mise à jour, notes de version | Les sauvegardes existent mais restent sur le serveur | [exploitation.md](exploitation.md) |
 | 2.6 | **Dépôt du fichier OFX d'origine comme document** (preuve jointe à l'import) | Complète la traçabilité des imports | Documents (lot 1.6) |

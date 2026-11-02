@@ -23,6 +23,8 @@ export function mockAuth(
       mfa: signal(mfa).asReadonly(),
       permissions: granted.asReadonly(),
       can: (permission: string | undefined) => permission === undefined || granted().has(permission),
+      canAny: (permission: string | undefined) => permission === undefined || granted().has(permission),
+      canOnProject: (permission: string) => granted().has(permission),
       ...extra,
     },
   };

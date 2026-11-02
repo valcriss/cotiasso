@@ -8,7 +8,8 @@ import { describeHttpError } from '../auth/error-messages';
 import { ActionBar } from '../ui/action-bar';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
-import { AdminApiService, type ManagedUser, type PasswordLink, type RoleSummary } from './admin-api.service';
+import { AccessDialog, type AccessDialogData } from './access-dialog';
+import { AdminApiService, type ManagedUser, type PasswordLink, type ProjectInfo, type RoleSummary } from './admin-api.service';
 import { InviteDialog, type InviteDialogData, type InviteResult } from './invite-dialog';
 import { LinkDialog, type LinkDialogData } from './link-dialog';
 import { fullLink } from './password-link';
@@ -53,7 +54,7 @@ import { fullLink } from './password-link';
               <td>
                 @for (assignment of user.roleAssignments; track assignment.id) {
                   <span class="chip">
-                    {{ assignment.role.name }}
+                    {{ assignment.role.name }}@if (assignment.project) { · {{ assignment.project.code }} }
                     @if (canAdmin()) {
                       <button
                         type="button"
@@ -87,6 +88,18 @@ import { fullLink } from './password-link';
               <tr class="detail">
                 <td colspan="4">
                   <div class="detail-actions">
+                    @if (projects().length > 0 && user.status === 'ACTIVE') {
+                      <mat-form-field appearance="outline" class="inline">
+                        <mat-label>Portée du rôle ajouté</mat-label>
+                        <mat-select [value]="scope()" (selectionChange)="scope.set($event.value)">
+                          <mat-option value="">Toute l'association</mat-option>
+                          @for (project of projects(); track project.id) {
+                            <mat-option [value]="project.id">Projet {{ project.code }}</mat-option>
+                          }
+                        </mat-select>
+                        <mat-hint>Un rôle limité à un projet ne donne que les droits sur ce projet.</mat-hint>
+                      </mat-form-field>
+                    }
                     @if (availableRoles(user).length > 0 && user.status === 'ACTIVE') {
                       <mat-form-field appearance="outline" class="inline">
                         <mat-label>Ajouter un rôle</mat-label>
@@ -97,6 +110,7 @@ import { fullLink } from './password-link';
                         </mat-select>
                       </mat-form-field>
                     }
+                    <button mat-stroked-button type="button" (click)="showAccess(user)">Voir les accès</button>
                     @if (user.status === 'ACTIVE') {
                       <button mat-stroked-button type="button" [disabled]="busy()" (click)="issueReset(user)">Lien de réinitialisation</button>
                       <button mat-stroked-button type="button" [disabled]="busy()" (click)="revokeSessions(user)">Déconnecter partout</button>
@@ -130,6 +144,10 @@ export class UsersPage {
   protected readonly currentUserId = computed(() => this.auth.user()?.id);
   protected readonly users = signal<ManagedUser[]>([]);
   protected readonly roles = signal<RoleSummary[]>([]);
+  /** Projets proposés comme portée d'un rôle ; vide sans droit de les consulter. */
+  protected readonly projects = signal<ProjectInfo[]>([]);
+  /** Portée du prochain rôle ajouté : vide = toute l'association, sinon un projet. */
+  protected readonly scope = signal('');
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -139,9 +157,15 @@ export class UsersPage {
     void this.load();
   }
 
+  /** Rôles qu'on peut encore ajouter : ceux que la personne n'a pas déjà avec la portée choisie. */
   protected availableRoles(user: ManagedUser): RoleSummary[] {
-    const held = new Set(user.roleAssignments.map((a) => a.role.id));
+    const scope = this.scope() || null;
+    const held = new Set(user.roleAssignments.filter((a) => (a.project?.id ?? null) === scope).map((a) => a.role.id));
     return this.roles().filter((role) => !held.has(role.id));
+  }
+
+  protected async showAccess(user: ManagedUser): Promise<void> {
+    await this.dialogs.open<boolean, AccessDialogData>(AccessDialog, { size: 'md', dismissible: true, data: { user } });
   }
 
   protected toggleRow(id: string): void {
@@ -205,7 +229,7 @@ export class UsersPage {
 
   protected addRole(user: ManagedUser, roleId: string): Promise<void> {
     return this.run(async () => {
-      await this.api.assignRole(user.id, roleId);
+      await this.api.assignRole(user.id, roleId, this.scope() || undefined);
       this.notifier.success(`Rôle ajouté à ${user.displayName}.`);
     });
   }
@@ -230,6 +254,8 @@ export class UsersPage {
       const [users, roles] = await Promise.all([this.api.listUsers(), this.api.listRoles()]);
       this.users.set(users);
       this.roles.set(roles);
+      // Les projets ne sont proposés que si l'utilisateur peut les consulter : sinon, attribution globale seulement.
+      this.projects.set(await this.api.listProjects().catch(() => []));
     } catch (error) {
       this.error.set(describeHttpError(error, 'Impossible de charger les utilisateurs.').message);
     } finally {

@@ -17,6 +17,7 @@ function configure(state: { setupRequired: boolean; user: object | null; permiss
           user: signal(state.user).asReadonly(),
           mfa: signal(state.mfa ?? { state: 'OK', enabled: false, required: false }).asReadonly(),
           can: (permission: string | undefined) => permission === undefined || (state.permissions ?? []).includes(permission),
+          canAny: (permission: string | undefined) => permission === undefined || (state.permissions ?? []).includes(permission),
         },
       },
     ],

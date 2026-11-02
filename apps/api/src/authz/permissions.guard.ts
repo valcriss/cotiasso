@@ -3,7 +3,7 @@ import { Reflector } from "@nestjs/core";
 import type { AuthenticatedRequest } from "../auth/auth.guard.js";
 import { IS_PUBLIC } from "../auth/public.decorator.js";
 import { AuthorizationService } from "./authorization.service.js";
-import { AUTHENTICATED_ONLY, REQUIRED_PERMISSIONS } from "./decorators.js";
+import { AUTHENTICATED_ONLY, REQUIRED_PERMISSIONS, REQUIRED_PROJECT_ACCESS } from "./decorators.js";
 import { ALLOW_PARTIAL_SESSION } from "./partial-session.js";
 import type { Permission } from "./permissions.js";
 
@@ -34,6 +34,19 @@ export class PermissionsGuard implements CanActivate {
     if (required) {
       const granted = await this.authorization.permissionsFor(request.auth.user.id);
       if (!required.every((permission) => granted.has(permission))) throw new ForbiddenException("Accès refusé.");
+      return true;
+    }
+
+    const projectPermission = this.reflector.getAllAndOverride<Permission | undefined>(REQUIRED_PROJECT_ACCESS, targets);
+    if (projectPermission) {
+      const granted = await this.authorization.permissionsFor(request.auth.user.id);
+      if (granted.has(projectPermission)) {
+        request.projectAccess = { all: true, ids: new Set() };
+        return true;
+      }
+      const ids = (await this.authorization.projectAccessFor(request.auth.user.id))[projectPermission] ?? [];
+      if (ids.length === 0) throw new ForbiddenException("Accès refusé.");
+      request.projectAccess = { all: false, ids: new Set(ids) };
       return true;
     }
 

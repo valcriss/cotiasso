@@ -9,6 +9,8 @@ export interface SessionResponse {
   user: PublicUser;
   /** Vide tant que le second facteur n'est pas vérifié ou activé : la session est alors partielle. */
   permissions: Permission[];
+  /** Droits exercés sur des projets précis (ADR 0022) : permission → identifiants de projets. */
+  projectPermissions: Partial<Record<Permission, string[]>>;
   mfa: MfaStatus;
   csrfToken: string;
   expiresAt: string;
@@ -29,6 +31,7 @@ export class SessionPresenter {
   ): Promise<SessionResponse> {
     const mfa = status ?? (await this.mfa.statusFor(user.id, session.mfaVerifiedAt));
     const permissions = mfa.state === "OK" ? [...(await this.authorization.permissionsFor(user.id))] : [];
-    return { user, permissions, mfa, csrfToken: session.csrfToken, expiresAt: session.expiresAt.toISOString() };
+    const projectPermissions = mfa.state === "OK" ? await this.authorization.projectAccessFor(user.id) : {};
+    return { user, permissions, projectPermissions, mfa, csrfToken: session.csrfToken, expiresAt: session.expiresAt.toISOString() };
   }
 }

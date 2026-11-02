@@ -113,6 +113,9 @@ model RoleAssignment {
   user      User      @relation(fields: [userId], references: [id])
   roleId    String    @db.Uuid
   role      Role      @relation(fields: [roleId], references: [id])
+  // Portée projet (ADR 0022) : absent = attribution globale. Ne change jamais (déclencheur SQL).
+  projectId String?   @db.Uuid
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: Restrict)
   startsAt  DateTime  @default(now()) @db.Timestamptz(3)
   endsAt    DateTime? @db.Timestamptz(3)
   revokedAt DateTime? @db.Timestamptz(3)
@@ -122,6 +125,7 @@ model RoleAssignment {
 
   @@index([userId])
   @@index([roleId])
+  @@index([projectId])
 }
 
 enum PasswordTokenPurpose {
@@ -410,9 +414,10 @@ model Project {
   createdAt   DateTime      @default(now()) @db.Timestamptz(3)
   createdBy   String?       @db.Uuid
 
-  manager      User?                  @relation("ProjectManager", fields: [managerId], references: [id], onDelete: Restrict)
-  allocations  AnalyticalAllocation[]
-  transactions Transaction[]
+  manager         User?                  @relation("ProjectManager", fields: [managerId], references: [id], onDelete: Restrict)
+  allocations     AnalyticalAllocation[]
+  roleAssignments RoleAssignment[]
+  transactions    Transaction[]
 }
 
 // Ventilation analytique d'une ligne de charge ou de produit : une ou plusieurs parts de projet dont le total égale

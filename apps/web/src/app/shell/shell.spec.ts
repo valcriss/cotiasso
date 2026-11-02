@@ -33,6 +33,7 @@ describe('Shell', () => {
             user: signal(user).asReadonly(),
             permissions: permissions.asReadonly(),
             can: (permission: string | undefined) => permission === undefined || permissions().has(permission),
+            canAny: (permission: string | undefined) => permission === undefined || permissions().has(permission),
             logout,
           },
         },

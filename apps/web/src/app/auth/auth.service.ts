@@ -26,6 +26,8 @@ export interface EnrollmentStart {
 interface SessionResponse {
   user: AuthUser;
   permissions: string[];
+  /** Droits exercés sur des projets précis (portée projet) : permission → identifiants de projets. */
+  projectPermissions?: Record<string, string[]>;
   mfa: MfaStatus;
   csrfToken: string;
   expiresAt: string;
@@ -43,6 +45,7 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly userState = signal<AuthUser | null>(null);
   private readonly permissionsState = signal<ReadonlySet<string>>(new Set());
+  private readonly projectPermissionsState = signal<Readonly<Record<string, readonly string[]>>>({});
   private readonly setupRequiredState = signal(false);
   private readonly mfaState = signal<MfaStatus>({ state: 'OK', enabled: false, required: false });
   private csrf: string | null = null;
@@ -51,6 +54,8 @@ export class AuthService {
   readonly user = this.userState.asReadonly();
   readonly setupRequired = this.setupRequiredState.asReadonly();
   readonly permissions = this.permissionsState.asReadonly();
+  /** Droits sur des projets précis (permission → projets), en plus des droits globaux. */
+  readonly projectPermissions = this.projectPermissionsState.asReadonly();
   /** État du second facteur : détermine si la session est complète ou partielle. */
   readonly mfa = this.mfaState.asReadonly();
 
@@ -118,6 +123,16 @@ export class AuthService {
     await firstValueFrom(this.http.post<void>('/api/auth/password-reset', { token, password }));
   }
 
+  /** Droit sur un projet précis : global, ou accordé sur ce projet par une attribution à portée projet. */
+  canOnProject(permission: string, projectId: string): boolean {
+    return this.can(permission) || (this.projectPermissionsState()[permission] ?? []).includes(projectId);
+  }
+
+  /** Droit global, ou sur au moins un projet : de quoi afficher une rubrique dont le serveur filtrera le contenu. */
+  canAny(permission: string | undefined): boolean {
+    return permission === undefined || this.can(permission) || (this.projectPermissionsState()[permission] ?? []).length > 0;
+  }
+
   async logout(): Promise<void> {
     try {
       await firstValueFrom(this.http.post<void>('/api/auth/logout', {}));
@@ -130,6 +145,7 @@ export class AuthService {
   clearSession(): void {
     this.userState.set(null);
     this.permissionsState.set(new Set());
+    this.projectPermissionsState.set({});
     this.mfaState.set({ state: 'OK', enabled: false, required: false });
     this.csrf = null;
   }
@@ -149,6 +165,7 @@ export class AuthService {
   private applySession(response: SessionResponse): void {
     this.csrf = response.csrfToken;
     this.permissionsState.set(new Set(response.permissions));
+    this.projectPermissionsState.set(response.projectPermissions ?? {});
     this.mfaState.set(response.mfa);
     this.userState.set(response.user);
   }

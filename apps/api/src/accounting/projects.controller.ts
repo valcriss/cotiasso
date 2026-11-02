@@ -15,7 +15,7 @@ import {
   Req,
 } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../auth/auth.guard.js";
-import { RequirePermission } from "../authz/decorators.js";
+import { RequirePermission, RequireProjectAccess } from "../authz/decorators.js";
 import { SettingsService } from "../settings/settings.service.js";
 import { SettingsValidationError } from "../settings/errors.js";
 import { AccountingConflictError, AccountingNotFoundError, AccountingValidationError } from "./errors.js";
@@ -48,22 +48,22 @@ export class ProjectsController {
     @Inject(SettingsService) private readonly settings: SettingsService,
   ) {}
 
-  @RequirePermission("projects:view")
+  @RequireProjectAccess("projects:view")
   @Get("projects")
-  list(): Promise<ProjectView[]> {
-    return this.projects.list();
+  list(@Req() request: AuthenticatedRequest): Promise<ProjectView[]> {
+    return this.projects.list(request.projectAccess);
   }
 
-  @RequirePermission("projects:view")
+  @RequireProjectAccess("projects:view")
   @Get("projects/:id")
-  get(@Param("id", ParseUUIDPipe) id: string): Promise<ProjectView> {
-    return translate(() => this.projects.get(id));
+  get(@Param("id", ParseUUIDPipe) id: string, @Req() request: AuthenticatedRequest): Promise<ProjectView> {
+    return translate(() => this.projects.get(id, request.projectAccess));
   }
 
-  @RequirePermission("projects:view")
+  @RequireProjectAccess("projects:view")
   @Get("projects/:id/summary")
-  summary(@Param("id", ParseUUIDPipe) id: string, @Query() query: unknown): Promise<ProjectSummary> {
-    return translate(() => this.projects.summary(id, query));
+  summary(@Param("id", ParseUUIDPipe) id: string, @Query() query: unknown, @Req() request: AuthenticatedRequest): Promise<ProjectSummary> {
+    return translate(() => this.projects.summary(id, query, request.projectAccess));
   }
 
   @RequirePermission("projects:update")
@@ -72,14 +72,14 @@ export class ProjectsController {
     return translate(() => this.projects.create(body, request.auth!.user.id));
   }
 
-  @RequirePermission("projects:update")
+  @RequireProjectAccess("projects:update")
   @Patch("projects/:id")
   update(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() body: unknown,
     @Req() request: AuthenticatedRequest,
   ): Promise<ProjectView> {
-    return translate(() => this.projects.update(id, body, request.auth!.user.id));
+    return translate(() => this.projects.update(id, body, request.auth!.user.id, request.projectAccess));
   }
 
   @RequirePermission("entries:view")

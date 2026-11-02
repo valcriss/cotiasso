@@ -10,7 +10,7 @@ import {
   LastAdministratorError,
   RoleNotFoundError,
 } from "./errors.js";
-import { isPermission, type Permission } from "./permissions.js";
+import { isPermission, isProjectScopable, type Permission } from "./permissions.js";
 
 export interface RoleInput {
   key?: string;
@@ -22,6 +22,8 @@ export interface RoleInput {
 
 export interface AssignInput {
   roleId: string;
+  /** Portée projet (ADR 0022) ; absent = attribution globale. */
+  projectId?: string;
   startsAt?: Date;
   endsAt?: Date | null;
 }
@@ -120,7 +122,13 @@ export class RolesService {
         status: true,
         roleAssignments: {
           where: { revokedAt: null },
-          select: { id: true, startsAt: true, endsAt: true, role: { select: { id: true, key: true, name: true } } },
+          select: {
+            id: true,
+            startsAt: true,
+            endsAt: true,
+            role: { select: { id: true, key: true, name: true } },
+            project: { select: { id: true, code: true, name: true } },
+          },
         },
       },
     });
@@ -129,23 +137,42 @@ export class RolesService {
   async assign(userId: string, input: AssignInput, actorId: string) {
     const [user, role] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } }),
-      this.prisma.role.findUnique({ where: { id: input.roleId }, select: { id: true, key: true } }),
+      this.prisma.role.findUnique({ where: { id: input.roleId }, select: { id: true, key: true, permissions: true } }),
     ]);
     if (!user) throw new InvalidRoleError("Utilisateur introuvable.");
     if (!role) throw new RoleNotFoundError();
+
+    if (input.projectId) {
+      const project = await this.prisma.project.findUnique({ where: { id: input.projectId }, select: { id: true } });
+      if (!project) throw new InvalidRoleError("Projet introuvable.");
+      if (!role.permissions.some(isProjectScopable)) {
+        throw new InvalidRoleError("Ce rôle n'a aucun droit applicable à un projet : attribuez-le à toute l'association, ou choisissez un rôle qui permet de consulter ou modifier un projet.");
+      }
+    }
+    const duplicate = await this.prisma.roleAssignment.findFirst({
+      where: {
+        userId,
+        roleId: role.id,
+        projectId: input.projectId ?? null,
+        revokedAt: null,
+        OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }],
+      },
+      select: { id: true },
+    });
+    if (duplicate) throw new InvalidRoleError("Cette personne a déjà ce rôle avec cette portée.");
 
     const startsAt = input.startsAt ?? new Date();
     if (input.endsAt && input.endsAt <= startsAt) throw new InvalidRoleError("La fin doit suivre le début.");
 
     const assignment = await this.prisma.roleAssignment.create({
-      data: { userId, roleId: role.id, startsAt, endsAt: input.endsAt ?? null, createdBy: actorId },
+      data: { userId, roleId: role.id, projectId: input.projectId ?? null, startsAt, endsAt: input.endsAt ?? null, createdBy: actorId },
     });
     await this.audit.record({
       action: "role.assigned",
       objectType: "User",
       objectId: userId,
       actorId,
-      details: { roleKey: role.key, assignmentId: assignment.id },
+      details: { roleKey: role.key, assignmentId: assignment.id, projectId: input.projectId ?? null },
     });
     return assignment;
   }
@@ -185,6 +212,7 @@ export class RolesService {
         AND ra."startsAt" <= ${now}
         AND (ra."endsAt" IS NULL OR ra."endsAt" > ${now})
         AND u."status" = 'ACTIVE'
+        AND ra."projectId" IS NULL
         AND ${LOCKOUT_PERMISSION} = ANY (r."permissions")`;
     if (Number(rows[0]?.count ?? 0) === 0) throw new LastAdministratorError();
   }

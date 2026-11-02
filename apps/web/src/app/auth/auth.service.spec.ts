@@ -125,4 +125,23 @@ describe('AuthService', () => {
     expect(auth.setupRequired()).toBe(false);
     expect(auth.user()?.id).toBe('1');
   });
+
+  it("distingue les droits globaux des droits limités à un projet", async () => {
+    const done = auth.initialize();
+    http.expectOne('/api/setup/status').flush({ setupRequired: false });
+    await tick();
+    http.expectOne('/api/auth/me').flush({ ...session, permissions: ['documents:view'], projectPermissions: { 'projects:view': ['p1'], 'projects:update': ['p1'] } });
+    await done;
+
+    expect(auth.can('projects:view')).toBe(false);
+    expect(auth.canAny('projects:view')).toBe(true);
+    expect(auth.canOnProject('projects:update', 'p1')).toBe(true);
+    expect(auth.canOnProject('projects:update', 'p2')).toBe(false);
+    // Un droit global vaut pour tous les projets ; sans aucun droit, rien n'est ouvert.
+    expect(auth.canOnProject('documents:view', 'p2')).toBe(true);
+    expect(auth.canAny('members:view')).toBe(false);
+    expect(auth.canAny(undefined)).toBe(true);
+    auth.clearSession();
+    expect(auth.canAny('projects:view')).toBe(false);
+  });
 });

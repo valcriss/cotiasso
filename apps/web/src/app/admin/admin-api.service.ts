@@ -17,6 +17,13 @@ export interface UserAssignment {
   startsAt: string;
   endsAt: string | null;
   role: { id: string; key: string; name: string };
+  /** Portée projet de l'attribution ; absent = toute l'association. */
+  project?: { id: string; code: string; name: string } | null;
+}
+
+export interface UserAccess {
+  permissions: { permission: string; label: string; grantedBy: { assignmentId: string; roleId: string; roleKey: string; roleName: string }[] }[];
+  projectPermissions: { permission: string; label: string; projectId: string; projectCode: string; projectName: string; grantedBy: { assignmentId: string; roleId: string; roleKey: string; roleName: string } }[];
 }
 
 export interface ManagedUser {
@@ -685,8 +692,12 @@ export class AdminApiService {
     return firstValueFrom(this.http.post<{ revoked: number }>(`/api/users/${userId}/sessions/revoke`, {}));
   }
 
-  assignRole(userId: string, roleId: string): Promise<unknown> {
-    return firstValueFrom(this.http.post(`/api/users/${userId}/assignments`, { roleId }));
+  assignRole(userId: string, roleId: string, projectId?: string): Promise<unknown> {
+    return firstValueFrom(this.http.post(`/api/users/${userId}/assignments`, { roleId, ...(projectId && { projectId }) }));
+  }
+
+  userAccess(userId: string): Promise<UserAccess> {
+    return firstValueFrom(this.http.get<UserAccess>(`/api/users/${userId}/access`));
   }
 
   revokeAssignment(assignmentId: string): Promise<void> {

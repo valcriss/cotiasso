@@ -2,6 +2,7 @@ import { Money } from "@cotiasso/accounting-domain";
 import { Inject, Injectable } from "@nestjs/common";
 import { z } from "zod";
 import { AuditService } from "../audit/audit.service.js";
+import type { ProjectAccess } from "../auth/auth.guard.js";
 import type { Project } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { AccountingConflictError, AccountingNotFoundError } from "./errors.js";
@@ -95,12 +96,21 @@ export class ProjectsService {
     @Inject(AuditService) private readonly audit: AuditService,
   ) {}
 
-  async list(): Promise<ProjectView[]> {
-    const projects = await this.prisma.project.findMany({ orderBy: [{ permanent: "desc" }, { code: "asc" }] });
+  /** Un projet hors de la portée de l'utilisateur est introuvable : on ne révèle pas son existence (ADR 0022). */
+  private assertAccess(id: string, access?: ProjectAccess): void {
+    if (access && !access.all && !access.ids.has(id)) throw new AccountingNotFoundError("Projet");
+  }
+
+  async list(access?: ProjectAccess): Promise<ProjectView[]> {
+    const projects = await this.prisma.project.findMany({
+      ...(access && !access.all && { where: { id: { in: [...access.ids] } } }),
+      orderBy: [{ permanent: "desc" }, { code: "asc" }],
+    });
     return projects.map(view);
   }
 
-  async get(id: string): Promise<ProjectView> {
+  async get(id: string, access?: ProjectAccess): Promise<ProjectView> {
+    this.assertAccess(id, access);
     const project = await this.prisma.project.findUnique({ where: { id } });
     if (!project) throw new AccountingNotFoundError("Projet");
     return view(project);
@@ -136,7 +146,8 @@ export class ProjectsService {
     return view(project);
   }
 
-  async update(id: string, body: unknown, actorId: string): Promise<ProjectView> {
+  async update(id: string, body: unknown, actorId: string, access?: ProjectAccess): Promise<ProjectView> {
+    this.assertAccess(id, access);
     const patch = parse(projectPatch, body);
     const current = await this.prisma.project.findUnique({ where: { id } });
     if (!current) throw new AccountingNotFoundError("Projet");
@@ -172,7 +183,8 @@ export class ProjectsService {
    * Synthèse analytique : charges et produits ventilés sur le projet, sur les écritures comptabilisées ou contrepassées.
    * Une contrepassation reprend la ventilation de l'originale dans l'autre sens : les deux s'annulent.
    */
-  async summary(id: string, query: unknown): Promise<ProjectSummary> {
+  async summary(id: string, query: unknown, access?: ProjectAccess): Promise<ProjectSummary> {
+    this.assertAccess(id, access);
     const q = parse(summaryQuery, query);
     if (!(await this.prisma.project.findUnique({ where: { id }, select: { id: true } }))) {
       throw new AccountingNotFoundError("Projet");

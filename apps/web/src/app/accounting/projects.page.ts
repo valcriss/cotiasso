@@ -83,7 +83,7 @@ import { PROJECT_STATUS_LABELS } from './project-labels';
         <div class="head">
           <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">analytics</mat-icon><span>Synthèse de {{ project.name }}</span></h3>
           <div class="actions">
-            @if (canUpdate()) {
+            @if (canEdit(project.id)) {
               <button mat-stroked-button type="button" (click)="edit(project)">
                 <mat-icon fontSet="material-icons-outlined" aria-hidden="true">edit</mat-icon> Modifier
               </button>
@@ -146,10 +146,18 @@ export class ProjectsPage {
   protected readonly error = signal<string | null>(null);
   protected readonly amount = formatApiAmount;
 
+  /** Créer un projet : droit global. */
   protected readonly canUpdate = computed(() => {
     this.auth.permissions();
     return this.auth.can('projects:update');
   });
+
+  /** Modifier un projet : droit global, ou accordé sur ce projet par une attribution à portée projet. */
+  protected canEdit(projectId: string): boolean {
+    this.auth.permissions();
+    this.auth.projectPermissions?.();
+    return this.auth.canOnProject('projects:update', projectId);
+  }
 
   constructor() {
     void this.load();

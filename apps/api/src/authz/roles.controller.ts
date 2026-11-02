@@ -130,7 +130,7 @@ export class RolesController {
   @RequirePermission("users:view")
   @Get("users/:id/access")
   async access(@Param("id") id: string) {
-    return { permissions: await this.authorization.effectiveAccess(uuid(id)) };
+    return { permissions: await this.authorization.effectiveAccess(uuid(id)), projectPermissions: await this.authorization.scopedAccess(uuid(id)) };
   }
 
   @RequirePermission("users:admin")
@@ -139,13 +139,16 @@ export class RolesController {
     if (typeof body !== "object" || body === null || typeof (body as { roleId?: unknown }).roleId !== "string") {
       throw new BadRequestException("Champ invalide : roleId.");
     }
-    const record = body as { roleId: string; startsAt?: unknown; endsAt?: unknown };
+    const record = body as { roleId: string; projectId?: unknown; startsAt?: unknown; endsAt?: unknown };
+    if (record.projectId !== undefined && record.projectId !== null && typeof record.projectId !== "string") {
+      throw new BadRequestException("Champ invalide : projectId.");
+    }
     try {
       const endsAt = readDate(record.endsAt, "endsAt");
       const startsAt = readDate(record.startsAt, "startsAt");
       return await this.roles.assign(
         uuid(id),
-        { roleId: uuid(record.roleId), ...(startsAt && { startsAt }), ...(endsAt && { endsAt }) },
+        { roleId: uuid(record.roleId), ...(record.projectId ? { projectId: uuid(record.projectId) } : {}), ...(startsAt && { startsAt }), ...(endsAt && { endsAt }) },
         request.auth!.user.id,
       );
     } catch (error) {

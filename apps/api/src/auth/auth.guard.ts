@@ -19,7 +19,13 @@ import { SessionService, type ValidSession } from "./session.service.js";
 /** Session validée, enrichie de l'état du second facteur (recalculé à chaque requête). */
 export type AuthContext = ValidSession & { mfa: MfaStatus };
 
-export type AuthenticatedRequest = FastifyRequest & { auth?: AuthContext };
+/** Projets accessibles pour la permission d'une route à portée projet : tous (droit global) ou une liste. */
+export interface ProjectAccess {
+  all: boolean;
+  ids: ReadonlySet<string>;
+}
+
+export type AuthenticatedRequest = FastifyRequest & { auth?: AuthContext; projectAccess?: ProjectAccess };
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 export const CSRF_HEADER = "x-csrf-token";

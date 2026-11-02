@@ -38,6 +38,14 @@ export const PERMISSIONS = {
 
 export type Permission = keyof typeof PERMISSIONS;
 
+/**
+ * Permissions qui s'exercent aussi sur UN projet (ADR 0022). Une attribution de rôle à portée projet n'accorde que
+ * l'intersection entre les droits du rôle et cette liste ; le reste n'est jamais accordé globalement par ce biais.
+ */
+export const PROJECT_SCOPABLE_PERMISSIONS: readonly Permission[] = ["projects:view", "projects:update"];
+
+export const isProjectScopable = (permission: string): boolean => (PROJECT_SCOPABLE_PERMISSIONS as readonly string[]).includes(permission);
+
 export const ALL_PERMISSIONS = Object.keys(PERMISSIONS) as Permission[];
 
 export function isPermission(value: string): value is Permission {
