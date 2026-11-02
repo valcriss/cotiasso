@@ -15,6 +15,7 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 ### Nouveautés
 
+- Rapports figés : à la fermeture et à la clôture d'un exercice (ou à la demande), le compte de résultat, le bilan et l'état de trésorerie sont enregistrés pour ne plus changer ; une correction crée une nouvelle version numérotée avec son motif. Les comptes définitifs peuvent être marqués « approuvés par l'assemblée générale » avec le procès-verbal.
 - Tiers : on peut indiquer « Qui ? » (un adhérent, un financeur, un fournisseur…) sur les lignes des comptes de tiers, et l'onglet « Tiers » de la Comptabilité montre ce que chacun vous doit et ce que vous lui devez. Les sommes par personne sont reportées à la clôture de l'exercice.
 - Démarrage : l'assistant « Démarrer » demande d'abord comment vous commencez. « Situation de départ » (recommandé sans relevés anciens) reprend en une seule écriture l'argent de vos comptes, ce qu'on vous doit et ce que vous devez ; le fonds de l'association est calculé, à confirmer et expliquer. « Historique » garde la reprise existante. Le modèle de départ gagne quatre comptes de tiers (401, 411, 441, 467), à faire relire.
 - **Un règlement, un geste** : en rattachant un règlement de cotisation ou un versement de subvention, une case permet de l'enregistrer aussi dans les comptes (catégorie désignée dans Paramètres › Comptabilité › Catégories, rôle « Cotisations » ou « Subventions »). Si l'enregistrement est refusé, le rattachement est conservé et le motif est donné.

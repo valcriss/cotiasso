@@ -9,7 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { formatApiAmount } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { Notifier } from '../ui/notifier.service';
-import { AdminApiService, type AccountInfo, type ClosingReportInfo, type FiscalYearInfo } from './admin-api.service';
+import { AdminApiService, type AccountInfo, type ClosingReportInfo, type FiscalYearInfo, type FrozenOutcomeInfo } from './admin-api.service';
 
 export interface ClosingDialogData {
   year: FiscalYearInfo;
@@ -20,6 +20,13 @@ export interface ClosingDialogData {
  * Clôture d'un exercice, en boîte de dialogue : contrôles, fermeture à la saisie (annulable), puis clôture définitive qui
  * reporte les soldes dans l'exercice suivant. La boîte reste ouverte entre les étapes ; la page recharge à sa fermeture.
  */
+/** Phrase sur les rapports figés automatiquement ; un échec dit quoi faire (le figement manuel reste possible). */
+export function frozenSentence(outcome: FrozenOutcomeInfo | undefined, subject: string): string {
+  if (!outcome) return '';
+  if ('error' in outcome) return ' Les rapports n’ont pas pu être figés automatiquement : figez-les à la main depuis Rapports › Rapports figés.';
+  return ` ${subject} ${subject.startsWith('Les') ? 'sont figés' : 'est figé'} dans Rapports › Rapports figés (version ${outcome.number}).`;
+}
+
 @Component({
   selector: 'app-closing-dialog',
   imports: [ReactiveFormsModule, MatDialogModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatSelectModule],
@@ -186,8 +193,9 @@ export class ClosingDialog {
 
   protected start(): Promise<void> {
     return this.run(async () => {
-      this.report.set(await this.api.startClosing(this.data.year.id));
-      this.notifier.success("Exercice fermé à la saisie. Vérifiez, puis clôturez ou annulez la fermeture.");
+      const started = await this.api.startClosing(this.data.year.id);
+      this.report.set(started);
+      this.notifier.success(`Exercice fermé à la saisie.${frozenSentence(started.frozen, "Un arrêté provisoire")} Vérifiez, puis clôturez ou annulez la fermeture.`);
     });
   }
 
@@ -201,12 +209,12 @@ export class ClosingDialog {
   protected close(): Promise<void> {
     const value = this.form.getRawValue();
     return this.run(async () => {
-      await this.api.closeFiscalYear(this.data.year.id, {
+      const closed = await this.api.closeFiscalYear(this.data.year.id, {
         surplusAccountId: value.surplusAccountId || null,
         deficitAccountId: value.deficitAccountId || null,
       });
       this.report.set(await this.api.closingReport(this.data.year.id));
-      this.notifier.success("Exercice clôturé. Les à-nouveaux sont comptabilisés dans l'exercice suivant.");
+      this.notifier.success(`Exercice clôturé. Les à-nouveaux sont comptabilisés dans l'exercice suivant.${frozenSentence(closed.frozen, "Les comptes définitifs")}`);
     });
   }
 

@@ -9,6 +9,7 @@ export const REPORT_TABS = [
   { path: 'compte-de-resultat', label: 'Compte de résultat', icon: 'trending_up' },
   { path: 'bilan', label: 'Bilan', icon: 'balance' },
   { path: 'tresorerie', label: 'Trésorerie', icon: 'account_balance' },
+  { path: 'figes', label: 'Rapports figés', icon: 'lock' },
 ] as const;
 
 @Component({

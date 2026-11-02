@@ -259,6 +259,7 @@ enum FiscalYearStatus {
 
 // Exercice comptable aux dates paramétrables. Pas de chevauchement (contrainte d'exclusion en base) ; jamais supprimé.
 model FiscalYear {
+  frozenReports FrozenReportSet[]
   id        String           @id @default(uuid()) @db.Uuid
   label     String
   start     DateTime         @db.Date
@@ -1215,4 +1216,48 @@ model ThirdParty {
   member Member?       @relation(fields: [memberId], references: [id], onDelete: Restrict)
   funder Funder?       @relation(fields: [funderId], references: [id], onDelete: Restrict)
   lines  JournalLine[]
+}
+
+enum FrozenReportKind {
+  CLOSING
+  CLOSED
+  MANUAL
+}
+
+// Jeu de rapports figé (ADR 0031) : compte de résultat, bilan et état de trésorerie d'un exercice (avec l'exercice
+// précédent) tels qu'ils étaient à un moment donné. Ajout seul ; une correction = une nouvelle version numérotée.
+model FrozenReportSet {
+  id           String           @id @default(uuid()) @db.Uuid
+  fiscalYearId String           @db.Uuid
+  number       Int
+  kind         FrozenReportKind
+  // Provisoire tant que l'exercice n'est pas clôturé ; définitif ensuite.
+  provisional  Boolean
+  label        String
+  reason       String?
+  supersedesId String?          @db.Uuid
+  calcVersion  Int
+  payload      Json
+  sha256       String
+  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
+  createdBy    String?          @db.Uuid
+
+  fiscalYear FiscalYear             @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
+  supersedes FrozenReportSet?       @relation("Supersedes", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy FrozenReportSet[]    @relation("Supersedes")
+  approval   FrozenReportApproval?
+
+  @@unique([fiscalYearId, number])
+}
+
+// Approbation des comptes par l'assemblée générale (ADR 0031) : date, note ; le procès-verbal est un document lié.
+model FrozenReportApproval {
+  id          String   @id @default(uuid()) @db.Uuid
+  setId       String   @unique @db.Uuid
+  meetingDate DateTime @db.Date
+  note        String   @default("")
+  approvedAt  DateTime @default(now()) @db.Timestamptz(3)
+  approvedBy  String?  @db.Uuid
+
+  set FrozenReportSet @relation(fields: [setId], references: [id], onDelete: Restrict)
 }

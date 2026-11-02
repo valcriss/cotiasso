@@ -1,6 +1,7 @@
 import { Money } from "@cotiasso/accounting-domain";
 import { Inject, Injectable } from "@nestjs/common";
 import { z } from "zod";
+import { FrozenReportsService } from "./frozen-reports.service.js";
 import { AuditService } from "../audit/audit.service.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
@@ -29,7 +30,11 @@ export interface ClosingReport {
   canStart: boolean;
   canClose: boolean;
   preview: CarryPreview | null;
+  /** Rapports figés automatiquement par cette action (ADR 0031) ; `error` si le figement a échoué (à refaire à la main). */
+  frozen?: FrozenOutcome;
 }
+
+export type FrozenOutcome = { number: number; provisional: boolean } | { error: string };
 
 const closeInput = z
   .object({ surplusAccountId: z.uuid().nullish(), deficitAccountId: z.uuid().nullish() })
@@ -59,6 +64,7 @@ export class ClosingService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(FrozenReportsService) private readonly frozen: FrozenReportsService,
   ) {}
 
   async report(id: string): Promise<ClosingReport> {
@@ -91,7 +97,9 @@ export class ClosingService {
     const changed = await this.prisma.fiscalYear.updateMany({ where: { id, status: "OPEN" }, data: { status: "CLOSING" } });
     if (changed.count !== 1) throw new AccountingConflictError("L'état de l'exercice a changé entre-temps. Actualisez.");
     await this.audit.record({ action: "fiscal-year.closing-started", objectType: "FiscalYear", objectId: id, actorId });
-    return this.report(id);
+    // Arrêté provisoire : plus aucune comptabilisation n'est possible, les rapports figés sont donc ceux de l'exercice fermé.
+    const frozen = await this.frozen.freezeAutomatically(id, "CLOSING", actorId);
+    return { ...(await this.report(id)), frozen };
   }
 
   /** Rouvre à la saisie un exercice fermé mais pas encore clôturé. Sans effet sur les écritures. */
@@ -113,7 +121,7 @@ export class ClosingService {
    * Clôture définitivement : génère et comptabilise les à-nouveaux de l'exercice suivant puis passe l'exercice à
    * « clôturé », dans une seule transaction. Au moindre refus, rien n'est écrit.
    */
-  async close(id: string, body: unknown, actorId: string): Promise<{ openingEntryId: string; result: CarryPreview["result"] }> {
+  async close(id: string, body: unknown, actorId: string): Promise<{ openingEntryId: string; result: CarryPreview["result"]; frozen: FrozenOutcome }> {
     const input = parse(closeInput, body ?? {});
 
     const done = await this.prisma.$transaction(async (tx) => {
@@ -163,7 +171,9 @@ export class ClosingService {
       actorId,
       details: { openingEntryId: done.openingEntryId, result: done.result.kind },
     });
-    return done;
+    // Comptes définitifs de l'exercice clôturé, avec l'exercice précédent en regard.
+    const frozen = await this.frozen.freezeAutomatically(id, "CLOSED", actorId);
+    return { ...done, frozen };
   }
 
   // --- Contrôles ---

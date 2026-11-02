@@ -95,7 +95,7 @@ Conception **proposée** dans l'[ADR 0024](decisions/0024-projets-budgets-et-fin
 5.2 Moteur de workflows déclaratifs, versionnés, suppléance (CA-09)
 5.3 Notifications email
 5.4 Reprise complète de l'association pilote et tableau de progression — **tableau fait** ([ADR 0027](decisions/0027-tableau-de-progression-de-la-reprise.md)) ; reste la reprise complète sur données réelles (inventaire du pilote)
-5.5 Clôture et ouverture suivante (CA-12), rapports figés
+5.5 Clôture et ouverture suivante (CA-12), rapports figés — **rapports figés faits** ([ADR 0031](decisions/0031-rapports-figes-et-approbation-des-comptes.md))
 5.6 Durcissement sécurité, documentation de distribution, politique de versions
 
 ### Lot 6 — Modules d'ajustement et TVA ([ADR 0003](decisions/0003-perimetre-tva-et-modules-ajustement.md))

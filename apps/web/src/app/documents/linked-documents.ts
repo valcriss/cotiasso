@@ -42,8 +42,7 @@ import { UploadDialog } from './upload-dialog';
         </div>
       </div>
       <p class="muted">
-        Les devis, factures et conventions {{ objectType() === 'grant' ? 'de cette subvention' : 'de ce projet' }}. Un document déposé ici est conservé tel quel et ne se
-        supprime pas : en cas d'erreur, déposez une nouvelle version.
+        {{ intro() }} Un document déposé ici est conservé tel quel et ne se supprime pas : en cas d'erreur, déposez une nouvelle version.
       </p>
       @if (error(); as message) {
         <p class="alert" role="alert">{{ message }}</p>
@@ -97,8 +96,8 @@ export class LinkedDocuments {
   private readonly dialogs = inject(Dialogs);
   private readonly notifier = inject(Notifier);
 
-  /** `project` ou `grant` : le type d'objet auquel les documents sont liés. */
-  readonly objectType = input.required<'project' | 'grant'>();
+  /** `project`, `grant` ou `frozen-report` : le type d'objet auquel les documents sont liés. */
+  readonly objectType = input.required<'project' | 'grant' | 'frozen-report'>();
   readonly objectId = input.required<string>();
   /** Nom de l'objet, pour l'accessibilité. */
   readonly name = input('');
@@ -118,6 +117,12 @@ export class LinkedDocuments {
       const id = this.objectId();
       untracked(() => void this.load(type, id));
     });
+  }
+
+  protected intro(): string {
+    return this.objectType() === 'frozen-report'
+      ? "Le procès-verbal de l'assemblée générale et les pièces de ces rapports."
+      : `Les devis, factures et conventions ${this.objectType() === 'grant' ? 'de cette subvention' : 'de ce projet'}.`;
   }
 
   protected category(key: string): string {
@@ -141,7 +146,7 @@ export class LinkedDocuments {
     await this.load(this.objectType(), this.objectId());
   }
 
-  private async load(type: 'project' | 'grant', id: string): Promise<void> {
+  private async load(type: 'project' | 'grant' | 'frozen-report', id: string): Promise<void> {
     this.error.set(null);
     try {
       const [page, options] = await Promise.all([

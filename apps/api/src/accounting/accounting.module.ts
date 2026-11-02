@@ -19,14 +19,16 @@ import { ClosingController } from "./closing.controller.js";
 import { ClosingService } from "./closing.service.js";
 import { EntriesController } from "./entries.controller.js";
 import { EntriesService } from "./entries.service.js";
+import { FrozenReportsController } from "./frozen-reports.controller.js";
+import { FrozenReportsService } from "./frozen-reports.service.js";
 import { ThirdPartiesController } from "./third-parties.controller.js";
 import { ThirdPartiesService } from "./third-parties.service.js";
 import { AccountingService } from "./accounting.service.js";
 
 @Module({
   imports: [PrismaModule, AuditModule, SettingsModule],
-  controllers: [AccountingController, EntriesController, ClosingController, ReportsController, ProjectsController, BudgetsController, CommitmentsController, BudgetReportController, ThirdPartiesController],
-  providers: [AccountingService, EntriesService, ClosingService, ReportsService, StatementsService, ProjectsService, BudgetsService, ParticipantsService, CommitmentsService, BudgetReportService, ThirdPartiesService],
+  controllers: [AccountingController, EntriesController, ClosingController, ReportsController, ProjectsController, BudgetsController, CommitmentsController, BudgetReportController, ThirdPartiesController, FrozenReportsController],
+  providers: [AccountingService, EntriesService, ClosingService, ReportsService, StatementsService, ProjectsService, BudgetsService, ParticipantsService, CommitmentsService, BudgetReportService, ThirdPartiesService, FrozenReportsService],
   exports: [AccountingService, EntriesService, ThirdPartiesService],
 })
 export class AccountingModule {}

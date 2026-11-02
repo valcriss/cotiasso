@@ -80,6 +80,24 @@ describe('ClosingDialog', () => {
     expect(ui.button('Annuler la fermeture')).toBeTruthy();
   });
 
+  it('dit que l’arrêté provisoire a été figé tout seul, ou quoi faire si le figement a échoué', async () => {
+    await open(report());
+    await ui.click('Fermer à la saisie');
+    controller.expectOne('/api/fiscal-years/y1/closing/start').flush({ ...report({ status: 'CLOSING', canStart: false, canClose: true }), frozen: { number: 1, provisional: true } });
+    await settle();
+    expect(ui.snackbar).toContain('Un arrêté provisoire est figé dans Rapports › Rapports figés (version 1)');
+  });
+
+  it('signale un figement automatique en échec, sans bloquer la fermeture', async () => {
+    await open(report());
+    await ui.click('Fermer à la saisie');
+    controller.expectOne('/api/fiscal-years/y1/closing/start').flush({ ...report({ status: 'CLOSING', canStart: false, canClose: true }), frozen: { error: 'x' } });
+    await settle();
+    expect(ui.snackbar).toContain('fermé à la saisie');
+    expect(ui.snackbar).toContain('n’ont pas pu être figés automatiquement');
+    expect(ui.button('Clôturer définitivement')).toBeTruthy();
+  });
+
   it('exige le compte de report et la confirmation avant de clôturer, puis envoie le bon corps', async () => {
     await open(report({ status: 'CLOSING', canStart: false, canClose: true }));
     expect(ui.button('Clôturer définitivement').disabled).toBe(true);

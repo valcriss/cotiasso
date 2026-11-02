@@ -205,7 +205,11 @@ export interface ClosingReportInfo {
   canStart: boolean;
   canClose: boolean;
   preview: { accountCount: number; result: { kind: 'SURPLUS' | 'DEFICIT' | 'BALANCED'; amount: string } } | null;
+  /** Rapports figés automatiquement par la fermeture ou la clôture (ADR 0031) ; `error` s'ils n'ont pas pu l'être. */
+  frozen?: FrozenOutcomeInfo;
 }
+
+export type FrozenOutcomeInfo = { number: number; provisional: boolean } | { error: string };
 
 export interface LedgerLineInfo {
   date: string;
@@ -619,6 +623,32 @@ interface StatementBaseInfo {
   previous: StatementYearInfo | null;
   draftEntries: number;
   carryWarning: string | null;
+}
+
+export interface FrozenReportSummaryInfo {
+  id: string;
+  fiscalYearId: string;
+  number: number;
+  kind: 'CLOSING' | 'CLOSED' | 'MANUAL';
+  provisional: boolean;
+  label: string;
+  reason: string | null;
+  supersedesNumber: number | null;
+  latest: boolean;
+  calcVersion: number;
+  createdAt: string;
+  sha256: string;
+  approval: { meetingDate: string; note: string; approvedAt: string } | null;
+}
+
+export interface FrozenReportDetailInfo extends FrozenReportSummaryInfo {
+  intact: boolean;
+  content: {
+    meta: { generatedAt: string; calcVersion: number; provisional: boolean; draftEntries: number; fiscalYear: { id: string; label: string; start: string; end: string; status: string } };
+    incomeStatement: IncomeStatementInfo;
+    balanceSheet: BalanceSheetInfo;
+    treasury: TreasuryStatementInfo;
+  };
 }
 
 export interface IncomeStatementInfo extends StatementBaseInfo {
@@ -1456,8 +1486,24 @@ export class AdminApiService {
   closeFiscalYear(
     id: string,
     body: { surplusAccountId?: string | null; deficitAccountId?: string | null },
-  ): Promise<{ openingEntryId: string }> {
-    return firstValueFrom(this.http.post<{ openingEntryId: string }>(`/api/fiscal-years/${id}/closing/close`, body));
+  ): Promise<{ openingEntryId: string; frozen?: FrozenOutcomeInfo }> {
+    return firstValueFrom(this.http.post<{ openingEntryId: string; frozen?: FrozenOutcomeInfo }>(`/api/fiscal-years/${id}/closing/close`, body));
+  }
+
+  listFrozenReports(fiscalYearId: string): Promise<FrozenReportSummaryInfo[]> {
+    return firstValueFrom(this.http.get<FrozenReportSummaryInfo[]>(`/api/fiscal-years/${fiscalYearId}/frozen-reports`));
+  }
+
+  freezeReports(fiscalYearId: string, body: { label?: string; reason?: string }): Promise<FrozenReportSummaryInfo> {
+    return firstValueFrom(this.http.post<FrozenReportSummaryInfo>(`/api/fiscal-years/${fiscalYearId}/frozen-reports`, body));
+  }
+
+  getFrozenReport(id: string): Promise<FrozenReportDetailInfo> {
+    return firstValueFrom(this.http.get<FrozenReportDetailInfo>(`/api/frozen-reports/${id}`));
+  }
+
+  approveFrozenReport(id: string, body: { meetingDate: string; note?: string }): Promise<FrozenReportSummaryInfo> {
+    return firstValueFrom(this.http.post<FrozenReportSummaryInfo>(`/api/frozen-reports/${id}/approve`, body));
   }
 
   private reportParams(params: ReportParams): HttpParams {
