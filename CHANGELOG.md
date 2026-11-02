@@ -13,6 +13,7 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 ### Nouveautés
 
+- Reprise : onglet « Progression » de la Comptabilité, qui montre pour chaque exercice et chaque compte où en est la reprise (mouvements qualifiés, brouillons, écritures comptabilisées, rapprochement) et ce qu'il reste à régler, avec un lien vers l'écran concerné.
 - Exploitation : copie hors site automatique des sauvegardes chiffrées (S3, SFTP, WebDAV…), état affiché dans Paramètres › Exploitation, script de mise à jour qui sauvegarde et vérifie avant de changer de version, notes de version dans l'application.
 - Journal d'audit : export CSV avec les empreintes de la chaîne de contrôle.
 - Relevés OFX : le fichier d'origine est conservé comme document restreint.

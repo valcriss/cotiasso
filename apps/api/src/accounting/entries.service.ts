@@ -230,22 +230,7 @@ export class EntriesService {
     const entry = await this.load(id);
     if (entry.status !== "DRAFT") throw new AccountingConflictError("Cette écriture est déjà comptabilisée.");
 
-    const year = await this.prisma.fiscalYear.findUniqueOrThrow({ where: { id: entry.fiscalYearId } });
-    const check = checkEntryForPosting(
-      {
-        date: day(entry.date),
-        lines: entry.lines.map((l) => ({
-          accountNumber: l.account.number,
-          debit: money(l.debit),
-          credit: money(l.credit),
-          ...(l.allocations[0] && { projectId: l.allocations[0].projectId }),
-        })),
-      },
-      {
-        fiscalYear: { start: day(year.start), end: day(year.end), status: year.status.toLowerCase() as "open" | "closing" | "closed" },
-        projectRequiredOnIncomeAndExpense: await this.projectRequired(),
-      },
-    );
+    const check = await this.postingCheck(entry);
     if (!check.ok) throw new EntryPostingRefusedError(check.errors satisfies PostingError[]);
 
     try {
@@ -329,6 +314,34 @@ export class EntriesService {
       details: { reversalId, journal: reversal.journalCode, number: reversal.number },
     });
     return reversal;
+  }
+
+  /**
+   * Contrôles de comptabilisation d'un brouillon, avec les mêmes règles que `post` (une seule source) : sert aussi à
+   * dire, sans rien écrire, pourquoi un brouillon ne passerait pas (tableau de progression de la reprise).
+   */
+  async postingProblems(id: string): Promise<string[]> {
+    const check = await this.postingCheck(await this.load(id));
+    return check.ok ? [] : check.errors.map((error) => error.message);
+  }
+
+  private async postingCheck(entry: LoadedEntry) {
+    const year = await this.prisma.fiscalYear.findUniqueOrThrow({ where: { id: entry.fiscalYearId } });
+    return checkEntryForPosting(
+      {
+        date: day(entry.date),
+        lines: entry.lines.map((l) => ({
+          accountNumber: l.account.number,
+          debit: money(l.debit),
+          credit: money(l.credit),
+          ...(l.allocations[0] && { projectId: l.allocations[0].projectId }),
+        })),
+      },
+      {
+        fiscalYear: { start: day(year.start), end: day(year.end), status: year.status.toLowerCase() as "open" | "closing" | "closed" },
+        projectRequiredOnIncomeAndExpense: await this.projectRequired(),
+      },
+    );
   }
 
   private async load(id: string): Promise<LoadedEntry> {

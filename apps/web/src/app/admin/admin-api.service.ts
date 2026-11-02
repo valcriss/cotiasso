@@ -566,6 +566,50 @@ export interface TreasuryStatementInfo extends StatementBaseInfo {
   previousTotals: TreasuryFiguresInfo | null;
 }
 
+export type ProgressAnomalyLevel = 'TODO' | 'BLOCKING' | 'WARNING' | 'INFO';
+export type ProgressAnomalyFix = 'TRANSACTIONS' | 'RECOVERY' | 'ENTRY' | 'RECONCILIATION' | 'DOCUMENTS';
+
+export interface ProgressAnomaly {
+  code: string;
+  level: ProgressAnomalyLevel;
+  financialAccountId: string | null;
+  financialAccountName: string | null;
+  count: number;
+  message: string;
+  fix: ProgressAnomalyFix;
+  details?: { entryId: string; date: string; label: string; messages: string[] }[];
+}
+
+export interface ProgressAccount {
+  financialAccountId: string;
+  name: string;
+  total: number;
+  qualified: number;
+  drafted: number;
+  posted: number;
+  reconciled: number;
+  percent: number | null;
+  opening: { state: 'NOT_NEEDED' | 'TO_PREPARE' | 'DRAFT' | 'POSTED' | 'REVERSED'; amount: string } | null;
+  statementUntil: string | null;
+  reconciledUntil: string | null;
+  blockedDrafts: number;
+}
+
+export interface ProgressYear {
+  fiscalYear: { id: string; label: string; start: string; end: string; status: 'OPEN' | 'CLOSING' | 'CLOSED' };
+  accounts: ProgressAccount[];
+  totals: { total: number; qualified: number; drafted: number; posted: number; reconciled: number; percent: number | null };
+  documents: { postedEntries: number; withoutDocument: number };
+  anomalies: ProgressAnomaly[];
+  complete: boolean;
+  draftAnalysisLimited: boolean;
+}
+
+export interface RecoveryProgressInfo {
+  generatedAt: string;
+  years: ProgressYear[];
+}
+
 export interface RecoveryBatchInfo {
   id: string;
   name: string;
@@ -1441,6 +1485,10 @@ export class AdminApiService {
 
   balanceSheet(fiscalYearId: string): Promise<BalanceSheetInfo> {
     return firstValueFrom(this.http.get<BalanceSheetInfo>('/api/reports/balance-sheet', { params: { fiscalYearId } }));
+  }
+
+  recoveryProgress(): Promise<RecoveryProgressInfo> {
+    return firstValueFrom(this.http.get<RecoveryProgressInfo>('/api/recovery-progress'));
   }
 
   listRecoveryBatches(): Promise<RecoveryBatchInfo[]> {

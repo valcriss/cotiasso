@@ -1,6 +1,6 @@
 # ADR 0019 — Lots de reprise, soldes d'ouverture et qualification en masse
 
-Statut : retenu (2 novembre 2026, lot 2b.6). Applique le cadrage §20 (reprise depuis la création) et l'[ADR 0006](0006-referent-comptable-et-reprise.md) : OFX seul pour la banque, saisie manuelle pour le reste, moins de 1 000 opérations. Le tableau de progression par exercice, compte et anomalie relève du lot 5.4.
+Statut : retenu (2 novembre 2026, lot 2b.6). Applique le cadrage §20 (reprise depuis la création) et l'[ADR 0006](0006-referent-comptable-et-reprise.md) : OFX seul pour la banque, saisie manuelle pour le reste, moins de 1 000 opérations. Le tableau de progression par exercice, compte et anomalie est fait dans l'[ADR 0027](0027-tableau-de-progression-de-la-reprise.md).
 
 ## Décisions
 

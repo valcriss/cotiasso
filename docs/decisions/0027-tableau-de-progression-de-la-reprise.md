@@ -1,0 +1,23 @@
+# ADR 0027 — Tableau de progression de la reprise
+
+Statut : retenu (2 novembre 2026), décisions prises avec l'utilisateur avant la réalisation (élément 3.3 de la feuille de route, cadrage §20.2) ; **à relire**. Complète l'[ADR 0019](0019-lots-de-reprise-et-qualification-en-masse.md) (lots de reprise), l'[ADR 0018](0018-rapprochement-bancaire.md) (rapprochement) et l'[ADR 0017](0017-virements-internes-et-liaison-transaction-ecriture.md) (liaison transaction → écriture).
+
+## Décisions
+
+1. **Ce que le tableau mesure** : pour chaque **exercice** et chaque **compte financier** ouvert pendant cet exercice (et non archivé avant), la chaîne complète de la reprise, en nombre de mouvements de l'exercice (date d'opération) : *mouvements* → *qualifiés* (compte de contrepartie, côté de virement ou écriture liée) → *avec brouillon* (liaison active à une écriture) → *comptabilisés* (écriture comptabilisée) → *rapprochés* (rapprochement validé). Pourcentage = comptabilisés / mouvements, arrondi vers le bas (jamais 100 % tant que tout n'est pas fait) et **absent** s'il n'y a aucun mouvement (jamais un « 0 % » ou « 100 % » trompeur). S'y ajoutent l'état du **solde d'ouverture** (dans l'exercice qui contient l'ouverture du compte seulement) et le **contrôle bancaire** (relevé saisi jusqu'au, rapproché jusqu'au).
+2. **Lecture seule, calculée à la demande** : aucune donnée n'est stockée (rien ne peut diverger), aucun événement d'audit. `GET /recovery-progress[?fiscalYearId=]` sous `entries:view` (comme la lecture des lots). Le contrôleur est distinct de `recovery-batches` pour ne pas entrer en conflit avec `:id`.
+3. **Anomalies**, chacune avec un **niveau**, une phrase qui dit quoi faire et l'**écran qui la règle** :
+   - **À faire** (`TODO`) : mouvements *non qualifiés* (→ Comptes) ; mouvements *qualifiés sans brouillon* (→ Reprise) ; *brouillons prêts à comptabiliser* (→ Reprise) ; *solde d'ouverture à expliquer* ou *brouillon à comptabiliser* ; pour un exercice **terminé** (date de fin passée) : *aucun solde de relevé à la fin de l'exercice* ou *non rapproché jusqu'à la fin* (→ Rapprochement, avec mention d'un rapprochement en cours).
+   - **Bloquant** (`BLOCKING`) : *brouillons qui ne se comptabiliseraient pas*, avec la raison de chacun et un lien vers l'écriture. La raison vient des **mêmes règles que la comptabilisation** (`EntriesService.postingProblems`, extraite de `post` : une seule source) plus la cohérence avec la ligne de banque. Aucune tentative de comptabilisation n'est faite. Analyse limitée aux **300** premiers brouillons (la reprise vise moins de 1 000 opérations) ; au-delà, l'écran le dit.
+   - **À vérifier** (`WARNING`) : écriture d'ouverture *contrepassée* ; *écritures de banque sans mouvement associé* (même requête que l'avertissement du rapprochement : `countBankEntriesWithoutTransaction`, source unique).
+   - **Pour information** (`INFO`) : **pièces manquantes**, écritures comptabilisées sans aucun document non archivé lié à l'écriture (`journal-entry`) ou à un mouvement qu'elle comptabilise (`transaction`). Sont exclues les écritures d'ouverture, de contrepassation et de virement interne (pas de justificatif attendu). **Jamais bloquant** et sans effet sur « exercice entièrement repris » : on le signale, comme le prévoit le cadrage (§20.1, étape 7), sans l'imposer.
+4. **« Exercice entièrement repris »** : au moins un mouvement et aucune anomalie autre qu'une information.
+5. **Un exercice en cours n'est pas en défaut** : le relevé et le rapprochement de fin d'exercice ne sont attendus qu'une fois l'exercice terminé.
+6. **Aucune libellé de mouvement dans le tableau** : seulement des compteurs et, pour les brouillons bloqués, le libellé de l'écriture (déjà lisible avec `entries:view`). Les liens vers les écrans ne sont affichés qu'à qui a le droit d'y aller (Comptes : `financial-accounts:view`, Documents : `documents:view`).
+7. **Web** : onglet **Progression** de la Comptabilité (`accounting/progress.page.ts`) : une section par exercice (barre et pourcentage, tableau par compte, liste « Ce qu'il reste à régler » rangée du plus bloquant au plus informatif, boutons vers l'écran concerné), états vides qui disent quoi faire en premier (aucun exercice, aucun compte, aucun mouvement), phrase qui précise que le tableau ne modifie rien.
+
+## Hors de ce lot
+
+- Progression des **membres, cotisations et subventions** reprises, ou des pièces jointes aux mouvements importés en masse : non faite.
+- Pourcentage pondéré par les montants, export CSV du tableau, historique d'avancement dans le temps : non faits.
+- Reprise par **situation d'ouverture** sans historique (autre mode de démarrage) : non faite.

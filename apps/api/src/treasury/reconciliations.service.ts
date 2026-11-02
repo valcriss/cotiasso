@@ -6,6 +6,7 @@ import { parse } from "../accounting/schemas.js";
 import { AuditService } from "../audit/audit.service.js";
 import type { ReconciliationStatus } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
+import { countBankEntriesWithoutTransaction } from "./bank-entries.js";
 import { triggerMessage } from "./db-refusal.js";
 import { transactionInclude, transactionView, type TransactionView } from "./transactions.service.js";
 
@@ -318,13 +319,12 @@ export class ReconciliationsService {
     });
     const account = await this.prisma.financialAccount.findUniqueOrThrow({ where: { id: rec.financialAccountId }, select: { accountId: true, openedOn: true } });
     const since = last?.periodEnd ?? new Date(account.openedOn.getTime() - 86_400_000);
-    const [orphans] = await this.prisma.$queryRaw<{ count: bigint }[]>`
-      SELECT count(*) AS count FROM "JournalEntry" e
-      WHERE e."status" = 'POSTED' AND e."kind" = 'NORMAL' AND e."date" > ${since}
-        AND NOT EXISTS (SELECT 1 FROM "Journal" j WHERE j."id" = e."journalId" AND j."type" = 'OPENING') AND e."date" <= ${rec.periodEnd}
-        AND EXISTS (SELECT 1 FROM "JournalLine" l WHERE l."entryId" = e."id" AND l."accountId" = ${account.accountId}::uuid)
-        AND NOT EXISTS (SELECT 1 FROM "TreasuryMatch" m WHERE m."entryId" = e."id" AND m."financialAccountId" = ${rec.financialAccountId}::uuid AND m."status" = 'ACTIVE')`;
-    const orphanCount = Number(orphans?.count ?? 0);
+    const orphanCount = await countBankEntriesWithoutTransaction(this.prisma, {
+      financialAccountId: rec.financialAccountId,
+      accountId: account.accountId,
+      after: since,
+      upTo: rec.periodEnd,
+    });
     if (orphanCount > 0) {
       checks.push({
         code: "ENTRIES_WITHOUT_TRANSACTION",
