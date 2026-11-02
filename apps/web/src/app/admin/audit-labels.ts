@@ -37,6 +37,7 @@ const ACTION_LABELS: Record<string, string> = {
   'transaction.entry.prepared': 'Brouillon d’écriture préparé depuis une transaction',
   'transaction.linked': 'Transaction liée à une écriture',
   'transaction.unlinked': 'Transaction dissociée d’une écriture',
+  'report.exported': 'État exporté (CSV)',
   'recovery.batch.created': 'Lot de reprise créé',
   'recovery.entries.prepared': 'Écritures préparées dans un lot de reprise',
   'recovery.opening.prepared': 'Écriture d’ouverture préparée',

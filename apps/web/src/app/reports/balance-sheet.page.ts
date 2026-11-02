@@ -5,19 +5,24 @@ import { MatSelectModule } from '@angular/material/select';
 import { formatApiAmount } from '../accounting/amount';
 import { AdminApiService, type BalanceSheetInfo } from '../admin/admin-api.service';
 import { ActionBar } from '../ui/action-bar';
+import { ExportLink } from './export-link';
 import { StatementPageBase } from './statement-page';
 import { StatementGroups } from './statements';
 
 /** Bilan : ce que l'association possède (actif) et d'où ça vient (passif), à la fin de l'exercice. */
 @Component({
   selector: 'app-balance-sheet-page',
-  imports: [MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, StatementGroups],
+  imports: [MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink, StatementGroups],
   styleUrl: '../admin/admin-pages.scss',
   template: `
     <app-action-bar
       label="Bilan"
       description="Une photo de l'association à la fin de l'exercice : à gauche ce qu'elle possède et ce qu'on lui doit (actif), à droite d'où cela vient : ses fonds propres, son résultat et ses dettes (passif). Les deux totaux doivent être égaux."
-    />
+    >
+      @if (yearId()) {
+        <app-export-link path="balance-sheet" [params]="{ fiscalYearId: yearId() }" [print]="true" />
+      }
+    </app-action-bar>
     <section class="panel filters">
       <mat-form-field appearance="outline">
         <mat-label>Exercice</mat-label>

@@ -188,6 +188,67 @@ describe("États de synthèse : compte de résultat et bilan (ADR 0020, base vie
     expect(sheet.difference).toBe("-10.00");
   });
 
+  it("état de trésorerie : départ, encaissements, décaissements et clôture par compte, avec l'exercice précédent", async () => {
+    const statement = (await call("GET", `/reports/treasury?fiscalYearId=${ids.y2026}`, treasurer)).json();
+    expect(statement.previous).toMatchObject({ label: "2025" });
+    expect(statement.rows).toHaveLength(1);
+    expect(statement.rows[0]).toMatchObject({ number: "512", opening: "0.00", receipts: "80.00", payments: "50.00", closing: "30.00" });
+    expect(statement.rows[0].previous).toMatchObject({ receipts: "1200.00", payments: "0.00", closing: "1200.00" });
+    expect(statement.totals).toMatchObject({ receipts: "80.00", payments: "50.00", closing: "30.00" });
+    expect(statement.previousTotals).toMatchObject({ closing: "1200.00" });
+    const first = (await call("GET", `/reports/treasury?fiscalYearId=${ids.y2025}`, treasurer)).json();
+    expect(first.previous).toBeNull();
+    expect(first.rows[0].previous).toBeNull();
+    expect(first.previousTotals).toBeNull();
+    // Même source que le bilan : la clôture égale les disponibilités du bilan.
+    const sheet = (await balance("y2025")).json();
+    expect(first.totals.closing).toBe(sheet.assets.flatMap((g: { rows: { code: string; amount: string }[] }) => g.rows).find((r: { code: string }) => r.code === "ACT_DISPO").amount);
+  });
+
+  it("exporte en CSV avec les en-têtes sûrs, la virgule décimale et la trace d'audit", async () => {
+    const response = await call("GET", `/reports/income-statement/csv?fiscalYearId=${ids.y2026}`, treasurer);
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/csv");
+    expect(response.headers["content-disposition"]).toBe('attachment; filename="compte-de-resultat-2026.csv"');
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.headers["x-content-type-options"]).toBe("nosniff");
+    expect(response.body.startsWith("\uFEFF")).toBe(true);
+    expect(response.body).toContain("\r\n");
+    expect(response.body).toContain("Ventes et prestations de services");
+    expect(response.body).toContain(";80,00;");
+    expect(response.body).toContain("Résultat de l'exercice");
+
+    for (const path of ["balance-sheet/csv", "treasury/csv"]) {
+      const other = await call("GET", `/reports/${path}?fiscalYearId=${ids.y2026}`, treasurer);
+      expect(other.statusCode, path).toBe(200);
+      expect(other.headers["content-type"]).toContain("text/csv");
+    }
+    const events = await prisma.auditEvent.findMany({ where: { action: "report.exported" } });
+    expect(events.length).toBeGreaterThanOrEqual(3);
+    expect(JSON.stringify(events.map((e) => e.details))).not.toContain("Prestations");
+  });
+
+  it("neutralise en CSV les libellés saisis qui ressembleraient à une formule", async () => {
+    await entry("2026-07-01", "=HYPERLINK(\"http://exemple.test\")", "bank", "sales", "1.00");
+    const ledger = await call("GET", `/reports/ledger/csv?fiscalYearId=${ids.y2026}`, treasurer);
+    expect(ledger.statusCode, ledger.body).toBe(200);
+    expect(ledger.body).toContain(`"'=HYPERLINK(""http://exemple.test"")"`);
+    expect(ledger.body).not.toMatch(/;=HYPERLINK/);
+    const journal = await call("GET", `/reports/journal/csv?fiscalYearId=${ids.y2026}`, treasurer);
+    expect(journal.body).toContain("'=HYPERLINK");
+    const trial = await call("GET", `/reports/trial-balance/csv?fiscalYearId=${ids.y2026}`, treasurer);
+    expect(trial.statusCode).toBe(200);
+    expect(trial.body).toContain("Compte;Libellé;Débit;Crédit");
+  });
+
+  it("réserve les exports : reports:view pour les synthèses, entries:view pour les états de lecture", async () => {
+    for (const path of ["income-statement/csv", "balance-sheet/csv", "treasury/csv", "ledger/csv", "trial-balance/csv", "journal/csv"]) {
+      expect((await call("GET", `/reports/${path}?fiscalYearId=${ids.y2026}`)).statusCode, path).toBe(401);
+      expect((await call("GET", `/reports/${path}?fiscalYearId=${ids.y2026}`, contributor)).statusCode, path).toBe(403);
+    }
+    expect((await call("GET", "/reports/treasury/csv", treasurer)).statusCode).toBe(400);
+  });
+
   it("réserve les synthèses à reports:view et refuse un exercice inconnu ou invalide", async () => {
     expect((await income("y2026", undefined)).statusCode).toBe(401);
     expect((await income("y2026", contributor)).statusCode).toBe(403);

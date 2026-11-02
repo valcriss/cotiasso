@@ -570,3 +570,27 @@ details pre {
     max-height: 100%;
   }
 }
+
+/* Impression / enregistrement en PDF des états (ADR 0021) : seul le contenu de l'état reste, sans navigation ni boutons. */
+@media print {
+  .shell .sidebar,
+  .tabs,
+  .filters,
+  app-page-header .actions,
+  app-action-bar .buttons,
+  .mat-mdc-snack-bar-container {
+    display: none !important;
+  }
+  .shell {
+    display: block !important;
+  }
+  .panel,
+  app-page-header .page-text {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}

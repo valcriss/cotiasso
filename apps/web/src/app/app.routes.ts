@@ -104,6 +104,7 @@ export const routes: Routes = [
           { path: '', pathMatch: 'full', redirectTo: 'compte-de-resultat' },
           { path: 'compte-de-resultat', title: 'Compte de résultat', loadComponent: () => import('./reports/income-statement.page').then((m) => m.IncomeStatementPage) },
           { path: 'bilan', title: 'Bilan', loadComponent: () => import('./reports/balance-sheet.page').then((m) => m.BalanceSheetPage) },
+          { path: 'tresorerie', title: 'Trésorerie', loadComponent: () => import('./reports/treasury.page').then((m) => m.TreasuryStatementPage) },
         ],
       },
       {

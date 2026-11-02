@@ -69,6 +69,28 @@ export interface BalanceSheet extends Comparison {
   unclassified: { number: string; label: string; amount: string }[];
 }
 
+export interface TreasuryFigures {
+  opening: string;
+  receipts: string;
+  payments: string;
+  closing: string;
+}
+
+export interface TreasuryRow extends TreasuryFigures {
+  number: string;
+  label: string;
+  /** Nom du compte financier (banque, caisse) lié à ce compte de trésorerie, s'il existe. */
+  financialAccountName: string | null;
+  /** Chiffres de l'exercice précédent ; `null` sans exercice précédent ou si le compte n'y avait aucun mouvement. */
+  previous: TreasuryFigures | null;
+}
+
+export interface TreasuryStatement extends Comparison {
+  rows: TreasuryRow[];
+  totals: TreasuryFigures;
+  previousTotals: TreasuryFigures | null;
+}
+
 const day = (date: Date) => date.toISOString().slice(0, 10);
 
 function compare(current: StatementGroup[], previous: StatementGroup[] | null): ComparedGroup[] {
@@ -133,6 +155,67 @@ export class StatementsService {
     };
   }
 
+  /** Trésorerie d'un exercice : départ, encaissements, décaissements et clôture de chaque compte de classe 5 (ADR 0021). */
+  async treasuryStatement(params: unknown): Promise<TreasuryStatement> {
+    const { fiscalYearId } = parse(query, params);
+    const { base, year, previous } = await this.context(fiscalYearId);
+    const current = await this.treasuryFigures(year.id);
+    const before = previous ? await this.treasuryFigures(previous.id) : null;
+    const rows: TreasuryRow[] = current.map((row) => ({ ...row, previous: before ? (before.find((b) => b.number === row.number) ?? null) : null }));
+    // Un compte mouvementé seulement l'an dernier figure aussi, avec zéro cette année.
+    for (const old of before ?? []) {
+      if (!rows.some((r) => r.number === old.number)) {
+        const zero = "0.00";
+        rows.push({ ...old, opening: zero, receipts: zero, payments: zero, closing: zero, previous: { opening: old.opening, receipts: old.receipts, payments: old.payments, closing: old.closing } });
+      }
+    }
+    rows.sort((a, b) => a.number.localeCompare(b.number));
+    const total = (items: TreasuryFigures[]): TreasuryFigures => ({
+      opening: sumMoney(items.map((i) => i.opening)),
+      receipts: sumMoney(items.map((i) => i.receipts)),
+      payments: sumMoney(items.map((i) => i.payments)),
+      closing: sumMoney(items.map((i) => i.closing)),
+    });
+    return {
+      ...base,
+      rows,
+      totals: total(rows),
+      previousTotals: before ? total(before) : null,
+    };
+  }
+
+  private async treasuryFigures(fiscalYearId: string): Promise<Omit<TreasuryRow, "previous">[]> {
+    const rows = await this.prisma.$queryRaw<
+      { number: string; label: string; name: string | null; opening: string; receipts: string; payments: string }[]
+    >`
+      SELECT a."number" AS "number", a."label" AS "label", f."name" AS "name",
+             COALESCE(sum(l."debit" - l."credit") FILTER (WHERE e."kind" = 'OPENING' OR j."type" = 'OPENING'), 0)::text AS "opening",
+             COALESCE(sum(l."debit") FILTER (WHERE e."kind" <> 'OPENING' AND j."type" <> 'OPENING'), 0)::text AS "receipts",
+             COALESCE(sum(l."credit") FILTER (WHERE e."kind" <> 'OPENING' AND j."type" <> 'OPENING'), 0)::text AS "payments"
+      FROM "JournalLine" l
+      JOIN "JournalEntry" e ON e.id = l."entryId"
+      JOIN "Journal" j ON j.id = e."journalId"
+      JOIN "Account" a ON a.id = l."accountId"
+      LEFT JOIN "FinancialAccount" f ON f."accountId" = a.id
+      WHERE e."fiscalYearId" = ${fiscalYearId}::uuid AND e.status IN ('POSTED', 'REVERSED') AND a."number" LIKE '5%'
+      GROUP BY a.id, a."number", a."label", f."name"
+      ORDER BY a."number"`;
+    return rows.map((row) => {
+      const opening = Money.parse(row.opening);
+      const receipts = Money.parse(row.receipts);
+      const payments = Money.parse(row.payments);
+      return {
+        number: row.number,
+        label: row.label,
+        financialAccountName: row.name,
+        opening: opening.toString(),
+        receipts: receipts.toString(),
+        payments: payments.toString(),
+        closing: opening.add(receipts).subtract(payments).toString(),
+      };
+    });
+  }
+
   private async context(fiscalYearId: string) {
     const year = await this.prisma.fiscalYear.findUnique({ where: { id: fiscalYearId } });
     if (!year) throw new AccountingNotFoundError("Exercice");
@@ -159,6 +242,8 @@ export class StatementsService {
     return rows.map((row) => ({ number: row.number, label: row.label, reportLine: row.reportLine, net: Money.parse(row.net) }));
   }
 }
+
+const sumMoney = (values: string[]) => values.reduce((total, value) => total.add(Money.parse(value)), Money.zero()).toString();
 
 const ASSET_GROUPS = new Set(["FIXED_ASSETS", "CURRENT_ASSETS", "CASH", "ASSET_ADJUSTMENTS"]);
 const isAsset = (code: string) => ASSET_GROUPS.has(code);

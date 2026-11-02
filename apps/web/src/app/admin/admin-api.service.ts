@@ -397,6 +397,26 @@ export interface BalanceSheetInfo extends StatementBaseInfo {
   unclassified: { number: string; label: string; amount: string }[];
 }
 
+export interface TreasuryFiguresInfo {
+  opening: string;
+  receipts: string;
+  payments: string;
+  closing: string;
+}
+
+export interface TreasuryRowInfo extends TreasuryFiguresInfo {
+  number: string;
+  label: string;
+  financialAccountName: string | null;
+  previous: TreasuryFiguresInfo | null;
+}
+
+export interface TreasuryStatementInfo extends StatementBaseInfo {
+  rows: TreasuryRowInfo[];
+  totals: TreasuryFiguresInfo;
+  previousTotals: TreasuryFiguresInfo | null;
+}
+
 export interface RecoveryBatchInfo {
   id: string;
   name: string;
@@ -868,6 +888,10 @@ export class AdminApiService {
 
   incomeStatement(fiscalYearId: string): Promise<IncomeStatementInfo> {
     return firstValueFrom(this.http.get<IncomeStatementInfo>('/api/reports/income-statement', { params: { fiscalYearId } }));
+  }
+
+  treasuryStatement(fiscalYearId: string): Promise<TreasuryStatementInfo> {
+    return firstValueFrom(this.http.get<TreasuryStatementInfo>('/api/reports/treasury', { params: { fiscalYearId } }));
   }
 
   balanceSheet(fiscalYearId: string): Promise<BalanceSheetInfo> {

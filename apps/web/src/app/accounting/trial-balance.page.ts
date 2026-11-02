@@ -7,12 +7,13 @@ import { AdminApiService, type FiscalYearInfo, type TrialBalanceInfo } from '../
 import { describeHttpError } from '../auth/error-messages';
 import { formatApiAmount } from './amount';
 import { ActionBar } from '../ui/action-bar';
+import { ExportLink } from '../reports/export-link';
 import { ReportFilters, type PeriodFilter } from './report-filters';
 
 /** Balance : débit, crédit et soldes de chaque compte mouvementé, avec la vérification de l'équilibre. */
 @Component({
   selector: 'app-trial-balance-page',
-  imports: [ActionBar, FormsModule, MatFormFieldModule, MatIconModule, MatInputModule, ReportFilters],
+  imports: [ActionBar, ExportLink, FormsModule, MatFormFieldModule, MatIconModule, MatInputModule, ReportFilters],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -25,7 +26,11 @@ import { ReportFilters, type PeriodFilter } from './report-filters';
     }
   `,
   template: `
-    <app-action-bar label="Balance" description="Pour chaque compte, le total des débits, des crédits et le solde. Sert à vérifier d’un coup d’œil que les comptes sont équilibrés." />
+    <app-action-bar label="Balance" description="Pour chaque compte, le total des débits, des crédits et le solde. Sert à vérifier d’un coup d’œil que les comptes sont équilibrés.">
+      @if (exportParams(); as params) {
+        <app-export-link path="trial-balance" [params]="params" />
+      }
+    </app-action-bar>
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
     }
@@ -111,7 +116,11 @@ export class TrialBalancePage {
     void this.init();
   }
 
+  /** Paramètres de l'état affiché : l'export CSV reprend exactement les mêmes filtres. */
+  protected readonly exportParams = signal<Record<string, string | undefined> | null>(null);
+
   protected async show(filter: PeriodFilter): Promise<void> {
+    this.exportParams.set(this.paramsFor(filter));
     this.error.set(null);
     this.loading.set(true);
     try {
@@ -138,5 +147,9 @@ export class TrialBalancePage {
     } catch (failure) {
       this.error.set(describeHttpError(failure, 'Impossible de charger les exercices.').message);
     }
+  }
+
+  private paramsFor(filter: PeriodFilter): Record<string, string | undefined> {
+    return { fiscalYearId: filter.fiscalYearId, from: filter.from, to: filter.to, prefix: this.prefix.trim() };
   }
 }

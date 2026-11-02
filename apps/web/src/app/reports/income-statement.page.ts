@@ -5,19 +5,24 @@ import { MatSelectModule } from '@angular/material/select';
 import { formatApiAmount } from '../accounting/amount';
 import { AdminApiService, type IncomeStatementInfo } from '../admin/admin-api.service';
 import { ActionBar } from '../ui/action-bar';
+import { ExportLink } from './export-link';
 import { StatementPageBase } from './statement-page';
 import { StatementGroups } from './statements';
 
 /** Compte de résultat : ce que l'association a gagné et dépensé sur l'exercice, avec l'exercice précédent en regard. */
 @Component({
   selector: 'app-income-statement-page',
-  imports: [MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, StatementGroups],
+  imports: [MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink, StatementGroups],
   styleUrl: '../admin/admin-pages.scss',
   template: `
     <app-action-bar
       label="Compte de résultat"
       description="Ce que l'association a gagné (produits) et dépensé (charges) pendant l'exercice. La différence est le résultat : un excédent si on a gagné plus qu'on n'a dépensé, un déficit sinon. Seules les écritures comptabilisées sont prises en compte."
-    />
+    >
+      @if (yearId()) {
+        <app-export-link path="income-statement" [params]="{ fiscalYearId: yearId() }" [print]="true" />
+      }
+    </app-action-bar>
     <section class="panel filters">
       <mat-form-field appearance="outline">
         <mat-label>Exercice</mat-label>

@@ -5,6 +5,7 @@ import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { BalanceSheetPage } from './balance-sheet.page';
 import { IncomeStatementPage } from './income-statement.page';
+import { TreasuryStatementPage } from './treasury.page';
 
 const year = (id: string, label: string, status = 'OPEN') => ({ id, label, start: `${label}-01-01`, end: `${label}-12-31`, status });
 const years = [year('y1', '2025', 'CLOSED'), year('y2', '2026')];
@@ -146,5 +147,75 @@ describe('états de synthèse', () => {
     expect(alerts.join(' ')).toContain("ne sont pas égaux");
     expect(root.textContent).toContain('864 Bénévolat');
     expect(root.textContent).not.toContain('Le bilan est équilibré');
+  });
+});
+
+describe('état de trésorerie et exports', () => {
+  let controller: HttpTestingController;
+  let harness: RouterTestingHarness;
+
+  const settle = async () => {
+    await new Promise<void>((resolve) => setTimeout(resolve));
+    harness.detectChanges();
+    await harness.fixture.whenStable();
+  };
+  const open = async (component: new () => unknown, path: string, endpoint: string, body: object) => {
+    TestBed.configureTestingModule({ providers: [provideRouter([{ path, component }]), provideHttpClient(), provideHttpClientTesting()] });
+    controller = TestBed.inject(HttpTestingController);
+    harness = await RouterTestingHarness.create();
+    const navigation = harness.navigateByUrl(`/${path}`, component as never);
+    await settle();
+    controller.expectOne('/api/fiscal-years').flush(years);
+    await settle();
+    controller.expectOne((r) => r.url === endpoint && r.params.get('fiscalYearId') === 'y2').flush(body);
+    await navigation;
+    await settle();
+    return harness.routeNativeElement as HTMLElement;
+  };
+
+  afterEach(() => controller.verify());
+
+  const figures = (opening: string, receipts: string, payments: string, closing: string) => ({ opening, receipts, payments, closing });
+  const treasury = (overrides: Record<string, unknown> = {}) => ({
+    fiscalYear: year('y2', '2026'),
+    previous: year('y1', '2025', 'CLOSED'),
+    draftEntries: 0,
+    carryWarning: null,
+    rows: [{ number: '5121', label: 'Banque', financialAccountName: 'Compte courant', ...figures('1000.00', '300.00', '120.00', '1180.00'), previous: figures('0.00', '1000.00', '0.00', '1000.00') }],
+    totals: figures('1000.00', '300.00', '120.00', '1180.00'),
+    previousTotals: figures('0.00', '1000.00', '0.00', '1000.00'),
+    ...overrides,
+  });
+
+  it("trésorerie : départ, encaissements, décaissements, clôture, total et colonne précédente", async () => {
+    const root = await open(TreasuryStatementPage, 'tresorerie', '/api/reports/treasury', treasury());
+    const text = root.textContent!;
+    expect(text).toContain('Compte courant');
+    expect(text).toContain('compte 5121');
+    expect(text).toContain('1 180,00');
+    expect(text).toContain('Clôture 2025');
+    expect(text).toContain('Un virement');
+  });
+
+  it("trésorerie sans exercice précédent ni mouvement : colonne absente et message utile", async () => {
+    const root = await open(TreasuryStatementPage, 'tresorerie', '/api/reports/treasury', treasury({ previous: null, previousTotals: null, rows: [] }));
+    expect(root.textContent).toContain('Aucun exercice précédent');
+    expect(root.textContent).toContain('Aucun mouvement comptabilisé');
+  });
+
+  it("propose l'export CSV de l'exercice choisi et l'impression en PDF", async () => {
+    const root = await open(TreasuryStatementPage, 'tresorerie', '/api/reports/treasury', treasury());
+    const link = Array.from(root.querySelectorAll<HTMLAnchorElement>('a')).find((a) => a.textContent!.includes('Exporter (CSV)'))!;
+    expect(link.getAttribute('href')).toBe('/api/reports/treasury/csv?fiscalYearId=y2');
+    expect(link.hasAttribute('download')).toBe(true);
+    const printSpy = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    Array.from(root.querySelectorAll('button')).find((b) => b.textContent!.includes('Imprimer'))!.click();
+    expect(printSpy).toHaveBeenCalled();
+    printSpy.mockRestore();
+  });
+
+  it("compte de résultat et bilan proposent aussi l'export", async () => {
+    const income = await open(IncomeStatementPage, 'resultat', '/api/reports/income-statement', incomeStatement());
+    expect(Array.from(income.querySelectorAll<HTMLAnchorElement>('a')).some((a) => a.getAttribute('href') === '/api/reports/income-statement/csv?fiscalYearId=y2')).toBe(true);
   });
 });
