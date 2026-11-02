@@ -13,6 +13,8 @@ export interface TemplateCategory {
   label: string;
   hint: string;
   accountNumber: string;
+  /** Rôle particulier : catégorie proposée d'office pour un règlement de cotisation ou un versement de subvention. */
+  usage?: "MEMBERSHIP" | "GRANT";
 }
 
 export const TEMPLATE_ACCOUNTS: readonly TemplateAccount[] = [
@@ -52,9 +54,9 @@ export const TEMPLATE_CATEGORIES: readonly TemplateCategory[] = [
   { direction: "OUT", label: "Courrier et téléphone", hint: "Timbres, envois postaux, abonnements téléphone et internet.", accountNumber: "626" },
   { direction: "OUT", label: "Frais bancaires", hint: "Commissions et frais de tenue de compte.", accountNumber: "627" },
   { direction: "OUT", label: "Autre dépense", hint: "À utiliser si aucune autre catégorie ne convient.", accountNumber: "658" },
-  { direction: "IN", label: "Cotisations des adhérents", hint: "Argent reçu pour une adhésion. L'affectation à un adhérent se fait ensuite dans « Membres ».", accountNumber: "756" },
+  { direction: "IN", label: "Cotisations des adhérents", hint: "Argent reçu pour une adhésion. L'affectation à un adhérent se fait ensuite dans « Membres ».", accountNumber: "756", usage: "MEMBERSHIP" },
   { direction: "IN", label: "Dons", hint: "Argent donné sans contrepartie.", accountNumber: "754" },
-  { direction: "IN", label: "Subvention", hint: "Argent versé par une collectivité, un organisme ou une fondation.", accountNumber: "740" },
+  { direction: "IN", label: "Subvention", hint: "Argent versé par une collectivité, un organisme ou une fondation.", accountNumber: "740", usage: "GRANT" },
   { direction: "IN", label: "Participation à une activité ou billetterie", hint: "Entrées, inscriptions, stages, prestations payés par le public.", accountNumber: "706" },
   { direction: "IN", label: "Vente (buvette, objets…)", hint: "Ventes de produits : buvette, vide-grenier, objets.", accountNumber: "707" },
   { direction: "IN", label: "Intérêts bancaires", hint: "Intérêts versés par la banque sur un livret.", accountNumber: "768" },

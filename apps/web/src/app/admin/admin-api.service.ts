@@ -277,6 +277,8 @@ export interface OperationCategoryInfo {
   label: string;
   hint: string;
   active: boolean;
+  /** Rôle particulier (cotisations, subventions) : la catégorie proposée d'office pour ces règlements. */
+  usage: 'MEMBERSHIP' | 'GRANT' | null;
   account: { id: string; number: string; label: string };
 }
 
@@ -525,6 +527,8 @@ export interface PaymentCandidateInfo {
   accountName: string;
   amount: string;
   remaining: string;
+  /** Le mouvement n'est pas encore dans les comptes : on peut l'y enregistrer d'un même geste. */
+  canBook?: boolean;
 }
 
 export interface ReminderInfo {
@@ -1083,6 +1087,8 @@ export interface PaymentCandidateInfo {
   accountName: string;
   amount: string;
   remaining: string;
+  /** Le mouvement n'est pas encore dans les comptes : on peut l'y enregistrer d'un même geste. */
+  canBook?: boolean;
 }
 
 export interface GrantBody {
@@ -1948,7 +1954,7 @@ export class AdminApiService {
     return firstValueFrom(this.http.post<OperationCategoryInfo>('/api/operation-categories', body));
   }
 
-  updateOperationCategory(id: string, body: { label?: string; hint?: string; accountId?: string; active?: boolean }): Promise<OperationCategoryInfo> {
+  updateOperationCategory(id: string, body: { label?: string; hint?: string; accountId?: string; active?: boolean; usage?: 'MEMBERSHIP' | 'GRANT' | null }): Promise<OperationCategoryInfo> {
     return firstValueFrom(this.http.patch<OperationCategoryInfo>(`/api/operation-categories/${id}`, body));
   }
 

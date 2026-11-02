@@ -264,11 +264,14 @@ export class GrantFinance {
   }
 
   protected async addPayment(): Promise<void> {
-    const saved = await this.dialogs.open<GrantFinanceInfo>(GrantPaymentDialog, {
+    const saved = await this.dialogs.open<GrantFinanceInfo & { bookNote?: string | null; bookFailed?: boolean }>(GrantPaymentDialog, {
       size: 'md',
       data: { grant: this.grant(), schedule: this.finance()?.schedule ?? [] },
     });
-    if (saved) await this.done(saved, 'Versement enregistré.');
+    if (!saved) return;
+    await this.done(saved, saved.bookNote && !saved.bookFailed ? `Versement enregistré. ${saved.bookNote}` : 'Versement enregistré.');
+    // Un refus de l'enregistrement dans les comptes mérite plus de temps de lecture qu'un simple succès.
+    if (saved.bookFailed && saved.bookNote) this.notifier.notice(`Versement rattaché à la subvention. ${saved.bookNote}`);
   }
 
   protected async cancelPayment(paymentId: string): Promise<void> {

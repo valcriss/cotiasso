@@ -188,7 +188,7 @@ describe("Règlements : affectations, rappels et reçus (ADR 0023, base vierge)"
       expect((await call("POST", `/allocations/${allocation.id}/cancel`, treasurer, { reason: "Encore" })).statusCode).toBe(409);
       // La part de la transaction est de nouveau disponible.
       const candidates = (await call("GET", `/memberships/${m.id}/payment-candidates`, treasurer)).json();
-      expect(candidates.find((c: { id: string }) => c.id === t)).toMatchObject({ remaining: "30.00" });
+      expect(candidates.find((c: { id: string }) => c.id === t)).toMatchObject({ remaining: "30.00", canBook: true });
     });
 
     it("un remboursement s'affecte à un décaissement et réduit le payé ; il peut remettre l'adhésion en attente", async () => {

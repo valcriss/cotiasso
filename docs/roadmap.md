@@ -74,6 +74,7 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | Classer et enregistrer | Un mouvement existant (importé ou saisi) se classe par catégorie et s'enregistre dans les comptes en un geste ; une situation lisible par mouvement ; catégories dans « Classer la sélection » | ADR 0028 (9 à 11) |
 | Enregistrement en masse | Tous les mouvements classés d'un compte (ou une sélection) enregistrés d'un coup, dans l'ordre, chacun isolé, avec un compte rendu des refus et de leurs raisons | ADR 0028 (16) |
 | Vocabulaire des écrans partagés | Rapports, vérification avec la banque (ex-rapprochement), import, déplacement d'argent entre comptes et projets en mots courants ; l'affichage comptable garde le vocabulaire de l'expert | ADR 0028 (18) |
+| Règlement + comptes en un geste | Cotisations et subventions : rattacher un règlement et l'enregistrer dans les comptes d'une seule case (mécanismes distincts, enchaînés ; catégorie désignée par rôle) | ADR 0028 (19) |
 | Expert-comptable | Rôle en lecture seule, affichage comptable d'office | ADR 0028 (12) |
 | Sécurité sans jargon | Inscription MFA expliquée ; récupération MFA par commande serveur (sans SQL) ; clôture d'exercice guidée en trois étapes | ADR 0028 (13, 14) |
 
@@ -98,7 +99,7 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | 1.3 | ~~**Exports sûrs**~~ **fait** (ADR 0021) : CSV neutralisé et PDF par impression, pour les états et les états de lecture ; reste, au besoin, un `.xlsx` natif et un PDF serveur | Une comptabilité qu'on ne peut pas remettre à l'assemblée ni à l'expert-comptable ne sert pas | 1.2 |
 | 1.4 | **Validation de l'import OFX sur des exports réels anonymisés** des banques de l'association | Seules des fixtures fictives sont testées ; les exports réels varient d'une banque à l'autre | Fichiers fournis par le trésorier (Q11) |
 | 1.5 | **Inventaire de reprise du pilote** : date de création, dates d'exercice, liste des comptes et caisses, fichiers OFX disponibles | Les lots de reprise sont prêts ; sans cet inventaire on ne peut pas les exécuter sur des données réelles | Trésorier (Q11, lot 0.6) |
-| 1.6 | **Test d'usage avec 2 ou 3 vrais trésoriers novices** (tâches sans explication orale : enregistrer un chèque de cotisation, préparer le bilan pour l'AG) et **relecture du modèle de démarrage par un expert-comptable** | L'audit repose sur la lecture du code, pas sur un essai réel : seule la pratique valide les parcours simplifiés (ADR 0028) | Trésorier pilote, expert-comptable |
+| 1.6 | **Test d'usage avec 2 ou 3 vrais trésoriers novices** (protocole prêt : [test-usage-tresoriers.md](test-usage-tresoriers.md)) et **relecture du modèle de démarrage par un expert-comptable** (fiche prête : [revue-modele-demarrage.md](revue-modele-demarrage.md)) | L'audit repose sur la lecture du code, pas sur un essai réel : seule la pratique valide les parcours simplifiés (ADR 0028) | Trésorier pilote, expert-comptable |
 
 ### Priorité 2 — importants, l'application reste utilisable sans
 

@@ -63,6 +63,17 @@ export interface CategoryDialogData {
             <mat-error>Choisissez le compte correspondant.</mat-error>
           }
         </mat-form-field>
+        @if (direction() === 'IN') {
+          <mat-form-field appearance="outline">
+            <mat-label>Rôle particulier (facultatif)</mat-label>
+            <mat-select formControlName="usage">
+              <mat-option value="">Aucun</mat-option>
+              <mat-option value="MEMBERSHIP">Cotisations des adhérents</mat-option>
+              <mat-option value="GRANT">Subventions</mat-option>
+            </mat-select>
+            <mat-hint>La catégorie proposée d’office quand on enregistre un règlement de cotisation ou un versement de subvention. Une seule par rôle.</mat-hint>
+          </mat-form-field>
+        }
       </app-form-dialog>
     </form>
   `,
@@ -82,6 +93,7 @@ export class CategoryDialog {
     label: [this.category?.label ?? '', [Validators.required]],
     hint: [this.category?.hint ?? ''],
     accountId: [this.category?.account.id ?? '', [Validators.required]],
+    usage: [this.category?.usage ?? ''],
   });
   private readonly values = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() });
   protected readonly direction = computed(() => this.values().direction ?? 'OUT');
@@ -104,11 +116,14 @@ export class CategoryDialog {
     this.details.set([]);
     this.busy.set(true);
     try {
-      this.reference.close(
-        this.category
-          ? await this.api.updateOperationCategory(this.category.id, { label: value.label.trim(), hint: value.hint.trim(), accountId: value.accountId })
-          : await this.api.createOperationCategory({ direction: value.direction, label: value.label.trim(), hint: value.hint.trim(), accountId: value.accountId }),
-      );
+      const usage = value.usage === '' ? null : (value.usage as 'MEMBERSHIP' | 'GRANT');
+      if (this.category) {
+        this.reference.close(await this.api.updateOperationCategory(this.category.id, { label: value.label.trim(), hint: value.hint.trim(), accountId: value.accountId, usage }));
+      } else {
+        const created = await this.api.createOperationCategory({ direction: value.direction, label: value.label.trim(), hint: value.hint.trim(), accountId: value.accountId });
+        // Le rôle se pose après la création : s'il est refusé, la catégorie existe déjà et la personne est prévenue.
+        this.reference.close(usage ? await this.api.updateOperationCategory(created.id, { usage }) : created);
+      }
     } catch (failure) {
       const described = describeHttpError(failure, "La catégorie n'a pas pu être enregistrée. Réessayez dans un instant.");
       this.error.set(described.message);

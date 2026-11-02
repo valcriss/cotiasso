@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { startWith } from 'rxjs';
@@ -16,6 +17,8 @@ import {
 import { describeHttpError } from '../auth/error-messages';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from '../accounting/amount';
 import { FormDialog } from '../ui/form-dialog';
+import { AutoBook } from '../treasury/auto-book';
+import type { OperationCategoryInfo } from '../admin/admin-api.service';
 
 const positive = (control: { value: string }) => {
   const cents = parseAmountToCents(control.value);
@@ -120,12 +123,12 @@ export interface PaymentDialogData {
 /** Enregistrer un versement reçu : choisir l'encaissement sur le compte bancaire, et la part qui vient de cette subvention. */
 @Component({
   selector: 'app-grant-payment-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [ReactiveFormsModule, FormDialog, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
         title="Enregistrer un versement reçu"
-        description="Le financeur a versé de l'argent ? Rattachez l'encaissement vu sur votre compte bancaire à cette subvention. Cela ne crée aucune écriture comptable : l'encaissement se comptabilise normalement, à part."
+        description="Le financeur a versé de l'argent ? Rattachez l'encaissement vu sur votre compte bancaire à cette subvention. Le suivi de la subvention et l'enregistrement de l'argent dans les comptes sont deux choses distinctes : une case permet de faire les deux d'un seul geste."
         submitLabel="Enregistrer le versement"
         [dirty]="form.dirty"
         [busy]="busy()"
@@ -180,6 +183,10 @@ export interface PaymentDialogData {
             <mat-label>Note (facultatif)</mat-label>
             <input matInput formControlName="note" />
           </mat-form-field>
+          @if (bookOffer(); as offer) {
+            <mat-checkbox formControlName="book">L’enregistrer aussi dans les comptes (catégorie « {{ offer.label }} »)</mat-checkbox>
+            <p class="muted">Cet encaissement n’est pas encore dans vos comptes : la case l’y enregistre en même temps, pour son montant entier.</p>
+          }
         }
       </app-form-dialog>
     </form>
@@ -190,6 +197,8 @@ export class GrantPaymentDialog {
   private readonly reference = inject<MatDialogRef<GrantPaymentDialog, GrantFinanceInfo>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<PaymentDialogData>(MAT_DIALOG_DATA);
+  private readonly autoBook = inject(AutoBook);
+  private readonly category = signal<OperationCategoryInfo | null>(null);
 
   protected readonly candidates = signal<PaymentCandidateInfo[]>([]);
   protected readonly loading = signal(true);
@@ -203,12 +212,16 @@ export class GrantPaymentDialog {
     amount: ['', [Validators.required, positive]],
     scheduleId: [''],
     note: [''],
+    book: [true],
   });
 
   private readonly changes = toSignal(this.form.controls.transactionId.valueChanges.pipe(startWith('')));
   protected readonly selected = computed(() => this.candidates().find((c) => c.id === this.changes()) ?? null);
+  /** Catégorie proposée pour enregistrer l'encaissement choisi dans les comptes, si c'est possible et permis. */
+  protected readonly bookOffer = computed(() => (this.selected()?.canBook ? this.category() : null));
 
   constructor() {
+    void this.autoBook.categoryFor('GRANT').then((c) => this.category.set(c));
     void this.api
       .grantPaymentCandidates(this.data.grant.id)
       .then((list) => this.candidates.set(list))
@@ -237,14 +250,16 @@ export class GrantPaymentDialog {
     this.details.set([]);
     this.busy.set(true);
     try {
-      this.reference.close(
-        await this.api.recordGrantPayment(this.data.grant.id, {
-          transactionId: v.transactionId,
-          amount: centsToApi(parseAmountToCents(v.amount) ?? 0),
-          scheduleId: v.scheduleId || null,
-          note: v.note.trim() || null,
-        }),
-      );
+      const offer = this.bookOffer();
+      const finance = await this.api.recordGrantPayment(this.data.grant.id, {
+        transactionId: v.transactionId,
+        amount: centsToApi(parseAmountToCents(v.amount) ?? 0),
+        scheduleId: v.scheduleId || null,
+        note: v.note.trim() || null,
+      });
+      // Le versement est rattaché : un refus de l'enregistrement dans les comptes ne l'annule pas, il est signalé à la fermeture.
+      const outcome = v.book && offer ? await this.autoBook.book(v.transactionId, offer) : null;
+      this.reference.close(Object.assign(finance, { bookNote: outcome ? this.autoBook.describe(outcome) : null, bookFailed: outcome ? !outcome.ok : false }));
     } catch (failure) {
       const described = describeHttpError(failure, "Le versement n'a pas pu être enregistré. Réessayez dans un instant.");
       this.error.set(described.message);

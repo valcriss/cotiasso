@@ -1,7 +1,9 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -12,6 +14,8 @@ import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { FormDialog } from '../ui/form-dialog';
 import { Notifier } from '../ui/notifier.service';
+import { AutoBook } from '../treasury/auto-book';
+import type { OperationCategoryInfo } from '../admin/admin-api.service';
 
 export interface PaymentsDialogData {
   membership: MembershipInfo;
@@ -77,7 +81,7 @@ export class CancelAllocationDialog {
  */
 @Component({
   selector: 'app-payments-dialog',
-  imports: [ReactiveFormsModule, RouterLink, MatDialogModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [ReactiveFormsModule, RouterLink, MatDialogModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   styles: `
     .figures {
       display: flex;
@@ -108,9 +112,9 @@ export class CancelAllocationDialog {
     <mat-dialog-content>
       <p class="muted">{{ membership().campaignName }} · {{ membership().tariffLabel }}</p>
       <p class="muted">
-        Rattacher un règlement dit à quel adhérent correspond l'argent reçu : cela suit qui a payé sa cotisation. L'argent lui-même est enregistré
-        dans les comptes à part, avec « J'ai reçu de l'argent » (catégorie « Cotisations des adhérents ») ou depuis la liste des mouvements du compte
-        (« Classer et enregistrer »). Tant que ce n'est pas fait, la cotisation est suivie ici mais n'apparaît pas encore dans vos comptes.
+        Rattacher un règlement dit à quel adhérent correspond l'argent reçu : cela suit qui a payé sa cotisation. L'argent lui-même s'enregistre
+        dans les comptes à part ; en cochant la case ci-dessous, les deux se font d'un seul geste. Tant que l'argent n'est pas enregistré dans les
+        comptes, la cotisation est suivie ici mais n'apparaît pas encore dans vos comptes.
       </p>
       <div class="figures">
         <span>Attendu : <strong>{{ amount(membership().expectedAmount) }} €</strong></span>
@@ -173,6 +177,10 @@ export class CancelAllocationDialog {
               }
             </mat-form-field>
           </div>
+          @if (bookOffer(); as offer) {
+            <mat-checkbox formControlName="book">L’enregistrer aussi dans les comptes (catégorie « {{ offer.label }} »)</mat-checkbox>
+            <p class="muted">Ce mouvement de la banque n’est pas encore dans vos comptes : la case l’y enregistre en même temps, pour son montant entier.</p>
+          }
           <div class="row">
             <mat-form-field appearance="outline" class="grow">
               <mat-label>Montant affecté (€)</mat-label>
@@ -197,6 +205,7 @@ export class PaymentsDialog {
   private readonly dialogs = inject(Dialogs);
   private readonly notifier = inject(Notifier);
   private readonly reference = inject<MatDialogRef<PaymentsDialog, MembershipInfo>>(MatDialogRef);
+  private readonly autoBook = inject(AutoBook);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<PaymentsDialogData>(MAT_DIALOG_DATA);
   protected readonly Number = Number;
@@ -208,10 +217,19 @@ export class PaymentsDialog {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly overpayment = computed(() => this.membership().balance.replace('-', ''));
-  protected readonly form = this.fb.group({ kind: ['PAYMENT' as 'PAYMENT' | 'REFUND'], transactionId: [''], amount: [''], note: [''] });
+  protected readonly form = this.fb.group({ kind: ['PAYMENT' as 'PAYMENT' | 'REFUND'], transactionId: [''], amount: [''], note: [''], book: [true] });
+  private readonly category = signal<OperationCategoryInfo | null>(null);
+  private readonly picked = toSignal(this.form.controls.transactionId.valueChanges, { initialValue: '' });
+  private readonly kind = toSignal(this.form.controls.kind.valueChanges, { initialValue: 'PAYMENT' as 'PAYMENT' | 'REFUND' });
+  /** Catégorie proposée pour enregistrer l'encaissement choisi dans les comptes, si c'est possible et permis. */
+  protected readonly bookOffer = computed(() => {
+    const candidate = this.candidates().find((c) => c.id === this.picked());
+    return this.kind() === 'PAYMENT' && candidate?.canBook ? this.category() : null;
+  });
 
   constructor() {
     void this.reload(true);
+    if (this.data.canManage) void this.autoBook.categoryFor('MEMBERSHIP').then((c) => this.category.set(c));
   }
 
   protected async loadCandidates(): Promise<void> {
@@ -244,8 +262,16 @@ export class PaymentsDialog {
         ...(raw.note.trim() && { note: raw.note.trim() }),
       });
       this.membership.set(result.membership);
-      this.notifier.success(raw.kind === 'REFUND' ? 'Remboursement affecté.' : result.membership.status === 'EFFECTIVE' ? 'Règlement affecté : l’adhésion est effective.' : 'Règlement affecté.');
-      this.form.patchValue({ transactionId: '', amount: '', note: '' });
+      const offer = this.bookOffer();
+      const base = raw.kind === 'REFUND' ? 'Remboursement affecté.' : result.membership.status === 'EFFECTIVE' ? 'Règlement affecté : l’adhésion est effective.' : 'Règlement affecté.';
+      if (raw.book && offer) {
+        const outcome = await this.autoBook.book(raw.transactionId, offer);
+        if (outcome.ok) this.notifier.success(`${base} ${this.autoBook.describe(outcome)}`);
+        else this.notifier.notice(`${base} ${this.autoBook.describe(outcome)}`);
+      } else {
+        this.notifier.success(base);
+      }
+      this.form.patchValue({ transactionId: '', amount: '', note: '', book: true });
       await this.reload(false);
     });
   }

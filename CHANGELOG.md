@@ -8,12 +8,15 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 ### À savoir avant de mettre à jour
 
+- Nouvelle migration (rôle des catégories). Si les catégories de départ sont déjà installées, « Cotisations des adhérents » et « Subvention » reçoivent leur rôle au prochain « Installer les catégories de départ » ; sinon, désignez-les dans Paramètres › Comptabilité › Catégories.
 - Nouvelle migration (catégories d'opération). **Changement visible** : l'affichage par défaut est maintenant « Simple » ; chaque personne retrouve le menu complet via Apparence › Affichage › Comptable. Les droits ne changent pas.
 - Les migrations de base de données ne sont pas réversibles : lancez `scripts/update.sh <version>`, qui sauvegarde et vérifie avant de changer de version. Pour revenir en arrière, on restaure la sauvegarde faite juste avant.
 - Nouveau dans l'image `backup` : la copie hors site automatique (variables `OFFSITE_*` de `.env.prod`, facultatives). Sans elle, rien ne change.
 
 ### Nouveautés
 
+- **Un règlement, un geste** : en rattachant un règlement de cotisation ou un versement de subvention, une case permet de l'enregistrer aussi dans les comptes (catégorie désignée dans Paramètres › Comptabilité › Catégories, rôle « Cotisations » ou « Subventions »). Si l'enregistrement est refusé, le rattachement est conservé et le motif est donné.
+- **Préparer la validation** : protocole de test avec des trésoriers novices (docs/test-usage-tresoriers.md) et fiche de relecture du modèle de démarrage pour l'expert-comptable (docs/revue-modele-demarrage.md).
 - **Vocabulaire simplifié sur les derniers écrans** (affichage Simple) : le rapprochement bancaire devient « Vérification avec la banque », les virements internes « Déplacer de l'argent entre mes comptes », les rapports, l'import de relevé et les projets parlent de période, de dépenses et de recettes et d'opérations enregistrées. L'affichage Comptable garde les termes de l'expert.
 - **Projet obligatoire expliqué** : quand une dépense ou une recette n'est rattachée à aucun projet, le message dit sur quelle ligne, pourquoi la règle existe et quoi faire ; l'éditeur d'écriture prévient avant la comptabilisation et propose de rattacher les lignes à « Fonctionnement » d'un clic.
 - **Enregistrer d'un coup les mouvements classés** : un seul bouton enregistre dans les comptes tous les mouvements déjà classés d'un compte (ou ceux qu'on a cochés), dans l'ordre des dates. Si l'un est refusé (exercice fermé, par exemple), les autres passent quand même et un compte rendu explique chaque refus.

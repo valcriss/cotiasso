@@ -269,6 +269,92 @@ describe('CampaignsPage', () => {
     expect(root.textContent).toContain('Toutes les cotisations de cette campagne sont réglées');
   });
 
+  describe('rattacher un règlement et l’enregistrer dans les comptes d’un même geste (ADR 0028)', () => {
+    const BOOKING = ['members:view', 'members:manage', 'transactions:manage', 'entries:create', 'entries:post'];
+    const cotisations = { id: 'c-cot', direction: 'IN', label: 'Cotisations des adhérents', hint: '', active: true, usage: 'MEMBERSHIP', account: { id: 'a756', number: '756', label: 'Cotisations' } };
+    /** Ouvre les règlements ; la boîte charge aussi les catégories quand la personne peut enregistrer dans les comptes. */
+    const openPayments = async (permissions: string[], candidate: object, categories: object[] = [cotisations]) => {
+      await create(permissions);
+      await openFirst();
+      await click('Règlements de Dupont Marie');
+      controller.expectOne('/api/memberships/ms1/allocations').flush([]);
+      await settle();
+      controller.expectOne((r) => r.url === '/api/memberships/ms1/payment-candidates').flush([candidate]);
+      if (permissions.includes('transactions:manage')) controller.expectOne('/api/operation-categories').flush(categories);
+      await settle();
+    };
+    const candidate = (canBook: boolean) => ({ id: 'tx1', operationDate: '2025-11-12', label: 'Chèque de Marie', accountName: 'Banque', amount: '30.00', remaining: '30.00', canBook });
+    const submitAllocation = async () => {
+      await ui.choose('mat-select[formcontrolname="transactionId"]', 'Chèque de Marie');
+      ui.dialog!.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
+      await settle();
+      const request = controller.expectOne('/api/memberships/ms1/allocations');
+      expect(request.request.method).toBe('POST');
+      request.flush({ allocation: allocation({ amount: '30.00' }), membership: membership({ status: 'EFFECTIVE', paid: '30.00', balance: '0.00', effectiveOrigin: 'PAYMENT', effectiveOn: '2025-11-12' }) });
+      await settle();
+    };
+    const reloadAfter = async () => {
+      controller.expectOne('/api/memberships/ms1/allocations').flush([allocation({ amount: '30.00' })]);
+      await settle();
+      controller.expectOne((r) => r.url === '/api/memberships/ms1/payment-candidates').flush([]);
+      await settle();
+    };
+
+    it('propose la case quand le mouvement n’est pas encore dans les comptes, puis rattache et enregistre', async () => {
+      await openPayments(BOOKING, candidate(true));
+      await ui.choose('mat-select[formcontrolname="transactionId"]', 'Chèque de Marie');
+      expect(ui.text).toContain('L’enregistrer aussi dans les comptes (catégorie « Cotisations des adhérents »)');
+      await submitAllocation();
+      const book = controller.expectOne('/api/transactions/tx1/book');
+      expect(book.request.body).toEqual({ categoryId: 'c-cot', post: true });
+      book.flush({ transactionId: 'tx1', entryId: 'e1', posted: true, journalCode: 'BQ-1', number: 4 }, { status: 201, statusText: 'Created' });
+      await settle();
+      await reloadAfter();
+      expect(ui.snackbar).toContain('Rattaché et enregistré dans les comptes');
+    });
+
+    it('rattache seulement quand la case est décochée', async () => {
+      await openPayments(BOOKING, candidate(true));
+      await ui.choose('mat-select[formcontrolname="transactionId"]', 'Chèque de Marie');
+      ui.field<HTMLInputElement>('mat-checkbox input').click();
+      await settle();
+      await submitAllocation();
+      await reloadAfter();
+      expect(ui.snackbar).toContain('l’adhésion est effective');
+      expect(ui.snackbar).not.toContain('dans les comptes');
+    });
+
+    it('si l’enregistrement est refusé, le rattachement reste valable et la personne sait quoi faire', async () => {
+      await openPayments(BOOKING, candidate(true));
+      await submitAllocation();
+      controller
+        .expectOne('/api/transactions/tx1/book')
+        .flush({ message: "L'exercice de ce mouvement est fermé à la saisie." }, { status: 409, statusText: 'Conflict' });
+      await settle();
+      await reloadAfter();
+      expect(ui.snackbar).toContain('Rattaché, mais pas encore enregistré dans les comptes');
+      expect(ui.snackbar).toContain("L'exercice de ce mouvement est fermé à la saisie.");
+      expect(ui.snackbar).toContain('Classer et enregistrer');
+      expect(ui.text).toContain('Reste dû : 0,00 €');
+    });
+
+    it('ne propose rien si le mouvement est déjà dans les comptes, si aucune catégorie n’est désignée ou sans le droit de saisie', async () => {
+      await openPayments(BOOKING, candidate(false));
+      await ui.choose('mat-select[formcontrolname="transactionId"]', 'Chèque de Marie');
+      expect(ui.dialog!.querySelector('mat-checkbox')).toBeNull();
+      ui.closeAll();
+      TestBed.resetTestingModule();
+      await openPayments(BOOKING, candidate(true), [{ ...cotisations, usage: null }]);
+      await ui.choose('mat-select[formcontrolname="transactionId"]', 'Chèque de Marie');
+      expect(ui.dialog!.querySelector('mat-checkbox')).toBeNull();
+      ui.closeAll();
+      TestBed.resetTestingModule();
+      await openPayments(['members:view', 'members:manage'], candidate(true));
+      await ui.choose('mat-select[formcontrolname="transactionId"]', 'Chèque de Marie');
+      expect(ui.dialog!.querySelector('mat-checkbox')).toBeNull();
+    });
+  });
+
   it("affecte une transaction à une adhésion : candidats, montant proposé, effet sur l'adhésion", async () => {
     await create(['members:view', 'members:manage']);
     await openFirst();

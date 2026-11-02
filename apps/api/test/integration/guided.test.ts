@@ -127,6 +127,34 @@ describe("Parcours simplifiés : catégories, saisie guidée et vue d'ensemble (
       expect(list.find((c: { label: string }) => c.label === "Assurance")).toMatchObject({ direction: "OUT", account: { number: "616" } });
     });
 
+    it("désigne la catégorie des cotisations et celle des subventions, un rôle n'a qu'une catégorie et une catégorie désactivée n'en garde pas", async () => {
+      const list = async () => (await call("GET", "/operation-categories/all", treasurer)).json() as { id: string; label: string; usage: string | null; direction: string; active: boolean }[];
+      const find = async (label: string) => (await list()).find((c) => c.label === label)!;
+      expect((await find("Cotisations des adhérents")).usage).toBe("MEMBERSHIP");
+      expect((await find("Subvention")).usage).toBe("GRANT");
+      expect((await find("Dons")).usage).toBeNull();
+
+      // Donner le rôle à une autre catégorie le retire à l'ancienne, dans la même opération.
+      const dons = await find("Dons");
+      expect((await call("PATCH", `/operation-categories/${dons.id}`, treasurer, { usage: "MEMBERSHIP" })).json().usage).toBe("MEMBERSHIP");
+      expect((await find("Cotisations des adhérents")).usage).toBeNull();
+      // Seule une catégorie d'argent reçu peut avoir un rôle.
+      const assurance = await find("Assurance");
+      const refused = await call("PATCH", `/operation-categories/${assurance.id}`, treasurer, { usage: "GRANT" });
+      expect(refused.statusCode).toBe(409);
+      expect(refused.json().message).toContain("argent reçu");
+      // Désactiver une catégorie lui retire son rôle.
+      expect((await call("PATCH", `/operation-categories/${dons.id}`, treasurer, { active: false })).json().usage).toBeNull();
+      // Retour à l'état initial pour la suite.
+      await call("PATCH", `/operation-categories/${dons.id}`, treasurer, { active: true });
+      const cotis = await find("Cotisations des adhérents");
+      expect((await call("PATCH", `/operation-categories/${cotis.id}`, treasurer, { usage: "MEMBERSHIP" })).json().usage).toBe("MEMBERSHIP");
+      // Réinstaller le modèle ne déplace pas un rôle déjà attribué.
+      await call("POST", "/starter-template", treasurer);
+      expect((await find("Cotisations des adhérents")).usage).toBe("MEMBERSHIP");
+      expect(await sqlError(`UPDATE "OperationCategory" SET "usage"='GRANT' WHERE label='Assurance'`)).toContain("OperationCategory_usage_incoming");
+    });
+
     it("refuse un compte qui ne correspond pas au sens, un doublon, et désactive sans supprimer", async () => {
       const accounts = (await call("GET", "/accounts", treasurer)).json() as { id: string; number: string }[];
       const id = (n: string) => accounts.find((a) => a.number === n)!.id;

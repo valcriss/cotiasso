@@ -77,10 +77,10 @@ describe('GrantFinance', () => {
     fixture.detectChanges();
     await fixture.whenStable();
   };
-  const create = async (data: object, options: { canManage?: boolean; grant?: Record<string, unknown> } = {}) => {
+  const create = async (data: object, options: { canManage?: boolean; grant?: Record<string, unknown>; extra?: string[] } = {}) => {
     await TestBed.configureTestingModule({
       imports: [GrantFinance],
-      providers: [provideHttpClient(), provideHttpClientTesting(), mockAuth(['grants:view', 'grants:manage']), NO_MATERIAL_ANIMATIONS],
+      providers: [provideHttpClient(), provideHttpClientTesting(), mockAuth(['grants:view', 'grants:manage', ...(options.extra ?? [])]), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(GrantFinance);
@@ -232,11 +232,58 @@ describe('GrantFinance', () => {
     expect(changes).toBe(1);
   });
 
+  describe('versement rattaché et enregistré dans les comptes d’un même geste (ADR 0028)', () => {
+    const subvention = { id: 'c-sub', direction: 'IN', label: 'Subvention', hint: '', active: true, usage: 'GRANT', account: { id: 'a740', number: '740', label: 'Subventions' } };
+    const BOOKING = ['transactions:manage', 'entries:create', 'entries:post'];
+    const start = async (canBook: boolean, categories: object[] = [subvention]) => {
+      await create(finance(), { extra: BOOKING });
+      await click('Enregistrer un versement reçu');
+      controller.expectOne('/api/operation-categories').flush(categories);
+      controller.expectOne('/api/grants/g1/payment-candidates').flush([
+        { id: 't9', operationDate: '2026-12-01', label: 'VIR REGION', accountName: 'Banque', amount: '500.00', remaining: '500.00', canBook },
+      ]);
+      await settle();
+      await ui.choose('mat-select[formcontrolname="transactionId"]', 'VIR REGION');
+    };
+
+    it('propose la case, rattache puis enregistre l’encaissement dans les comptes avec la catégorie des subventions', async () => {
+      await start(true);
+      expect(ui.text).toContain('L’enregistrer aussi dans les comptes (catégorie « Subvention »)');
+      await ui.submit();
+      controller.expectOne('/api/grants/g1/payments').flush(finance({ received: '500.00' }));
+      await settle();
+      const book = controller.expectOne('/api/transactions/t9/book');
+      expect(book.request.body).toEqual({ categoryId: 'c-sub', post: true });
+      book.flush({ transactionId: 't9', entryId: 'e9', posted: true, journalCode: 'BQ-1', number: 2 }, { status: 201, statusText: 'Created' });
+      await settle();
+      expect(ui.isOpen).toBe(false);
+      expect(ui.snackbar).toContain('Versement enregistré. Rattaché et enregistré dans les comptes');
+    });
+
+    it('si l’enregistrement est refusé, le versement reste rattaché et un message le dit avec le motif', async () => {
+      await start(true);
+      await ui.submit();
+      controller.expectOne('/api/grants/g1/payments').flush(finance({ received: '500.00' }));
+      await settle();
+      controller.expectOne('/api/transactions/t9/book').flush({ message: 'Aucun exercice ne couvre la date de ce mouvement.' }, { status: 409, statusText: 'Conflict' });
+      await settle();
+      expect(ui.isOpen).toBe(false);
+      expect(ui.snackbar).toContain('Versement rattaché à la subvention.');
+      expect(ui.snackbar).toContain('Aucun exercice ne couvre la date de ce mouvement.');
+      expect(figures()).toContain('Reçu: 500,00 €');
+    });
+
+    it('ne propose rien si l’encaissement est déjà dans les comptes', async () => {
+      await start(false);
+      expect(ui.dialog!.querySelector('mat-checkbox')).toBeNull();
+    });
+  });
+
   it('enregistre un versement : l’encaissement propose sa part disponible, l’échéance est facultative', async () => {
     await create(finance());
     await click('Enregistrer un versement reçu');
     expect(ui.title).toBe('Enregistrer un versement reçu');
-    expect(ui.text).toContain('ne crée aucune écriture comptable');
+    expect(ui.text).toContain("deux choses distinctes : une case permet de faire les deux d'un seul geste");
     controller.expectOne('/api/grants/g1/payment-candidates').flush([
       { id: 't9', operationDate: '2026-12-01', label: 'VIR REGION', accountName: 'Banque', amount: '500.00', remaining: '350.00' },
     ]);

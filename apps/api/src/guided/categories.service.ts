@@ -12,8 +12,9 @@ const hint = z.string().trim().max(200, "Aide trop longue (200 caractères).");
 const categoryInput = z
   .object({ direction: z.enum(["IN", "OUT"]), label, hint: hint.default(""), accountId: z.uuid("Compte invalide.") })
   .strict();
+const usage = z.enum(["MEMBERSHIP", "GRANT"]);
 const categoryPatch = z
-  .object({ label: label.optional(), hint: hint.optional(), accountId: z.uuid().optional(), active: z.boolean().optional() })
+  .object({ label: label.optional(), hint: hint.optional(), accountId: z.uuid().optional(), active: z.boolean().optional(), usage: usage.nullable().optional() })
   .strict();
 
 export interface CategoryView {
@@ -22,6 +23,8 @@ export interface CategoryView {
   label: string;
   hint: string;
   active: boolean;
+  /** Rôle particulier (cotisations, subventions) : la catégorie proposée d'office pour ces règlements. */
+  usage: "MEMBERSHIP" | "GRANT" | null;
   /** Compte du plan comptable derrière la catégorie : montré en petit, pour l'expert-comptable. */
   account: { id: string; number: string; label: string };
 }
@@ -75,7 +78,19 @@ export class CategoriesService {
       ...(patch.accountId !== undefined && { accountId: patch.accountId }),
       ...(patch.active !== undefined && { active: patch.active }),
     };
-    const row = await this.prisma.operationCategory.update({ where: { id }, data, include }).catch(duplicate);
+    if (patch.usage && current.direction !== "IN") {
+      throw new AccountingConflictError("Seule une catégorie d'argent reçu peut servir aux cotisations ou aux subventions.");
+    }
+    if (patch.usage && patch.active === undefined && !current.active) {
+      throw new AccountingConflictError("Réactivez d'abord cette catégorie : une catégorie désactivée ne peut pas servir aux cotisations ou aux subventions.");
+    }
+    const row = await this.prisma
+      .$transaction(async (db) => {
+        // Un rôle n'a qu'une catégorie : le donner à celle-ci le retire à l'ancienne, dans la même transaction.
+        if (patch.usage) await db.operationCategory.updateMany({ where: { usage: patch.usage, id: { not: id } }, data: { usage: null } });
+        return db.operationCategory.update({ where: { id }, data: { ...data, ...(patch.usage !== undefined && { usage: patch.usage }), ...(patch.active === false && { usage: null }) }, include });
+      })
+      .catch(duplicate);
     await this.audit.record({ action: "operation-category.updated", objectType: "OperationCategory", objectId: id, actorId, details: { fields: Object.keys(patch) } });
     return view(row);
   }
@@ -112,9 +127,17 @@ export class CategoriesService {
             accountId: byNumber.get(category.accountNumber)!,
             position: positions[category.direction]!,
             createdBy: actorId,
+            ...(category.usage && !(await db.operationCategory.findFirst({ where: { usage: category.usage }, select: { id: true } })) && { usage: category.usage }),
           },
         });
         categoriesCreated++;
+      }
+      // Catégories de départ déjà installées avant l'existence des rôles : on leur donne leur rôle si personne ne l'a.
+      for (const category of TEMPLATE_CATEGORIES) {
+        if (!category.usage) continue;
+        if (await db.operationCategory.findFirst({ where: { usage: category.usage }, select: { id: true } })) continue;
+        const existing = (await db.operationCategory.findMany({ where: { direction: category.direction, active: true }, select: { id: true, label: true } })).find((c) => c.label.toLowerCase() === category.label.toLowerCase());
+        if (existing) await db.operationCategory.update({ where: { id: existing.id }, data: { usage: category.usage } });
       }
       return { accountsCreated, categoriesCreated };
     });
@@ -145,6 +168,6 @@ function duplicate(error: unknown): never {
   throw error;
 }
 
-function view(row: { id: string; direction: "IN" | "OUT"; label: string; hint: string; active: boolean; account: { id: string; number: string; label: string } }): CategoryView {
-  return { id: row.id, direction: row.direction, label: row.label, hint: row.hint, active: row.active, account: row.account };
+function view(row: { id: string; direction: "IN" | "OUT"; label: string; hint: string; active: boolean; usage: "MEMBERSHIP" | "GRANT" | null; account: { id: string; number: string; label: string } }): CategoryView {
+  return { id: row.id, direction: row.direction, label: row.label, hint: row.hint, active: row.active, usage: row.usage, account: row.account };
 }

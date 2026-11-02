@@ -45,6 +45,8 @@ export interface PaymentCandidate {
   amount: string;
   /** Part pas encore affectée à une adhésion. */
   remaining: string;
+  /** Le mouvement n'est pas encore dans les comptes (ni en brouillon, ni dans un virement) : on peut l'y enregistrer d'un même geste. */
+  canBook: boolean;
 }
 
 export interface ReminderItem {
@@ -146,15 +148,17 @@ export class PaymentsService {
   async candidates(membershipId: string, query: unknown): Promise<PaymentCandidate[]> {
     const { kind } = parse(candidatesQuery, query);
     if (!(await this.prisma.membership.findUnique({ where: { id: membershipId }, select: { id: true } }))) throw new AccountingNotFoundError("Adhésion");
-    const rows = await this.prisma.$queryRaw<{ id: string; operationDate: Date; label: string; accountName: string; amount: string; remaining: string }[]>`
+    const rows = await this.prisma.$queryRaw<{ id: string; operationDate: Date; label: string; accountName: string; amount: string; remaining: string; canBook: boolean }[]>`
       SELECT t."id", t."operationDate", t."label", f."name" AS "accountName", abs(t."amount")::text AS "amount",
-             (abs(t."amount") - transaction_allocated_total(t."id"))::text AS "remaining"
+             (abs(t."amount") - transaction_allocated_total(t."id"))::text AS "remaining",
+             (NOT EXISTS (SELECT 1 FROM "TreasuryMatch" m WHERE m."transactionId" = t."id" AND m."status" = 'ACTIVE')
+             AND NOT EXISTS (SELECT 1 FROM "Transfer" tr WHERE tr."outTransactionId" = t."id" OR tr."inTransactionId" = t."id")) AS "canBook"
       FROM "Transaction" t JOIN "FinancialAccount" f ON f."id" = t."financialAccountId"
       WHERE ${kind === "PAYMENT" ? Prisma.sql`t."amount" > 0` : Prisma.sql`t."amount" < 0`}
         AND abs(t."amount") > transaction_allocated_total(t."id")
       ORDER BY t."operationDate" DESC, t."id" DESC
       LIMIT 50`;
-    return rows.map((r) => ({ id: r.id, operationDate: day(r.operationDate), label: r.label, accountName: r.accountName, amount: Money.parse(r.amount).toString(), remaining: Money.parse(r.remaining).toString() }));
+    return rows.map((r) => ({ id: r.id, operationDate: day(r.operationDate), label: r.label, accountName: r.accountName, amount: Money.parse(r.amount).toString(), remaining: Money.parse(r.remaining).toString(), canBook: kind === "PAYMENT" && r.canBook }));
   }
 
   /** Cotisations restant dues d'une campagne (adhésions non annulées dont le reste dû est positif), avec de quoi contacter. */
