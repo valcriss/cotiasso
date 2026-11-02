@@ -480,6 +480,77 @@ describe('AccountsPage', () => {
     expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Annuler l’opération'))).toBe(false);
   });
 
+  describe('affichage simple : classer et enregistrer (ADR 0028)', () => {
+    const cats = [
+      { id: 'c-out', direction: 'OUT', label: 'Assurance', hint: "Prime d'assurance de l'association.", active: true, account: { id: 'a616', number: '616', label: "Primes d'assurance" } },
+      { id: 'c-in', direction: 'IN', label: 'Dons', hint: 'Argent donné sans contrepartie.', active: true, account: { id: 'a754', number: '754', label: 'Dons et libéralités' } },
+    ];
+    const SIMPLE = ['financial-accounts:view', 'transactions:manage', 'entries:create', 'entries:view', 'entries:post'];
+    /** Ouvre le panneau en affichage simple : liste des mouvements puis catégories. */
+    const openSimple = async (list: object[]) => {
+      await create(SIMPLE, [account()], 'simple');
+      await click('Ouvrir Compte courant');
+      controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: list, next: null });
+      controller.expectOne('/api/operation-categories').flush(cats);
+      await settle();
+    };
+
+    it('donne une seule situation lisible par mouvement, la catégorie en mots courants et masque les gestes de comptable', async () => {
+      await openSimple([
+        transaction({ id: 't1', label: 'Inconnu' }),
+        transaction({ id: 't2', label: 'Classé', counterpartAccountId: 'a616', counterpartAccountNumber: '616' }),
+        transaction({ id: 't3', label: 'Brouillon', accounting: 'IN_PROGRESS', counterpartAccountId: 'a616', counterpartAccountNumber: '616', entry: entryRef(), financialLock: 'ENTRY', deletable: false }),
+        transaction({ id: 't4', label: 'Fait', accounting: 'POSTED', counterpartAccountId: 'a616', counterpartAccountNumber: '616', entry: entryRef({ id: 'e4', status: 'POSTED', number: 4 }), financialLock: 'ENTRY', deletable: false }),
+      ]);
+      const text = root.textContent!;
+      expect(text).toContain('À classer');
+      expect(text).toContain('Classé');
+      expect(text).toContain('En brouillon');
+      expect(text).toContain('Enregistré dans les comptes');
+      expect(text).toContain('Assurance');
+      expect(text).not.toContain('Contrepartie');
+      expect(text).not.toContain('À comptabiliser');
+      expect(text).not.toContain('Ajouter une transaction');
+      const buttons = Array.from(root.querySelectorAll('button, a')).map((b) => b.textContent!.trim());
+      expect(buttons.filter((b) => b === 'Classer et enregistrer').length).toBe(2);
+      expect(buttons.some((b) => b.includes('Associer à une écriture'))).toBe(false);
+      expect(buttons).toContain('Relire le brouillon');
+      expect(buttons.some((b) => b === 'Voir l\'écriture')).toBe(false);
+    });
+
+    it('classe et enregistre en choisissant seulement une catégorie du bon sens, avec l’explication pour l’expert', async () => {
+      await openSimple([transaction({ id: 't1', label: 'Prime annuelle', amount: '-120.00' })]);
+      await click('Classer et enregistrer Prime annuelle');
+      expect(ui.title).toBe('Classer et enregistrer ce mouvement');
+      expect(await ui.options('mat-select[formcontrolname="categoryId"]')).toEqual(['Assurance']);
+
+      await ui.submit();
+      expect(ui.error).toContain('Choisissez une catégorie');
+      await ui.choose('mat-select[formcontrolname="categoryId"]', 'Assurance');
+      expect(ui.text).toContain('le compte 616');
+      expect(ui.text).toContain('enregistrée définitivement');
+      await ui.submit();
+      const request = controller.expectOne('/api/transactions/t1/book');
+      expect(request.request.body).toEqual({ categoryId: 'c-out', post: true });
+      request.flush({ transactionId: 't1', entryId: 'e1', posted: true, journalCode: 'BQ-1', number: 3 }, { status: 201, statusText: 'Created' });
+      await settle();
+      controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: [], next: null });
+      await settle();
+      controller.expectOne('/api/financial-accounts').flush([account()]);
+      await settle();
+      expect(ui.snackbar).toContain('enregistré dans les comptes');
+    });
+
+    it('classe la sélection avec des catégories plutôt qu’avec des numéros de compte', async () => {
+      await openSimple([transaction({ id: 't1', label: 'Frais' })]);
+      root.querySelector<HTMLInputElement>('mat-checkbox input')!.click();
+      await settle();
+      await click('Classer la sélection');
+      expect(ui.title).toBe('Classer 1 mouvement(s)');
+      expect(await ui.options('mat-select[formcontrolname="counterpartAccountId"]')).toEqual(['Ne pas changer', 'Dépensé — Assurance', 'Reçu — Dons']);
+    });
+  });
+
   it("enregistre un virement interne : deux comptes, montant positif, brouillon préparé", async () => {
     const savings = account({ id: 'f2', name: 'Livret', accountId: 'a530', accountNumber: '530', journalCode: 'BQ-2' });
     await create(FULL, [account(), savings]);

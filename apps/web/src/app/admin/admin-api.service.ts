@@ -1949,6 +1949,10 @@ export class AdminApiService {
     return firstValueFrom(this.http.post<{ accountsCreated: number; categoriesCreated: number }>('/api/starter-template', {}));
   }
 
+  bookTransaction(id: string, body: { categoryId: string; projectId?: string | null; post?: boolean }): Promise<GuidedOperationResult> {
+    return firstValueFrom(this.http.post<GuidedOperationResult>(`/api/transactions/${id}/book`, body));
+  }
+
   recordOperation(body: GuidedOperationBody): Promise<GuidedOperationResult> {
     return firstValueFrom(this.http.post<GuidedOperationResult>('/api/guided-operations', body));
   }

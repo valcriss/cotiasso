@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -35,6 +35,14 @@ export class Shell {
   protected readonly densities = DENSITIES;
   protected readonly user = this.auth.user;
   protected readonly collapsed = signal(false);
+
+  constructor() {
+    // Un expert-comptable (lecture et export des états, sans saisie) ouvre l'affichage comptable d'office ; son choix prime ensuite.
+    effect(() => {
+      this.auth.permissions();
+      if (this.auth.can('reports:export') && !this.auth.can('transactions:manage')) this.theme.suggestViewMode('accounting');
+    });
+  }
 
   protected toggle(): void {
     this.collapsed.update((value) => !value);

@@ -84,9 +84,11 @@ describe('ClosingDialog', () => {
     await open(report({ status: 'CLOSING', canStart: false, canClose: true }));
     expect(ui.button('Clôturer définitivement').disabled).toBe(true);
 
+    // Le compte habituel (120) est proposé d'office : seule la confirmation manque encore.
+    expect(ui.text).toContain('2. Fermer à la saisie');
     ui.field<HTMLInputElement>('input[type="checkbox"]').click();
     await settle();
-    expect(ui.button('Clôturer définitivement').disabled).toBe(true);
+    expect(ui.button('Clôturer définitivement').disabled).toBe(false);
 
     // Un compte de charge n'est pas proposé pour porter le résultat : seul le compte de fonds propres l'est.
     expect(await ui.options('mat-select[formcontrolname="surplusAccountId"]')).toEqual(['120 — Report à nouveau excédentaire']);

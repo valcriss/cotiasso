@@ -71,6 +71,9 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | Démarrage | Page « Démarrer » (période, catégories, compte bancaire), modèle de démarrage **proposé** (à faire relire), rôle de trésorier au premier compte | ADR 0028 |
 | Vue d'ensemble | Argent disponible, reçu et dépensé du mois, liste « À faire » qui renvoie à l'écran concerné | ADR 0028 |
 | Annuler l'opération | Contrepassation sous un mot courant, avec les conséquences annoncées | ADR 0028, ADR 0010 |
+| Classer et enregistrer | Un mouvement existant (importé ou saisi) se classe par catégorie et s'enregistre dans les comptes en un geste ; une situation lisible par mouvement ; catégories dans « Classer la sélection » | ADR 0028 (9 à 11) |
+| Expert-comptable | Rôle en lecture seule, affichage comptable d'office | ADR 0028 (12) |
+| Sécurité sans jargon | Inscription MFA expliquée ; récupération MFA par commande serveur (sans SQL) ; clôture d'exercice guidée en trois étapes | ADR 0028 (13, 14) |
 
 ### Interface
 
@@ -106,7 +109,7 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | 2.5 | ~~**Exploitation**~~ **fait** (ADR 0026) : copie hors site automatique (rclone, archives chiffrées, état dans l'écran Exploitation), script de mise à jour qui sauvegarde et vérifie avant de changer de version, notes de version (`CHANGELOG.md`) | Les sauvegardes restaient sur le serveur | [exploitation.md](exploitation.md) |
 | 2.6 | ~~**Dépôt du fichier OFX d'origine comme document**~~ **fait** (ADR 0025) : conservé à l'analyse, restreint, archivé si l'import est annulé | Complète la traçabilité des imports | Documents (lot 1.6) |
 | 2.7 | **Suites de la comptabilité** : versionnement du plan de comptes et des rubriques, lien de correction (remplacement après contrepassation), ventilation d'une transaction | Améliorations de fond identifiées pendant les lots 2a et 2b | 1.1 |
-| 2.8 | **Suites des parcours simplifiés** (ADR 0028, « Hors de ce lot ») : statut unique par mouvement (« À classer » → « Classé » → « Vérifié avec la banque ») et solde unique par défaut, comptabilisation automatique au classement, cotisations et subventions comptabilisées dans le même geste, clôture d'exercice guidée, inscription MFA guidée et récupération sans SQL, catégories dans la boîte « Qualifier », rôle « expert-comptable » | Terminer la simplification des écrans qui parlent encore comptabilité | 1.6 |
+| 2.8 | **Suites des parcours simplifiés** (ADR 0028, « Hors de ce lot ») : affectation d'un règlement et enregistrement dans les comptes en un seul geste (cotisation, subvention), comptabilisation en masse des mouvements classés, message dédié au projet obligatoire, vocabulaire des derniers écrans partagés | Terminer la simplification des écrans qui parlent encore comptabilité | 1.6 |
 
 ### Priorité 3 — fonctions associatives complètes
 

@@ -244,6 +244,56 @@ describe("Parcours simplifiés : catégories, saisie guidée et vue d'ensemble (
       expect(overview.todo.find((t: { code: string }) => t.code === "TO_VERIFY")).toMatchObject({ level: "INFO" });
     });
 
+    it("classe et enregistre en un geste un mouvement qui existe déjà (importé ou saisi), puis refuse de le refaire", async () => {
+      const tx = await call("POST", `/financial-accounts/${ids.fBank}/transactions`, treasurer, { operationDate: "2026-03-20", amount: "-60.00", label: "Facture de l'imprimeur" });
+      expect(tx.statusCode, tx.body).toBe(201);
+      const booked = await call("POST", `/transactions/${tx.json().id}/book`, treasurer, { categoryId: await category("Communication et publicité") });
+      expect(booked.statusCode, booked.body).toBe(201);
+      expect(booked.json()).toMatchObject({ posted: true, transactionId: tx.json().id });
+      const entry = (await call("GET", `/entries/${booked.json().entryId}`, treasurer)).json();
+      expect(entry.lines).toMatchObject([
+        { accountNumber: "512", debit: "0.00", credit: "60.00" },
+        { accountNumber: "623", debit: "60.00", credit: "0.00" },
+      ]);
+      const listed = (await call("GET", `/financial-accounts/${ids.fBank}/transactions`, treasurer)).json().transactions.find((t: { id: string }) => t.id === tx.json().id);
+      expect(listed).toMatchObject({ accounting: "POSTED", counterpartAccountNumber: "623" });
+
+      const again = await call("POST", `/transactions/${tx.json().id}/book`, treasurer, { categoryId: await category("Communication et publicité") });
+      expect(again.statusCode).toBe(409);
+      expect(again.json().message).toContain("déjà enregistré");
+    });
+
+    it("refuse de classer un mouvement avec une catégorie du mauvais sens, sans rien modifier", async () => {
+      const tx = await call("POST", `/financial-accounts/${ids.fBank}/transactions`, treasurer, { operationDate: "2026-03-21", amount: "40.00", label: "Don de Paul" });
+      const wrong = await call("POST", `/transactions/${tx.json().id}/book`, treasurer, { categoryId: await category("Assurance") });
+      expect(wrong.statusCode).toBe(409);
+      expect(wrong.json().message).toContain("argent reçu");
+      const row = await prisma.transaction.findUniqueOrThrow({ where: { id: tx.json().id } });
+      expect(row.counterpartAccountId).toBeNull();
+      expect(await prisma.treasuryMatch.count({ where: { transactionId: tx.json().id } })).toBe(0);
+      const ok = await call("POST", `/transactions/${tx.json().id}/book`, treasurer, { categoryId: await category("Dons"), post: false });
+      expect(ok.json()).toMatchObject({ posted: false });
+    });
+
+    it("n'accepte pas de classer un mouvement membre d'un virement", async () => {
+      const accounts = (await call("GET", "/accounts", treasurer)).json() as { id: string; number: string }[];
+      const cash = await call("POST", "/financial-accounts", treasurer, { name: "Caisse", type: "CASH", accountId: accounts.find((a) => a.number === "530")!.id, openedOn: "2026-01-01", openingBalance: "0.00" });
+      const transfer = await call("POST", "/transfers", treasurer, { fromAccountId: ids.fBank, toAccountId: cash.json().id, amount: "10.00", date: "2026-03-22", prepareEntry: false });
+      expect(transfer.statusCode, transfer.body).toBe(201);
+      const out = await prisma.transfer.findFirstOrThrow({ orderBy: { createdAt: "desc" } });
+      const refused = await call("POST", `/transactions/${out.outTransactionId}/book`, treasurer, { categoryId: await category("Assurance") });
+      expect(refused.statusCode).toBe(409);
+      expect(refused.json().message).toContain("virement");
+    });
+
+    it("le rôle « Expert-comptable » lit les comptes et les rapports mais ne peut rien saisir", async () => {
+      const accountant = await userWith("accountant");
+      expect((await call("GET", "/entries", accountant)).statusCode).toBe(200);
+      expect((await call("GET", "/reports/trial-balance?fiscalYearId=x", accountant)).statusCode).not.toBe(403);
+      expect((await call("POST", "/guided-operations", accountant, { financialAccountId: ids.fBank, direction: "OUT", amount: "1.00", date: "2026-03-13", label: "x", categoryId: await category("Assurance") })).statusCode).toBe(403);
+      expect((await call("POST", "/starter-template", accountant)).statusCode).toBe(403);
+    });
+
     it("l'opération s'annule par contrepassation, comme toute écriture comptabilisée", async () => {
       const response = await call("POST", "/guided-operations", treasurer, {
         financialAccountId: ids.fBank,

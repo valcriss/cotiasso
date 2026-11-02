@@ -295,6 +295,34 @@ describe("Authentification à deux facteurs (base vierge)", () => {
   });
 
   /** Session complète de l'administrateur (second facteur vérifié), sans rejouer un pas TOTP déjà utilisé. */
+  it("la commande serveur réinitialise le second facteur d'un compte sans SQL, ferme ses sessions et s'inscrit au journal d'audit", async () => {
+    const { spawnSync } = await import("node:child_process");
+    const target = await newUser();
+    const { session } = await enroll(target.email);
+    expect(await prisma.mfaCredential.count({ where: { userId: target.id } })).toBe(1);
+
+    const run = (email: string) =>
+      spawnSync(process.execPath, ["--import", "tsx", "src/cli/reset-mfa.ts", email], {
+        cwd: process.cwd(),
+        env: { ...process.env, DATABASE_URL: db.url },
+        encoding: "utf8",
+        timeout: 60_000,
+      });
+    const unknown = run("personne@test.invalid");
+    expect(unknown.status).toBe(1);
+    expect(unknown.stderr).toContain("Aucun compte ne correspond");
+
+    const done = run(target.email.toUpperCase());
+    expect(done.status, done.stderr).toBe(0);
+    expect(done.stdout).toContain("Second facteur réinitialisé");
+    expect(await prisma.mfaCredential.count({ where: { userId: target.id } })).toBe(0);
+    expect(await prisma.mfaRecoveryCode.count({ where: { userId: target.id } })).toBe(0);
+    expect((await call("GET", "/auth/me", session)).statusCode).toBe(401);
+    const event = await prisma.auditEvent.findFirstOrThrow({ where: { action: "user.mfa.reset", objectId: target.id }, orderBy: { seq: "desc" } });
+    expect(event.actorId).toBeNull();
+    expect(JSON.stringify(event.details)).toContain("serveur");
+  }, 90_000);
+
   async function adminSession(): Promise<Session> {
     const session = await login(adminEmail);
     if (session.mfaState === "OK") return session;

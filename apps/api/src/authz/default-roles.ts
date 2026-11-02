@@ -83,6 +83,22 @@ export const DEFAULT_ROLES: readonly DefaultRole[] = [
     ],
   },
   {
+    key: "accountant",
+    requiresMfa: false,
+    name: "Expert-comptable",
+    description: "Lecture seule des comptes, des écritures et des rapports, pour l'expert-comptable ou le commissaire aux comptes. Ouvre l'affichage comptable par défaut.",
+    permissions: [
+      "settings.association:view",
+      "financial-accounts:view",
+      "entries:view",
+      "projects:view",
+      "grants:view",
+      "documents:view",
+      "reports:view",
+      "reports:export",
+    ],
+  },
+  {
     key: "board-member",
     requiresMfa: false,
     name: "Membre du bureau",

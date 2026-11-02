@@ -3,7 +3,7 @@ import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
-import { AdminApiService, type AccountInfo, type FinancialAccountInfo, type ProjectInfo } from '../admin/admin-api.service';
+import { AdminApiService, type AccountInfo, type FinancialAccountInfo, type OperationCategoryInfo, type ProjectInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
 
@@ -12,6 +12,8 @@ export interface QualifyDialogData {
   accounts: AccountInfo[];
   projects: ProjectInfo[];
   transactionIds: string[];
+  /** Catégories en mots courants (affichage simple) : si présentes, elles remplacent la liste des comptes. */
+  categories?: OperationCategoryInfo[];
 }
 
 /** Applique un compte de contrepartie et/ou un projet à une sélection de transactions. Renvoie le nombre de transactions modifiées. */
@@ -21,7 +23,7 @@ export interface QualifyDialogData {
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
-        [title]="'Qualifier ' + data.transactionIds.length + ' transaction(s)'"
+        [title]="(categories.length > 0 ? 'Classer ' : 'Qualifier ') + data.transactionIds.length + (categories.length > 0 ? ' mouvement(s)' : ' transaction(s)')"
         description="Choisissez ce qui vaut pour toutes les transactions cochées : d'où vient / où va l'argent, et le projet concerné. Ce que vous laissez sur « Ne pas changer » reste tel quel pour chaque transaction."
         submitLabel="Appliquer à la sélection"
         [dirty]="form.dirty"
@@ -32,10 +34,19 @@ export interface QualifyDialogData {
           <mat-label>D'où vient / où va cet argent ?</mat-label>
           <mat-select formControlName="counterpartAccountId">
             <mat-option value="">Ne pas changer</mat-option>
-            @for (candidate of counterparts(); track candidate.id) {
-              <mat-option [value]="candidate.id">{{ candidate.number }} — {{ candidate.label }}</mat-option>
+            @if (categories.length > 0) {
+              @for (category of categories; track category.id) {
+                <mat-option [value]="category.account.id">{{ category.direction === 'IN' ? 'Reçu' : 'Dépensé' }} — {{ category.label }}</mat-option>
+              }
+            } @else {
+              @for (candidate of counterparts(); track candidate.id) {
+                <mat-option [value]="candidate.id">{{ candidate.number }} — {{ candidate.label }}</mat-option>
+              }
             }
           </mat-select>
+          @if (categories.length > 0) {
+            <mat-hint>Choisissez une catégorie « Reçu » pour de l'argent entré et « Dépensé » pour de l'argent sorti.</mat-hint>
+          }
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Projet</mat-label>
@@ -55,6 +66,7 @@ export class QualifyDialog {
   private readonly reference = inject<MatDialogRef<QualifyDialog, { updated: number }>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<QualifyDialogData>(MAT_DIALOG_DATA);
+  protected readonly categories = this.data.categories ?? [];
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly counterparts = computed(() => this.data.accounts.filter((a) => a.active && a.id !== this.data.account.accountId));

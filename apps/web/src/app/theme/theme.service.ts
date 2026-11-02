@@ -36,6 +36,14 @@ function read<T extends string>(key: string, allowed: readonly T[], fallback: T)
   }
 }
 
+function has(key: string): boolean {
+  try {
+    return localStorage.getItem(key) !== null;
+  } catch {
+    return false;
+  }
+}
+
 function write(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
@@ -55,12 +63,14 @@ export class ThemeService {
   readonly mode = signal<ThemeMode>('system');
   readonly density = signal<Density>('comfortable');
   readonly viewMode = signal<ViewMode>('simple');
+  private viewModeChosen = false;
 
   /** Lit les préférences conservées et les applique ; appelé avant le premier affichage. */
   init(): void {
     this.mode.set(read(MODE_KEY, THEME_MODES.map((m) => m.value), 'system'));
     this.density.set(read(DENSITY_KEY, DENSITIES.map((d) => d.value), 'comfortable'));
     this.viewMode.set(read(VIEW_KEY, VIEW_MODES.map((v) => v.value), 'simple'));
+    this.viewModeChosen = has(VIEW_KEY);
     this.apply();
   }
 
@@ -76,7 +86,16 @@ export class ThemeService {
     this.apply();
   }
 
+  /**
+   * Affichage proposé d'office (par exemple « Comptable » pour un expert-comptable en lecture seule). Ne s'applique que si la
+   * personne n'a jamais choisi elle-même ; son choix, une fois fait, prime toujours.
+   */
+  suggestViewMode(mode: ViewMode): void {
+    if (!this.viewModeChosen) this.viewMode.set(mode);
+  }
+
   setViewMode(mode: ViewMode): void {
+    this.viewModeChosen = true;
     this.viewMode.set(mode);
     write(VIEW_KEY, mode);
   }

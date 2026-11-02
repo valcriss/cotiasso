@@ -166,12 +166,12 @@ export class MfaService {
    * Réinitialisation par un administrateur (appareil perdu) : supprime le second facteur et déconnecte l'utilisateur.
    * Si un rôle l'exige, il devra se réinscrire à la prochaine connexion.
    */
-  async adminReset(userId: string, actorId: string): Promise<void> {
+  async adminReset(userId: string, actorId?: string, details: { via?: string } = {}): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
     if (!user) throw new UserNotFoundError();
     await this.removeCredential(userId);
     await this.prisma.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
-    await this.audit.record({ action: "user.mfa.reset", objectType: "User", objectId: userId, actorId });
+    await this.audit.record({ action: "user.mfa.reset", objectType: "User", objectId: userId, ...(actorId !== undefined && { actorId }), details });
   }
 
   private hash(code: string): string {

@@ -11,6 +11,8 @@ import {
   AdminApiService,
   type AccountInfo,
   type FinancialAccountInfo,
+  type GuidedOperationResult,
+  type OperationCategoryInfo,
   type ProjectInfo,
   type TransactionInfo,
 } from '../admin/admin-api.service';
@@ -19,6 +21,8 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
+import { ThemeService } from '../theme/theme.service';
+import { BookDialog, type BookDialogData } from './book-dialog';
 import { LinkEntryDialog, type LinkEntryDialogData } from './link-entry-dialog';
 import { QualifyDialog, type QualifyDialogData } from './qualify-dialog';
 import { TransactionDialog, type TransactionDialogData, type TransactionDialogResult } from './transaction-dialog';
@@ -61,10 +65,10 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
           }
           @if (canManage() && selectedIds().length > 0) {
             <button mat-stroked-button type="button" (click)="qualifySelection()">
-              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">label</mat-icon> Qualifier la sélection ({{ selectedIds().length }})
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">label</mat-icon> {{ simple() ? 'Classer la sélection' : 'Qualifier la sélection' }} ({{ selectedIds().length }})
             </button>
           }
-          @if (canManage() && !account().archivedOn) {
+          @if (canManage() && !account().archivedOn && !simple()) {
             <button mat-flat-button type="button" (click)="open(null)">
               <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Ajouter une transaction
             </button>
@@ -90,20 +94,20 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
           <input matInput formControlName="q" />
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Qualification</mat-label>
+          <mat-label>{{ simple() ? 'Classement' : 'Qualification' }}</mat-label>
           <mat-select formControlName="qualified">
             <mat-option value="">Toutes</mat-option>
-            <mat-option value="true">Qualifiées</mat-option>
-            <mat-option value="false">À qualifier</mat-option>
+            <mat-option value="true">{{ simple() ? 'Classés' : 'Qualifiées' }}</mat-option>
+            <mat-option value="false">{{ simple() ? 'À classer' : 'À qualifier' }}</mat-option>
           </mat-select>
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Comptabilisation</mat-label>
+          <mat-label>{{ simple() ? 'Situation' : 'Comptabilisation' }}</mat-label>
           <mat-select formControlName="accounting">
             <mat-option value="">Toutes</mat-option>
-            <mat-option value="NONE">À comptabiliser</mat-option>
-            <mat-option value="IN_PROGRESS">En cours</mat-option>
-            <mat-option value="POSTED">Comptabilisées</mat-option>
+            <mat-option value="NONE">{{ simple() ? 'Pas encore enregistrés dans les comptes' : 'À comptabiliser' }}</mat-option>
+            <mat-option value="IN_PROGRESS">{{ simple() ? 'En brouillon' : 'En cours' }}</mat-option>
+            <mat-option value="POSTED">{{ simple() ? 'Enregistrés dans les comptes' : 'Comptabilisées' }}</mat-option>
           </mat-select>
         </mat-form-field>
         <div class="actions">
@@ -123,7 +127,15 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
           }
         </p>
       } @else {
-        <p class="muted">« Comptabilisée » veut dire qu'une écriture validée enregistre ce mouvement dans les comptes de l'association.</p>
+        @if (simple()) {
+          <p class="muted">
+            Un mouvement passe par trois situations : <strong>À classer</strong> (on ne sait pas encore à quoi il correspond), <strong>Classé</strong> (la
+            catégorie est choisie, il reste à l'enregistrer dans les comptes) puis <strong>Enregistré dans les comptes</strong>. Une fois le relevé de la
+            banque comparé, il est aussi <strong>Vérifié avec la banque</strong>.
+          </p>
+        } @else {
+          <p class="muted">« Comptabilisée » veut dire qu'une écriture validée enregistre ce mouvement dans les comptes de l'association.</p>
+        }
         <table class="table">
           <caption class="sr-only">Transactions</caption>
           <thead>
@@ -134,8 +146,8 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
               <th scope="col">Date</th>
               <th scope="col">Libellé</th>
               <th scope="col">Projet</th>
-              <th scope="col">Contrepartie</th>
-              <th scope="col">Comptabilisation</th>
+              <th scope="col">{{ simple() ? 'Catégorie' : 'Contrepartie' }}</th>
+              <th scope="col">{{ simple() ? 'Situation' : 'Comptabilisation' }}</th>
               <th scope="col" class="amount">Montant</th>
               <th scope="col"><span class="sr-only">Actions</span></th>
             </tr>
@@ -163,8 +175,16 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
                   }
                 </td>
                 <td>{{ item.projectCode ?? '—' }}</td>
-                <td>{{ item.counterpartAccountNumber ?? 'À qualifier' }}</td>
+                <td>{{ simple() ? categoryOf(item) : (item.counterpartAccountNumber ?? 'À qualifier') }}</td>
                 <td>
+                  @if (simple()) {
+                    <span class="status" [class.ok]="simpleStatus(item).ok">
+                      <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ simpleStatus(item).icon }}</mat-icon> {{ simpleStatus(item).label }}
+                    </span>
+                    @if (item.transfer; as transfer) {
+                      <div class="muted">Virement {{ transfer.direction === 'OUT' ? 'vers' : 'depuis' }} {{ transfer.otherAccountName }}</div>
+                    }
+                  } @else {
                   @switch (item.accounting) {
                     @case ('POSTED') {
                       <span class="status ok"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">check_circle</mat-icon> Comptabilisée</span>
@@ -188,17 +208,21 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
                       Virement {{ transfer.direction === 'OUT' ? 'vers' : 'depuis' }} {{ transfer.otherAccountName }}
                     </div>
                   }
+                  }
                 </td>
                 <td class="amount" [class.negative]="item.amount.startsWith('-')">{{ amount(item.amount) }}</td>
                 <td class="row-actions"><div class="row-buttons">
-                  @if (canLink() && item.accounting === 'NONE' && !item.transfer && !account().archivedOn) {
+                  @if (simple() && canLink() && item.accounting === 'NONE' && !item.transfer && !account().archivedOn) {
+                    <button mat-flat-button type="button" [attr.aria-label]="'Classer et enregistrer ' + item.label" [disabled]="busy()" (click)="book(item)">Classer et enregistrer</button>
+                  }
+                  @if (!simple() && canLink() && item.accounting === 'NONE' && !item.transfer && !account().archivedOn) {
                     <button mat-button type="button" [attr.aria-label]="'Comptabiliser ' + item.label" [disabled]="busy()" (click)="prepare(item)">Comptabiliser</button>
                   }
-                  @if (canLink() && item.accounting === 'NONE') {
+                  @if (!simple() && canLink() && item.accounting === 'NONE') {
                     <button mat-button type="button" [attr.aria-label]="'Associer ' + item.label + ' à une écriture'" (click)="link(item)">Associer à une écriture</button>
                   }
-                  @if (item.entry && canViewEntries()) {
-                    <a mat-button [attr.aria-label]="'Voir l’écriture de ' + item.label" [routerLink]="['/comptabilite/ecritures', item.entry.id]">Voir l'écriture</a>
+                  @if (item.entry && canViewEntries() && (!simple() || item.accounting === 'IN_PROGRESS')) {
+                    <a mat-button [attr.aria-label]="(simple() ? 'Relire le brouillon de ' : 'Voir l’écriture de ') + item.label" [routerLink]="['/comptabilite/ecritures', item.entry.id]">{{ simple() ? 'Relire le brouillon' : "Voir l'écriture" }}</a>
                   }
                   @if (canCancelOperation() && item.accounting === 'POSTED' && item.entry && !item.transfer && item.reconciliation?.status !== 'VALIDATED') {
                     <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler l’opération ' + item.label" [disabled]="busy()" (click)="cancelOperation(item)">Annuler l’opération</button>
@@ -233,6 +257,7 @@ export class TransactionsPanel {
   private readonly dialogs = inject(Dialogs);
   private readonly notifier = inject(Notifier);
   private readonly router = inject(Router);
+  private readonly theme = inject(ThemeService);
 
   readonly account = input.required<FinancialAccountInfo>();
   readonly accounts = input<AccountInfo[]>([]);
@@ -248,6 +273,9 @@ export class TransactionsPanel {
   protected readonly loadingMore = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly amount = formatApiAmount;
+  protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
+  private readonly categories = signal<OperationCategoryInfo[]>([]);
+  private categoriesRequested = false;
 
   protected readonly canManage = computed(() => {
     this.auth.permissions();
@@ -284,6 +312,54 @@ export class TransactionsPanel {
       // La requête lit d'autres signaux (compte, filtres) : hors suivi, seul le changement de compte relance l'effet.
       untracked(() => void this.search());
     });
+    // En affichage simple, les catégories remplacent les numéros de compte : on les charge une fois, quand elles servent.
+    effect(() => {
+      if (this.simple() && !this.categoriesRequested) untracked(() => void this.loadCategories());
+    });
+  }
+
+  private async loadCategories(): Promise<void> {
+    this.categoriesRequested = true;
+    try {
+      this.categories.set(await this.api.listOperationCategories());
+    } catch {
+      // Sans catégories, la liste retombe sur le numéro de compte : rien de bloquant.
+    }
+  }
+
+  /** Catégorie d'un mouvement, en mots courants ; le numéro de compte sert de repli si aucune catégorie n'y renvoie. */
+  protected categoryOf(item: TransactionInfo): string {
+    if (!item.counterpartAccountId) return 'À classer';
+    const category = this.categories().find((c) => c.account.id === item.counterpartAccountId);
+    return category?.label ?? `Autre (compte ${item.counterpartAccountNumber ?? '?'})`;
+  }
+
+  /** Une seule situation lisible par mouvement (affichage simple) : à classer → classé → enregistré → vérifié. */
+  protected simpleStatus(item: TransactionInfo): { label: string; icon: string; ok: boolean } {
+    if (item.reconciliation?.status === 'VALIDATED') return { label: 'Vérifié avec la banque', icon: 'verified', ok: true };
+    if (item.accounting === 'POSTED') return { label: 'Enregistré dans les comptes', icon: 'check_circle', ok: true };
+    if (item.accounting === 'IN_PROGRESS') return { label: 'En brouillon', icon: 'edit_note', ok: false };
+    if (item.transfer) return { label: 'Virement entre vos comptes', icon: 'sync_alt', ok: false };
+    if (item.counterpartAccountId) return { label: 'Classé', icon: 'sell', ok: false };
+    return { label: 'À classer', icon: 'radio_button_unchecked', ok: false };
+  }
+
+  /** « Classer et enregistrer » : choisir la catégorie suffit, le logiciel prépare et enregistre l'écriture. */
+  protected async book(item: TransactionInfo): Promise<void> {
+    const result = await this.dialogs.open<GuidedOperationResult, BookDialogData>(BookDialog, {
+      size: 'md',
+      data: {
+        transaction: item,
+        account: this.account(),
+        categories: this.categories(),
+        projects: this.projects().filter((p) => !p.permanent && p.status !== 'ARCHIVED'),
+        canPost: this.auth.can('entries:post'),
+      },
+    });
+    if (!result) return;
+    this.notifier.success(result.posted ? 'Mouvement classé et enregistré dans les comptes.' : 'Mouvement classé : l’écriture est en brouillon, à relire.');
+    await this.search();
+    this.changed.emit();
   }
 
   protected async open(item: TransactionInfo | null): Promise<void> {
@@ -317,10 +393,10 @@ export class TransactionsPanel {
   protected async qualifySelection(): Promise<void> {
     const result = await this.dialogs.open<{ updated: number }, QualifyDialogData>(QualifyDialog, {
       size: 'md',
-      data: { account: this.account(), accounts: this.accounts(), projects: this.projects(), transactionIds: this.selectedIds() },
+      data: { account: this.account(), accounts: this.accounts(), projects: this.projects(), transactionIds: this.selectedIds(), categories: this.simple() ? this.categories() : [] },
     });
     if (!result) return;
-    this.notifier.success(`${result.updated} transaction(s) qualifiée(s).`);
+    this.notifier.success(`${result.updated} ${this.simple() ? 'mouvement(s) classé(s)' : 'transaction(s) qualifiée(s)'}.`);
     this.selection.set(new Set());
     await this.search();
   }

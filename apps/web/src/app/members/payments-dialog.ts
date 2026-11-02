@@ -107,6 +107,11 @@ export class CancelAllocationDialog {
     <h2 mat-dialog-title>Règlements de {{ membership().memberName }}</h2>
     <mat-dialog-content>
       <p class="muted">{{ membership().campaignName }} · {{ membership().tariffLabel }}</p>
+      <p class="muted">
+        Rattacher un règlement dit à quel adhérent correspond l'argent reçu : cela suit qui a payé sa cotisation. L'argent lui-même est enregistré
+        dans les comptes à part, avec « J'ai reçu de l'argent » (catégorie « Cotisations des adhérents ») ou depuis la liste des mouvements du compte
+        (« Classer et enregistrer »). Tant que ce n'est pas fait, la cotisation est suivie ici mais n'apparaît pas encore dans vos comptes.
+      </p>
       <div class="figures">
         <span>Attendu : <strong>{{ amount(membership().expectedAmount) }} €</strong></span>
         <span>Payé : <strong>{{ amount(membership().paid) }} €</strong></span>

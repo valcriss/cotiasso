@@ -34,8 +34,13 @@ describe("rôles par défaut (matrice des droits v0.2)", () => {
     }
   });
 
-  it("réserve la comptabilisation, la clôture et les exports de rapports au trésorier", () => {
-    for (const permission of ["entries:post", "fiscal-years:close", "reports:export"] as const) {
+  it("réserve la comptabilisation et la clôture au trésorier, et l'export des rapports au trésorier et à l'expert-comptable (lecture seule)", () => {
+    for (const other of DEFAULT_ROLES.filter((r) => !["treasurer", "accountant"].includes(r.key))) {
+      expect(other.permissions).not.toContain("reports:export");
+    }
+    expect(has("accountant", "reports:export")).toBe(true);
+    expect(has("treasurer", "reports:export")).toBe(true);
+    for (const permission of ["entries:post", "fiscal-years:close"] as const) {
       expect(has("treasurer", permission)).toBe(true);
       for (const other of DEFAULT_ROLES.filter((r) => r.key !== "treasurer")) {
         expect(other.permissions).not.toContain(permission);

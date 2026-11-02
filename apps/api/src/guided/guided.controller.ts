@@ -90,4 +90,12 @@ export class GuidedController {
     const canPost = (await this.authz.permissionsFor(userId)).has("entries:post");
     return translate(() => this.operations.record(body, userId, canPost));
   }
+
+  @RequirePermission("transactions:manage", "entries:create")
+  @Post("transactions/:id/book")
+  async book(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<OperationResult> {
+    const userId = request.auth!.user.id;
+    const canPost = (await this.authz.permissionsFor(userId)).has("entries:post");
+    return translate(() => this.operations.book(id, body, userId, canPost));
+  }
 }

@@ -39,6 +39,14 @@ export interface ClosingDialogData {
       color: var(--mat-sys-on-surface-variant);
       margin: 0 0 12px;
     }
+    .progress {
+      color: var(--mat-sys-on-surface-variant);
+      margin: 0 0 12px;
+      padding-left: 20px;
+    }
+    .progress li.current {
+      color: var(--mat-sys-on-surface);
+    }
   `,
   template: `
     <h2 mat-dialog-title>Clôture de l'exercice {{ data.year.label }}</h2>
@@ -47,6 +55,15 @@ export interface ClosingDialogData {
         Clôturer, c'est arrêter les comptes de la période : les soldes sont reportés dans l'exercice suivant. Vous pouvez
         fermer la saisie d'abord pour vérifier tranquillement, puis annuler si vous avez oublié quelque chose.
       </p>
+      @if (report(); as current) {
+        @if (current.status !== 'CLOSED') {
+          <ol class="progress" aria-label="Étapes de la clôture">
+            <li [class.current]="current.status === 'OPEN'"><strong>1. Vérifier</strong> les points ci-dessous et saisir les derniers ajustements</li>
+            <li [class.current]="current.status === 'OPEN'"><strong>2. Fermer à la saisie</strong> (réversible)</li>
+            <li [class.current]="current.status !== 'OPEN'"><strong>3. Clôturer</strong> définitivement</li>
+          </ol>
+        }
+      }
 
       @if (error(); as message) {
         <div class="alert" role="alert"><p>{{ message }}</p></div>
@@ -102,7 +119,7 @@ export interface ClosingDialogData {
                       <mat-option [value]="account.id">{{ account.number }} — {{ account.label }}</mat-option>
                     }
                   </mat-select>
-                  <mat-hint>Un compte de fonds propres (ex. 120 « Report à nouveau excédentaire »).</mat-hint>
+                  <mat-hint>Cet excédent rejoint les fonds propres de l'association. Le compte proposé convient dans la plupart des cas ; dans le doute, gardez-le et demandez à votre expert-comptable.</mat-hint>
                 </mat-form-field>
               }
               @if (r.preview?.result?.kind === 'DEFICIT') {
@@ -113,7 +130,7 @@ export interface ClosingDialogData {
                       <mat-option [value]="account.id">{{ account.number }} — {{ account.label }}</mat-option>
                     }
                   </mat-select>
-                  <mat-hint>Un compte de fonds propres (ex. 129 « Report à nouveau déficitaire »).</mat-hint>
+                  <mat-hint>Ce déficit vient en déduction des fonds propres de l'association. Le compte proposé convient dans la plupart des cas ; dans le doute, gardez-le et demandez à votre expert-comptable.</mat-hint>
                 </mat-form-field>
               }
               <mat-checkbox formControlName="confirmed">
@@ -193,9 +210,18 @@ export class ClosingDialog {
     });
   }
 
+  /** Propose d'office le compte habituel (excédent : 120, déficit : 129, sinon 110) tant que la personne n'a rien choisi. */
+  private suggestResultAccounts(): void {
+    const byNumber = (...numbers: string[]) => numbers.map((n) => this.equityAccounts().find((a) => a.number === n)).find((a) => !!a)?.id ?? '';
+    const value = this.form.getRawValue();
+    if (!value.surplusAccountId) this.form.controls.surplusAccountId.setValue(byNumber('120', '110'), { emitEvent: true });
+    if (!value.deficitAccountId) this.form.controls.deficitAccountId.setValue(byNumber('129', '110'), { emitEvent: true });
+  }
+
   private async load(): Promise<void> {
     try {
       this.report.set(await this.api.closingReport(this.data.year.id));
+      this.suggestResultAccounts();
     } catch (failure) {
       this.error.set(describeHttpError(failure, "Impossible de charger les contrôles de clôture. Réessayez dans un instant.").message);
     }

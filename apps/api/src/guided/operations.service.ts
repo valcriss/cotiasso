@@ -15,6 +15,15 @@ const isoDate = z
     return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
   }, "Date inexistante.");
 
+const bookInput = z
+  .object({
+    categoryId: z.uuid("Catégorie invalide."),
+    projectId: z.uuid().nullish(),
+    /** Comptabiliser tout de suite (par défaut). Faux = l'écriture reste un brouillon à relire. */
+    post: z.boolean().default(true),
+  })
+  .strict();
+
 const operationInput = z
   .object({
     financialAccountId: z.uuid("Compte invalide."),
@@ -144,5 +153,82 @@ export class OperationsService {
       details: { direction: input.direction, entryId: created.entryId, posted: post },
     });
     return { ...created, posted: post, journalCode, number };
+  }
+
+  /**
+   * « Classer et enregistrer » un mouvement qui existe déjà (importé du relevé ou saisi) : applique la catégorie (et le
+   * projet), prépare l'écriture, la relie et, si permis, la comptabilise — tout ou rien. Les mouvements déjà liés à une
+   * écriture, ou membres d'un virement, sont refusés avec leur raison.
+   */
+  async book(transactionId: string, body: unknown, actorId: string, canPost: boolean): Promise<OperationResult> {
+    const input = parse(bookInput, body);
+    const post = input.post && canPost;
+    const tx = await this.prisma.transaction.findUnique({
+      where: { id: transactionId },
+      include: { financialAccount: true, matches: { where: { status: "ACTIVE" } }, transferOut: true, transferIn: true },
+    });
+    if (!tx) throw new AccountingNotFoundError("Mouvement");
+    if (tx.matches.length > 0) throw new AccountingConflictError("Ce mouvement est déjà enregistré dans les comptes (ou en brouillon).");
+    if (tx.transferOut || tx.transferIn) throw new AccountingConflictError("Ce mouvement fait partie d'un virement entre vos comptes : il s'enregistre avec le virement.");
+    if (tx.financialAccount.archivedOn) throw new AccountingConflictError("Ce compte est archivé.");
+    const category = await this.prisma.operationCategory.findUnique({ where: { id: input.categoryId }, include: { account: true } });
+    if (!category || !category.active) throw new AccountingNotFoundError("Catégorie");
+    const incoming = tx.amount.gt(0);
+    if (category.direction !== (incoming ? "IN" : "OUT")) {
+      throw new AccountingConflictError(
+        incoming ? "Ce mouvement est de l'argent reçu : choisissez une catégorie d'argent reçu." : "Ce mouvement est de l'argent dépensé : choisissez une catégorie d'argent dépensé.",
+      );
+    }
+    const year = await this.prisma.fiscalYear.findFirst({ where: { start: { lte: tx.operationDate }, end: { gte: tx.operationDate } }, select: { id: true, status: true } });
+    if (!year) throw new AccountingConflictError("Aucun exercice ne couvre la date de ce mouvement. Créez l'exercice dans Paramètres › Comptabilité.");
+    if (year.status !== "OPEN") throw new AccountingConflictError("L'exercice de ce mouvement est fermé à la saisie.");
+    let projectId = input.projectId ?? tx.projectId ?? null;
+    if (!projectId && /^[67]/.test(category.account.number)) {
+      projectId = (await this.prisma.project.findFirst({ where: { permanent: true }, select: { id: true } }))?.id ?? null;
+    }
+
+    let number: number | null = null;
+    let journalCode = "";
+    const entryId = await this.prisma
+      .$transaction(async (db) => {
+        await db.transaction.update({ where: { id: tx.id }, data: { counterpartAccountId: category.accountId, projectId } });
+        const entry = await db.journalEntry.create({
+          data: draftDataFor(
+            {
+              id: tx.id,
+              label: tx.label,
+              reference: tx.reference,
+              amount: tx.amount,
+              operationDate: tx.operationDate,
+              projectId,
+              counterpartAccountId: category.accountId,
+              counterpartAccount: category.account,
+              financialAccount: { accountId: tx.financialAccount.accountId, journalId: tx.financialAccount.journalId },
+            },
+            year.id,
+            actorId,
+          ),
+          select: { id: true },
+        });
+        await db.treasuryMatch.create({ data: { transactionId: tx.id, entryId: entry.id, financialAccountId: tx.financialAccountId, createdBy: actorId } });
+        if (post) {
+          const posted = await db.journalEntry.update({
+            where: { id: entry.id },
+            data: { status: "POSTED", postedBy: actorId },
+            select: { number: true, journal: { select: { code: true } } },
+          });
+          number = posted.number;
+          journalCode = posted.journal.code;
+        }
+        return entry.id;
+      })
+      .catch((error) => {
+        const refusal = triggerMessage(error);
+        if (refusal && !/P2002|Unique constraint/.test(String((error as Error)?.message))) throw new AccountingConflictError(refusal);
+        return rethrowLink(error);
+      });
+    if (!journalCode) journalCode = (await this.prisma.journal.findUniqueOrThrow({ where: { id: tx.financialAccount.journalId }, select: { code: true } })).code;
+    await this.audit.record({ action: "operation.booked", objectType: "Transaction", objectId: tx.id, actorId, details: { entryId, posted: post } });
+    return { transactionId: tx.id, entryId, posted: post, journalCode, number };
   }
 }

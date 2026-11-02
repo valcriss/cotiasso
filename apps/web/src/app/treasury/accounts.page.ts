@@ -133,28 +133,52 @@ import { TransactionsPanel } from './transactions-panel';
               <div class="muted">{{ account.reference }}</div>
             }
             <div class="big">{{ amount(account.balances.computed) }} €</div>
-            <dl class="balances">
-              <dt>Ouverture ({{ account.openedOn }})</dt>
-              <dd>{{ amount(account.balances.opening) }}</dd>
-              @if (!simple()) {
+            @if (simple()) {
+              <dl class="balances">
+                <dt>Vérifié avec la banque</dt>
+                <dd>
+                  @if (account.balances.reconciled; as reconciled) {
+                    Oui, au {{ reconciled.periodEnd }}
+                  } @else {
+                    <span class="muted">Pas encore vérifié</span>
+                  }
+                </dd>
+              </dl>
+              <details>
+                <summary>Détails du solde</summary>
+                <dl class="balances">
+                  <dt>Au départ ({{ account.openedOn }})</dt>
+                  <dd>{{ amount(account.balances.opening) }}</dd>
+                  @if (account.balances.lastStatement; as statement) {
+                    <dt>Solde du relevé au {{ statement.periodEnd }}</dt>
+                    <dd>{{ amount(statement.closingBalance) }}</dd>
+                    <dt>Écart entre le relevé et vos comptes</dt>
+                    <dd [class.danger-text]="statement.gap !== '0.00'">{{ amount(statement.gap) }}</dd>
+                  }
+                </dl>
+              </details>
+            } @else {
+              <dl class="balances">
+                <dt>Ouverture ({{ account.openedOn }})</dt>
+                <dd>{{ amount(account.balances.opening) }}</dd>
                 <dt>Solde comptable (écritures)</dt>
                 <dd>{{ amount(account.balances.accounting) }}</dd>
-              }
-              <dt>{{ simple() ? 'Vérifié avec la banque' : 'Rapprochement' }}</dt>
-              <dd>
-                @if (account.balances.reconciled; as reconciled) {
-                  {{ simple() ? 'Oui, au' : 'Rapproché au' }} {{ reconciled.periodEnd }}
-                } @else {
-                  <span class="muted">{{ simple() ? 'Pas encore vérifié' : 'Pas encore rapproché' }}</span>
+                <dt>Rapprochement</dt>
+                <dd>
+                  @if (account.balances.reconciled; as reconciled) {
+                    Rapproché au {{ reconciled.periodEnd }}
+                  } @else {
+                    <span class="muted">Pas encore rapproché</span>
+                  }
+                </dd>
+                @if (account.balances.lastStatement; as statement) {
+                  <dt>Relevé au {{ statement.periodEnd }}</dt>
+                  <dd>{{ amount(statement.closingBalance) }}</dd>
+                  <dt>Écart relevé − calculé</dt>
+                  <dd [class.danger-text]="statement.gap !== '0.00'">{{ amount(statement.gap) }}</dd>
                 }
-              </dd>
-              @if (account.balances.lastStatement; as statement) {
-                <dt>Relevé au {{ statement.periodEnd }}</dt>
-                <dd>{{ amount(statement.closingBalance) }}</dd>
-                <dt>Écart relevé − calculé</dt>
-                <dd [class.danger-text]="statement.gap !== '0.00'">{{ amount(statement.gap) }}</dd>
-              }
-            </dl>
+              </dl>
+            }
             <div class="actions">
               <button mat-stroked-button type="button" [attr.aria-label]="'Ouvrir ' + account.name" (click)="select(account.id)">
                 <mat-icon fontSet="material-icons-outlined" aria-hidden="true">list</mat-icon> Transactions

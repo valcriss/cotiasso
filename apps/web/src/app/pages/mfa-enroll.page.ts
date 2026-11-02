@@ -36,7 +36,8 @@ export function recoveryCodesText(codes: string[]): string {
           @if (recoveryCodes(); as codes) {
             <p class="intro">
               Votre vérification en deux étapes est active. Conservez ces codes de secours : ils permettent de vous
-              connecter si vous perdez votre appareil. Ils ne seront plus affichés.
+              connecter si vous perdez votre appareil. Ils ne seront plus affichés : copiez-les ou téléchargez-les, et rangez-les ailleurs que sur
+              ce téléphone (par exemple imprimés, avec les papiers de l'association).
             </p>
             <ul class="codes" aria-label="Codes de secours">
               @for (code of codes; track code) {
@@ -55,10 +56,15 @@ export function recoveryCodesText(codes: string[]): string {
             @if (required()) {
               <p class="intro">Votre rôle exige la vérification en deux étapes avant de continuer.</p>
             }
+            <p class="intro">
+              Les comptes d'une association contiennent de l'argent : en plus de votre mot de passe, on vous demandera un petit code à 6 chiffres
+              qui change toutes les 30 secondes. Ce code s'affiche dans une application gratuite sur votre téléphone ; vous n'avez à la
+              configurer qu'une seule fois, ça prend deux minutes.
+            </p>
             <ol class="steps">
-              <li>Installez une application d'authentification (par exemple FreeOTP, Aegis ou Google Authenticator).</li>
-              <li>Scannez ce QR code, ou saisissez la clé à la main.</li>
-              <li>Saisissez le code à 6 chiffres affiché pour confirmer.</li>
+              <li>Sur votre téléphone, installez une application d'authentification, gratuite (par exemple FreeOTP, Aegis ou Google Authenticator), depuis la boutique d'applications.</li>
+              <li>Dans l'application, choisissez « Ajouter un compte » puis scannez ce QR code avec l'appareil photo. Si vous ne pouvez pas scanner, saisissez la clé écrite sous le QR code.</li>
+              <li>L'application affiche alors un code à 6 chiffres : saisissez-le ci-dessous pour confirmer. Vous recevrez ensuite des codes de secours à garder en lieu sûr.</li>
             </ol>
             @if (qr(); as image) {
               <img class="qr" [src]="image" alt="QR code à scanner avec votre application d'authentification" />

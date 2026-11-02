@@ -88,6 +88,22 @@ describe('Shell', () => {
     TestBed.inject(ThemeService).setViewMode('simple');
   });
 
+  it("ouvre d'office l'affichage comptable pour un expert-comptable (export sans saisie), sauf choix déjà fait", async () => {
+    permissions.set(new Set(['entries:view', 'reports:view', 'reports:export']));
+    const fixture = TestBed.createComponent(Shell);
+    await fixture.whenStable();
+    const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim()).join(' ');
+    expect(labels).toContain('Comptabilité');
+  });
+
+  it("garde l'affichage simple d'un trésorier (il peut saisir et exporter)", async () => {
+    permissions.set(new Set(['entries:view', 'reports:view', 'reports:export', 'transactions:manage']));
+    const fixture = TestBed.createComponent(Shell);
+    await fixture.whenStable();
+    const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim()).join(' ');
+    expect(labels).not.toContain('Comptabilité');
+  });
+
   it("affiche l'utilisateur connecté", async () => {
     const fixture = TestBed.createComponent(Shell);
     await fixture.whenStable();
