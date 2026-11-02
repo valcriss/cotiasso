@@ -99,7 +99,12 @@ export const routes: Routes = [
         title: 'Membres',
         canActivate: [permissionGuard],
         data: { permission: 'members:view' },
-        loadComponent: () => import('./members/members.page').then((m) => m.MembersPage),
+        loadComponent: () => import('./members/members-shell').then((m) => m.MembersShell),
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'liste' },
+          { path: 'liste', title: 'Membres', loadComponent: () => import('./members/members.page').then((m) => m.MembersPage) },
+          { path: 'campagnes', title: 'Campagnes', loadComponent: () => import('./members/campaigns.page').then((m) => m.CampaignsPage) },
+        ],
       },
       {
         path: 'rapports',

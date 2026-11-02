@@ -90,7 +90,7 @@ describe('MembersPage', () => {
     expect(text).toContain('Dupont Marie');
     expect(text).toContain('Adulte');
     expect(text).toContain('Trésorière');
-    expect(root.querySelector('.description')!.textContent).toContain("pas besoin d'un compte de connexion");
+    expect(root.querySelector('.help')!.textContent).toContain("pas besoin d'un compte de connexion");
     expect(text).not.toContain('Nouveau membre');
   });
 

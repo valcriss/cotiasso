@@ -10,7 +10,7 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
-import { PageHeader } from '../ui/page-header';
+import { ActionBar } from '../ui/action-bar';
 import {
   AnonymizeDialog,
   CategoriesDialog,
@@ -25,12 +25,11 @@ import {
 /** Membres : fiches, catégories, fonctions et mandats (ADR 0023). */
 @Component({
   selector: 'app-members-page',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, PageHeader],
+  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ActionBar],
   styleUrl: '../admin/admin-pages.scss',
   template: `
-    <app-page-header
-      title="Membres"
-      icon="groups"
+    <app-action-bar
+      label="Actions des membres"
       description="Les personnes qui font vivre l'association : leurs coordonnées, leur catégorie et leurs fonctions (président, trésorier…). Un membre n'a pas besoin d'un compte de connexion."
     >
       @if (canManage()) {
@@ -41,7 +40,7 @@ import {
           <mat-icon fontSet="material-icons-outlined" aria-hidden="true">category</mat-icon> Catégories
         </button>
       }
-    </app-page-header>
+    </app-action-bar>
 
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>

@@ -405,6 +405,45 @@ export interface MemberFilters {
   after?: string;
 }
 
+export type MembershipModeInfo = 'PAYMENT' | 'VALIDATION' | 'START_DATE';
+
+export interface TariffInfo {
+  id: string;
+  label: string;
+  amount: string;
+  categoryId: string | null;
+  categoryName: string | null;
+  membershipCount: number;
+}
+
+export interface CampaignInfo {
+  id: string;
+  name: string;
+  startsOn: string;
+  endsOn: string;
+  effectiveMode: MembershipModeInfo;
+  tariffs: TariffInfo[];
+  membershipCount: number;
+  locked: boolean;
+}
+
+export interface MembershipInfo {
+  id: string;
+  campaignId: string;
+  campaignName: string;
+  memberId: string;
+  memberName: string;
+  tariffId: string | null;
+  tariffLabel: string | null;
+  expectedAmount: string;
+  exemptionReason: string | null;
+  status: 'PENDING' | 'EFFECTIVE' | 'CANCELLED';
+  effectiveOn: string | null;
+  effectiveOrigin: 'PAYMENT' | 'VALIDATION' | 'START_DATE' | 'EXEMPTION' | null;
+  cancelReason: string | null;
+  version: number;
+}
+
 export interface ComparedRowInfo {
   code: string;
   label: string;
@@ -998,6 +1037,49 @@ export class AdminApiService {
 
   removeMemberOffice(id: string): Promise<void> {
     return firstValueFrom(this.http.delete<void>(`/api/member-offices/${id}`));
+  }
+
+  listCampaigns(): Promise<CampaignInfo[]> {
+    return firstValueFrom(this.http.get<CampaignInfo[]>('/api/campaigns'));
+  }
+
+  createCampaign(body: { name: string; startsOn: string; endsOn: string; effectiveMode?: MembershipModeInfo }): Promise<CampaignInfo> {
+    return firstValueFrom(this.http.post<CampaignInfo>('/api/campaigns', body));
+  }
+
+  updateCampaign(id: string, body: { name?: string; startsOn?: string; endsOn?: string; effectiveMode?: MembershipModeInfo }): Promise<CampaignInfo> {
+    return firstValueFrom(this.http.patch<CampaignInfo>(`/api/campaigns/${id}`, body));
+  }
+
+  addTariff(campaignId: string, body: { label: string; amount: string; categoryId?: string | null }): Promise<CampaignInfo> {
+    return firstValueFrom(this.http.post<CampaignInfo>(`/api/campaigns/${campaignId}/tariffs`, body));
+  }
+
+  updateTariff(id: string, body: { label?: string; amount?: string }): Promise<CampaignInfo> {
+    return firstValueFrom(this.http.patch<CampaignInfo>(`/api/tariffs/${id}`, body));
+  }
+
+  removeTariff(id: string): Promise<CampaignInfo> {
+    return firstValueFrom(this.http.delete<CampaignInfo>(`/api/tariffs/${id}`));
+  }
+
+  listMemberships(campaignId: string): Promise<MembershipInfo[]> {
+    return firstValueFrom(this.http.get<MembershipInfo[]>(`/api/campaigns/${campaignId}/memberships`));
+  }
+
+  createMembership(
+    campaignId: string,
+    body: { memberId: string; tariffId: string; expectedAmount?: string; exemptionReason?: string; effectiveOn?: string },
+  ): Promise<MembershipInfo> {
+    return firstValueFrom(this.http.post<MembershipInfo>(`/api/campaigns/${campaignId}/memberships`, body));
+  }
+
+  validateMembership(id: string): Promise<MembershipInfo> {
+    return firstValueFrom(this.http.post<MembershipInfo>(`/api/memberships/${id}/validate`, {}));
+  }
+
+  cancelMembership(id: string, reason: string): Promise<MembershipInfo> {
+    return firstValueFrom(this.http.post<MembershipInfo>(`/api/memberships/${id}/cancel`, { reason }));
   }
 
   incomeStatement(fiscalYearId: string): Promise<IncomeStatementInfo> {
