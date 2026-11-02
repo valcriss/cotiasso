@@ -269,6 +269,54 @@ export interface BalanceInfo {
   lastStatement: { periodEnd: string; closingBalance: string; computedAtEnd: string; gap: string } | null;
 }
 
+// --- Parcours simplifiés (ADR 0028) ---
+
+export interface OperationCategoryInfo {
+  id: string;
+  direction: 'IN' | 'OUT';
+  label: string;
+  hint: string;
+  active: boolean;
+  account: { id: string; number: string; label: string };
+}
+
+export interface TodoItemInfo {
+  code: string;
+  level: 'TODO' | 'WARNING' | 'INFO';
+  title: string;
+  detail: string;
+  count?: number;
+  link: string;
+  actionLabel: string;
+}
+
+export interface OverviewInfo {
+  setup: { fiscalYear: boolean; accounts: boolean; financialAccount: boolean; categories: boolean };
+  cash: { total: string; accounts: { id: string; name: string; balance: string }[] } | null;
+  month: { from: string; to: string; received: string; spent: string } | null;
+  todo: TodoItemInfo[];
+}
+
+export interface GuidedOperationBody {
+  financialAccountId: string;
+  direction: 'IN' | 'OUT';
+  amount: string;
+  date: string;
+  label: string;
+  categoryId: string;
+  projectId?: string | null;
+  reference?: string | null;
+  post?: boolean;
+}
+
+export interface GuidedOperationResult {
+  transactionId: string;
+  entryId: string;
+  posted: boolean;
+  journalCode: string;
+  number: number | null;
+}
+
 export interface FinancialAccountInfo {
   id: string;
   name: string;
@@ -1879,6 +1927,30 @@ export class AdminApiService {
 
   releaseNotes(): Promise<ReleaseNotesInfo> {
     return firstValueFrom(this.http.get<ReleaseNotesInfo>('/api/operations/release-notes'));
+  }
+
+  overview(): Promise<OverviewInfo> {
+    return firstValueFrom(this.http.get<OverviewInfo>('/api/overview'));
+  }
+
+  listOperationCategories(all = false): Promise<OperationCategoryInfo[]> {
+    return firstValueFrom(this.http.get<OperationCategoryInfo[]>(all ? '/api/operation-categories/all' : '/api/operation-categories'));
+  }
+
+  createOperationCategory(body: { direction: 'IN' | 'OUT'; label: string; hint?: string; accountId: string }): Promise<OperationCategoryInfo> {
+    return firstValueFrom(this.http.post<OperationCategoryInfo>('/api/operation-categories', body));
+  }
+
+  updateOperationCategory(id: string, body: { label?: string; hint?: string; accountId?: string; active?: boolean }): Promise<OperationCategoryInfo> {
+    return firstValueFrom(this.http.patch<OperationCategoryInfo>(`/api/operation-categories/${id}`, body));
+  }
+
+  applyStarterTemplate(): Promise<{ accountsCreated: number; categoriesCreated: number }> {
+    return firstValueFrom(this.http.post<{ accountsCreated: number; categoriesCreated: number }>('/api/starter-template', {}));
+  }
+
+  recordOperation(body: GuidedOperationBody): Promise<GuidedOperationResult> {
+    return firstValueFrom(this.http.post<GuidedOperationResult>('/api/guided-operations', body));
   }
 
   changeOwnPassword(currentPassword: string, newPassword: string): Promise<void> {

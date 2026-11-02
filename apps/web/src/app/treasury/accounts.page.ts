@@ -14,6 +14,9 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
+import { ThemeService } from '../theme/theme.service';
+import { StartAccountDialog, type StartAccountDialogData } from '../pages/start-dialogs';
+import { OperationLauncher } from './operation-launcher';
 import { PageHeader } from '../ui/page-header';
 import { FinancialAccountDialog, type AccountDialogData } from './account-dialog';
 import { TransferDialog, type TransferDialogData } from './transfer-dialog';
@@ -79,9 +82,17 @@ import { TransactionsPanel } from './transactions-panel';
           <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Nouveau compte
         </button>
       }
+      @if (canRecord()) {
+        <button mat-flat-button type="button" (click)="record('IN')">
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">south_west</mat-icon> J’ai reçu de l’argent
+        </button>
+        <button mat-flat-button type="button" (click)="record('OUT')">
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">north_east</mat-icon> J’ai dépensé de l’argent
+        </button>
+      }
       @if (canTransfer()) {
         <button mat-stroked-button type="button" (click)="transfer()">
-          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">sync_alt</mat-icon> Nouveau virement interne
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">sync_alt</mat-icon> {{ simple() ? 'Déplacer de l’argent entre mes comptes' : 'Nouveau virement interne' }}
         </button>
       }
     </app-page-header>
@@ -116,19 +127,25 @@ import { TransactionsPanel } from './transactions-panel';
                 <span class="chip">Archivé</span>
               }
             </div>
-            <div class="muted">{{ account.journalCode }} · compte {{ account.accountNumber }}@if (account.reference) { · {{ account.reference }} }</div>
+            @if (!simple()) {
+              <div class="muted">{{ account.journalCode }} · compte {{ account.accountNumber }}@if (account.reference) { · {{ account.reference }} }</div>
+            } @else if (account.reference) {
+              <div class="muted">{{ account.reference }}</div>
+            }
             <div class="big">{{ amount(account.balances.computed) }} €</div>
             <dl class="balances">
               <dt>Ouverture ({{ account.openedOn }})</dt>
               <dd>{{ amount(account.balances.opening) }}</dd>
-              <dt>Solde comptable (écritures)</dt>
-              <dd>{{ amount(account.balances.accounting) }}</dd>
-              <dt>Rapprochement</dt>
+              @if (!simple()) {
+                <dt>Solde comptable (écritures)</dt>
+                <dd>{{ amount(account.balances.accounting) }}</dd>
+              }
+              <dt>{{ simple() ? 'Vérifié avec la banque' : 'Rapprochement' }}</dt>
               <dd>
                 @if (account.balances.reconciled; as reconciled) {
-                  Rapproché au {{ reconciled.periodEnd }}
+                  {{ simple() ? 'Oui, au' : 'Rapproché au' }} {{ reconciled.periodEnd }}
                 } @else {
-                  <span class="muted">Pas encore rapproché</span>
+                  <span class="muted">{{ simple() ? 'Pas encore vérifié' : 'Pas encore rapproché' }}</span>
                 }
               </dd>
               @if (account.balances.lastStatement; as statement) {
@@ -167,6 +184,9 @@ export class AccountsPage {
   private readonly auth = inject(AuthService);
   private readonly dialogs = inject(Dialogs);
   private readonly notifier = inject(Notifier);
+  private readonly launcher = inject(OperationLauncher);
+  private readonly theme = inject(ThemeService);
+  protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
 
   protected readonly accounts = signal<FinancialAccountInfo[]>([]);
   protected readonly chart = signal<AccountInfo[]>([]);
@@ -184,6 +204,11 @@ export class AccountsPage {
     return this.auth.can('settings.accounting:admin');
   });
   protected readonly reloadKey = signal(0);
+  /** Saisie guidée : il faut pouvoir saisir une transaction et préparer son écriture, et avoir un compte actif. */
+  protected readonly canRecord = computed(() => {
+    this.auth.permissions();
+    return this.auth.can('transactions:manage') && this.auth.can('entries:create') && this.activeAccounts().length >= 1;
+  });
   /** Un virement relie deux comptes actifs et prépare une écriture : il faut les droits de saisie des deux. */
   protected readonly canTransfer = computed(() => {
     this.auth.permissions();
@@ -208,7 +233,20 @@ export class AccountsPage {
     this.selectedId.set(id);
   }
 
+  protected async record(direction: 'IN' | 'OUT'): Promise<void> {
+    if (!(await this.launcher.open(direction, this.selectedId()))) return;
+    await this.load();
+    this.reloadKey.update((key) => key + 1);
+  }
+
   protected async create(): Promise<void> {
+    if (this.simple()) {
+      const added = await this.dialogs.open<FinancialAccountInfo, StartAccountDialogData>(StartAccountDialog, { size: 'md', data: { existing: this.accounts() } });
+      if (!added) return;
+      this.notifier.success(`Compte « ${added.name} » ajouté.`);
+      await this.load();
+      return;
+    }
     const created = await this.dialogs.open<FinancialAccountInfo, AccountDialogData>(FinancialAccountDialog, {
       size: 'md',
       data: { freeAccounts: this.freeAccounts() },

@@ -174,6 +174,13 @@ export const routes: Routes = [
         loadComponent: () => import('./documents/documents.page').then((m) => m.DocumentsPage),
       },
       {
+        path: 'demarrage',
+        title: 'Démarrer',
+        canActivate: [permissionGuard],
+        data: { permission: 'settings.accounting:admin' },
+        loadComponent: () => import('./pages/start.page').then((m) => m.StartPage),
+      },
+      {
         path: 'compte',
         title: 'Mon compte',
         loadComponent: () => import('./admin/account.page').then((m) => m.AccountPage),

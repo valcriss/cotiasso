@@ -200,6 +200,9 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
                   @if (item.entry && canViewEntries()) {
                     <a mat-button [attr.aria-label]="'Voir l’écriture de ' + item.label" [routerLink]="['/comptabilite/ecritures', item.entry.id]">Voir l'écriture</a>
                   }
+                  @if (canCancelOperation() && item.accounting === 'POSTED' && item.entry && !item.transfer && item.reconciliation?.status !== 'VALIDATED') {
+                    <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler l’opération ' + item.label" [disabled]="busy()" (click)="cancelOperation(item)">Annuler l’opération</button>
+                  }
                   @if (canLink() && item.accounting === 'IN_PROGRESS') {
                     <button mat-button type="button" [attr.aria-label]="'Dissocier ' + item.label" [disabled]="busy()" (click)="unlink(item)">Dissocier</button>
                   }
@@ -254,6 +257,11 @@ export class TransactionsPanel {
   protected readonly canLink = computed(() => {
     this.auth.permissions();
     return this.auth.can('transactions:manage') && this.auth.can('entries:create');
+  });
+  /** Annuler une opération enregistrée = contrepasser son écriture : réservé à qui peut comptabiliser. */
+  protected readonly canCancelOperation = computed(() => {
+    this.auth.permissions();
+    return this.auth.can('entries:post');
   });
   protected readonly canViewEntries = computed(() => {
     this.auth.permissions();
@@ -324,6 +332,24 @@ export class TransactionsPanel {
       this.notifier.success("Brouillon d'écriture préparé : relisez-le, puis comptabilisez-le.");
       await this.router.navigate(['/comptabilite/ecritures', entryId]);
     }, "Le brouillon n'a pas pu être préparé.");
+  }
+
+  /** « Annuler l'opération » : contrepasse l'écriture, après avoir dit ce que cela change et que l'historique est conservé. */
+  protected async cancelOperation(item: TransactionInfo): Promise<void> {
+    if (!item.entry) return;
+    const confirmed = await this.dialogs.confirm({
+      title: 'Annuler cette opération ?',
+      message: `« ${item.label} » ne comptera plus dans vos comptes : une opération inverse est ajoutée et rien n'est effacé, l'historique reste lisible. Le mouvement d'argent reste sur le compte et redevient « à comptabiliser » : vous pourrez le classer de nouveau correctement.`,
+      confirmLabel: 'Annuler l’opération',
+      danger: true,
+    });
+    if (!confirmed) return;
+    await this.run(async () => {
+      await this.api.reverseEntry(item.entry!.id);
+      this.notifier.success("Opération annulée : l'écriture inverse a été ajoutée.");
+      await this.search();
+      this.changed.emit();
+    }, "L'opération n'a pas pu être annulée.");
   }
 
   protected async link(item: TransactionInfo): Promise<void> {

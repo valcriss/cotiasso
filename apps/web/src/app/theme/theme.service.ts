@@ -3,6 +3,8 @@ import { Injectable, inject, signal } from '@angular/core';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type Density = 'comfortable' | 'compact';
+/** Affichage simple (langage courant, menus réduits, par défaut) ou comptable (tout le vocabulaire et les écrans de l'expert). */
+export type ViewMode = 'simple' | 'accounting';
 
 export const THEME_MODES: readonly { value: ThemeMode; label: string; icon: string }[] = [
   { value: 'system', label: 'Selon le système', icon: 'brightness_auto' },
@@ -15,6 +17,12 @@ export const DENSITIES: readonly { value: Density; label: string; icon: string }
   { value: 'compact', label: 'Compacte', icon: 'density_small' },
 ];
 
+export const VIEW_MODES: readonly { value: ViewMode; label: string; icon: string; hint: string }[] = [
+  { value: 'simple', label: 'Simple', icon: 'sentiment_satisfied', hint: 'Recommandé : le vocabulaire de tous les jours' },
+  { value: 'accounting', label: 'Comptable', icon: 'menu_book', hint: 'Journaux, écritures, grand livre… pour l’expert-comptable' },
+];
+
+const VIEW_KEY = 'cotiasso.view.mode';
 const MODE_KEY = 'cotiasso.theme.mode';
 const DENSITY_KEY = 'cotiasso.theme.density';
 
@@ -46,11 +54,13 @@ export class ThemeService {
 
   readonly mode = signal<ThemeMode>('system');
   readonly density = signal<Density>('comfortable');
+  readonly viewMode = signal<ViewMode>('simple');
 
   /** Lit les préférences conservées et les applique ; appelé avant le premier affichage. */
   init(): void {
     this.mode.set(read(MODE_KEY, THEME_MODES.map((m) => m.value), 'system'));
     this.density.set(read(DENSITY_KEY, DENSITIES.map((d) => d.value), 'comfortable'));
+    this.viewMode.set(read(VIEW_KEY, VIEW_MODES.map((v) => v.value), 'simple'));
     this.apply();
   }
 
@@ -64,6 +74,11 @@ export class ThemeService {
     this.density.set(density);
     write(DENSITY_KEY, density);
     this.apply();
+  }
+
+  setViewMode(mode: ViewMode): void {
+    this.viewMode.set(mode);
+    write(VIEW_KEY, mode);
   }
 
   private apply(): void {

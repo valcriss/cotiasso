@@ -8,11 +8,13 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 ### À savoir avant de mettre à jour
 
+- Nouvelle migration (catégories d'opération). **Changement visible** : l'affichage par défaut est maintenant « Simple » ; chaque personne retrouve le menu complet via Apparence › Affichage › Comptable. Les droits ne changent pas.
 - Les migrations de base de données ne sont pas réversibles : lancez `scripts/update.sh <version>`, qui sauvegarde et vérifie avant de changer de version. Pour revenir en arrière, on restaure la sauvegarde faite juste avant.
 - Nouveau dans l'image `backup` : la copie hors site automatique (variables `OFFSITE_*` de `.env.prod`, facultatives). Sans elle, rien ne change.
 
 ### Nouveautés
 
+- **Parcours simplifiés pour les trésoriers débutants** : affichage « Simple » par défaut (la rubrique Comptabilité n'apparaît plus dans le menu, l'affichage « Comptable » la rend), vue d'ensemble avec l'argent disponible, le mois en cours et la liste « À faire », gestes « J'ai reçu de l'argent » / « J'ai dépensé de l'argent » qui enregistrent l'opération et sa comptabilité en une fois, catégories en mots courants, action « Annuler l'opération », assistant « Démarrer » (période, catégories, compte bancaire) et modèle de démarrage proposé (comptes et catégories courants, à faire relire par un expert-comptable). À l'installation, la personne peut aussi recevoir le rôle de trésorier.
 - Reprise : onglet « Progression » de la Comptabilité, qui montre pour chaque exercice et chaque compte où en est la reprise (mouvements qualifiés, brouillons, écritures comptabilisées, rapprochement) et ce qu'il reste à régler, avec un lien vers l'écran concerné.
 - Exploitation : copie hors site automatique des sauvegardes chiffrées (S3, SFTP, WebDAV…), état affiché dans Paramètres › Exploitation, script de mise à jour qui sauvegarde et vérifie avant de changer de version, notes de version dans l'application.
 - Journal d'audit : export CSV avec les empreintes de la chaîne de contrôle.

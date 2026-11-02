@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { mockAuth } from '../testing/auth-mock';
+import { ThemeService } from '../theme/theme.service';
 import { AccountsPage } from './accounts.page';
 
 @Component({ template: '' })
@@ -73,12 +74,13 @@ describe('AccountsPage', () => {
     fixture.detectChanges();
     await fixture.whenStable();
   };
-  const create = async (permissions: string[], accounts: object[] = [account()]) => {
+  const create = async (permissions: string[], accounts: object[] = [account()], view: 'simple' | 'accounting' = 'accounting') => {
     await TestBed.configureTestingModule({
       imports: [AccountsPage],
       providers: [provideRouter([{ path: 'comptabilite/ecritures/:id', component: EntryStub }]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
+    TestBed.inject(ThemeService).setViewMode(view);
     fixture = TestBed.createComponent(AccountsPage);
     root = fixture.nativeElement as HTMLElement;
     ui = new DialogTester(settle);
@@ -130,6 +132,18 @@ describe('AccountsPage', () => {
     expect(text).toContain('Pas encore rapproché');
     expect(text).not.toContain('Rapproché au');
     expect(text).not.toContain('Nouveau compte');
+  });
+
+  it("en affichage simple, parle de vérification avec la banque et propose « J'ai reçu » / « J'ai dépensé »", async () => {
+    await create(['financial-accounts:view', 'transactions:manage', 'entries:create'], [account()], 'simple');
+    const text = root.textContent!;
+    expect(text).toContain('Vérifié avec la banque');
+    expect(text).toContain('Pas encore vérifié');
+    expect(text).not.toContain('Solde comptable (écritures)');
+    expect(text).not.toContain('BQ-1');
+    const buttons = Array.from(root.querySelectorAll('app-page-header button')).map((b) => b.textContent!.trim());
+    expect(buttons.join('|')).toContain('J’ai reçu de l’argent');
+    expect(buttons.join('|')).toContain('J’ai dépensé de l’argent');
   });
 
   it("indique « rapproché » seulement pour un rapprochement validé, et propose d'en commencer un", async () => {
@@ -438,6 +452,32 @@ describe('AccountsPage', () => {
     expect(ui.text).toContain('contrepassez');
     expect(ui.field<HTMLInputElement>('input[formcontrolname="amount"]').disabled).toBe(true);
     expect(ui.dialog!.textContent).not.toContain('Supprimer cette transaction');
+  });
+
+  it("« Annuler l'opération » contrepasse l'écriture après avoir dit ce que cela change, seulement pour qui peut comptabiliser", async () => {
+    const posted = transaction({ id: 't9', label: 'Assurance', accounting: 'POSTED', entry: entryRef({ id: 'e9', status: 'POSTED', number: 5 }), financialLock: 'ENTRY', deletable: false });
+    await create([...FULL, 'entries:post']);
+    await openTransactions([posted]);
+    await click('Annuler l’opération Assurance');
+    expect(ui.title).toBe('Annuler cette opération ?');
+    expect(ui.text).toContain('rien n\'est effacé');
+    await ui.click('Annuler l’opération');
+    const request = controller.expectOne('/api/entries/e9/reverse');
+    expect(request.request.method).toBe('POST');
+    request.flush({ id: 'e10' }, { status: 201, statusText: 'Created' });
+    await settle();
+    controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: [], next: null });
+    await settle();
+    controller.expectOne('/api/financial-accounts').flush([account()]);
+    await settle();
+    expect(ui.snackbar).toContain('Opération annulée');
+  });
+
+  it("n'offre pas « Annuler l'opération » sans le droit de comptabiliser, ni pour un mouvement déjà rapproché", async () => {
+    const posted = transaction({ id: 't9', label: 'Assurance', accounting: 'POSTED', entry: entryRef({ id: 'e9', status: 'POSTED', number: 5 }), financialLock: 'ENTRY', deletable: false });
+    await create(FULL);
+    await openTransactions([posted]);
+    expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Annuler l’opération'))).toBe(false);
   });
 
   it("enregistre un virement interne : deux comptes, montant positif, brouillon préparé", async () => {

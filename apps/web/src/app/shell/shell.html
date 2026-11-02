@@ -62,6 +62,16 @@
         }
       </button>
       <mat-menu #appearanceMenu="matMenu" class="appearance-menu">
+        <div class="menu-title" (click)="$event.stopPropagation()">Affichage</div>
+        @for (view of viewModes; track view.value) {
+          <button mat-menu-item type="button" role="menuitemradio" [attr.aria-checked]="theme.viewMode() === view.value" (click)="theme.setViewMode(view.value)">
+            <mat-icon fontSet="material-icons-outlined">{{ view.icon }}</mat-icon>
+            <span class="label">{{ view.label }}</span>
+            @if (theme.viewMode() === view.value) {
+              <mat-icon class="check" fontSet="material-icons-outlined">check</mat-icon>
+            }
+          </button>
+        }
         <div class="menu-title" (click)="$event.stopPropagation()">Mode</div>
         @for (mode of modes; track mode.value) {
           <button mat-menu-item type="button" role="menuitemradio" [attr.aria-checked]="theme.mode() === mode.value" (click)="theme.setMode(mode.value)">

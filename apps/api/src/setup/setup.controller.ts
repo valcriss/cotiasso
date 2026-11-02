@@ -34,16 +34,17 @@ import { SetupService } from "./setup.service.js";
 
 const MAX_FIELD_LENGTH = 1024;
 
-function readSetupBody(body: unknown): { token: string; email: string; displayName: string; password: string } {
+function readSetupBody(body: unknown): { token: string; email: string; displayName: string; password: string; alsoTreasurer: boolean } {
   if (typeof body !== "object" || body === null) throw new BadRequestException("Corps de requête invalide.");
-  const { token, email, displayName, password } = body as Record<string, unknown>;
+  const { token, email, displayName, password, alsoTreasurer } = body as Record<string, unknown>;
+  if (alsoTreasurer !== undefined && typeof alsoTreasurer !== "boolean") throw new BadRequestException("Choix du rôle de trésorier invalide.");
   for (const value of [token, email, displayName, password]) {
     if (typeof value !== "string" || value.length === 0) {
       throw new BadRequestException("Jeton, email, nom et mot de passe sont obligatoires.");
     }
     if (value.length > MAX_FIELD_LENGTH) throw new BadRequestException("Champ trop long.");
   }
-  return { token: token as string, email: email as string, displayName: displayName as string, password: password as string };
+  return { token: token as string, email: email as string, displayName: displayName as string, password: password as string, alsoTreasurer: alsoTreasurer === true };
 }
 
 @Controller("setup")
@@ -70,7 +71,7 @@ export class SetupController {
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionResponse> {
-    const { token, ...account } = readSetupBody(body);
+    const { token, alsoTreasurer, ...account } = readSetupBody(body);
     const ipAddress = request.ip;
 
     // Même protection que la connexion : les essais de jeton sont ralentis par adresse IP.
@@ -84,7 +85,7 @@ export class SetupController {
     }
 
     try {
-      const user = await this.setup.complete(token, account);
+      const user = await this.setup.complete(token, account, { alsoTreasurer });
       await this.throttle.record(null, ipAddress, true);
 
       const session = await this.sessions.create(user.id, { ipAddress, userAgent: request.headers["user-agent"] });

@@ -113,6 +113,10 @@ const ACTION_LABELS: Record<string, string> = {
   'entry.deleted': 'Brouillon supprimé',
   'entry.posted': 'Écriture comptabilisée',
   'entry.reversed': 'Écriture contrepassée',
+  'operation.recorded': "Opération enregistrée (argent reçu ou dépensé)",
+  'operation-category.created': "Catégorie d'opération créée",
+  'operation-category.updated': "Catégorie d'opération modifiée",
+  'starter-template.applied': 'Catégories et comptes de départ installés',
   'module.activated': 'Module activé',
   'module.deactivated': 'Module désactivé',
 };

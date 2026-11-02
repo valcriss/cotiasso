@@ -28,7 +28,7 @@ describe('AccountingPage', () => {
     controller.expectOne('/api/accounting/settings').flush(rules);
     await settle();
   };
-  const create = async (permissions: string[]) => {
+  const create = async (permissions: string[], categories: object[] = []) => {
     await TestBed.configureTestingModule({
       imports: [AccountingPage],
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
@@ -38,6 +38,7 @@ describe('AccountingPage', () => {
     root = fixture.nativeElement as HTMLElement;
     ui = new DialogTester(settle);
     await settle();
+    controller.expectOne('/api/operation-categories/all').flush(categories);
     await flushLists();
   };
   const click = async (label: string) => {
@@ -64,6 +65,31 @@ describe('AccountingPage', () => {
     expect(text).toContain('Ouvert');
     expect(root.querySelector('app-action-bar button')).toBeNull();
     expect(root.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it('guide vers les catégories de départ quand il n’y en a pas encore, puis les installe après confirmation', async () => {
+    await create(['entries:view', 'settings.accounting:admin']);
+    expect(root.textContent).toContain('Aucune catégorie pour l’instant');
+    await click('Installer les catégories de départ');
+    expect(ui.title).toContain('Installer les catégories de départ');
+    expect(ui.text).toContain('à faire relire par votre expert-comptable');
+    await ui.click('Installer');
+    const post = controller.expectOne('/api/starter-template');
+    expect(post.request.method).toBe('POST');
+    post.flush({ accountsCreated: 23, categoriesCreated: 16 });
+    await settle();
+    controller.expectOne('/api/operation-categories/all').flush([
+      { id: 'c1', direction: 'OUT', label: 'Assurance', hint: 'Prime annuelle', active: true, account: { id: 'a616', number: '616', label: 'Primes d’assurance' } },
+    ]);
+    await settle();
+    controller.expectOne('/api/fiscal-years').flush([year]);
+    controller.expectOne('/api/journals').flush([journal]);
+    controller.expectOne('/api/accounts').flush([account]);
+    controller.expectOne('/api/accounting/settings').flush({ projectRequired: true });
+    await settle();
+    expect(ui.snackbar).toContain('16 catégorie(s)');
+    expect(root.textContent).toContain('Assurance');
+    expect(root.textContent).toContain('616 — Primes d’assurance');
   });
 
   it('propose les créations dans la barre d’action et explique chaque partie', async () => {

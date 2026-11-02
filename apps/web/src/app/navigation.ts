@@ -9,6 +9,8 @@ export interface NavigationItem {
    * sa fiche (ADR 0024, tranche 4.5), pas depuis la page Documents générale.
    */
   global?: boolean;
+  /** Rubrique réservée à l'affichage « Comptable » (ADR 0028) : masquée du menu en affichage simple, l'adresse reste ouverte. */
+  expert?: boolean;
 }
 
 /**
@@ -18,7 +20,7 @@ export interface NavigationItem {
 export const NAVIGATION: readonly NavigationItem[] = [
   { path: 'vue-d-ensemble', label: "Vue d'ensemble", icon: 'dashboard' },
   { path: 'comptes', label: 'Comptes', icon: 'account_balance', permission: 'financial-accounts:view' },
-  { path: 'comptabilite', label: 'Comptabilité', icon: 'menu_book', permission: 'entries:view' },
+  { path: 'comptabilite', label: 'Comptabilité', icon: 'menu_book', permission: 'entries:view', expert: true },
   { path: 'membres', label: 'Membres et cotisations', icon: 'groups', permission: 'members:view' },
   { path: 'projets', label: 'Projets', icon: 'folder_open', permission: 'projects:view' },
   { path: 'subventions', label: 'Subventions', icon: 'payments', permission: 'grants:view' },

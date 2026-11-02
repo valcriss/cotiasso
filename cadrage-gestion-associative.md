@@ -205,11 +205,17 @@ Depuis un compte : solde, actions « Ajouter une transaction » et « Importer u
 
 Les formulaires doivent conserver les brouillons, expliquer les blocages et éviter les validations silencieuses. Les tableaux doivent être navigables au clavier et utilisables sur tablette ; les tâches courtes doivent rester possibles sur mobile.
 
+### 7.4 Affichage simple et affichage comptable (*Retenu*, [ADR 0028](docs/decisions/0028-parcours-simplifies-pour-tresoriers-novices.md))
+
+Le public cible est un trésorier bénévole sans connaissance comptable. Deux affichages, au choix de chaque personne : **Simple** (défaut : menu réduit, mots courants, « J'ai reçu / J'ai dépensé de l'argent » qui produit l'écriture à partie double en coulisses, catégories à la place des numéros de compte, tâches « À faire » en vue d'ensemble) et **Comptable** (vocabulaire et écrans de l'expert). Les rubriques propres à l'expert (aujourd'hui : Comptabilité) sont absentes du menu en affichage simple.
+
+**Précision sur la règle du §7.2** : masquer une rubrique du menu *pour des raisons d'ergonomie* n'est pas un contrôle d'accès ; l'affichage ne donne ni ne retire aucun droit, la route reste protégée par la permission et chaque opération est vérifiée côté serveur. La règle « pas d'accès par la seule URL » vise les **droits**, pas l'affichage. Le modèle de démarrage (plan de comptes et catégories) est une **proposition non validée** (*Proposé*), à faire relire par un expert-comptable avant tout usage officiel.
+
 ## 8. Paramètres de l'association et marque blanche
 
 ### 8.1 Assistant initial
 
-1. Création du premier administrateur.
+1. Création du premier administrateur (qui peut recevoir aussi le rôle de trésorier, ADR 0028).
 2. Identité et coordonnées de l'association.
 3. Logo, nom affiché et palette.
 4. Dates des exercices et référentiel comptable.

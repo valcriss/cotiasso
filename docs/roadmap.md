@@ -61,6 +61,17 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | États de synthèse (lot 2c.1) | Compte de résultat et bilan avec exercice précédent en regard, contrôle d'équilibre, avertissements (comptes sans rubrique, exercice précédent non clôturé) ; page Rapports | ADR 0020 |
 | Reprise | Lots de brouillons préparés en masse, soldes d'ouverture guidés (origine expliquée), comptabilisation chronologique avec compte rendu et reprise après erreur, abandon sans effacer le comptabilisé, qualification en masse | ADR 0019 |
 
+### Parcours simplifiés (ADR 0028) — fait
+
+| Domaine | Livré | Référence |
+| --- | --- | --- |
+| Deux affichages | Simple (défaut : menu réduit, mots courants, pas de numéro de compte) et Comptable (tout l'existant), au choix de chaque personne | ADR 0028, design.md §2 bis |
+| Saisie guidée | « J'ai reçu / J'ai dépensé de l'argent » : transaction, écriture à partie double et comptabilisation en une action, tout ou rien, avec aperçu « Ce que verra l'expert-comptable » | ADR 0028 |
+| Catégories | Catégories d'opération en mots courants rattachées à un compte du plan, gérées dans Paramètres › Comptabilité | ADR 0028 |
+| Démarrage | Page « Démarrer » (période, catégories, compte bancaire), modèle de démarrage **proposé** (à faire relire), rôle de trésorier au premier compte | ADR 0028 |
+| Vue d'ensemble | Argent disponible, reçu et dépensé du mois, liste « À faire » qui renvoie à l'écran concerné | ADR 0028 |
+| Annuler l'opération | Contrepassation sous un mot courant, avec les conséquences annoncées | ADR 0028, ADR 0010 |
+
 ### Interface
 
 | Domaine | Livré | Référence |
@@ -82,6 +93,7 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | 1.3 | ~~**Exports sûrs**~~ **fait** (ADR 0021) : CSV neutralisé et PDF par impression, pour les états et les états de lecture ; reste, au besoin, un `.xlsx` natif et un PDF serveur | Une comptabilité qu'on ne peut pas remettre à l'assemblée ni à l'expert-comptable ne sert pas | 1.2 |
 | 1.4 | **Validation de l'import OFX sur des exports réels anonymisés** des banques de l'association | Seules des fixtures fictives sont testées ; les exports réels varient d'une banque à l'autre | Fichiers fournis par le trésorier (Q11) |
 | 1.5 | **Inventaire de reprise du pilote** : date de création, dates d'exercice, liste des comptes et caisses, fichiers OFX disponibles | Les lots de reprise sont prêts ; sans cet inventaire on ne peut pas les exécuter sur des données réelles | Trésorier (Q11, lot 0.6) |
+| 1.6 | **Test d'usage avec 2 ou 3 vrais trésoriers novices** (tâches sans explication orale : enregistrer un chèque de cotisation, préparer le bilan pour l'AG) et **relecture du modèle de démarrage par un expert-comptable** | L'audit repose sur la lecture du code, pas sur un essai réel : seule la pratique valide les parcours simplifiés (ADR 0028) | Trésorier pilote, expert-comptable |
 
 ### Priorité 2 — importants, l'application reste utilisable sans
 
@@ -90,10 +102,11 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | 2.1 | ~~**Portée projet des droits**~~ **fait** (ADR 0022), y compris l'accès aux documents d'un projet (ADR 0024, tranche 4.5) | Droit retenu au cadrage (« droits globaux et par projet »), encore non implémenté : tout est global aujourd'hui | Projet existant (ADR 0013) |
 | 2.2 | **Tiers sur les lignes d'écriture** | Prérequis des membres, des financeurs et d'un suivi propre des créances et dettes | Arrive avec le lot 3 |
 | 2.3 | ~~**Écrans d'administration des droits**~~ **fait** : « Voir les accès » et attributions avec portée | L'API existe ; manque la vue qui permet de comprendre qui peut quoi | 2.1 |
-| 2.4 | **Étapes de l'assistant initial** au-delà du premier compte : exercices, plan de comptes, comptes bancaires, projet permanent, rôles, mode de démarrage | Aujourd'hui ces réglages se font un par un dans Paramètres ; l'assistant guiderait un trésorier débutant | 1.1 |
+| 2.4 | ~~**Étapes de l'assistant initial**~~ **fait en grande partie** (ADR 0028) : page « Démarrer » (période, catégories de départ, compte bancaire) et rôle de trésorier au premier compte ; reste le choix du mode de démarrage (reprise ou situation d'ouverture) et la relecture du modèle par un expert | Un trésorier débutant n'a plus à connaître plan de comptes, journaux ni rôles pour commencer | 1.1 |
 | 2.5 | ~~**Exploitation**~~ **fait** (ADR 0026) : copie hors site automatique (rclone, archives chiffrées, état dans l'écran Exploitation), script de mise à jour qui sauvegarde et vérifie avant de changer de version, notes de version (`CHANGELOG.md`) | Les sauvegardes restaient sur le serveur | [exploitation.md](exploitation.md) |
 | 2.6 | ~~**Dépôt du fichier OFX d'origine comme document**~~ **fait** (ADR 0025) : conservé à l'analyse, restreint, archivé si l'import est annulé | Complète la traçabilité des imports | Documents (lot 1.6) |
 | 2.7 | **Suites de la comptabilité** : versionnement du plan de comptes et des rubriques, lien de correction (remplacement après contrepassation), ventilation d'une transaction | Améliorations de fond identifiées pendant les lots 2a et 2b | 1.1 |
+| 2.8 | **Suites des parcours simplifiés** (ADR 0028, « Hors de ce lot ») : statut unique par mouvement (« À classer » → « Classé » → « Vérifié avec la banque ») et solde unique par défaut, comptabilisation automatique au classement, cotisations et subventions comptabilisées dans le même geste, clôture d'exercice guidée, inscription MFA guidée et récupération sans SQL, catégories dans la boîte « Qualifier », rôle « expert-comptable » | Terminer la simplification des écrans qui parlent encore comptabilité | 1.6 |
 
 ### Priorité 3 — fonctions associatives complètes
 

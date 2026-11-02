@@ -15,6 +15,7 @@ import { ClosingDialog, type ClosingDialogData } from './closing-dialog';
 import { FiscalYearDialog } from './fiscal-year-dialog';
 import { JOURNAL_TYPES, JournalDialog } from './journal-dialog';
 import { PlanAccountDialog } from './plan-account-dialog';
+import { CategoriesPanel } from './categories-panel';
 
 const STATUS_LABELS: Record<FiscalYearInfo['status'], string> = {
   OPEN: 'Ouvert',
@@ -52,7 +53,7 @@ export function parseAccountCsv(text: string): ParsedAccounts {
 /** Paramètres › Comptabilité : exercices, journaux et plan de comptes. Création en boîtes de dialogue. */
 @Component({
   selector: 'app-accounting-page',
-  imports: [FormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, ActionBar],
+  imports: [FormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, ActionBar, CategoriesPanel],
   styleUrl: './admin-pages.scss',
   template: `
     <app-action-bar
@@ -85,6 +86,8 @@ export function parseAccountCsv(text: string): ParsedAccounts {
     @for (message of importErrors(); track message) {
       <p class="alert" role="alert">{{ message }}</p>
     }
+
+    <app-categories-panel [canEdit]="canEdit()" [accounts]="accounts()" (planChanged)="load()" />
 
     <section class="panel" aria-labelledby="rules-title">
       <h3 id="rules-title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">rule</mat-icon><span>Règles de comptabilisation</span></h3>
@@ -170,7 +173,7 @@ export function parseAccountCsv(text: string): ParsedAccounts {
     <section class="panel" aria-labelledby="ac-title">
       <h3 id="ac-title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">account_tree</mat-icon><span>Plan de comptes</span></h3>
       <p class="muted">
-        Aucun plan n'est fourni : importez le vôtre (fichier « numéro;libellé ») ou créez les comptes un à un. Le numéro est
+        Aucun plan n'est imposé : installez les catégories de départ (elles ajoutent les comptes courants), importez le vôtre (fichier « numéro;libellé ») ou créez les comptes un à un. Le numéro est
         définitif ; un compte se désactive, il ne se supprime pas.
       </p>
       <mat-form-field appearance="outline">

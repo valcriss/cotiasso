@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs
 import { AuditService } from "../audit/audit.service.js";
 import { AlreadySetUpError, InvalidSetupTokenError } from "../auth/errors.js";
 import { AuthorizationService } from "../authz/authorization.service.js";
-import { ADMIN_ROLE_KEY } from "../authz/default-roles.js";
+import { ADMIN_ROLE_KEY, TREASURER_ROLE_KEY } from "../authz/default-roles.js";
 import { generateSessionToken, hashSessionToken } from "../auth/session-tokens.js";
 import { UsersService, type CreateUserInput, type PublicUser } from "../auth/users.service.js";
 import { PrismaService } from "../prisma/prisma.service.js";
@@ -58,7 +58,7 @@ export class SetupService implements OnApplicationBootstrap {
    * Crée le premier compte si le jeton est valide. Tout est atomique : le jeton est verrouillé, donc deux requêtes
    * concurrentes ne peuvent pas créer deux comptes, et un mot de passe refusé ne consomme pas le jeton.
    */
-  async complete(token: string, input: CreateUserInput): Promise<PublicUser> {
+  async complete(token: string, input: CreateUserInput, options: { alsoTreasurer?: boolean } = {}): Promise<PublicUser> {
     const tokenHash = hashSessionToken(token);
     const user = await this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<{ id: string }[]>`
@@ -73,6 +73,12 @@ export class SetupService implements OnApplicationBootstrap {
       await this.authorization.ensureDefaultRoles(tx);
       const adminRole = await tx.role.findUniqueOrThrow({ where: { key: ADMIN_ROLE_KEY }, select: { id: true } });
       await tx.roleAssignment.create({ data: { userId: created.id, roleId: adminRole.id, createdBy: created.id } });
+      // Dans une petite association, la personne qui installe est souvent aussi le trésorier : le rôle d'administration
+      // seul n'a aucun droit métier (ADR 0028). Le choix est explicite et le rôle reste retirable ensuite.
+      if (options.alsoTreasurer) {
+        const treasurerRole = await tx.role.findUniqueOrThrow({ where: { key: TREASURER_ROLE_KEY }, select: { id: true } });
+        await tx.roleAssignment.create({ data: { userId: created.id, roleId: treasurerRole.id, createdBy: created.id } });
+      }
 
       await tx.setupToken.update({ where: { id: row.id }, data: { usedAt: new Date() } });
       return created;
@@ -83,7 +89,7 @@ export class SetupService implements OnApplicationBootstrap {
       objectType: "User",
       objectId: user.id,
       actorId: user.id,
-      details: { role: ADMIN_ROLE_KEY },
+      details: { role: ADMIN_ROLE_KEY, alsoTreasurer: options.alsoTreasurer === true },
     });
     return user;
   }

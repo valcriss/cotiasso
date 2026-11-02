@@ -314,6 +314,7 @@ model Account {
   proposedForTransactions Transaction[]
   budgetLines             BudgetLine[]
   commitments             Commitment[]
+  operationCategories     OperationCategory[]
 }
 
 enum EntryStatus {
@@ -1140,4 +1141,25 @@ model FundingExpenseAllocation {
 
   @@index([grantId])
   @@index([allocationId])
+}
+
+enum OperationDirection {
+  IN
+  OUT
+}
+
+// Catégorie d'opération en langage courant (ADR 0028) : cache le numéro de compte du plan au trésorier. Une catégorie
+// désigne le compte de contrepartie de l'écriture générée ; elle se désactive, elle ne se supprime pas.
+model OperationCategory {
+  id        String             @id @default(uuid()) @db.Uuid
+  direction OperationDirection
+  label     String
+  hint      String             @default("")
+  accountId String             @db.Uuid
+  position  Int                @default(0)
+  active    Boolean            @default(true)
+  createdAt DateTime           @default(now()) @db.Timestamptz(3)
+  createdBy String?            @db.Uuid
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
 }

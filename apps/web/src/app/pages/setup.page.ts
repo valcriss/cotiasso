@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -18,7 +19,7 @@ function matchesPassword(control: AbstractControl): ValidationErrors | null {
 
 @Component({
   selector: 'app-setup-page',
-  imports: [ReactiveFormsModule, MatCardModule, MatFormFieldModule, MatInputModule, MatButtonModule],
+  imports: [ReactiveFormsModule, MatCheckboxModule, MatCardModule, MatFormFieldModule, MatInputModule, MatButtonModule],
   template: `
     <main class="page">
       <mat-card appearance="outlined" class="card">
@@ -27,7 +28,7 @@ function matchesPassword(control: AbstractControl): ValidationErrors | null {
         </mat-card-header>
         <mat-card-content>
           <p class="intro">
-            Créez le premier compte administrateur. Le jeton d'installation s'affiche dans les journaux du serveur
+            Créez le premier compte (celui de la personne qui installe l’application). Le jeton d'installation s'affiche dans les journaux du serveur
             au démarrage.
           </p>
           <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
@@ -76,6 +77,12 @@ function matchesPassword(control: AbstractControl): ValidationErrors | null {
               }
             </mat-form-field>
 
+            <mat-checkbox formControlName="alsoTreasurer">Je suis aussi le trésorier ou la trésorière de l'association</mat-checkbox>
+            <p class="hint">
+              Le compte administrateur gère les accès et la sécurité, mais n'a aucun droit sur la comptabilité. Gardez cette case cochée si
+              c'est vous qui tiendrez les comptes ; vous pourrez changer les rôles plus tard.
+            </p>
+
             @if (error(); as failure) {
               <div class="error" role="alert">
                 <p>{{ failure.message }}</p>
@@ -108,6 +115,7 @@ export class SetupPage {
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(MIN_PASSWORD_LENGTH)]],
     confirmation: ['', [Validators.required, matchesPassword]],
+    alsoTreasurer: [true],
   });
   protected readonly submitting = signal(false);
   protected readonly error = signal<FormError | null>(null);
@@ -125,8 +133,8 @@ export class SetupPage {
     }
     this.submitting.set(true);
     try {
-      const { token, displayName, email, password } = this.form.getRawValue();
-      await this.auth.completeSetup({ token: token.trim(), displayName, email, password });
+      const { token, displayName, email, password, alsoTreasurer } = this.form.getRawValue();
+      await this.auth.completeSetup({ token: token.trim(), displayName, email, password, alsoTreasurer });
       await this.router.navigateByUrl('/');
     } catch (error) {
       this.error.set(describeHttpError(error, 'Installation impossible. Réessayez.'));

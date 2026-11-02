@@ -38,6 +38,8 @@ export interface SetupRequest {
   email: string;
   displayName: string;
   password: string;
+  /** La personne qui installe tiendra aussi les comptes : elle reçoit le rôle de trésorier en plus de l'administration. */
+  alsoTreasurer?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

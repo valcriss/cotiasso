@@ -5,6 +5,7 @@ import { vi } from 'vitest';
 import { AuthService, type AuthUser } from '../auth/auth.service';
 import { BrandingService } from '../branding/branding.service';
 import { NAVIGATION } from '../navigation';
+import { ThemeService } from '../theme/theme.service';
 import { Shell } from './shell';
 
 const user: AuthUser = {
@@ -73,7 +74,18 @@ describe('Shell', () => {
     const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) =>
       a.textContent?.trim(),
     );
+    // Affichage simple par défaut : les rubriques de l'expert (Comptabilité) sont masquées du menu.
+    expect(labels).toEqual([...NAVIGATION.filter((item) => !item.expert).map((item) => item.label), 'Paramètres'].map((l) => expect.stringContaining(l)));
+    expect(labels.join(' ')).not.toContain('Comptabilité');
+  });
+
+  it("montre toutes les rubriques en affichage comptable", async () => {
+    TestBed.inject(ThemeService).setViewMode('accounting');
+    const fixture = TestBed.createComponent(Shell);
+    await fixture.whenStable();
+    const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim());
     expect(labels).toEqual([...NAVIGATION.map((item) => item.label), 'Paramètres'].map((l) => expect.stringContaining(l)));
+    TestBed.inject(ThemeService).setViewMode('simple');
   });
 
   it("affiche l'utilisateur connecté", async () => {

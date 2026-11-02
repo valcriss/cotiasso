@@ -137,6 +137,7 @@ export const DEFAULT_ROLES: readonly DefaultRole[] = [
 ];
 
 export const ADMIN_ROLE_KEY = "technical-admin";
+export const TREASURER_ROLE_KEY = "treasurer";
 
 /** Permission dont la perte totale verrouillerait l'installation : au moins un compte actif doit la détenir. */
 export const LOCKOUT_PERMISSION: Permission = "users:admin";

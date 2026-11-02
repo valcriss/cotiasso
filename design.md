@@ -61,13 +61,22 @@ La comptabilité reste exacte et rigoureuse (c'est le rôle du logiciel), mais *
 - **Le contenu occupe toute la largeur disponible** : aucune largeur maximale sur les pages ; seules les boîtes de dialogue et la page de connexion ont une largeur fixe.
 - **Chaque zone de contenu est une carte** (panneau ou tableau : surface, bordure, ombre douce) posée sur le fond de page, jamais à plat. Un tableau est une carte par défaut ; dans un panneau il reste plat pour ne pas doubler le cadre.
 - **Les boutons sont des rectangles aux angles arrondis** (8 px), pas des pilules : même famille de formes que les champs et les cartes. Les pastilles d'état (étiquettes) peuvent rester arrondies.
+## 2 bis. Deux affichages : Simple et Comptable (ADR 0028)
+
+L'application a deux affichages, au choix de chaque personne (menu « Apparence » › Affichage, gardé dans le navigateur). **Simple est le défaut et se conçoit en premier.**
+
+- **Simple** : mots de tous les jours (« argent reçu / dépensé », « vérifié avec la banque », « annuler l'opération »), aucun numéro de compte, aucun code de journal, aucune saisie en débit/crédit. Le geste quotidien est **« J'ai reçu de l'argent » / « J'ai dépensé de l'argent »** : compte, montant, date, catégorie, description. La rubrique **Comptabilité** n'est pas dans le menu.
+- **Comptable** : tout le vocabulaire et les écrans de l'expert (écritures, grand livre, balance, livre-journal, reprise, progression), le numéro de compte et le code de journal sur les cartes de compte.
+- **Règles** : l'affichage n'est jamais un droit (le serveur vérifie toujours) ; un écran ne **demande** jamais la partie double à un trésorier, il la **montre** en lecture (« Ce que verra l'expert-comptable ») ; un mot comptable gardé à l'écran est expliqué à côté ; toute rubrique réservée à l'expert est marquée `expert` dans `navigation.ts` et reste accessible par son adresse.
+
 ## 3. Descriptions de page (proposition de texte)
 
 Phrases à afficher sous chaque titre. Elles sont volontairement pédagogiques ; les ajuster à l'usage.
 
 | Page | Titre | Description | Action principale (secondaires) |
 | --- | --- | --- | --- |
-| Vue d'ensemble | Vue d'ensemble | Un coup d'œil sur la situation de l'association : l'argent disponible, ce qu'il reste à faire et les derniers mouvements. | — |
+| Vue d'ensemble | Vue d'ensemble | Le point de départ : l'argent dont dispose l'association, ce qui s'est passé ce mois-ci et ce qu'il vous reste à faire. | J'ai reçu de l'argent (J'ai dépensé de l'argent) |
+| Démarrer | Démarrer | Trois étapes pour préparer votre association : la période de vos comptes, des catégories prêtes à l'emploi, puis votre compte bancaire. Aucune connaissance en comptabilité n'est nécessaire. | — |
 | Comptes | Comptes | Vos comptes bancaires et votre caisse : combien il y a dessus et quels mouvements restent à enregistrer. | Nouveau compte (Importer un relevé) |
 | Comptabilité › Écritures | Comptabilité | Chaque opération de l'association (achat, cotisation, subvention…) s'enregistre dans une écriture. Tant qu'elle est en brouillon, vous la corrigez librement ; une fois comptabilisée, on ne la modifie plus, on la contrepasse. | Nouvelle écriture |
 | Comptabilité › Grand livre | Grand livre | Le détail de tous les mouvements, compte par compte, avec le solde après chaque ligne. | (Exporter, à venir) |

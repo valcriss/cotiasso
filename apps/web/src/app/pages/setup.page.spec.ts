@@ -63,7 +63,7 @@ describe('SetupPage', () => {
     fill({ token: '  jeton-secret  ' });
     const done = submit();
     const request = controller.expectOne('/api/setup');
-    expect(request.request.body).toEqual({ token: 'jeton-secret', displayName: 'Marie', email: 'm@asso.fr', password: PASSWORD });
+    expect(request.request.body).toEqual({ token: 'jeton-secret', displayName: 'Marie', email: 'm@asso.fr', password: PASSWORD, alsoTreasurer: true });
     request.flush(session);
     await done;
     expect(navigate).toHaveBeenCalledWith('/');

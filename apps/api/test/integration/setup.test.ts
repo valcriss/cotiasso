@@ -135,3 +135,30 @@ describe("Assistant initial : requêtes concurrentes", () => {
     await expect(app.get(PrismaService).user.count()).resolves.toBe(1);
   });
 });
+
+describe("Assistant initial : la personne qui installe est aussi trésorière (ADR 0028)", () => {
+  let db: TempDatabase;
+  let app: NestFastifyApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    db = await createTempDatabase();
+    app = await startApp(db.url);
+    prisma = app.get(PrismaService);
+  }, 60_000);
+
+  afterAll(async () => {
+    await app.close();
+    await db.drop();
+  });
+
+  it("refuse un choix de rôle qui n'est pas un booléen, puis attribue les deux rôles dans la même transaction", async () => {
+    const token = (await app.get(SetupService).ensureToken())!;
+    expect((await post(app, token, { alsoTreasurer: "oui" })).statusCode).toBe(400);
+    await expect(prisma.user.count()).resolves.toBe(0);
+
+    expect((await post(app, token, { alsoTreasurer: true })).statusCode).toBe(201);
+    const roles = await prisma.roleAssignment.findMany({ include: { role: true } });
+    expect(roles.map((a) => a.role.key).sort()).toEqual(["technical-admin", "treasurer"]);
+  });
+});
