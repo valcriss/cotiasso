@@ -1,6 +1,6 @@
 # ADR 0024 — Projets, budgets et financements
 
-Statut : **proposé** (2 novembre 2026, lot 4) ; **tranches 4.1, 4.2, 4.3a, 4.3b et 4.4 livrées** le 2 novembre 2026 (voir les sections « ce qui a été livré »), la tranche 4.5 reste à valider. Applique le cadrage §14 (projets et suivi analytique), §15 (subventions et financeurs) et le modèle de données §22 (`BudgetVersion`, `BudgetLine`, `Commitment`, `Funder`, `Grant`, `GrantSchedule`, `GrantProjectAllocation`, `FundingExpenseAllocation`). Prolonge l'[ADR 0013](0013-projets-et-ventilation-analytique.md) (noyau projet) et l'[ADR 0022](0022-portee-projet-des-droits.md) (portée projet des droits).
+Statut : **proposé** (2 novembre 2026, lot 4) ; **tranches 4.1 à 4.5 livrées** le 2 novembre 2026 (voir les sections « ce qui a été livré »). Applique le cadrage §14 (projets et suivi analytique), §15 (subventions et financeurs) et le modèle de données §22 (`BudgetVersion`, `BudgetLine`, `Commitment`, `Funder`, `Grant`, `GrantSchedule`, `GrantProjectAllocation`, `FundingExpenseAllocation`). Prolonge l'[ADR 0013](0013-projets-et-ventilation-analytique.md) (noyau projet) et l'[ADR 0022](0022-portee-projet-des-droits.md) (portée projet des droits).
 
 Les points marqués **À valider** ne sont pas tranchés par le cadrage : ne pas les traiter comme acquis.
 
@@ -135,6 +135,19 @@ En plus des décisions arrêtées avec l'utilisateur (dépassement et hors-péri
 8. **Écrans** : panneaux « Dépenses affectées » (affecter, annuler, avertissements) et « Compte rendu pour le financeur » dans le détail d'une subvention accordée ou clôturée.
 
 **Reste** : les modèles propres à chaque financeur (en attente de conventions réelles), la présentation des **documents justificatifs** liés à une subvention (le lien documentaire de type `grant` existe mais l'écran ne les montre pas), et les avenants.
+
+## Tranche 4.5 — ce qui a été livré
+
+En plus des décisions arrêtées avec l'utilisateur (droit `documents:view`/`create` applicable à un projet, lecture et dépôt sur son projet, visibilité par projet ou subvention sauf pièce de membre, panneaux sur les fiches), décisions prises à la réalisation (à relire) :
+
+1. **Routes.** Lecture (liste, détail, téléchargement, options), dépôt, nouvelle version, modification du titre ou de la catégorie et ajout de lien passent par `@RequireProjectAccess` ; **archivage, désarchivage et retrait de lien restent globaux**. Le droit global garde exactement son comportement d'avant (aucun filtre).
+2. **Un seul filtre de visibilité** (`DocumentsService.access()`), appliqué à **toute** lecture : liste et son décompte, détail, téléchargement, ajout de version, modification, lien, **doublons signalés au dépôt** (sans cela le titre d'un document hors portée fuirait), et **filtre par objet lié** (une personne limitée ne peut filtrer que sur les liens qu'elle voit : sinon la liste révélerait qu'un document visible est aussi lié à un autre projet). Hors portée, un document est **introuvable (404)**, jamais « refusé ».
+3. **Liens vus.** Une personne limitée ne voit, dans le détail et dans le décompte, que les liens de sa portée (ses projets, leurs subventions) : pas les autres projets, ni les liens vers des écritures ou des transactions.
+4. **Dépôt.** Il exige au moins un lien, et seulement vers ses projets ou leurs subventions ; tout autre lien (autre projet, subvention d'un autre projet, membre, écriture) est refusé (403), de même que `restricted`. Le fichier déjà écrit est retiré (testé). Une version ou un titre ne se modifient que sur un document de la portée.
+5. **Document lié à un projet et à une écriture** : visible (seul le lien à un **membre** exclut). Document **sans lien** : réservé aux droits globaux.
+6. **Page Documents générale** : menu et route réservés au droit **global** (`NavigationItem.global`, `data.global`), les documents d'un projet se lisent depuis sa fiche. Panneau `linked-documents.ts` : liste filtrée côté serveur, téléchargement, dépôt (le projet ou la subvention est lié d'office, pas de choix « restreint »).
+7. **Conséquence sur les droits effectifs** : `/auth/me` et l'écran « Accès effectifs » listent aussi `documents:view` et `documents:create` pour un responsable de projet.
+8. **Tests d'accès** (`documents-scope.test.ts`, 17 cas, CA-10) : lecture, téléchargement, recherche, filtres, liens, dépôt refusé sans fichier résiduel, version, modification, liens, actions réservées, doublons, audit ; vérifié par **mutation** que le test échoue (11 cas) si le filtre de portée est retiré.
 
 ## Critères d'acceptation ajoutés (à inscrire au jeu de référence)
 

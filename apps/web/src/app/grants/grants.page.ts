@@ -4,6 +4,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { formatApiAmount } from '../accounting/amount';
+import { LinkedDocuments } from '../documents/linked-documents';
 import { AdminApiService, type FunderInfo, type GrantInfo, type GrantStatus } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
@@ -23,7 +24,7 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
  */
 @Component({
   selector: 'app-grants-page',
-  imports: [GrantExpenses, GrantFinance, GrantReport, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
+  imports: [GrantExpenses, GrantFinance, GrantReport, LinkedDocuments, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -244,6 +245,9 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
           }
         </table>
       </section>
+      @if (documentsAllowed('documents:view', grant)) {
+        <app-linked-documents objectType="grant" [objectId]="grant.id" [name]="grant.title" [canDeposit]="documentsAllowed('documents:create', grant) && grant.status !== 'CLOSED'" />
+      }
       @if (grant.status === 'GRANTED' || grant.status === 'CLOSED') {
         <app-grant-finance [grant]="grant" [canManage]="canManage()" (changed)="refresh()" />
         <app-grant-expenses [grant]="grant" [canManage]="canManage()" (changed)="refresh()" />
@@ -329,6 +333,15 @@ export class GrantsPage {
 
   constructor() {
     void this.load();
+  }
+
+  /**
+   * Documents d'une subvention : droit global, ou droit sur au moins un des projets qu'elle finance (le serveur filtre de toute
+   * façon : une personne limitée à un projet ne voit que les documents de sa portée).
+   */
+  protected documentsAllowed(permission: string, grant: GrantInfo): boolean {
+    this.auth.permissions();
+    return this.auth.can(permission) || grant.allocations.some((a) => this.auth.canOnProject(permission, a.projectId));
   }
 
   protected statusLabel(status: GrantStatus): string {

@@ -8,6 +8,7 @@ import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { PageHeader } from '../ui/page-header';
 import { formatApiAmount } from './amount';
+import { LinkedDocuments } from '../documents/linked-documents';
 import { ProjectBudget } from './project-budget';
 import { ProjectCommitments } from './project-commitments';
 import { ProjectReport } from './project-report';
@@ -19,7 +20,7 @@ import { PROJECT_STATUS_LABELS } from './project-labels';
 /** Projets : axe analytique des charges et produits, avec leur synthèse globale et annuelle. */
 @Component({
   selector: 'app-projects-page',
-  imports: [MatButtonModule, MatIconModule, PageHeader, ProjectBudget, ProjectCommitments, ProjectGrants, ProjectParticipants, ProjectReport],
+  imports: [MatButtonModule, MatIconModule, PageHeader, LinkedDocuments, ProjectBudget, ProjectCommitments, ProjectGrants, ProjectParticipants, ProjectReport],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -141,6 +142,9 @@ import { PROJECT_STATUS_LABELS } from './project-labels';
       @if (canSeeGrants(project.id)) {
         <app-project-grants [project]="project" />
       }
+      @if (canOn('documents:view', project.id)) {
+        <app-linked-documents objectType="project" [objectId]="project.id" [name]="project.name" [canDeposit]="canOn('documents:create', project.id) && project.status !== 'ARCHIVED'" />
+      }
       <app-project-participants [project]="project" />
     }
   `,
@@ -179,6 +183,13 @@ export class ProjectsPage {
 
   constructor() {
     void this.load();
+  }
+
+  /** Droit global, ou accordé sur ce projet par une attribution à portée projet. */
+  protected canOn(permission: string, projectId: string): boolean {
+    this.auth.permissions();
+    this.auth.projectPermissions?.();
+    return this.auth.canOnProject(permission, projectId);
   }
 
   /** Les financements d'un projet se lisent avec `grants:view`, globalement ou sur ce projet. */

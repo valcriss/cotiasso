@@ -146,6 +146,9 @@ export interface DocumentFilters {
   category?: string;
   includeArchived?: boolean;
   page?: number;
+  /** Documents liés à un objet précis (projet, subvention…). */
+  objectType?: string;
+  objectId?: string;
 }
 
 export interface DocumentUploadResult {
@@ -1165,6 +1168,8 @@ export class AdminApiService {
     if (filters.q) params = params.set('q', filters.q);
     if (filters.category) params = params.set('category', filters.category);
     if (filters.includeArchived) params = params.set('includeArchived', 'true');
+    if (filters.objectType) params = params.set('objectType', filters.objectType);
+    if (filters.objectId) params = params.set('objectId', filters.objectId);
     if (filters.page && filters.page > 1) params = params.set('page', String(filters.page));
     return firstValueFrom(this.http.get<{ items: DocumentSummary[]; total: number; pageSize: number }>('/api/documents', { params }));
   }

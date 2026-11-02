@@ -14,4 +14,4 @@ Statut : retenu (2 novembre 2026, lot 2.1). Applique le cadrage §6 (« droits g
 
 ## Hors de cette tranche
 
-Droits documentaires par projet et héritage vers les documents (avec le lot 4), droits par projet sur les écritures et transactions (la ventilation analytique reste lisible par les droits comptables globaux), délégation et suppléance (workflows, lot 5).
+Droits documentaires par projet et héritage vers les documents (**faits** avec la tranche 4.5 du lot 4, [ADR 0024](0024-projets-budgets-et-financements.md)), droits par projet sur les écritures et transactions (la ventilation analytique reste lisible par les droits comptables globaux), délégation et suppléance (workflows, lot 5).

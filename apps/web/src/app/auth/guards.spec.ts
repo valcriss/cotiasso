@@ -5,7 +5,8 @@ import { AuthService } from './auth.service';
 import { authGuard, loginGuard, mfaEnrollGuard, mfaVerifyGuard, permissionGuard, setupGuard } from './guards';
 import type { MfaStatus } from './auth.service';
 
-function configure(state: { setupRequired: boolean; user: object | null; permissions?: string[]; mfa?: MfaStatus }) {
+/** `permissions` : droits globaux ; `scoped` : droits seulement sur un projet (`can` les ignore, `canAny` les compte). */
+function configure(state: { setupRequired: boolean; user: object | null; permissions?: string[]; scoped?: string[]; mfa?: MfaStatus }) {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
@@ -17,7 +18,8 @@ function configure(state: { setupRequired: boolean; user: object | null; permiss
           user: signal(state.user).asReadonly(),
           mfa: signal(state.mfa ?? { state: 'OK', enabled: false, required: false }).asReadonly(),
           can: (permission: string | undefined) => permission === undefined || (state.permissions ?? []).includes(permission),
-          canAny: (permission: string | undefined) => permission === undefined || (state.permissions ?? []).includes(permission),
+          canAny: (permission: string | undefined) =>
+            permission === undefined || (state.permissions ?? []).includes(permission) || (state.scoped ?? []).includes(permission),
         },
       },
     ],
@@ -80,6 +82,20 @@ describe('guards', () => {
     TestBed.resetTestingModule();
     configure({ setupRequired: false, user: { id: '1' }, permissions: ['projects:view'] });
     expect(target(check())).toBe('/');
+  });
+
+  it("permissionGuard : un droit limité à un projet ouvre une page filtrée, mais pas une page réservée aux droits globaux", () => {
+    const filtered = { data: { permission: 'projects:view' } } as unknown as ActivatedRouteSnapshot;
+    const globalOnly = { data: { permission: 'documents:view', global: true } } as unknown as ActivatedRouteSnapshot;
+    const check = (route: ActivatedRouteSnapshot) => TestBed.runInInjectionContext(() => permissionGuard(route, {} as RouterStateSnapshot));
+
+    configure({ setupRequired: false, user: { id: '1' }, scoped: ['projects:view', 'documents:view'] });
+    expect(check(filtered)).toBe(true);
+    expect(target(check(globalOnly))).toBe('/');
+
+    TestBed.resetTestingModule();
+    configure({ setupRequired: false, user: { id: '1' }, permissions: ['documents:view'] });
+    expect(check(globalOnly)).toBe(true);
   });
 
   it("authGuard : renvoie vers la vérification ou l'activation du second facteur selon l'état de la session", async () => {

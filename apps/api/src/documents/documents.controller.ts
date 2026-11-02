@@ -24,7 +24,7 @@ import {
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { AuthenticatedRequest } from "../auth/auth.guard.js";
 import { AuthorizationService } from "../authz/authorization.service.js";
-import { RequirePermission } from "../authz/decorators.js";
+import { RequirePermission, RequireProjectAccess } from "../authz/decorators.js";
 import { DOCUMENT_CATEGORIES, LINKABLE_OBJECT_TYPES } from "./categories.js";
 import { DocumentStorage } from "./document-storage.js";
 import {
@@ -34,6 +34,7 @@ import {
   InvalidDocumentError,
   InvalidFileError,
   RestrictedAccessError,
+  ScopeAccessError,
 } from "./errors.js";
 import { ALLOWED_EXTENSIONS } from "./file-types.js";
 import {
@@ -69,6 +70,7 @@ function translate(error: unknown): never {
   if (error instanceof InvalidDocumentError) throw new BadRequestException(error.message);
   if (error instanceof DocumentArchivedError) throw new ConflictException(error.message);
   if (error instanceof RestrictedAccessError) throw new ForbiddenException(error.message);
+  if (error instanceof ScopeAccessError) throw new ForbiddenException(error.message);
   throw error;
 }
 
@@ -81,7 +83,7 @@ export class DocumentsController {
   ) {}
 
   /** Catégories et types d'objets liables, pour construire les formulaires. */
-  @RequirePermission("documents:view")
+  @RequireProjectAccess("documents:view")
   @Get("options")
   options(): { categories: { key: string; label: string }[]; objectTypes: readonly string[]; allowedExtensions: string[] } {
     return {
@@ -91,7 +93,7 @@ export class DocumentsController {
     };
   }
 
-  @RequirePermission("documents:view")
+  @RequireProjectAccess("documents:view")
   @Get()
   async list(
     @Req() request: AuthenticatedRequest,
@@ -120,7 +122,7 @@ export class DocumentsController {
     );
   }
 
-  @RequirePermission("documents:view")
+  @RequireProjectAccess("documents:view")
   @Get(":id")
   async get(@Param("id") id: string, @Req() request: AuthenticatedRequest): Promise<DocumentDetail> {
     try {
@@ -131,7 +133,7 @@ export class DocumentsController {
   }
 
   /** Téléchargement toujours en pièce jointe, avec le type détecté à l'envoi et sans interprétation par le navigateur. */
-  @RequirePermission("documents:view")
+  @RequireProjectAccess("documents:view")
   @Get(":id/download")
   async download(
     @Param("id") id: string,
@@ -152,7 +154,7 @@ export class DocumentsController {
     }
   }
 
-  @RequirePermission("documents:create")
+  @RequireProjectAccess("documents:create")
   @Post()
   async create(
     @Req() request: AuthenticatedRequest,
@@ -178,7 +180,7 @@ export class DocumentsController {
     }
   }
 
-  @RequirePermission("documents:create")
+  @RequireProjectAccess("documents:create")
   @Post(":id/versions")
   async addVersion(
     @Param("id") id: string,
@@ -194,7 +196,7 @@ export class DocumentsController {
     }
   }
 
-  @RequirePermission("documents:create")
+  @RequireProjectAccess("documents:create")
   @Patch(":id")
   async update(
     @Param("id") id: string,
@@ -247,7 +249,7 @@ export class DocumentsController {
     }
   }
 
-  @RequirePermission("documents:create")
+  @RequireProjectAccess("documents:create")
   @Post(":id/links")
   @HttpCode(HttpStatus.OK)
   async addLink(@Param("id") id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<DocumentDetail> {
@@ -277,7 +279,13 @@ export class DocumentsController {
   private async viewer(request: AuthenticatedRequest): Promise<Viewer> {
     const userId = request.auth!.user.id;
     const permissions = await this.authorization.permissionsFor(userId);
-    return { userId, canSeeRestricted: permissions.has("documents.restricted:view") };
+    // Droit global : aucun filtre. Sinon la route a posé la portée (ADR 0022) : le service ne montre que les documents de ces projets.
+    const access = request.projectAccess;
+    return {
+      userId,
+      canSeeRestricted: permissions.has("documents.restricted:view"),
+      ...(access && !access.all && { scope: access.ids }),
+    };
   }
 
   private parseLinks(raw: string | undefined): { objectType: string; objectId: string }[] {

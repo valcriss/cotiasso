@@ -39,3 +39,11 @@ export class RestrictedAccessError extends Error {
     this.name = "RestrictedAccessError";
   }
 }
+
+/** Une personne limitée à un projet sort de sa portée : lier un document à autre chose que ses projets, le rendre restreint… */
+export class ScopeAccessError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ScopeAccessError";
+  }
+}

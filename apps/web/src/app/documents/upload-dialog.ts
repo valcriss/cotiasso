@@ -13,6 +13,8 @@ import { titleFromFilename } from './format';
 export interface UploadDialogData {
   options: DocumentOptions;
   canSeeRestricted: boolean;
+  /** Objets auxquels le document est lié dès le dépôt (ex. le projet depuis sa fiche). */
+  links?: { objectType: string; objectId: string }[];
 }
 
 /** Dépôt d'un document, en boîte de dialogue. Renvoie le résultat du dépôt (document et doublons éventuels). */
@@ -111,6 +113,7 @@ export class UploadDialog {
     body.append('category', category);
     if (comment) body.append('comment', comment);
     if (restricted) body.append('restricted', 'true');
+    if (this.data.links && this.data.links.length > 0) body.append('links', JSON.stringify(this.data.links));
     body.append('file', file);
 
     this.error.set(null);

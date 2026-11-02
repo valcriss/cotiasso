@@ -110,6 +110,26 @@ describe('ProjectsPage', () => {
     expect(text).toContain('440,00');
   });
 
+  it('montre les documents du projet à qui a documents:view sur ce projet, et les demande au serveur', async () => {
+    await create(['projects:view', 'documents:view']);
+    await click('Ouvrir Festival');
+    controller.expectOne('/api/projects/p1/summary').flush(empty);
+    await flushPanels('p1');
+    controller.expectOne((r) => r.url === '/api/documents' && r.params.get('objectType') === 'project' && r.params.get('objectId') === 'p1').flush({ items: [], total: 0, pageSize: 50 });
+    controller.expectOne('/api/documents/options').flush({ categories: [], objectTypes: [], allowedExtensions: [] });
+    await settle();
+    expect(root.querySelector('section[aria-label="Documents de Festival"]')).toBeTruthy();
+    expect(root.textContent).toContain("Aucun document n'est disponible ici.");
+  });
+
+  it('ne montre pas de panneau Documents, et ne fait aucune requête, sans le droit', async () => {
+    await create(['projects:view']);
+    await click('Ouvrir Festival');
+    controller.expectOne('/api/projects/p1/summary').flush(empty);
+    await flushPanels('p1');
+    expect(root.querySelector('section[aria-label="Documents de Festival"]')).toBeNull();
+  });
+
   it('indique quand rien n’a été ventilé sur le projet', async () => {
     await create(['projects:view']);
     await click('Ouvrir Festival');

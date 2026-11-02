@@ -165,7 +165,7 @@ export const routes: Routes = [
         path: 'documents',
         title: 'Documents',
         canActivate: [permissionGuard],
-        data: { permission: 'documents:view' },
+        data: { permission: 'documents:view', global: true },
         loadComponent: () => import('./documents/documents.page').then((m) => m.DocumentsPage),
       },
       {

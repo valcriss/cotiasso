@@ -4,6 +4,11 @@ export interface NavigationItem {
   icon: string;
   /** Permission exigée pour voir et ouvrir la rubrique ; absente = tout utilisateur connecté. */
   permission?: string;
+  /**
+   * La rubrique exige le droit **global** : un droit limité à un projet ne suffit pas. Les documents d'un projet se lisent depuis
+   * sa fiche (ADR 0024, tranche 4.5), pas depuis la page Documents générale.
+   */
+  global?: boolean;
 }
 
 /**
@@ -18,7 +23,7 @@ export const NAVIGATION: readonly NavigationItem[] = [
   { path: 'projets', label: 'Projets', icon: 'folder_open', permission: 'projects:view' },
   { path: 'subventions', label: 'Subventions', icon: 'payments', permission: 'grants:view' },
   { path: 'rapports', label: 'Rapports', icon: 'bar_chart', permission: 'reports:view' },
-  { path: 'documents', label: 'Documents', icon: 'description', permission: 'documents:view' },
+  { path: 'documents', label: 'Documents', icon: 'description', permission: 'documents:view', global: true },
 ];
 
 export const SETTINGS_ITEM: NavigationItem = {

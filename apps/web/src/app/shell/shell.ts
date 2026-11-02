@@ -22,7 +22,7 @@ export class Shell {
   protected readonly associationName = computed(() => this.brandingService.branding().appName);
   protected readonly navigation = computed(() => {
     this.auth.permissions();
-    return NAVIGATION.filter((item) => this.auth.canAny(item.permission));
+    return NAVIGATION.filter((item) => (item.global ? this.auth.can(item.permission) : this.auth.canAny(item.permission)));
   });
   protected readonly settings = computed(() => {
     this.auth.permissions();

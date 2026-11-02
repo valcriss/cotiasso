@@ -117,6 +117,8 @@ describe("Portée projet des droits (ADR 0022, base vierge)", () => {
       const access = (await call("GET", `/users/${person.id}/access`, admin)).json();
       expect(access.permissions).toEqual([]);
       expect(access.projectPermissions.map((p: { permission: string; projectCode: string }) => `${p.permission}@${p.projectCode}`)).toEqual([
+        "documents:create@ATELIERS",
+        "documents:view@ATELIERS",
         "grants:view@ATELIERS",
         "projects:update@ATELIERS",
         "projects:view@ATELIERS",
@@ -138,10 +140,20 @@ describe("Portée projet des droits (ADR 0022, base vierge)", () => {
     it("n'a aucun droit global : le reste du rôle ne fuit pas", async () => {
       const me = (await call("GET", "/auth/me", scoped)).json();
       expect(me.permissions).toEqual([]);
-      expect(me.projectPermissions).toEqual({ "projects:view": [ids.a], "projects:update": [ids.a], "grants:view": [ids.a] });
-      // Le rôle « chef de projet » porte d'autres droits (documents…), jamais accordés globalement par une portée projet.
-      expect((await call("GET", "/documents", scoped)).statusCode).toBe(403);
+      expect(me.projectPermissions).toEqual({
+        "projects:view": [ids.a],
+        "projects:update": [ids.a],
+        "grants:view": [ids.a],
+        "documents:view": [ids.a],
+        "documents:create": [ids.a],
+      });
+      // Le rôle « chef de projet » porte d'autres droits, jamais accordés globalement par une portée projet.
       expect((await call("GET", "/entries", scoped)).statusCode).toBe(403);
+      expect((await call("GET", "/financial-accounts", scoped)).statusCode).toBe(403);
+      // Les documents, eux, sont ouverts mais filtrés par la portée (voir documents-scope.test.ts) : aucun ici, rien n'est lié à ATELIERS.
+      const documents = await call("GET", "/documents", scoped);
+      expect(documents.statusCode).toBe(200);
+      expect(documents.json()).toMatchObject({ items: [], total: 0 });
     });
 
     it("ne voit que son projet : la liste est filtrée et un autre projet est introuvable", async () => {

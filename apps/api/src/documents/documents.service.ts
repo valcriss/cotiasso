@@ -5,7 +5,7 @@ import type { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { isDocumentCategory, isLinkableObjectType } from "./categories.js";
 import { DocumentStorage, type StoredFile } from "./document-storage.js";
-import { DocumentArchivedError, DocumentNotFoundError, InvalidDocumentError, InvalidFileError, RestrictedAccessError } from "./errors.js";
+import { DocumentArchivedError, DocumentNotFoundError, InvalidDocumentError, InvalidFileError, RestrictedAccessError, ScopeAccessError } from "./errors.js";
 import { detectFileType, sanitizeFilename } from "./file-types.js";
 
 export interface IncomingFile extends StoredFile {
@@ -43,6 +43,19 @@ export interface Viewer {
   userId: string;
   /** Détient documents.restricted:view : peut voir et télécharger les documents restreints. */
   canSeeRestricted: boolean;
+  /**
+   * Projets auxquels l'accès est limité (ADR 0024, tranche 4.5) ; absent = droit global, aucun filtre. Une personne limitée à des
+   * projets ne voit que les documents liés à l'un d'eux (ou à une subvention qui en finance un), jamais ceux liés à un membre.
+   */
+  scope?: ReadonlySet<string>;
+}
+
+/** Filtres de visibilité d'un lecteur : documents visibles, et liens qu'il a le droit de voir. */
+interface Access {
+  where: Prisma.DocumentWhereInput;
+  linkWhere?: Prisma.DocumentLinkWhereInput;
+  /** Subventions de la portée (ids), pour valider les liens d'un dépôt. */
+  grantIds: ReadonlySet<string>;
 }
 
 export interface DuplicateInfo {
@@ -56,11 +69,6 @@ const MAX_OBJECT_ID = 100;
 const PAGE_SIZE = 50;
 
 type Tx = Prisma.TransactionClient;
-
-const SUMMARY_INCLUDE = {
-  versions: { orderBy: { number: "desc" }, take: 1 },
-  _count: { select: { versions: true, links: true } },
-} satisfies Prisma.DocumentInclude;
 
 @Injectable()
 export class DocumentsService {
@@ -80,7 +88,9 @@ export class DocumentsService {
       const title = this.title(input.title);
       this.category(input.category);
       if (input.restricted && !viewer.canSeeRestricted) throw new RestrictedAccessError();
+      if (input.restricted && viewer.scope) throw new ScopeAccessError("Rendre un document restreint est réservé aux droits globaux.");
       const links = (input.links ?? []).map((link) => this.link(link));
+      if (viewer.scope) await this.assertScopedLinks(links, viewer, true);
       const version = this.version(file);
 
       const created = await this.prisma.$transaction(async (tx) => {
@@ -143,11 +153,12 @@ export class DocumentsService {
   }
 
   async list(filters: DocumentFilters, viewer: Viewer, page = 1): Promise<{ items: DocumentSummary[]; total: number; pageSize: number }> {
-    const where = this.where(filters, viewer);
+    const access = await this.access(viewer);
+    const where = this.where(filters, viewer, access);
     const [rows, total] = await Promise.all([
       this.prisma.document.findMany({
         where,
-        include: SUMMARY_INCLUDE,
+        include: this.summaryInclude(access),
         orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
         skip: (Math.max(page, 1) - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
@@ -158,11 +169,17 @@ export class DocumentsService {
   }
 
   async get(documentId: string, viewer: Viewer): Promise<DocumentDetail> {
-    const row = await this.prisma.document.findUnique({
-      where: { id: documentId },
-      include: { ...SUMMARY_INCLUDE, versions: { orderBy: { number: "desc" } }, links: { orderBy: { createdAt: "asc" } } },
+    const access = await this.access(viewer);
+    const row = await this.prisma.document.findFirst({
+      where: { AND: [{ id: documentId }, access.where, ...(viewer.canSeeRestricted ? [] : [{ restricted: false }])] },
+      include: {
+        ...this.summaryInclude(access),
+        versions: { orderBy: { number: "desc" } },
+        // Une personne limitée à des projets ne voit que les liens de sa portée, pas ceux vers d'autres projets ou objets.
+        links: { ...(access.linkWhere && { where: access.linkWhere }), orderBy: { createdAt: "asc" } },
+      },
     });
-    if (!row || (row.restricted && !viewer.canSeeRestricted)) throw new DocumentNotFoundError();
+    if (!row) throw new DocumentNotFoundError();
 
     return {
       ...this.summary({ ...row, versions: row.versions.slice(0, 1) }),
@@ -212,6 +229,9 @@ export class DocumentsService {
     if (changes.restricted !== undefined && changes.restricted !== document.restricted && !viewer.canSeeRestricted) {
       throw new RestrictedAccessError();
     }
+    if (changes.restricted !== undefined && changes.restricted !== document.restricted && viewer.scope) {
+      throw new ScopeAccessError("Rendre un document restreint, ou le rendre à nouveau visible, est réservé aux droits globaux.");
+    }
     if (changes.category !== undefined) this.category(changes.category);
 
     await this.prisma.document.update({
@@ -249,6 +269,7 @@ export class DocumentsService {
     const document = await this.visible(this.prisma, documentId, viewer);
     if (document.archivedAt) throw new DocumentArchivedError();
     const clean = this.link(link);
+    if (viewer.scope) await this.assertScopedLinks([clean], viewer, false);
 
     await this.prisma.documentLink.upsert({
       where: { documentId_objectType_objectId: { documentId, ...clean } },
@@ -276,31 +297,98 @@ export class DocumentsService {
     return this.get(documentId, viewer);
   }
 
+  /**
+   * Document visible par ce lecteur, sinon introuvable : un document restreint exige le droit dédié, et une personne limitée
+   * à des projets ne voit que les documents de sa portée. On ne distingue jamais « n'existe pas » de « pas à vous ».
+   */
   private async visible(db: Pick<Tx, "document">, documentId: string, viewer: Viewer) {
-    const document = await db.document.findUnique({ where: { id: documentId } });
-    if (!document || (document.restricted && !viewer.canSeeRestricted)) throw new DocumentNotFoundError();
+    const access = await this.access(viewer);
+    const document = await db.document.findFirst({
+      where: { AND: [{ id: documentId }, access.where, ...(viewer.canSeeRestricted ? [] : [{ restricted: false }])] },
+    });
+    if (!document) throw new DocumentNotFoundError();
     return document;
   }
 
   /** Documents déjà déposés avec exactement le même contenu : signalés, jamais bloqués (un justificatif peut servir deux fois). */
   private async duplicates(sha256: string, excludeId: string, viewer: Viewer): Promise<DuplicateInfo[]> {
+    const access = await this.access(viewer);
     const rows = await this.prisma.document.findMany({
-      where: { id: { not: excludeId }, versions: { some: { sha256 } }, ...(viewer.canSeeRestricted ? {} : { restricted: false }) },
+      // Même filtre de visibilité que partout : un doublon hors portée ne doit pas révéler son titre.
+      where: { AND: [{ id: { not: excludeId }, versions: { some: { sha256 } } }, access.where, ...(viewer.canSeeRestricted ? [] : [{ restricted: false }])] },
       select: { id: true, title: true },
       take: 5,
     });
     return rows.map((row) => ({ documentId: row.id, title: row.title }));
   }
 
-  private where(filters: DocumentFilters, viewer: Viewer): Prisma.DocumentWhereInput {
+  /**
+   * Visibilité d'un lecteur. Droit global : aucun filtre. Limité à des projets : lié à l'un d'eux ou à une subvention qui en
+   * finance un, et jamais lié à un membre (les pièces personnelles ne s'ouvrent pas par la portée d'un projet).
+   */
+  private async access(viewer: Viewer): Promise<Access> {
+    if (!viewer.scope) return { where: {}, grantIds: new Set() };
+    const projects = [...viewer.scope];
+    const grants = await this.prisma.grant.findMany({ where: { allocations: { some: { projectId: { in: projects } } } }, select: { id: true } });
+    const grantIds = grants.map((g) => g.id);
+    const linkWhere: Prisma.DocumentLinkWhereInput = {
+      OR: [{ objectType: "project", objectId: { in: projects } }, { objectType: "grant", objectId: { in: grantIds } }],
+    };
     return {
-      ...(viewer.canSeeRestricted ? {} : { restricted: false }),
-      ...(filters.includeArchived ? {} : { archivedAt: null }),
-      ...(filters.category && { category: filters.category }),
-      ...(filters.q && { title: { contains: filters.q, mode: "insensitive" as const } }),
-      ...(filters.objectType && {
-        links: { some: { objectType: filters.objectType, ...(filters.objectId && { objectId: filters.objectId }) } },
-      }),
+      where: { AND: [{ links: { some: linkWhere } }, { links: { none: { objectType: "member" } } }] },
+      linkWhere,
+      grantIds: new Set(grantIds),
+    };
+  }
+
+  private summaryInclude(access: Access) {
+    return {
+      versions: { orderBy: { number: "desc" }, take: 1 },
+      _count: { select: { versions: true, links: access.linkWhere ? { where: access.linkWhere } : true } },
+    } satisfies Prisma.DocumentInclude;
+  }
+
+  /**
+   * Les liens qu'une personne limitée à des projets peut poser : des projets de sa portée et des subventions de sa portée, rien
+   * d'autre (ni autre projet, ni membre, ni écriture). Au dépôt, il en faut au moins un : le document doit appartenir à son projet.
+   */
+  private async assertScopedLinks(links: { objectType: string; objectId: string }[], viewer: Viewer, requireOne: boolean): Promise<void> {
+    const access = await this.access(viewer);
+    for (const link of links) {
+      const allowed =
+        (link.objectType === "project" && viewer.scope!.has(link.objectId)) || (link.objectType === "grant" && access.grantIds.has(link.objectId));
+      if (!allowed) {
+        throw new ScopeAccessError("Vous ne pouvez lier un document qu'à vos projets, ou aux subventions qui les financent.");
+      }
+    }
+    if (requireOne && links.length === 0) {
+      throw new ScopeAccessError("Un document déposé pour un projet doit être lié à ce projet : indiquez le projet concerné.");
+    }
+  }
+
+  private where(filters: DocumentFilters, viewer: Viewer, access: Access): Prisma.DocumentWhereInput {
+    return {
+      AND: [
+        access.where,
+        {
+          ...(viewer.canSeeRestricted ? {} : { restricted: false }),
+          ...(filters.includeArchived ? {} : { archivedAt: null }),
+          ...(filters.category && { category: filters.category }),
+          ...(filters.q && { title: { contains: filters.q, mode: "insensitive" as const } }),
+          // Filtrer par objet lié : une personne limitée à des projets ne peut filtrer que sur les liens qu'elle a le droit de voir,
+          // sinon la liste révélerait un lien (vers un autre projet, un membre) qu'on lui cache.
+          ...(filters.objectType && {
+            links: {
+              some: {
+                AND: [
+                  ...(access.linkWhere ? [access.linkWhere] : []),
+                  { objectType: filters.objectType, ...(filters.objectId && { objectId: filters.objectId }) },
+                ],
+              },
+            },
+          }),
+        },
+      ],
     };
   }
 

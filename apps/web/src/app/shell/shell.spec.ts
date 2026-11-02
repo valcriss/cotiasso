@@ -17,10 +17,13 @@ const user: AuthUser = {
 
 describe('Shell', () => {
   const logout = vi.fn(() => Promise.resolve());
+  /** Droits seulement sur un projet : `canAny` les compte, `can` les ignore. */
+  const scoped = signal<ReadonlySet<string>>(new Set());
   const permissions = signal<ReadonlySet<string>>(new Set(NAVIGATION.map((item) => item.permission ?? '').concat('settings.association:view')));
 
   beforeEach(async () => {
     logout.mockClear();
+    scoped.set(new Set());
     permissions.set(new Set(NAVIGATION.map((item) => item.permission ?? '').concat('settings.association:view')));
     await TestBed.configureTestingModule({
       imports: [Shell],
@@ -33,7 +36,7 @@ describe('Shell', () => {
             user: signal(user).asReadonly(),
             permissions: permissions.asReadonly(),
             can: (permission: string | undefined) => permission === undefined || permissions().has(permission),
-            canAny: (permission: string | undefined) => permission === undefined || permissions().has(permission),
+            canAny: (permission: string | undefined) => permission === undefined || permissions().has(permission) || scoped().has(permission),
             logout,
           },
         },
@@ -47,6 +50,15 @@ describe('Shell', () => {
     await fixture.whenStable();
     const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim());
     expect(labels).toEqual(["Vue d'ensemble", 'Projets', 'Documents'].map((l) => expect.stringContaining(l)));
+  });
+
+  it('pour un droit limité à un projet, montre les rubriques filtrées par le serveur mais pas la page Documents générale', async () => {
+    permissions.set(new Set());
+    scoped.set(new Set(['projects:view', 'grants:view', 'documents:view']));
+    const fixture = TestBed.createComponent(Shell);
+    await fixture.whenStable();
+    const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim());
+    expect(labels).toEqual(["Vue d'ensemble", 'Projets', 'Subventions'].map((l) => expect.stringContaining(l)));
   });
 
   it("affiche le nom de l'association défini par la marque blanche", async () => {

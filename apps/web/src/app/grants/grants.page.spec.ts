@@ -231,6 +231,27 @@ describe('GrantsPage', () => {
     expect(text()).toContain('2026-03-15 — Enveloppe épuisée');
   });
 
+  it('montre les documents d’une subvention à qui peut les lire, et pas aux autres', async () => {
+    await create(['grants:view', 'documents:view'], [grant()], [funder()]);
+    await click('Ouvrir Aide au festival');
+    controller.expectOne('/api/grants/g1').flush(grant());
+    await settle();
+    controller.expectOne((r) => r.url === '/api/documents' && r.params.get('objectType') === 'grant' && r.params.get('objectId') === 'g1').flush({ items: [], total: 0, pageSize: 50 });
+    controller.expectOne('/api/documents/options').flush({ categories: [], objectTypes: [], allowedExtensions: [] });
+    await settle();
+    expect(root.querySelector('section[aria-label="Documents de Aide au festival"]')).toBeTruthy();
+    // Sans documents:create, pas de dépôt.
+    expect(has('Déposer un document')).toBe(false);
+  });
+
+  it('ne montre pas de panneau Documents sans le droit de lire les documents', async () => {
+    await create(['grants:view'], [grant()], [funder()]);
+    await click('Ouvrir Aide au festival');
+    controller.expectOne('/api/grants/g1').flush(grant());
+    await settle();
+    expect(root.querySelector('section[aria-label="Documents de Aide au festival"]')).toBeNull();
+  });
+
   it('ajoute un financeur', async () => {
     await create(MANAGER, [], []);
     await click('Nouveau financeur');
