@@ -1,6 +1,7 @@
 export { Money } from "./money.js";
 export {
   checkEntryForPosting,
+  projectRequiredMessage,
   type FiscalYearView,
   type JournalEntryDraft,
   type JournalLineDraft,

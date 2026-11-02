@@ -1,4 +1,4 @@
-import { checkEntryForPosting, Money, type PostingError } from "@cotiasso/accounting-domain";
+import { checkEntryForPosting, Money, projectRequiredMessage, type PostingError } from "@cotiasso/accounting-domain";
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "../audit/audit.service.js";
 import type { EntryKind, EntryStatus, Prisma } from "../generated/prisma/client.js";
@@ -125,10 +125,14 @@ const REFUSAL_FRAGMENTS = [
 ];
 
 /** Texte lisible d'un refus levé par un déclencheur SQL (RAISE EXCEPTION), ou `null` si l'erreur est autre. */
-function databaseRefusal(error: unknown): string | null {
+export function databaseRefusal(error: unknown): string | null {
   const text = `${(error as Error)?.message ?? ""}\n${String((error as { cause?: unknown })?.cause ?? "")}`;
   const line = text.split("\n").find((candidate) => REFUSAL_FRAGMENTS.some((fragment) => candidate.includes(fragment)));
-  return line ? line.replace(/^.*?ERROR:\s*/, "").trim() : null;
+  if (!line) return null;
+  const refusal = line.replace(/^.*?ERROR:\s*/, "").trim();
+  // Le déclencheur SQL est la dernière garantie (course avec une modification concurrente) : même message à trois temps que le contrôle du service.
+  const project = /Projet obligatoire sur la ligne (\d+) \(compte (\d+)\)/.exec(refusal);
+  return project ? projectRequiredMessage(Number(project[1]), project[2]!) : refusal;
 }
 
 @Injectable()

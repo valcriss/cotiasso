@@ -117,7 +117,7 @@ export function checkEntryForPosting(entry: JournalEntryDraft, rules: PostingRul
     if (rules.projectRequiredOnIncomeAndExpense && isIncomeOrExpense(line.accountNumber) && !line.projectId) {
       errors.push({
         code: "PROJECT_REQUIRED",
-        message: "Projet obligatoire sur une ligne de charge ou de produit.",
+        message: projectRequiredMessage(lineIndex + 1, line.accountNumber),
         lineIndex,
       });
     }
@@ -131,4 +131,16 @@ export function checkEntryForPosting(entry: JournalEntryDraft, rules: PostingRul
   }
 
   return errors.length === 0 ? { ok: true } : { ok: false, errors };
+}
+
+/**
+ * Message à trois temps du « projet obligatoire » (ce qui s'est passé, pourquoi, que faire), partagé par le contrôle du
+ * domaine et par la traduction du refus de la base : une seule formulation, quel que soit le chemin qui la déclenche.
+ */
+export function projectRequiredMessage(lineNumber: number, accountNumber: string): string {
+  return (
+    `Ligne ${lineNumber} (compte ${accountNumber}) : cette dépense ou cette recette n'est rattachée à aucun projet, ` +
+    "or votre comptabilité demande de rattacher chacune à une activité, pour savoir ce que chaque activité coûte et rapporte. " +
+    "À faire : choisissez le projet de cette ligne ; pour les dépenses et recettes courantes de l'association, « Fonctionnement » convient."
+  );
 }

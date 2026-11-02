@@ -55,7 +55,7 @@ describe('EntryPage', () => {
     await fixture.whenStable();
   };
   /** Ouvre la page de l'écriture `e1` avec les données déjà chargées. */
-  const create = async (permissions: string[], loaded: object = entry(), projects: object[] = []) => {
+  const create = async (permissions: string[], loaded: object = entry(), projects: object[] = [], projectRequired = false) => {
     await TestBed.configureTestingModule({
       imports: [EntryPage],
       providers: [
@@ -78,6 +78,7 @@ describe('EntryPage', () => {
     controller.expectOne('/api/projects').flush(projects);
     await settle();
     controller.expectOne('/api/entries/e1').flush(loaded);
+    controller.expectOne('/api/accounting/settings').flush({ projectRequired });
     await settle();
   };
   const click = async (label: string) => {
@@ -191,6 +192,56 @@ describe('EntryPage', () => {
     await settle();
     expect(ui.snackbar).toContain('Contrepassation comptabilisée : OD n° 4');
     expect(root.textContent).not.toContain('Contrepasser');
+  });
+
+  describe('projet obligatoire', () => {
+    const permanent = { ...festival, id: 'p0', code: 'FONC', name: 'Fonctionnement', permanent: true };
+
+    it('prévient avant la comptabilisation, en trois temps, et rattache les lignes sans projet à « Fonctionnement » d\'un clic', async () => {
+      await create(['entries:view', 'entries:create'], entry(), [permanent, festival], true);
+      const panel = root.querySelector('.hint-panel')!;
+      expect(panel.textContent).toContain('Une ligne de dépense ou de recette n’a pas de projet');
+      expect(panel.textContent).toContain('ce que chaque activité coûte et rapporte');
+      expect(panel.textContent).toContain('À faire');
+      await click('Rattacher cette ligne à « Fonctionnement »');
+      expect(root.querySelector('.hint-panel')).toBeNull();
+      // Le choix est bien dans le formulaire : il part avec l'enregistrement.
+      await click('Enregistrer le brouillon');
+      const put = controller.expectOne('/api/entries/e1');
+      expect(put.request.body.lines[1].allocations).toEqual([{ projectId: 'p0', amount: '50.00' }]);
+      put.flush(entry());
+      await settle();
+    });
+
+    it('sans projet permanent proposé, nomme les lignes à corriger', async () => {
+      await create(['entries:view', 'entries:create'], entry(), [festival], true);
+      expect(root.querySelector('.hint-panel')!.textContent).toContain('lignes 2');
+      expect(root.querySelector('.hint-panel button')).toBeNull();
+    });
+
+    it("ne dit rien quand la règle n'est pas exigée", async () => {
+      await create(['entries:view', 'entries:create'], entry(), [permanent], false);
+      expect(root.querySelector('.hint-panel')).toBeNull();
+    });
+
+    it('affiche le message du serveur à trois temps quand la comptabilisation est refusée', async () => {
+      await create(['entries:view', 'entries:create', 'entries:post'], entry(), [festival], false);
+      await click('Comptabiliser');
+      await ui.click('Comptabiliser');
+      const put = controller.expectOne('/api/entries/e1');
+      put.flush(entry());
+      await settle();
+      controller
+        .expectOne('/api/entries/e1/post')
+        .flush(
+          { message: "L'écriture ne peut pas être comptabilisée.", issues: [{ code: 'PROJECT_REQUIRED', message: 'Ligne 2 (compte 706) : cette recette n’est rattachée à aucun projet. À faire : choisissez le projet de cette ligne.' }] },
+          { status: 422, statusText: 'Unprocessable Entity' },
+        );
+      await settle();
+      expect(root.querySelector('[role="alert"]')!.textContent).toContain("L'écriture ne peut pas être comptabilisée.");
+      expect(root.textContent).toContain('Ligne 2 (compte 706)');
+      expect(root.textContent).toContain('À faire');
+    });
   });
 
   it('envoie la ventilation par projet des lignes de produit avec leur montant', async () => {

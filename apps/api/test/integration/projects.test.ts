@@ -172,6 +172,10 @@ describe("Projets et ventilation analytique (base vierge)", () => {
       const refused = await post(entry.id);
       expect(refused.statusCode).toBe(422);
       expect(refused.json().issues[0].code).toBe("PROJECT_REQUIRED");
+      // Message à trois temps : où, pourquoi, que faire.
+      expect(refused.json().issues[0].message).toMatch(/^Ligne 1 \(compte \d+\)/);
+      expect(refused.json().issues[0].message).toContain("pour savoir ce que chaque activité coûte et rapporte");
+      expect(refused.json().issues[0].message).toContain("« Fonctionnement »");
       expect((await call("GET", `/entries/${entry.id}`, treasurer)).json().status).toBe("DRAFT");
       // La base refuse aussi, hors du service.
       expect(await sqlError(`UPDATE "JournalEntry" SET "status"='POSTED' WHERE id='${entry.id}'`)).toContain("Projet obligatoire");

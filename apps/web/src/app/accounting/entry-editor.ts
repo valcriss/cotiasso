@@ -38,6 +38,22 @@ export const ENTRY_STATUS_LABELS = {
   imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
+    .hint-panel {
+      background: var(--app-surface-variant, var(--mat-sys-surface-container));
+      border: 1px solid var(--app-border);
+      border-radius: var(--app-radius);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 0 0 16px;
+      padding: 12px 16px;
+    }
+    .hint-panel p {
+      margin: 0;
+    }
+    .hint-panel button {
+      align-self: flex-start;
+    }
     .amount {
       text-align: right;
       white-space: nowrap;
@@ -132,6 +148,31 @@ export const ENTRY_STATUS_LABELS = {
               <input matInput formControlName="reference" />
             </mat-form-field>
           </div>
+
+          @if (missingProject().length > 0) {
+            <section class="hint-panel" aria-label="Projet manquant">
+              <strong>
+                {{ missingProject().length === 1 ? 'Une ligne de dépense ou de recette n’a pas de projet' : missingProject().length + ' lignes de dépense ou de recette n’ont pas de projet' }}
+              </strong>
+              <p>
+                Vous pouvez enregistrer en brouillon, mais pour comptabiliser, chaque dépense ou recette doit être rattachée à une activité (un projet) :
+                c’est ce qui permet de savoir ce que chaque activité coûte et rapporte.
+              </p>
+              <p>
+                À faire : choisissez le projet dans la colonne « Projet »
+                @if (permanentProject(); as permanent) {
+                  ou, pour les dépenses et recettes courantes de l’association, rattachez-les d’un clic à « {{ permanent.name }} ».
+                } @else {
+                  de chaque ligne concernée (lignes {{ missingLines() }}).
+                }
+              </p>
+              @if (permanentProject(); as permanent) {
+                <button mat-stroked-button type="button" (click)="attachToPermanent()">
+                  Rattacher {{ missingProject().length === 1 ? 'cette ligne' : 'ces lignes' }} à « {{ permanent.name }} »
+                </button>
+              }
+            </section>
+          }
 
           <table class="table lines">
             <caption class="sr-only">Lignes de l'écriture</caption>
@@ -369,11 +410,33 @@ export class EntryEditor {
     };
   });
 
+  /** Règle « projet obligatoire » en vigueur : sans elle, aucune aide n'est affichée. Inconnue (droit manquant) = absente. */
+  private readonly projectRule = signal(false);
+  /** Lignes de charge ou de produit sans projet, tant que la règle l'exige. */
+  protected readonly missingProject = computed(() => {
+    this.linesChanged();
+    if (!this.projectRule() || !this.editable()) return [];
+    return this.lines.controls.map((_, i) => i).filter((i) => this.needsProject(i) && this.lines.at(i).getRawValue().projectId === '');
+  });
+  protected readonly missingLines = computed(() => this.missingProject().map((i) => i + 1).join(', '));
+  protected readonly permanentProject = computed(() => this.projects().find((p) => p.permanent && p.status !== 'ARCHIVED') ?? null);
+
+  protected attachToPermanent(): void {
+    const permanent = this.permanentProject();
+    if (!permanent) return;
+    for (const index of this.missingProject()) this.lines.at(index).patchValue({ projectId: permanent.id });
+    this.form.markAsDirty();
+  }
+
   protected readonly format = formatApiAmount;
   protected readonly multi = MULTI_PROJECT;
 
   constructor() {
     this.form.valueChanges.subscribe(() => this.linesChanged.update((n) => n + 1));
+    this.api
+      .accountingSettings()
+      .then((rules) => this.projectRule.set(rules.projectRequired))
+      .catch(() => undefined);
     effect(() => {
       const id = this.entryId();
       void this.open(id);

@@ -14,6 +14,7 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 ### Nouveautés
 
+- **Projet obligatoire expliqué** : quand une dépense ou une recette n'est rattachée à aucun projet, le message dit sur quelle ligne, pourquoi la règle existe et quoi faire ; l'éditeur d'écriture prévient avant la comptabilisation et propose de rattacher les lignes à « Fonctionnement » d'un clic.
 - **Enregistrer d'un coup les mouvements classés** : un seul bouton enregistre dans les comptes tous les mouvements déjà classés d'un compte (ou ceux qu'on a cochés), dans l'ordre des dates. Si l'un est refusé (exercice fermé, par exemple), les autres passent quand même et un compte rendu explique chaque refus.
 - **Parcours simplifiés, suite** : « Classer et enregistrer » un mouvement du relevé en choisissant seulement une catégorie, une situation lisible par mouvement (À classer, Classé, Enregistré, Vérifié avec la banque), catégories dans « Classer la sélection », rôle « Expert-comptable » en lecture seule (affichage comptable d'office), clôture d'exercice en trois étapes avec compte du résultat proposé, inscription à la double authentification expliquée pas à pas.
 - Exploitation : `docker compose exec api node dist/cli/reset-mfa.js <email>` réinitialise la double authentification d'un compte depuis le serveur, sans SQL (voir docs/exploitation.md).

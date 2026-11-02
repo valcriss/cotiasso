@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkEntryForPosting, type JournalEntryDraft, type PostingRules } from "../src/index.js";
+import { checkEntryForPosting, projectRequiredMessage, type JournalEntryDraft, type PostingRules } from "../src/index.js";
 
 const rules: PostingRules = {
   fiscalYear: { start: "2026-01-01", end: "2026-12-31", status: "open" },
@@ -45,6 +45,21 @@ describe("checkEntryForPosting", () => {
     };
     expect(codes(entry)).toEqual(["PROJECT_REQUIRED"]);
     expect(codes(entry, { ...rules, projectRequiredOnIncomeAndExpense: false })).toEqual([]);
+  });
+
+  it("explique le projet obligatoire en trois temps : ce qui s'est passé, pourquoi, que faire", () => {
+    const result = checkEntryForPosting(
+      { date: "2026-04-02", lines: [{ accountNumber: "625", debit: "80.00", credit: "0.00" }, { accountNumber: "467", debit: "0.00", credit: "80.00" }] },
+      { fiscalYear: { start: "2026-01-01", end: "2026-12-31", status: "open" }, projectRequiredOnIncomeAndExpense: true },
+    );
+    expect(result.ok).toBe(false);
+    const message = !result.ok ? result.errors[0]!.message : "";
+    expect(message).toContain("Ligne 1 (compte 625)");
+    expect(message).toContain("n'est rattachée à aucun projet");
+    expect(message).toContain("pour savoir ce que chaque activité coûte et rapporte");
+    expect(message).toContain("À faire");
+    expect(message).toContain("« Fonctionnement »");
+    expect(message).toBe(projectRequiredMessage(1, "625"));
   });
 
   it("n'impose pas de projet à un virement interne (CA-05)", () => {
