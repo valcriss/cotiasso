@@ -27,14 +27,16 @@ import { MatIconModule } from '@angular/material/icon';
 })
 export class ExportLink {
   /** Chemin de l'état sous `/reports/`, par exemple `income-statement` ou `ledger`. */
-  readonly path = input.required<string>();
+  readonly path = input<string>('');
+  /** Adresse complète du CSV quand l'état n'est pas sous `/reports/` (ex. rapport budgétaire d'un projet). */
+  readonly base = input<string>('');
   readonly params = input.required<Record<string, string | undefined>>();
   readonly print = input(false);
 
   protected readonly href = computed(() => {
     const search = new URLSearchParams();
     for (const [key, value] of Object.entries(this.params())) if (value) search.set(key, value);
-    return `/api/reports/${this.path()}/csv?${search.toString()}`;
+    return `${this.base() || `/api/reports/${this.path()}/csv`}?${search.toString()}`;
   });
 
   protected printPage(): void {

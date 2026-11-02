@@ -6,6 +6,7 @@ import type { ProjectAccess } from "../auth/auth.guard.js";
 import type { Project } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { AccountingConflictError, AccountingNotFoundError } from "./errors.js";
+import { loadProjectActuals } from "./project-actuals.js";
 import { parse } from "./schemas.js";
 
 const isoDate = z
@@ -189,27 +190,11 @@ export class ProjectsService {
     if (!(await this.prisma.project.findUnique({ where: { id }, select: { id: true } }))) {
       throw new AccountingNotFoundError("Projet");
     }
-    const rows = await this.prisma.$queryRaw<
-      { fiscalYearId: string; label: string; class: string; side: string; total: string }[]
-    >`
-      SELECT e."fiscalYearId" AS "fiscalYearId", f."label" AS "label", substr(a."number", 1, 1) AS "class",
-             CASE WHEN l."debit" > 0 THEN 'D' ELSE 'C' END AS "side", sum(al."amount")::text AS "total"
-      FROM "AnalyticalAllocation" al
-      JOIN "JournalLine" l ON l."id" = al."lineId"
-      JOIN "JournalEntry" e ON e."id" = l."entryId"
-      JOIN "FiscalYear" f ON f."id" = e."fiscalYearId"
-      JOIN "Account" a ON a."id" = l."accountId"
-      WHERE al."projectId" = ${id}::uuid AND e."status" IN ('POSTED', 'REVERSED')
-      GROUP BY e."fiscalYearId", f."label", f."start", substr(a."number", 1, 1), CASE WHEN l."debit" > 0 THEN 'D' ELSE 'C' END
-      ORDER BY f."start"`;
-
     const years = new Map<string, { label: string; charges: Money; produits: Money }>();
-    for (const row of rows) {
-      const entry = years.get(row.fiscalYearId) ?? { label: row.label, charges: Money.zero(), produits: Money.zero() };
-      const total = Money.parse(row.total);
-      // Charges (classe 6) : débits moins crédits. Produits (classe 7) : crédits moins débits.
-      if (row.class === "6") entry.charges = row.side === "D" ? entry.charges.add(total) : entry.charges.subtract(total);
-      if (row.class === "7") entry.produits = row.side === "C" ? entry.produits.add(total) : entry.produits.subtract(total);
+    for (const row of await loadProjectActuals(this.prisma, id)) {
+      const entry = years.get(row.fiscalYearId) ?? { label: row.fiscalYearLabel, charges: Money.zero(), produits: Money.zero() };
+      if (row.kind === "CHARGE") entry.charges = entry.charges.add(row.amount);
+      else entry.produits = entry.produits.add(row.amount);
       years.set(row.fiscalYearId, entry);
     }
 

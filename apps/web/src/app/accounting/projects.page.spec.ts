@@ -44,6 +44,17 @@ describe('ProjectsPage', () => {
     await settle();
     controller.expectOne(`/api/projects/${projectId}/budgets`).flush([]);
     controller.expectOne(`/api/projects/${projectId}/participants`).flush([]);
+    controller.expectOne(`/api/projects/${projectId}/commitments`).flush([]);
+    controller.expectOne(`/api/projects/${projectId}/budget-report`).flush({
+      project: { id: projectId, code: 'X', name: 'X' },
+      scope: { kind: 'GLOBAL', fiscalYear: null },
+      fiscalYears: [],
+      budget: null,
+      formula: '',
+      charges: { rows: [], total: { budget: null, engaged: '0.00', actual: '0.00', remaining: null } },
+      products: { rows: [], total: { budget: null, engaged: null, actual: '0.00', remaining: null } },
+      warnings: [],
+    });
     await settle();
   };
   const create = async (permissions: string[]) => {

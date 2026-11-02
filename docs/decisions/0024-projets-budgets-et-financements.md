@@ -1,6 +1,6 @@
 # ADR 0024 — Projets, budgets et financements
 
-Statut : **proposé** (2 novembre 2026, lot 4) ; **tranche 4.1 livrée** le 2 novembre 2026 (voir « Tranche 4.1 — ce qui a été livré »), les tranches 4.2 à 4.5 restent à valider. Applique le cadrage §14 (projets et suivi analytique), §15 (subventions et financeurs) et le modèle de données §22 (`BudgetVersion`, `BudgetLine`, `Commitment`, `Funder`, `Grant`, `GrantSchedule`, `GrantProjectAllocation`, `FundingExpenseAllocation`). Prolonge l'[ADR 0013](0013-projets-et-ventilation-analytique.md) (noyau projet) et l'[ADR 0022](0022-portee-projet-des-droits.md) (portée projet des droits).
+Statut : **proposé** (2 novembre 2026, lot 4) ; **tranches 4.1 et 4.2 livrées** le 2 novembre 2026 (voir « Tranche 4.1 — ce qui a été livré » et « Tranche 4.2 — ce qui a été livré »), les tranches 4.3 à 4.5 restent à valider. Applique le cadrage §14 (projets et suivi analytique), §15 (subventions et financeurs) et le modèle de données §22 (`BudgetVersion`, `BudgetLine`, `Commitment`, `Funder`, `Grant`, `GrantSchedule`, `GrantProjectAllocation`, `FundingExpenseAllocation`). Prolonge l'[ADR 0013](0013-projets-et-ventilation-analytique.md) (noyau projet) et l'[ADR 0022](0022-portee-projet-des-droits.md) (portée projet des droits).
 
 Les points marqués **À valider** ne sont pas tranchés par le cadrage : ne pas les traiter comme acquis.
 
@@ -23,7 +23,7 @@ Les points marqués **À valider** ne sont pas tranchés par le cadrage : ne pas
 
 ### 4.2 — Engagements et rapports projet
 
-- **Engagement** (`Commitment`) : montant promis (devis, bon de commande, convention) sur un projet et un poste, état `OPEN` → `INVOICED` / `CANCELLED`. **Anti double comptage** : un engagement est **soldé** quand une écriture comptabilisée y est rattachée (lien explicite, montant rapproché) ; le « reste disponible » = budget − réalisé comptabilisé − engagements **non soldés**, jamais budget − réalisé − engagé total.
+- **Engagement** (`Commitment`) : montant promis (devis, bon de commande, convention) sur un projet et un poste, état `OPEN` → `SETTLED` (soldé) / `CANCELLED` (le nom `INVOICED` du projet initial a été remplacé par `SETTLED`, plus général). **Anti double comptage** : un engagement est **soldé** quand une écriture comptabilisée y est rattachée (lien explicite, montant rapproché) ; le « reste disponible » = budget − réalisé comptabilisé − engagements **non soldés**, jamais budget − réalisé − engagé total.
 - **Rapport projet** : budget approuvé / engagé / réalisé / reste, **vue globale** (toute la vie du projet) et **vue annuelle** (par exercice), par poste. Un projet sans budget approuvé affiche le réalisé seul, jamais des zéros trompeurs. Export CSV sûr (ADR 0021) ; impression pour le PDF.
 - **Coûts communs** : ventilation selon une règle explicite et vérifiable (clé de répartition affichée). **À valider** : livrer en 4.2 ou différer (aujourd'hui la ventilation analytique se fait ligne par ligne).
 
@@ -59,6 +59,23 @@ Décisions prises à la réalisation (réponses aux questions ouvertes 1 de l'AD
 7. **Écrans** : panneaux « Budget prévisionnel » et « Participants » sous la synthèse de la page Projets (`project-budget.ts`, `budget-dialog.ts`, `project-participants.ts`, `participant-dialog.ts`). Le brouillon est affiché d'office quand il existe ; l'approbation montre ses conséquences avant de s'exécuter.
 
 Reste de la fiche projet « complète » (cadrage §14.1) : objectifs, échéances et vue de synthèse regroupant financements et documents, à compléter avec les tranches suivantes.
+
+## Tranche 4.2 — ce qui a été livré
+
+Décisions prises à la réalisation (à relire) :
+
+1. **Engagement** (`Commitment`) : projet, objet, montant promis, date, compte de charges **facultatif** (classe 6, contrôlé en base), note. États `OPEN` → `SETTLED` (soldé) ou `CANCELLED` (annulé **avec motif**). **Jamais supprimé** (déclencheur SQL `commitment_guard`, `TRUNCATE` refusé) ; montant, objet, date et compte ne bougent que tant qu'il est ouvert. Aucune écriture comptable.
+2. **Solder = lier une écriture qui pèse réellement sur le projet.** La base refuse de solder si l'écriture n'est pas **comptabilisée**, ou si elle ne porte aucune dépense (classe 6) **ventilée sur ce projet** (`commitment_entry_weight` > 0) : un engagement ne peut donc jamais disparaître des engagements sans apparaître au réalisé (CA-14). Une seule écriture de solde à la fois ; deux soldes simultanés : un seul passe (testé).
+3. **Contrepassation de l'écriture de solde** : l'engagement est **rouvert** (état affiché `REOPENED`, dérivé de l'état de l'écriture, pas stocké) et recompte comme engagé, sinon la dépense disparaîtrait des deux côtés. Un engagement rouvert peut être re-soldé par une autre écriture ou annulé (avec motif) ; il ne peut pas être « re-soldé » par la même écriture contrepassée.
+4. **Rapport budgétaire** (`GET /projects/:id/budget-report[?fiscalYearId=]` et `/csv`) : budget **en vigueur** (version approuvée), engagé non soldé, réalisé et reste disponible, par poste, **vue globale** ou **par exercice**. Reste des dépenses = budget − réalisé − engagé non soldé ; reste des recettes = budget − encaissé (formule et périmètre affichés avec les chiffres). Sans budget en vigueur : le réalisé seul, **aucun reste**, avertissement (pas de zéros trompeurs).
+5. **Rapprochement budget ↔ réalisé** : par **compte**. Les lignes de budget sans compte sont des postes « libres » : montrées avec leur budget mais sans réalisé ligne à ligne ; le réalisé et les engagements sur des comptes que le budget ne mentionne pas apparaissent dans des lignes **« compte non indiqué dans le budget »**, jamais perdus ; les **totaux restent exacts** (toute la matière est comptée).
+6. **Vue annuelle** : le réalisé est celui de l'exercice ; une ligne de budget qui déborde l'exercice est répartie **au prorata du nombre de jours** (calcul en centimes entiers, arrondi au plus proche, `budget-proration.ts`, avertissement affiché ; un centime d'écart est possible d'un exercice à l'autre, la vue globale utilise toujours le montant exact) ; un engagement compte dans l'exercice de **sa date**.
+7. **Même source que la synthèse** : `loadProjectActuals` (`project-actuals.ts`) sert à la fois `GET /projects/:id/summary` et le rapport (CA-13) ; la synthèse a été refactorée sur cette fonction, ses tests n'ont pas changé.
+8. **Droits** : lecture `projects:view` (filtrée par la portée projet, hors portée = 404) ; créer, modifier, annuler `budgets:update` ; **solder et lister les écritures candidates exigent aussi `entries:view`** (le solde lie une écriture comptable). Export CSV sûr (ADR 0021), audité `report.exported` ; PDF par impression du navigateur.
+9. **Audit** : `commitment.created|updated|settled|cancelled` (motif d'annulation en justification, jamais de montant dans le détail).
+10. **Écrans** : panneaux « Suivi du budget » (période, tableaux dépenses/recettes, formule, avertissements, CSV, impression), « Engagements » (boîtes enregistrer/modifier, solder, annuler) dans la page Projets ; le suivi se recharge quand le budget ou un engagement change.
+
+**Coûts communs** : non traités (question ouverte 2 inchangée) ; la ventilation analytique reste ligne par ligne.
 
 ## Critères d'acceptation ajoutés (à inscrire au jeu de référence)
 

@@ -3,6 +3,10 @@ import { AuditModule } from "../audit/audit.module.js";
 import { PrismaModule } from "../prisma/prisma.module.js";
 import { AccountingController } from "./accounting.controller.js";
 import { SettingsModule } from "../settings/settings.module.js";
+import { BudgetReportController } from "./budget-report.controller.js";
+import { BudgetReportService } from "./budget-report.service.js";
+import { CommitmentsController } from "./commitments.controller.js";
+import { CommitmentsService } from "./commitments.service.js";
 import { BudgetsController } from "./budgets.controller.js";
 import { BudgetsService } from "./budgets.service.js";
 import { ParticipantsService } from "./participants.service.js";
@@ -19,8 +23,8 @@ import { AccountingService } from "./accounting.service.js";
 
 @Module({
   imports: [PrismaModule, AuditModule, SettingsModule],
-  controllers: [AccountingController, EntriesController, ClosingController, ReportsController, ProjectsController, BudgetsController],
-  providers: [AccountingService, EntriesService, ClosingService, ReportsService, StatementsService, ProjectsService, BudgetsService, ParticipantsService],
+  controllers: [AccountingController, EntriesController, ClosingController, ReportsController, ProjectsController, BudgetsController, CommitmentsController, BudgetReportController],
+  providers: [AccountingService, EntriesService, ClosingService, ReportsService, StatementsService, ProjectsService, BudgetsService, ParticipantsService, CommitmentsService, BudgetReportService],
   exports: [AccountingService, EntriesService],
 })
 export class AccountingModule {}

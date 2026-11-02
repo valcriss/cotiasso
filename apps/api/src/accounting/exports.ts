@@ -1,5 +1,6 @@
 import { amountCell, type CsvCell } from "./csv.js";
 import type { JournalBookEntry, LedgerAccount, TrialBalance } from "./reports.service.js";
+import type { BudgetReport } from "./budget-report.service.js";
 import type { BalanceSheet, ComparedGroup, IncomeStatement, TreasuryStatement } from "./statements.service.js";
 
 /** Lignes CSV des états (ADR 0021) : mêmes chiffres que l'écran, rien de recalculé. */
@@ -90,4 +91,23 @@ export function journalBookCsv(book: { entries: JournalBookEntry[] }): CsvCell[]
     }
   }
   return rows;
+}
+
+export function budgetReportCsv(report: BudgetReport): CsvCell[][] {
+  const scope = report.scope.fiscalYear ? `exercice ${report.scope.fiscalYear.label}` : "toute la vie du projet";
+  const head: CsvCell[] = ["Poste", "Compte", "Budget", "Engagé non soldé", "Réalisé", "Reste disponible", "Remarque"];
+  const section = (title: string, data: BudgetReport["charges"]): CsvCell[][] => [
+    [title],
+    head,
+    ...data.rows.map((row): CsvCell[] => [row.label, row.accountNumber ?? "", money(row.budget), money(row.engaged), money(row.actual), money(row.remaining), row.note ?? ""]),
+    ["Total", "", money(data.total.budget), money(data.total.engaged), money(data.total.actual), money(data.total.remaining)],
+  ];
+  return [
+    ["Rapport budgétaire", report.project.code, report.project.name, scope],
+    ["Budget en vigueur", report.budget ? `n° ${report.budget.number} — ${report.budget.label}` : "aucun"],
+    [report.formula],
+    ...section("Dépenses (charges)", report.charges),
+    ...section("Recettes (produits)", report.products),
+    ...report.warnings.map((warning): CsvCell[] => ["Avertissement", warning]),
+  ];
 }

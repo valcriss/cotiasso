@@ -781,6 +781,61 @@ export interface ParticipantInfo {
   note: string;
 }
 
+export type CommitmentState = 'OPEN' | 'SETTLED' | 'REOPENED' | 'CANCELLED';
+
+export interface CommitmentInfo {
+  id: string;
+  projectId: string;
+  label: string;
+  amount: string;
+  committedOn: string;
+  accountId: string | null;
+  accountNumber: string | null;
+  accountLabel: string | null;
+  note: string;
+  state: CommitmentState;
+  engaged: boolean;
+  settledEntry: { id: string; number: number | null; date: string; label: string; journalCode: string; status: EntryStatus } | null;
+  cancelReason: string | null;
+}
+
+export interface EntryCandidateInfo {
+  id: string;
+  number: number | null;
+  date: string;
+  label: string;
+  journalCode: string;
+  projectAmount: string;
+}
+
+export interface BudgetReportRowInfo {
+  key: string;
+  label: string;
+  accountNumber: string | null;
+  budget: string | null;
+  engaged: string | null;
+  actual: string | null;
+  remaining: string | null;
+  outOfBudget: boolean;
+  note: string | null;
+}
+
+export interface BudgetReportSectionInfo {
+  rows: BudgetReportRowInfo[];
+  total: { budget: string | null; engaged: string | null; actual: string; remaining: string | null };
+}
+
+export interface BudgetReportInfo {
+  project: { id: string; code: string; name: string };
+  scope: { kind: 'GLOBAL' | 'YEAR'; fiscalYear: { id: string; label: string; start: string; end: string } | null };
+  fiscalYears: { id: string; label: string; start: string; end: string }[];
+  budget: { id: string; number: number; label: string; approvedAt: string | null } | null;
+  formula: string;
+  charges: BudgetReportSectionInfo;
+  products: BudgetReportSectionInfo;
+  warnings: string[];
+}
+
 export interface AllocationInfo {
   projectId: string;
   projectCode?: string;
@@ -1377,6 +1432,42 @@ export class AdminApiService {
 
   deleteBudget(id: string): Promise<void> {
     return firstValueFrom(this.http.delete<void>(`/api/budgets/${id}`));
+  }
+
+  listCommitments(projectId: string): Promise<CommitmentInfo[]> {
+    return firstValueFrom(this.http.get<CommitmentInfo[]>(`/api/projects/${projectId}/commitments`));
+  }
+
+  createCommitment(
+    projectId: string,
+    body: { label: string; amount: string; committedOn: string; accountId?: string | null; note?: string },
+  ): Promise<CommitmentInfo> {
+    return firstValueFrom(this.http.post<CommitmentInfo>(`/api/projects/${projectId}/commitments`, body));
+  }
+
+  updateCommitment(
+    id: string,
+    body: { label?: string; amount?: string; committedOn?: string; accountId?: string | null; note?: string },
+  ): Promise<CommitmentInfo> {
+    return firstValueFrom(this.http.patch<CommitmentInfo>(`/api/commitments/${id}`, body));
+  }
+
+  settleCommitment(id: string, entryId: string): Promise<CommitmentInfo> {
+    return firstValueFrom(this.http.post<CommitmentInfo>(`/api/commitments/${id}/settle`, { entryId }));
+  }
+
+  cancelCommitment(id: string, reason: string): Promise<CommitmentInfo> {
+    return firstValueFrom(this.http.post<CommitmentInfo>(`/api/commitments/${id}/cancel`, { reason }));
+  }
+
+  commitmentCandidates(id: string): Promise<EntryCandidateInfo[]> {
+    return firstValueFrom(this.http.get<EntryCandidateInfo[]>(`/api/commitments/${id}/entry-candidates`));
+  }
+
+  budgetReport(projectId: string, fiscalYearId?: string): Promise<BudgetReportInfo> {
+    let params = new HttpParams();
+    if (fiscalYearId) params = params.set('fiscalYearId', fiscalYearId);
+    return firstValueFrom(this.http.get<BudgetReportInfo>(`/api/projects/${projectId}/budget-report`, { params }));
   }
 
   listParticipants(projectId: string): Promise<ParticipantInfo[]> {

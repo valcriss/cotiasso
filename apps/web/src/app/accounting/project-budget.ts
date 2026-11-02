@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { AdminApiService, type BudgetInfo, type BudgetSummaryInfo, type ProjectInfo } from '../admin/admin-api.service';
@@ -161,6 +161,8 @@ export class ProjectBudget {
   private readonly notifier = inject(Notifier);
 
   readonly project = input.required<ProjectInfo>();
+  /** Émis quand le budget en vigueur peut avoir changé : le suivi du budget se recharge. */
+  readonly changed = output<void>();
 
   protected readonly versions = signal<BudgetSummaryInfo[]>([]);
   protected readonly current = signal<BudgetInfo | null>(null);
@@ -214,6 +216,7 @@ export class ProjectBudget {
     if (!created) return;
     this.notifier.success(`Budget n° ${created.number} préparé. Ajoutez maintenant ses lignes.`);
     await this.load(this.project().id, created.id);
+    this.changed.emit();
   }
 
   protected async editLines(budget: BudgetInfo): Promise<void> {
@@ -224,6 +227,7 @@ export class ProjectBudget {
     if (!saved) return;
     this.notifier.success(`Budget n° ${saved.number} enregistré.`);
     await this.load(this.project().id, saved.id);
+    this.changed.emit();
   }
 
   protected async approve(budget: BudgetInfo): Promise<void> {
@@ -242,6 +246,7 @@ export class ProjectBudget {
       await this.api.approveBudget(budget.id);
       this.notifier.success(`Budget n° ${budget.number} approuvé : il est en vigueur.`);
       await this.load(this.project().id, budget.id);
+      this.changed.emit();
     } catch (failure) {
       this.error.set(describeHttpError(failure, "Le budget n'a pas pu être approuvé. Réessayez dans un instant.").message);
     }
@@ -260,6 +265,7 @@ export class ProjectBudget {
       this.notifier.success('Brouillon supprimé.');
       this.current.set(null);
       await this.load(this.project().id);
+      this.changed.emit();
     } catch (failure) {
       this.error.set(describeHttpError(failure, "Le brouillon n'a pas pu être supprimé. Réessayez dans un instant.").message);
     }

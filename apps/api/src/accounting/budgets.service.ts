@@ -100,7 +100,7 @@ const lineView = (line: BudgetLine): BudgetLineView => ({
   accountId: line.accountId,
   periodStart: day(line.periodStart),
   periodEnd: day(line.periodEnd),
-  amount: line.amount.toString(),
+  amount: line.amount.toFixed(2),
 });
 
 const orderLines = (lines: BudgetLine[]) =>

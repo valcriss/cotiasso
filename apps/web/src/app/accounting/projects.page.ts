@@ -9,6 +9,8 @@ import { Notifier } from '../ui/notifier.service';
 import { PageHeader } from '../ui/page-header';
 import { formatApiAmount } from './amount';
 import { ProjectBudget } from './project-budget';
+import { ProjectCommitments } from './project-commitments';
+import { ProjectReport } from './project-report';
 import { ProjectDialog } from './project-dialog';
 import { ProjectParticipants } from './project-participants';
 import { PROJECT_STATUS_LABELS } from './project-labels';
@@ -16,7 +18,7 @@ import { PROJECT_STATUS_LABELS } from './project-labels';
 /** Projets : axe analytique des charges et produits, avec leur synthèse globale et annuelle. */
 @Component({
   selector: 'app-projects-page',
-  imports: [MatButtonModule, MatIconModule, PageHeader, ProjectBudget, ProjectParticipants],
+  imports: [MatButtonModule, MatIconModule, PageHeader, ProjectBudget, ProjectCommitments, ProjectParticipants, ProjectReport],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -132,7 +134,9 @@ import { PROJECT_STATUS_LABELS } from './project-labels';
           }
         }
       </section>
-      <app-project-budget [project]="project" />
+      <app-project-report [project]="project" [refreshKey]="refresh()" />
+      <app-project-budget [project]="project" (changed)="bump()" />
+      <app-project-commitments [project]="project" (changed)="bump()" />
       <app-project-participants [project]="project" />
     }
   `,
@@ -149,6 +153,12 @@ export class ProjectsPage {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly amount = formatApiAmount;
+  /** Change quand le budget ou un engagement change : le suivi du budget se recharge. */
+  protected readonly refresh = signal(0);
+
+  protected bump(): void {
+    this.refresh.update((n) => n + 1);
+  }
 
   /** Créer un projet : droit global. */
   protected readonly canUpdate = computed(() => {

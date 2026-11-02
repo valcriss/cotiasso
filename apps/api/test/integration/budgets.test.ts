@@ -18,7 +18,7 @@ interface Session {
   csrf: string;
 }
 
-type Method = "GET" | "POST" | "PUT" | "PATCH";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 describe("Budgets et participants de projet (base vierge)", () => {
   let db: TempDatabase;
@@ -71,7 +71,7 @@ describe("Budgets et participants de projet (base vierge)", () => {
     amount: "500.00",
     ...over,
   });
-  const newBudget = async (projectId: string, label = "Budget initial") => {
+  const newBudget = async (projectId: string | undefined, label = "Budget initial") => {
     const response = await call("POST", `/projects/${projectId}/budgets`, treasurer, { label });
     expect(response.statusCode, response.body).toBe(201);
     return response.json();
@@ -239,7 +239,7 @@ describe("Budgets et participants de projet (base vierge)", () => {
       const email = `scoped-${randomUUID()}@test.invalid`;
       const user = await users.createUser({ email, displayName: "S", password: PASSWORD });
       const role = await prisma.role.findUniqueOrThrow({ where: { key: "project-manager" } });
-      await prisma.roleAssignment.create({ data: { userId: user.id, roleId: role.id, projectId: ids.ateliers } });
+      await prisma.roleAssignment.create({ data: { userId: user.id, roleId: role.id, projectId: ids.ateliers! } });
       const login = await app.inject({ method: "POST", url: "/auth/login", payload: { email, password: PASSWORD }, remoteAddress: "198.51.100.77" });
       const scoped = { cookie: String(login.headers["set-cookie"]).split(";")[0]!, csrf: login.json().csrfToken };
       expect((await call("GET", `/projects/${ids.festival}/budgets`, scoped)).statusCode).toBe(404);
