@@ -75,6 +75,11 @@ export interface MembershipView {
   effectiveOn: string | null;
   effectiveOrigin: MembershipOrigin | null;
   cancelReason: string | null;
+  /** Règlements nets affectés (paiements moins remboursements). */
+  paid: string;
+  /** Attendu moins payé : reste dû si positif ; négatif = trop-perçu à rembourser ou à imputer. */
+  balance: string;
+  overpaid: boolean;
   version: number;
 }
 
@@ -106,7 +111,7 @@ const membershipInclude = {
 } satisfies Prisma.MembershipInclude;
 type LoadedMembership = Prisma.MembershipGetPayload<{ include: typeof membershipInclude }>;
 
-const membershipView = (m: LoadedMembership): MembershipView => ({
+const membershipView = (m: LoadedMembership, paid: Money = Money.zero()): MembershipView => ({
   id: m.id,
   campaignId: m.campaignId,
   campaignName: m.campaign.name,
@@ -120,6 +125,9 @@ const membershipView = (m: LoadedMembership): MembershipView => ({
   effectiveOn: m.effectiveOn ? day(m.effectiveOn) : null,
   effectiveOrigin: m.effectiveOrigin,
   cancelReason: m.cancelReason,
+  paid: paid.toString(),
+  balance: Money.parse(dec(m.expectedAmount)).subtract(paid).toString(),
+  overpaid: paid.compare(Money.parse(dec(m.expectedAmount))) > 0,
   version: m.version,
 });
 
@@ -224,12 +232,12 @@ export class MembershipsService {
       include: membershipInclude,
       orderBy: [{ member: { lastName: "asc" } }, { member: { firstName: "asc" } }],
     });
-    return rows.map(membershipView);
+    return this.present(rows);
   }
 
   async listForMember(memberId: string): Promise<MembershipView[]> {
     const rows = await this.prisma.membership.findMany({ where: { memberId }, include: membershipInclude, orderBy: { campaign: { startsOn: "desc" } } });
-    return rows.map(membershipView);
+    return this.present(rows);
   }
 
   /** Inscrit un membre à une campagne : montant attendu figé, état selon le mode de la campagne ; aucune écriture comptable. */
@@ -272,7 +280,7 @@ export class MembershipsService {
       })
       .catch(rethrow);
     await this.audit.record({ action: "membership.created", objectType: "Membership", objectId: created.id, actorId, details: { campaignId, status: created.status } });
-    return membershipView(created);
+    return (await this.present([created]))[0]!;
   }
 
   /** Validation par le bureau (mode « à la validation ») : l'adhésion devient effective, la validation en est l'origine. */
@@ -287,7 +295,7 @@ export class MembershipsService {
       .update({ where: { id }, data: { status: "EFFECTIVE", effectiveOn: asDate(this.clamp(day(new Date()), campaign)), effectiveOrigin: "VALIDATION", version: { increment: 1 } } })
       .catch(rethrow);
     await this.audit.record({ action: "membership.validated", objectType: "Membership", objectId: id, actorId });
-    return membershipView(await this.loadMembership(id));
+    return (await this.present([await this.loadMembership(id)]))[0]!;
   }
 
   async cancel(id: string, body: unknown, actorId: string): Promise<MembershipView> {
@@ -298,7 +306,28 @@ export class MembershipsService {
       .update({ where: { id }, data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: reason, effectiveOn: null, effectiveOrigin: null, version: { increment: 1 } } })
       .catch(rethrow);
     await this.audit.record({ action: "membership.cancelled", objectType: "Membership", objectId: id, actorId, justification: reason });
-    return membershipView(await this.loadMembership(id));
+    return (await this.present([await this.loadMembership(id)]))[0]!;
+  }
+
+  /** Règlements nets (paiements − remboursements, hors affectations annulées) de chaque adhésion. */
+  async paidFor(ids: string[]): Promise<Map<string, Money>> {
+    const rows = await this.prisma.paymentAllocation.groupBy({
+      by: ["membershipId", "kind"],
+      where: { membershipId: { in: ids }, cancelledAt: null },
+      _sum: { amount: true },
+    });
+    const result = new Map<string, Money>();
+    for (const row of rows) {
+      const value = Money.parse(dec(row._sum.amount ?? 0));
+      const current = result.get(row.membershipId) ?? Money.zero();
+      result.set(row.membershipId, row.kind === "PAYMENT" ? current.add(value) : current.subtract(value));
+    }
+    return result;
+  }
+
+  private async present(rows: LoadedMembership[]): Promise<MembershipView[]> {
+    const paid = await this.paidFor(rows.map((r) => r.id));
+    return rows.map((row) => membershipView(row, paid.get(row.id) ?? Money.zero()));
   }
 
   /** Une date d'effet reste dans la campagne : avant le début elle devient le début, après la fin la fin. */

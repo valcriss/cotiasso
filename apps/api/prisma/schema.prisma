@@ -513,15 +513,16 @@ model Transaction {
   createdAt            DateTime          @default(now()) @db.Timestamptz(3)
   createdBy            String?           @db.Uuid
 
-  financialAccount   FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Restrict)
-  project            Project?         @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  counterpartAccount Account?         @relation(fields: [counterpartAccountId], references: [id], onDelete: Restrict)
-  reconciliation     Reconciliation?  @relation(fields: [reconciliationId], references: [id], onDelete: Restrict)
-  importedFrom       ImportLine[]     @relation("ImportResult")
-  matchedBy          ImportLine[]     @relation("ImportMatch")
+  financialAccount   FinancialAccount    @relation(fields: [financialAccountId], references: [id], onDelete: Restrict)
+  project            Project?            @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  counterpartAccount Account?            @relation(fields: [counterpartAccountId], references: [id], onDelete: Restrict)
+  reconciliation     Reconciliation?     @relation(fields: [reconciliationId], references: [id], onDelete: Restrict)
+  paymentAllocations PaymentAllocation[]
+  importedFrom       ImportLine[]        @relation("ImportResult")
+  matchedBy          ImportLine[]        @relation("ImportMatch")
   matches            TreasuryMatch[]
-  transferOut        Transfer?        @relation("TransferOut")
-  transferIn         Transfer?        @relation("TransferIn")
+  transferOut        Transfer?           @relation("TransferOut")
+  transferIn         Transfer?           @relation("TransferIn")
 
   @@index([financialAccountId, operationDate])
 }
@@ -845,6 +846,35 @@ model Membership {
   member   Member   @relation(fields: [memberId], references: [id], onDelete: Restrict)
   tariff   Tariff?  @relation(fields: [tariffId], references: [id], onDelete: Restrict)
 
+  allocations PaymentAllocation[]
+
   @@index([campaignId])
   @@index([memberId])
+}
+
+enum AllocationKind {
+  PAYMENT
+  REFUND
+}
+
+// Affectation de règlement : une part d'une transaction rattachée à une adhésion. Ne crée aucune écriture comptable.
+// Une affectation ne se modifie pas : elle s'annule avec un motif. ADR 0023.
+model PaymentAllocation {
+  id            String         @id @default(uuid()) @db.Uuid
+  transactionId String         @db.Uuid
+  membershipId  String         @db.Uuid
+  amount        Decimal        @db.Decimal(14, 2)
+  kind          AllocationKind @default(PAYMENT)
+  note          String?
+  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+  createdBy     String?        @db.Uuid
+  cancelledAt   DateTime?      @db.Timestamptz(3)
+  cancelledBy   String?        @db.Uuid
+  cancelReason  String?
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  membership  Membership  @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+
+  @@index([transactionId])
+  @@index([membershipId])
 }
