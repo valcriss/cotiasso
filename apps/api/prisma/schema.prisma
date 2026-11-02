@@ -726,6 +726,7 @@ model MemberCategory {
   createdBy String?  @db.Uuid
 
   members Member[]
+  tariffs Tariff[]
 }
 
 // Membre de l'association : jamais supprimé (l'historique comptable s'y réfère), anonymisable une fois sorti.
@@ -750,9 +751,10 @@ model Member {
   createdAt    DateTime     @default(now()) @db.Timestamptz(3)
   createdBy    String?      @db.Uuid
 
-  category MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  user     User?           @relation(fields: [userId], references: [id], onDelete: Restrict)
-  offices  MemberOffice[]
+  category    MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  user        User?           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  offices     MemberOffice[]
+  memberships Membership[]
 
   @@index([lastName, firstName])
   @@index([status])
@@ -771,5 +773,78 @@ model MemberOffice {
 
   member Member @relation(fields: [memberId], references: [id], onDelete: Restrict)
 
+  @@index([memberId])
+}
+
+enum MembershipMode {
+  PAYMENT
+  VALIDATION
+  START_DATE
+}
+
+enum MembershipOrigin {
+  PAYMENT
+  VALIDATION
+  START_DATE
+  EXEMPTION
+}
+
+enum MembershipStatus {
+  PENDING
+  EFFECTIVE
+  CANCELLED
+}
+
+// Campagne d'adhésion : dates explicites, sans chevauchement ; le mode d'adhésion effective est figé à la création. ADR 0023.
+model Campaign {
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String
+  startsOn      DateTime       @db.Date
+  endsOn        DateTime       @db.Date
+  effectiveMode MembershipMode
+  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+  createdBy     String?        @db.Uuid
+
+  tariffs     Tariff[]
+  memberships Membership[]
+}
+
+model Tariff {
+  id         String   @id @default(uuid()) @db.Uuid
+  campaignId String   @db.Uuid
+  label      String
+  amount     Decimal  @db.Decimal(14, 2)
+  categoryId String?  @db.Uuid
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  campaign    Campaign        @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  category    MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  memberships Membership[]
+
+  @@unique([campaignId, label])
+}
+
+// Adhésion d'un membre à une campagne : montant attendu figé, état (en attente, effective, annulée), origine de l'effet.
+model Membership {
+  id              String            @id @default(uuid()) @db.Uuid
+  campaignId      String            @db.Uuid
+  memberId        String            @db.Uuid
+  tariffId        String?           @db.Uuid
+  expectedAmount  Decimal           @db.Decimal(14, 2)
+  exemptionReason String?
+  status          MembershipStatus  @default(PENDING)
+  effectiveOn     DateTime?         @db.Date
+  effectiveOrigin MembershipOrigin?
+  cancelledAt     DateTime?         @db.Timestamptz(3)
+  cancelReason    String?
+  version         Int               @default(1)
+  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
+  createdBy       String?           @db.Uuid
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  member   Member   @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  tariff   Tariff?  @relation(fields: [tariffId], references: [id], onDelete: Restrict)
+
+  @@index([campaignId])
   @@index([memberId])
 }

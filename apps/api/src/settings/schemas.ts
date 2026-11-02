@@ -44,7 +44,11 @@ export const brandingSchema = z
 export const accountingSchema = z.strictObject({ projectRequired: z.boolean() });
 
 export type Identity = z.infer<typeof identitySchema>;
+/** Adhésion effective (ADR 0004, 0023) : mode proposé aux nouvelles campagnes, figé sur chaque campagne à sa création. */
+const membershipSchema = z.object({ effectiveMode: z.enum(["PAYMENT", "VALIDATION", "START_DATE"]) }).strict();
+
 export type Branding = z.infer<typeof brandingSchema>;
+export type MembershipSettings = z.infer<typeof membershipSchema>;
 export type AccountingSettings = z.infer<typeof accountingSchema>;
 
 export const SETTINGS_SECTIONS = {
@@ -55,6 +59,10 @@ export const SETTINGS_SECTIONS = {
   accounting: {
     schema: accountingSchema,
     defaults: { projectRequired: true } satisfies AccountingSettings,
+  },
+  membership: {
+    schema: membershipSchema,
+    defaults: { effectiveMode: "PAYMENT" } satisfies MembershipSettings,
   },
   branding: {
     schema: brandingSchema,
