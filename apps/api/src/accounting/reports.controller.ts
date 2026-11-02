@@ -7,6 +7,7 @@ import {
   Query,
   UnprocessableEntityException,
 } from "@nestjs/common";
+import { StatementsService, type BalanceSheet, type IncomeStatement } from "./statements.service.js";
 import { RequirePermission } from "../authz/decorators.js";
 import { AccountingNotFoundError, AccountingValidationError } from "./errors.js";
 import {
@@ -33,7 +34,10 @@ async function translate<T>(operation: () => Promise<T>): Promise<T> {
 /** États de lecture : ils détaillent les écritures, ils exigent donc `entries:view` (jamais seulement `reports:view`). */
 @Controller("reports")
 export class ReportsController {
-  constructor(@Inject(ReportsService) private readonly reports: ReportsService) {}
+  constructor(
+    @Inject(ReportsService) private readonly reports: ReportsService,
+    @Inject(StatementsService) private readonly statements: StatementsService,
+  ) {}
 
   @RequirePermission("entries:view")
   @Get("ledger")
@@ -45,6 +49,19 @@ export class ReportsController {
   @Get("trial-balance")
   trialBalance(@Query() query: unknown): Promise<TrialBalance> {
     return translate(() => this.reports.trialBalance(query));
+  }
+
+  /** Compte de résultat et bilan (ADR 0020) : des synthèses, sans le détail des écritures : `reports:view`. */
+  @RequirePermission("reports:view")
+  @Get("income-statement")
+  incomeStatement(@Query() query: unknown): Promise<IncomeStatement> {
+    return translate(() => this.statements.incomeStatement(query));
+  }
+
+  @RequirePermission("reports:view")
+  @Get("balance-sheet")
+  balanceSheet(@Query() query: unknown): Promise<BalanceSheet> {
+    return translate(() => this.statements.balanceSheet(query));
   }
 
   @RequirePermission("entries:view")

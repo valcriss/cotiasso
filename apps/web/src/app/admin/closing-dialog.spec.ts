@@ -54,7 +54,7 @@ describe('ClosingDialog', () => {
         canStart: false,
         checks: [
           { code: 'DRAFTS_REMAIN', level: 'BLOCKING', message: '2 brouillon(s) à comptabiliser ou supprimer.' },
-          { code: 'UNCLASSIFIED_ACCOUNTS', level: 'WARNING', message: "1 compte(s) utilisé(s) n'ont pas de rubrique de rapport." },
+          { code: 'UNCLASSIFIED_ACCOUNTS', level: 'WARNING', message: "1 compte(s) utilisé(s) n'ont pas de rubrique choisie." },
         ],
       }),
     );

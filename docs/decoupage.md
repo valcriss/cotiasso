@@ -68,7 +68,7 @@ Points à trancher ou à ne pas perdre de vue avant de découper plus finement :
 
 ### Lot 2c — États
 
-2c.1 Bilan et compte de résultat N/N−1, contrôles de comptes non classés
+2c.1 Bilan et compte de résultat N/N−1, contrôles de comptes non classés — **fait** ([ADR 0020](decisions/0020-etats-de-synthese-bilan-et-compte-de-resultat.md)) : catalogue de rubriques, calcul pur testé, colonne N−1 explicite, contrôle d'équilibre, avertissements, page Rapports ; **reste** : validation des rubriques par le trésorier, rubriques versionnées par exercice
 2c.2 Trésorerie, export PDF/CSV/tableur sûr, source de calcul unique (CA-13)
 
 ### Lot 3 — Membres et cotisations

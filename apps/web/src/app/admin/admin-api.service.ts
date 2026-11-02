@@ -341,6 +341,62 @@ export interface PointableTransactionInfo {
   pointed: boolean;
 }
 
+export interface ComparedRowInfo {
+  code: string;
+  label: string;
+  amount: string;
+  /** Montant de l'exercice précédent ; `null` sans exercice précédent. */
+  previous: string | null;
+}
+
+export interface ComparedGroupInfo {
+  code: string;
+  label: string;
+  help: string;
+  rows: ComparedRowInfo[];
+  total: string;
+  previousTotal: string | null;
+}
+
+export interface StatementYearInfo {
+  id: string;
+  label: string;
+  start: string;
+  end: string;
+  status: string;
+}
+
+interface StatementBaseInfo {
+  fiscalYear: StatementYearInfo;
+  previous: StatementYearInfo | null;
+  draftEntries: number;
+  carryWarning: string | null;
+}
+
+export interface IncomeStatementInfo extends StatementBaseInfo {
+  sections: ComparedGroupInfo[];
+  intermediate: { code: string; label: string; amount: string; previous: string | null }[];
+  products: string;
+  charges: string;
+  result: string;
+  previousResult: string | null;
+  defaulted: { number: string; label: string }[];
+  unclassified: { number: string; label: string; amount: string }[];
+}
+
+export interface BalanceSheetInfo extends StatementBaseInfo {
+  assets: ComparedGroupInfo[];
+  liabilities: ComparedGroupInfo[];
+  totalAssets: string;
+  totalLiabilities: string;
+  previousTotalAssets: string | null;
+  previousTotalLiabilities: string | null;
+  difference: string;
+  balanced: boolean;
+  result: string;
+  unclassified: { number: string; label: string; amount: string }[];
+}
+
 export interface RecoveryBatchInfo {
   id: string;
   name: string;
@@ -808,6 +864,14 @@ export class AdminApiService {
 
   archiveFinancialAccount(id: string): Promise<FinancialAccountInfo> {
     return firstValueFrom(this.http.patch<FinancialAccountInfo>(`/api/financial-accounts/${id}`, { archived: true }));
+  }
+
+  incomeStatement(fiscalYearId: string): Promise<IncomeStatementInfo> {
+    return firstValueFrom(this.http.get<IncomeStatementInfo>('/api/reports/income-statement', { params: { fiscalYearId } }));
+  }
+
+  balanceSheet(fiscalYearId: string): Promise<BalanceSheetInfo> {
+    return firstValueFrom(this.http.get<BalanceSheetInfo>('/api/reports/balance-sheet', { params: { fiscalYearId } }));
   }
 
   listRecoveryBatches(): Promise<RecoveryBatchInfo[]> {

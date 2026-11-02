@@ -204,7 +204,7 @@ export class ClosingService {
       checks.push({
         code: "UNCLASSIFIED_ACCOUNTS",
         level: "WARNING",
-        message: `${missing} compte(s) utilisé(s) n'ont pas de rubrique de rapport : ils n'apparaîtront pas dans les états.`,
+        message: `${missing} compte(s) utilisé(s) n'ont pas de rubrique choisie : le classement par défaut (selon leur numéro) leur est appliqué dans les états.`,
       });
     }
     const unreconciled = await db.$queryRaw<{ name: string }[]>`

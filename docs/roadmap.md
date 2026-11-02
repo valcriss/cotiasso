@@ -47,6 +47,7 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | Liaison à la comptabilité | Préparer un brouillon depuis une transaction ou associer une écriture existante, états « à comptabiliser / en cours / comptabilisée », fin de liaison à la contrepassation | ADR 0017 |
 | Virements internes | Deux transactions reliées et un brouillon banque à banque, sans charge ni produit (CA-05) | ADR 0017 |
 | Rapprochement bancaire | Pointage des transactions sur un relevé, écart nul exigé, figement, annulation du dernier, avertissement à la clôture | ADR 0018 |
+| États de synthèse (lot 2c.1) | Compte de résultat et bilan avec exercice précédent en regard, contrôle d'équilibre, avertissements (comptes sans rubrique, exercice précédent non clôturé) ; page Rapports | ADR 0020 |
 | Reprise | Lots de brouillons préparés en masse, soldes d'ouverture guidés (origine expliquée), comptabilisation chronologique avec compte rendu et reprise après erreur, abandon sans effacer le comptabilisé, qualification en masse | ADR 0019 |
 
 ### Interface
@@ -66,7 +67,7 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | # | Élément | Pourquoi maintenant | Dépend de |
 | --- | --- | --- | --- |
 | 1.1 | **Validation du lot 0 par le trésorier du pilote** : plan de comptes, rubriques de bilan et de résultat, jeu de référence, cas d'ajustement | Tout le code comptable repose sur des brouillons non validés ; aucune affirmation de conformité n'est possible sans cette relecture. C'est le principal risque restant | Disponibilité du trésorier (Q2, ADR 0006) |
-| 1.2 | **États de synthèse (lot 2c)** : bilan et compte de résultat N / N−1, contrôles de comptes non classés ; état de trésorerie | C'est l'aboutissement du travail déjà fait et ce dont l'assemblée générale a besoin. Les écritures, la clôture et les rapprochements existent : il manque ce qu'on en lit | 1.1 pour les rubriques ; source de calcul unique avec les états de lecture (CA-13) |
+| 1.2 | **États de synthèse (lot 2c)** : ~~bilan et compte de résultat N / N−1~~ **fait** (ADR 0020, rubriques à faire relire) ; **reste** l'état de trésorerie | C'est l'aboutissement du travail déjà fait et ce dont l'assemblée générale a besoin. Les écritures, la clôture et les rapprochements existent : il manque ce qu'on en lit | 1.1 pour les rubriques ; source de calcul unique avec les états de lecture (CA-13) |
 | 1.3 | **Exports sûrs** : PDF, CSV et tableur (contenus neutralisés contre les formules), pour les états et les états de lecture | Une comptabilité qu'on ne peut pas remettre à l'assemblée ni à l'expert-comptable ne sert pas | 1.2 |
 | 1.4 | **Validation de l'import OFX sur des exports réels anonymisés** des banques de l'association | Seules des fixtures fictives sont testées ; les exports réels varient d'une banque à l'autre | Fichiers fournis par le trésorier (Q11) |
 | 1.5 | **Inventaire de reprise du pilote** : date de création, dates d'exercice, liste des comptes et caisses, fichiers OFX disponibles | Les lots de reprise sont prêts ; sans cet inventaire on ne peut pas les exécuter sur des données réelles | Trésorier (Q11, lot 0.6) |

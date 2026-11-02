@@ -45,7 +45,7 @@ export const routes: Routes = [
         title: overview!.label,
         loadComponent: () => import('./pages/overview.page').then((m) => m.OverviewPage),
       },
-      ...others.filter((item) => item.path !== 'documents' && item.path !== 'comptabilite' && item.path !== 'projets' && item.path !== 'comptes').map((item) => ({
+      ...others.filter((item) => item.path !== 'documents' && item.path !== 'comptabilite' && item.path !== 'projets' && item.path !== 'comptes' && item.path !== 'rapports').map((item) => ({
         path: item.path,
         title: item.label,
         canActivate: [permissionGuard],
@@ -92,6 +92,18 @@ export const routes: Routes = [
             title: 'Livre-journal',
             loadComponent: () => import('./accounting/journal-book.page').then((m) => m.JournalBookPage),
           },
+        ],
+      },
+      {
+        path: 'rapports',
+        title: 'Rapports',
+        canActivate: [permissionGuard],
+        data: { permission: 'reports:view' },
+        loadComponent: () => import('./reports/reports-shell').then((m) => m.ReportsShell),
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'compte-de-resultat' },
+          { path: 'compte-de-resultat', title: 'Compte de résultat', loadComponent: () => import('./reports/income-statement.page').then((m) => m.IncomeStatementPage) },
+          { path: 'bilan', title: 'Bilan', loadComponent: () => import('./reports/balance-sheet.page').then((m) => m.BalanceSheetPage) },
         ],
       },
       {
