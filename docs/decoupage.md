@@ -73,7 +73,7 @@ Points à trancher ou à ne pas perdre de vue avant de découper plus finement :
 
 ### Lot 3 — Membres et cotisations
 
-3.1 Membres, fonctions, mandats (sans dépendre d'un compte de connexion)
+3.1 Membres, fonctions, mandats (sans dépendre d'un compte de connexion) — **fait** ([ADR 0023](decisions/0023-membres-adhesions-et-cotisations.md)) : fiches, catégories, fonctions et mandats, sortie et anonymisation, page Membres
 3.2 Campagnes (29/09→28/09), tarifs, cotisations attendues (CA-11)
 3.3 Affectations de règlement : partiel, groupé, trop-perçu (CA-07)
 3.4 Remboursements/annulations, rappels et reçus simples

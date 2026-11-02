@@ -348,6 +348,63 @@ export interface PointableTransactionInfo {
   pointed: boolean;
 }
 
+export interface MemberCategoryInfo {
+  id: string;
+  name: string;
+  active: boolean;
+  memberCount: number;
+}
+
+export interface MemberInfo {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+  addressLine: string | null;
+  postalCode: string | null;
+  city: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+  status: 'ACTIVE' | 'FORMER';
+  joinedOn: string | null;
+  leftOn: string | null;
+  hasAccount: boolean;
+  note: string | null;
+  anonymized: boolean;
+  currentOffices: string[];
+  version: number;
+}
+
+export interface MemberOfficeInfo {
+  id: string;
+  title: string;
+  startsOn: string;
+  endsOn: string | null;
+  note: string | null;
+  current: boolean;
+}
+
+export interface MemberBody {
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+  addressLine: string | null;
+  postalCode: string | null;
+  city: string | null;
+  categoryId: string | null;
+  joinedOn: string | null;
+  note: string | null;
+}
+
+export interface MemberFilters {
+  q?: string;
+  status?: 'ACTIVE' | 'FORMER';
+  categoryId?: string;
+  after?: string;
+}
+
 export interface ComparedRowInfo {
   code: string;
   label: string;
@@ -895,6 +952,52 @@ export class AdminApiService {
 
   archiveFinancialAccount(id: string): Promise<FinancialAccountInfo> {
     return firstValueFrom(this.http.patch<FinancialAccountInfo>(`/api/financial-accounts/${id}`, { archived: true }));
+  }
+
+  listMembers(filters: MemberFilters = {}): Promise<{ members: MemberInfo[]; next: string | null }> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(filters)) if (value) params = params.set(key, value);
+    return firstValueFrom(this.http.get<{ members: MemberInfo[]; next: string | null }>('/api/members', { params }));
+  }
+
+  getMember(id: string): Promise<{ member: MemberInfo; offices: MemberOfficeInfo[] }> {
+    return firstValueFrom(this.http.get<{ member: MemberInfo; offices: MemberOfficeInfo[] }>(`/api/members/${id}`));
+  }
+
+  createMember(body: MemberBody): Promise<MemberInfo> {
+    return firstValueFrom(this.http.post<MemberInfo>('/api/members', body));
+  }
+
+  updateMember(id: string, body: Partial<MemberBody> & { version: number; status?: 'ACTIVE' | 'FORMER'; leftOn?: string | null }): Promise<MemberInfo> {
+    return firstValueFrom(this.http.patch<MemberInfo>(`/api/members/${id}`, body));
+  }
+
+  anonymizeMember(id: string, reason: string): Promise<MemberInfo> {
+    return firstValueFrom(this.http.post<MemberInfo>(`/api/members/${id}/anonymize`, { reason }));
+  }
+
+  listMemberCategories(): Promise<MemberCategoryInfo[]> {
+    return firstValueFrom(this.http.get<MemberCategoryInfo[]>('/api/member-categories'));
+  }
+
+  createMemberCategory(name: string): Promise<MemberCategoryInfo> {
+    return firstValueFrom(this.http.post<MemberCategoryInfo>('/api/member-categories', { name }));
+  }
+
+  updateMemberCategory(id: string, body: { name?: string; active?: boolean }): Promise<MemberCategoryInfo> {
+    return firstValueFrom(this.http.patch<MemberCategoryInfo>(`/api/member-categories/${id}`, body));
+  }
+
+  addMemberOffice(memberId: string, body: { title: string; startsOn: string; endsOn?: string | null; note?: string | null }): Promise<MemberOfficeInfo> {
+    return firstValueFrom(this.http.post<MemberOfficeInfo>(`/api/members/${memberId}/offices`, body));
+  }
+
+  updateMemberOffice(id: string, body: { title?: string; startsOn?: string; endsOn?: string | null; note?: string | null }): Promise<MemberOfficeInfo> {
+    return firstValueFrom(this.http.patch<MemberOfficeInfo>(`/api/member-offices/${id}`, body));
+  }
+
+  removeMemberOffice(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/member-offices/${id}`));
   }
 
   incomeStatement(fiscalYearId: string): Promise<IncomeStatementInfo> {

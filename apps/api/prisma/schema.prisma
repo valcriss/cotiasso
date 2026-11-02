@@ -33,6 +33,7 @@ enum UserStatus {
 
 model User {
   id               String            @id @default(uuid()) @db.Uuid
+  member           Member?
   email            String            @unique
   displayName      String
   passwordHash     String
@@ -709,4 +710,66 @@ model ImportLine {
 
   @@unique([batchId, position])
   @@index([transactionId])
+}
+
+enum MemberStatus {
+  ACTIVE
+  FORMER
+}
+
+// Catégorie de membre (ex. « Adulte », « Étudiant »), configurable. ADR 0023.
+model MemberCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  createdBy String?  @db.Uuid
+
+  members Member[]
+}
+
+// Membre de l'association : jamais supprimé (l'historique comptable s'y réfère), anonymisable une fois sorti.
+model Member {
+  id           String       @id @default(uuid()) @db.Uuid
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String?
+  addressLine  String?
+  postalCode   String?
+  city         String?
+  categoryId   String?      @db.Uuid
+  status       MemberStatus @default(ACTIVE)
+  joinedOn     DateTime?    @db.Date
+  leftOn       DateTime?    @db.Date
+  // Compte de connexion lié, facultatif : un membre n'a pas besoin d'un compte.
+  userId       String?      @unique @db.Uuid
+  note         String?
+  anonymizedAt DateTime?    @db.Timestamptz(3)
+  version      Int          @default(1)
+  createdAt    DateTime     @default(now()) @db.Timestamptz(3)
+  createdBy    String?      @db.Uuid
+
+  category MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  user     User?           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  offices  MemberOffice[]
+
+  @@index([lastName, firstName])
+  @@index([status])
+}
+
+// Fonction ou mandat d'un membre (Président, Trésorier…), avec ses dates.
+model MemberOffice {
+  id        String    @id @default(uuid()) @db.Uuid
+  memberId  String    @db.Uuid
+  title     String
+  startsOn  DateTime  @db.Date
+  endsOn    DateTime? @db.Date
+  note      String?
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  createdBy String?   @db.Uuid
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  @@index([memberId])
 }
