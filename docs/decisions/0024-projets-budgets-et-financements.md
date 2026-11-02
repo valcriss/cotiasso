@@ -52,7 +52,13 @@ Les points marqués **À valider** ne sont pas tranchés par le cadrage : ne pas
 
 ### 4.5 — Droits détaillés par projet sur dossiers et documents
 
-- Héritage des droits documentaires depuis le projet : un document lié à un projet est visible par les utilisateurs ayant `projects:view` sur ce projet ; un document `restricted` garde `documents.restricted:view`. Reprend le reste de la tâche 1.3 (« restrictions documentaires par projet »). Tests de non-régression d'accès (CA-10) sur listes, recherche, exports et téléchargements.
+- Héritage des droits documentaires depuis le projet. Reprend le reste de la tâche 1.3 (« restrictions documentaires par projet »). Tests de non-régression d'accès (CA-10) sur listes, recherche, exports et téléchargements.
+
+**Décidé avec l'utilisateur (2 novembre 2026) :**
+- **Quel droit.** `documents:view` (et `documents:create`) deviennent **applicables à un projet** (`PROJECT_SCOPABLE_PERMISSIONS`, ADR 0022) : une attribution de rôle à portée projet n'accorde que l'intersection du rôle et de cette liste. Un rôle sans `documents:view` (intervenant extérieur…) ne voit aucun document, même avec accès au projet. La formulation initiale (« `projects:view` suffit ») est abandonnée.
+- **Ce que la personne peut faire.** **Lire, télécharger et déposer sur son projet** : un dépôt ou un nouveau lien exige que le document soit lié à un projet de sa portée (jamais à un autre) ; elle ne peut pas rendre un document restreint ni toucher aux documents hors portée. L'archivage reste réservé au droit global.
+- **Quels liens ouvrent un document.** Un document est visible par la portée s'il est lié à un **projet de la portée** ou à une **subvention qui finance un projet de la portée** (ses justificatifs) ; **jamais s'il est aussi lié à un membre** (les pièces personnelles ne s'ouvrent pas par la portée d'un projet). Un document `restricted` garde `documents.restricted:view` (droit global), quelle que soit la portée.
+- **Où.** Un panneau **Documents** dans la page d'un projet et dans le détail d'une subvention (liste, téléchargement, dépôt) ; la page Documents générale reste réservée aux droits globaux.
 
 ## Tranche 4.1 — ce qui a été livré
 
