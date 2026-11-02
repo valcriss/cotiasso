@@ -6,7 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { startWith } from 'rxjs';
-import { AdminApiService, type FunderInfo, type GrantInfo, type GrantResidual, type ProjectInfo } from '../admin/admin-api.service';
+import { AdminApiService, type FunderInfo, type GrantFinanceInfo, type GrantInfo, type GrantResidual, type ProjectInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from '../accounting/amount';
 import { FormDialog } from '../ui/form-dialog';
@@ -487,6 +487,13 @@ export class GrantReasonDialog {
         [error]="error()"
         [details]="details()"
       >
+        @if (finance(); as figures) {
+          <p class="muted" aria-live="polite">
+            Reliquat calculé : {{ amount(figures.received) }} € reçus − {{ amount(figures.spent) }} € de dépenses affectées =
+            <strong>{{ amount(figures.residual) }} €</strong>. Si ce montant est positif, il reste de l'argent non dépensé ; s'il est négatif, les dépenses
+            affectées dépassent ce qui a été reçu.
+          </p>
+        }
         <mat-form-field appearance="outline">
           <mat-label>Date de clôture</mat-label>
           <input matInput type="date" formControlName="closedOn" required />
@@ -521,6 +528,9 @@ export class GrantCloseDialog {
   protected readonly grant = inject<{ grant: GrantInfo }>(MAT_DIALOG_DATA).grant;
 
   protected readonly options = (Object.keys(RESIDUAL_LABELS) as GrantResidual[]).map((value) => ({ value, label: RESIDUAL_LABELS[value] }));
+  /** Reliquat calculé (reçu − dépenses affectées), à titre d'indication : le choix reste celui de l'utilisateur. */
+  protected readonly finance = signal<GrantFinanceInfo | null>(null);
+  protected readonly amount = formatApiAmount;
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly details = signal<string[]>([]);
@@ -531,6 +541,10 @@ export class GrantCloseDialog {
   });
 
   constructor() {
+    void this.api
+      .grantFinance(this.grant.id)
+      .then((figures) => this.finance.set(figures))
+      .catch(() => undefined);
     // Une précision est obligatoire dès qu'il y a un reliquat à rembourser ou à conserver.
     this.form.controls.residual.valueChanges.subscribe((residual) => {
       this.form.controls.note.setValidators(residual === 'NONE' ? [] : [Validators.required]);

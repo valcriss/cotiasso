@@ -915,8 +915,61 @@ export interface GrantFinanceInfo {
   remaining: string | null;
   unplanned: string | null;
   overReceived: boolean;
+  /** Dépenses affectées à la subvention (comptabilisées, non annulées). */
+  spent: string;
+  /** Reçu − dépenses affectées : ce qui n'a pas été dépensé. */
+  residual: string;
   schedule: GrantScheduleInfo[];
   payments: GrantPaymentInfo[];
+}
+
+export interface GrantExpenseInfo {
+  id: string;
+  amount: string;
+  coFinancingReason: string | null;
+  cancelled: boolean;
+  cancelReason: string | null;
+  counted: boolean;
+  reversed: boolean;
+  outOfPeriod: boolean;
+  entry: { id: string; number: number | null; journalCode: string; date: string; label: string | null };
+  account: { number: string; label: string };
+  project: { id: string; code: string; name: string };
+  expenseAmount: string;
+}
+
+export interface GrantExpensesInfo {
+  grantId: string;
+  granted: string | null;
+  spent: string;
+  overGranted: boolean;
+  overBy: string | null;
+  expenses: GrantExpenseInfo[];
+  warnings: string[];
+}
+
+export interface ExpenseCandidateInfo {
+  allocationId: string;
+  entry: { id: string; number: number | null; journalCode: string; date: string; label: string };
+  account: { number: string; label: string };
+  project: { id: string; code: string; name: string };
+  amount: string;
+  remaining: string;
+  outOfPeriod: boolean;
+}
+
+export interface GrantReportInfo {
+  grant: { id: string; title: string; funder: string; reference: string | null; periodStart: string | null; periodEnd: string | null };
+  period: { from: string | null; to: string | null };
+  granted: string | null;
+  groups: { accountNumber: string; accountLabel: string; count: number; amount: string }[];
+  spent: string;
+  payments: { operationDate: string; amount: string }[];
+  received: string;
+  residual: string;
+  overGranted: boolean;
+  coFinancingReasons: string[];
+  warnings: string[];
 }
 
 export interface PaymentCandidateInfo {
@@ -1610,6 +1663,29 @@ export class AdminApiService {
 
   grantPaymentCandidates(grantId: string): Promise<PaymentCandidateInfo[]> {
     return firstValueFrom(this.http.get<PaymentCandidateInfo[]>(`/api/grants/${grantId}/payment-candidates`));
+  }
+
+  grantExpenses(grantId: string): Promise<GrantExpensesInfo> {
+    return firstValueFrom(this.http.get<GrantExpensesInfo>(`/api/grants/${grantId}/expenses`));
+  }
+
+  attachGrantExpense(grantId: string, body: { allocationId: string; amount: string; coFinancingReason?: string | null }): Promise<GrantExpensesInfo> {
+    return firstValueFrom(this.http.post<GrantExpensesInfo>(`/api/grants/${grantId}/expenses`, body));
+  }
+
+  cancelGrantExpense(id: string, reason: string): Promise<GrantExpensesInfo> {
+    return firstValueFrom(this.http.post<GrantExpensesInfo>(`/api/grant-expenses/${id}/cancel`, { reason }));
+  }
+
+  grantExpenseCandidates(grantId: string): Promise<ExpenseCandidateInfo[]> {
+    return firstValueFrom(this.http.get<ExpenseCandidateInfo[]>(`/api/grants/${grantId}/expense-candidates`));
+  }
+
+  grantReport(grantId: string, period: { from?: string; to?: string } = {}): Promise<GrantReportInfo> {
+    let params = new HttpParams();
+    if (period.from) params = params.set('from', period.from);
+    if (period.to) params = params.set('to', period.to);
+    return firstValueFrom(this.http.get<GrantReportInfo>(`/api/grants/${grantId}/report`, { params }));
   }
 
   listBudgets(projectId: string): Promise<BudgetSummaryInfo[]> {

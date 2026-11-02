@@ -50,6 +50,8 @@ const ACTION_LABELS: Record<string, string> = {
   'grant.schedule.added': 'Échéance de subvention ajoutée',
   'grant.schedule.updated': 'Échéance de subvention modifiée',
   'grant.schedule.removed': 'Échéance de subvention retirée',
+  'grant.expense.attached': 'Dépense affectée à une subvention',
+  'grant.expense.cancelled': 'Affectation de dépense annulée',
   'grant.payment.recorded': 'Versement de subvention enregistré',
   'grant.payment.cancelled': 'Versement de subvention annulé',
   'commitment.created': 'Engagement enregistré',

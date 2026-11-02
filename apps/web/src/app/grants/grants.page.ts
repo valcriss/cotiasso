@@ -11,7 +11,9 @@ import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { PageHeader } from '../ui/page-header';
 import { FunderDialog } from './funder-dialog';
+import { GrantExpenses } from './grant-expenses';
 import { GrantFinance } from './grant-finance';
+import { GrantReport } from './grant-report';
 import { FUNDER_TYPE_LABELS, GRANT_STATUS_LABELS, RESIDUAL_LABELS } from './grant-labels';
 import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, GrantReasonDialog } from './grant-dialogs';
 
@@ -21,7 +23,7 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
  */
 @Component({
   selector: 'app-grants-page',
-  imports: [GrantFinance, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
+  imports: [GrantExpenses, GrantFinance, GrantReport, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -244,6 +246,8 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
       </section>
       @if (grant.status === 'GRANTED' || grant.status === 'CLOSED') {
         <app-grant-finance [grant]="grant" [canManage]="canManage()" (changed)="refresh()" />
+        <app-grant-expenses [grant]="grant" [canManage]="canManage()" (changed)="refresh()" />
+        <app-grant-report [grant]="grant" [refreshKey]="reportKey()" />
       }
     }
 
@@ -309,6 +313,8 @@ export class GrantsPage {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly amount = formatApiAmount;
+  /** Change quand un versement ou une affectation change : le compte rendu se recharge. */
+  protected readonly reportKey = signal(0);
   protected readonly statuses = (Object.keys(GRANT_STATUS_LABELS) as GrantStatus[]).map((value) => ({ value, label: GRANT_STATUS_LABELS[value] }));
 
   protected readonly canManage = computed(() => {
@@ -449,6 +455,7 @@ export class GrantsPage {
 
   /** Recharge la liste et le détail après un versement ou une échéance, sans bandeau (le panneau a le sien). */
   protected async refresh(): Promise<void> {
+    this.reportKey.update((n) => n + 1);
     await this.load();
     const target = this.selected()?.id;
     if (target) this.selected.set(await this.api.getGrant(target));

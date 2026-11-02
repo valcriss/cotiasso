@@ -66,6 +66,10 @@ export interface GrantFinance {
   unplanned: string | null;
   /** Vrai si les versements dépassent le montant accordé : signalé, jamais masqué. */
   overReceived: boolean;
+  /** Dépenses affectées à la subvention (comptabilisées, non annulées). */
+  spent: string;
+  /** Reçu − dépenses affectées : ce qui n'a pas été dépensé. Suivi de gestion, aucune écriture. */
+  residual: string;
   schedule: ScheduleView[];
   payments: PaymentView[];
 }
@@ -226,6 +230,14 @@ export class GrantFinanceService {
     const planned = sum(schedule);
     const granted = grant.grantedAmount ? Money.parse(dec(grant.grantedAmount)) : null;
     const today = new Date().toISOString().slice(0, 10);
+    const spentRows = await this.prisma.$queryRaw<{ spent: string }[]>`
+      SELECT COALESCE(SUM(f."amount"), 0)::text AS "spent"
+      FROM "FundingExpenseAllocation" f
+      JOIN "AnalyticalAllocation" al ON al."id" = f."allocationId"
+      JOIN "JournalLine" l ON l."id" = al."lineId"
+      JOIN "JournalEntry" e ON e."id" = l."entryId"
+      WHERE f."grantId" = ${grant.id}::uuid AND f."cancelledAt" IS NULL AND e."status" = 'POSTED'`;
+    const spent = Money.parse(spentRows[0]?.spent ?? "0.00");
     return {
       grantId: grant.id,
       granted: granted ? granted.toString() : null,
@@ -234,6 +246,8 @@ export class GrantFinanceService {
       remaining: granted ? granted.subtract(received).toString() : null,
       unplanned: granted ? granted.subtract(planned).toString() : null,
       overReceived: granted !== null && received.compare(granted) > 0,
+      spent: spent.toString(),
+      residual: received.subtract(spent).toString(),
       schedule: schedule.map((line) => this.scheduleView(line, active, grant.status === "GRANTED", today)),
       payments: payments.map((p) => ({
         id: p.id,

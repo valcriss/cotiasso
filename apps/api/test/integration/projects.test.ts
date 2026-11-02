@@ -266,7 +266,9 @@ describe("Projets et ventilation analytique (base vierge)", () => {
       const posted = (await post(entry.id)).json();
       expect(await sqlError(`UPDATE "AnalyticalAllocation" SET "amount"=1 WHERE "lineId" IN (SELECT id FROM "JournalLine" WHERE "entryId"='${posted.id}')`)).toContain("immuable");
       expect(await sqlError(`DELETE FROM "AnalyticalAllocation" WHERE "lineId" IN (SELECT id FROM "JournalLine" WHERE "entryId"='${posted.id}')`)).toContain("immuable");
-      expect(await sqlError(`TRUNCATE "AnalyticalAllocation"`)).toContain("TRUNCATE refusé");
+      // Refusé par le déclencheur, ou par PostgreSQL lui-même depuis qu'une autre table (les dépenses affectées aux subventions)
+      // référence cette table : dans les deux cas, la table ne peut pas être vidée.
+      expect(await sqlError(`TRUNCATE "AnalyticalAllocation"`)).toMatch(/TRUNCATE refusé|cannot truncate a table referenced in a foreign key/);
     });
   });
 

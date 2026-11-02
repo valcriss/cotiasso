@@ -1,6 +1,6 @@
 # ADR 0024 — Projets, budgets et financements
 
-Statut : **proposé** (2 novembre 2026, lot 4) ; **tranches 4.1, 4.2, 4.3a et 4.3b livrées** le 2 novembre 2026 (voir les sections « ce qui a été livré »), les tranches 4.4 et 4.5 restent à valider. Applique le cadrage §14 (projets et suivi analytique), §15 (subventions et financeurs) et le modèle de données §22 (`BudgetVersion`, `BudgetLine`, `Commitment`, `Funder`, `Grant`, `GrantSchedule`, `GrantProjectAllocation`, `FundingExpenseAllocation`). Prolonge l'[ADR 0013](0013-projets-et-ventilation-analytique.md) (noyau projet) et l'[ADR 0022](0022-portee-projet-des-droits.md) (portée projet des droits).
+Statut : **proposé** (2 novembre 2026, lot 4) ; **tranches 4.1, 4.2, 4.3a, 4.3b et 4.4 livrées** le 2 novembre 2026 (voir les sections « ce qui a été livré »), la tranche 4.5 reste à valider. Applique le cadrage §14 (projets et suivi analytique), §15 (subventions et financeurs) et le modèle de données §22 (`BudgetVersion`, `BudgetLine`, `Commitment`, `Funder`, `Grant`, `GrantSchedule`, `GrantProjectAllocation`, `FundingExpenseAllocation`). Prolonge l'[ADR 0013](0013-projets-et-ventilation-analytique.md) (noyau projet) et l'[ADR 0022](0022-portee-projet-des-droits.md) (portée projet des droits).
 
 Les points marqués **À valider** ne sont pas tranchés par le cadrage : ne pas les traiter comme acquis.
 
@@ -115,11 +115,26 @@ Décisions prises à la réalisation (à relire) :
 
 **Reste** : le **montant du reliquat** reste à calculer (reçu − dépenses affectées) avec la tranche 4.4 ; les documents liés à la subvention ne sont toujours pas présentés sur sa fiche.
 
+## Tranche 4.4 — ce qui a été livré
+
+En plus des décisions arrêtées avec l'utilisateur (dépassement et hors-période signalés, compte rendu générique, reliquat calculé), décisions prises à la réalisation (à relire) :
+
+1. **Affectation** (`FundingExpenseAllocation`) : une **part d'une dépense** (une ligne de charge ventilée sur un projet, `AnalyticalAllocation`) affectée à une subvention. Conditions garanties par la base (`funding_expense_guard`) : la subvention est **accordée** (pas clôturée) ; la dépense est un **débit de classe 6** d'une **écriture comptabilisée** ; son projet est **financé par la subvention** ; la somme des affectations d'une dépense, **toutes subventions confondues**, ne dépasse **jamais son montant** (verrou sur la dépense pour les saisies simultanées). Jamais supprimée ni modifiée : **annulée avec un motif** (3 caractères au moins), elle reste dans l'historique et la dépense redevient disponible. Plus aucun changement après la clôture. Aucune écriture comptable.
+2. **Plafond de la dépense : pas de dérogation.** L'ADR initial prévoyait qu'un « cofinancement documenté » puisse dépasser le montant de la dépense ; la décision prise avec l'utilisateur place le motif de cofinancement au niveau du **montant accordé** (dépassement signalé, motif possible). Affecter plus qu'une dépense n'a pas coûté n'a pas de sens : ce plafond reste dur.
+3. **Avertissements, jamais de blocage** : total affecté > montant accordé (écart chiffré, motif de cofinancement affiché), dépense datée **hors de la période financée** (rien si la subvention n'a pas de période), affectation dont l'**écriture a été contrepassée** depuis (elle **ne compte plus**, état dérivé comme pour les engagements, et le message invite à l'annuler ou à affecter la dépense corrigée).
+4. **Vue** `GET /grants/:id/expenses` : dépenses affectées (date, poste, projet, part, drapeaux) et total qui compte ; **le libellé de l'écriture n'est montré** qu'avec un droit global ou pour une dépense d'un projet de la portée de l'utilisateur (sinon montant, poste et projet seulement). `GET /grants/:id/expense-candidates` (charges comptabilisées des projets financés avec leur part libre, 100 au plus) exige `grants:manage` **et** `entries:view`.
+5. **Compte rendu** `GET /grants/:id/report?from=&to=` (+ `/csv`, CSV sûr audité `report.exported`, impression pour le PDF) : dépenses affectées **regroupées par poste (compte)**, versements reçus sur la période, **reliquat = reçu − dépenses affectées sur la période**, montant accordé, avertissements, explications de cofinancement. Sans paramètre, aucune borne ; l'écran propose la **période financée** par défaut. Même portée de lecture que la subvention.
+6. **Reliquat** : `GET /grants/:id/finance` rend aussi `spent` et `residual` (reçu − dépenses affectées, sur toute la vie) ; la boîte de **clôture** l'affiche comme valeur de départ. Le choix du sort du reliquat reste celui de l'utilisateur ; aucun fonds dédié n'est calculé.
+7. **Audit** : `grant.expense.attached|cancelled`, sans montant ni libellé (un drapeau `coFinanced` seulement).
+8. **Écrans** : panneaux « Dépenses affectées » (affecter, annuler, avertissements) et « Compte rendu pour le financeur » dans le détail d'une subvention accordée ou clôturée.
+
+**Reste** : les modèles propres à chaque financeur (en attente de conventions réelles), la présentation des **documents justificatifs** liés à une subvention (le lien documentaire de type `grant` existe mais l'écran ne les montre pas), et les avenants.
+
 ## Critères d'acceptation ajoutés (à inscrire au jeu de référence)
 
 - **CA-14** : un engagement soldé par une écriture n'est jamais compté deux fois dans le « reste disponible ».
 - **CA-15** : une subvention accordée puis versée en plusieurs fois sur deux exercices ne crée aucune écriture à elle seule ; l'écart accordé / reçu / reste à recevoir est exact.
-- **CA-16** : une dépense affectée à plusieurs financements ne dépasse jamais son montant sans cofinancement documenté ; un utilisateur limité à un projet ne voit ni les montants ni les financements d'un autre projet.
+- **CA-16** : une dépense affectée à plusieurs subventions ne dépasse jamais son montant ; un utilisateur limité à un projet ne voit que les subventions qui le financent (entières) et le détail des écritures de ses propres projets.
 
 ## Hors de ce lot
 

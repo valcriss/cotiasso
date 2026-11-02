@@ -97,6 +97,28 @@ describe('GrantsPage', () => {
   };
   /** Une subvention accordée ou clôturée affiche son échéancier : le panneau charge sa vue financière. */
   const flushFinance = async (grantId = 'g1', over: Record<string, unknown> = {}) => {
+    controller.expectOne(`/api/grants/${grantId}/expenses`).flush({
+      grantId,
+      granted: '1000.00',
+      spent: '0.00',
+      overGranted: false,
+      overBy: null,
+      expenses: [],
+      warnings: [],
+    });
+    controller.expectOne((r) => r.url === `/api/grants/${grantId}/report`).flush({
+      grant: { id: grantId, title: 'Aide au festival', funder: 'Région', reference: null, periodStart: null, periodEnd: null },
+      period: { from: null, to: null },
+      granted: '1000.00',
+      groups: [],
+      spent: '0.00',
+      payments: [],
+      received: '0.00',
+      residual: '0.00',
+      overGranted: false,
+      coFinancingReasons: [],
+      warnings: [],
+    });
     controller.expectOne(`/api/grants/${grantId}/finance`).flush({
       grantId,
       granted: '1000.00',
@@ -105,6 +127,8 @@ describe('GrantsPage', () => {
       remaining: '1000.00',
       unplanned: '1000.00',
       overReceived: false,
+      spent: '0.00',
+      residual: '0.00',
       schedule: [],
       payments: [],
       ...over,
@@ -340,6 +364,21 @@ describe('GrantsPage', () => {
     await settle();
     await flushFinance();
     await click('Clôturer');
+    controller.expectOne('/api/grants/g1/finance').flush({
+      grantId: 'g1',
+      granted: '1000.00',
+      planned: '0.00',
+      received: '700.00',
+      remaining: '300.00',
+      unplanned: '1000.00',
+      overReceived: false,
+      spent: '550.00',
+      residual: '150.00',
+      schedule: [],
+      payments: [],
+    });
+    await settle();
+    expect(ui.text).toContain('Reliquat calculé : 700,00 € reçus − 550,00 € de dépenses affectées = 150,00 €');
     expect(ui.title).toBe('Clôturer la subvention');
     expect(ui.text).toContain("Aucune écriture n'est créée dans la comptabilité");
     expect(ui.text).toContain('« Reliquat » : la part de la subvention');

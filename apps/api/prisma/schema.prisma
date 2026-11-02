@@ -437,8 +437,9 @@ model AnalyticalAllocation {
   projectId String  @db.Uuid
   amount    Decimal @db.Decimal(14, 2)
 
-  line    JournalLine @relation(fields: [lineId], references: [id], onDelete: Cascade)
-  project Project     @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  line     JournalLine               @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  project  Project                   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  fundings FundingExpenseAllocation[]
 
   @@unique([lineId, projectId])
   @@index([projectId])
@@ -1056,6 +1057,7 @@ model Grant {
   allocations GrantProjectAllocation[]
   schedule    GrantSchedule[]
   payments    GrantPayment[]
+  expenses    FundingExpenseAllocation[]
 
   @@index([funderId])
   @@index([status])
@@ -1115,4 +1117,27 @@ model GrantPayment {
   @@index([grantId])
   @@index([transactionId])
   @@index([scheduleId])
+}
+
+// Affectation d'une dépense à une subvention (ADR 0024, tranche 4.4) : une part d'une ligne de charge ventilée sur un projet,
+// d'une écriture comptabilisée, que la subvention finance. Suivi de gestion : aucune écriture. Ne se modifie pas : elle
+// s'annule avec un motif. Le montant total affecté peut dépasser le montant accordé (signalé, avec un motif de cofinancement
+// possible) mais jamais le montant de la dépense elle-même.
+model FundingExpenseAllocation {
+  id                String    @id @default(uuid()) @db.Uuid
+  grantId           String    @db.Uuid
+  allocationId      String    @db.Uuid
+  amount            Decimal   @db.Decimal(14, 2)
+  coFinancingReason String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  createdBy         String?   @db.Uuid
+  cancelledAt       DateTime? @db.Timestamptz(3)
+  cancelledBy       String?   @db.Uuid
+  cancelReason      String?
+
+  grant      Grant                @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  allocation AnalyticalAllocation @relation(fields: [allocationId], references: [id], onDelete: Restrict)
+
+  @@index([grantId])
+  @@index([allocationId])
 }
