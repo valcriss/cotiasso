@@ -1,6 +1,6 @@
 # ADR 0024 — Projets, budgets et financements
 
-Statut : **proposé** (2 novembre 2026, lot 4), à valider avec l'utilisateur avant la tranche 4.1. Applique le cadrage §14 (projets et suivi analytique), §15 (subventions et financeurs) et le modèle de données §22 (`BudgetVersion`, `BudgetLine`, `Commitment`, `Funder`, `Grant`, `GrantSchedule`, `GrantProjectAllocation`, `FundingExpenseAllocation`). Prolonge l'[ADR 0013](0013-projets-et-ventilation-analytique.md) (noyau projet) et l'[ADR 0022](0022-portee-projet-des-droits.md) (portée projet des droits).
+Statut : **proposé** (2 novembre 2026, lot 4) ; **tranche 4.1 livrée** le 2 novembre 2026 (voir « Tranche 4.1 — ce qui a été livré »), les tranches 4.2 à 4.5 restent à valider. Applique le cadrage §14 (projets et suivi analytique), §15 (subventions et financeurs) et le modèle de données §22 (`BudgetVersion`, `BudgetLine`, `Commitment`, `Funder`, `Grant`, `GrantSchedule`, `GrantProjectAllocation`, `FundingExpenseAllocation`). Prolonge l'[ADR 0013](0013-projets-et-ventilation-analytique.md) (noyau projet) et l'[ADR 0022](0022-portee-projet-des-droits.md) (portée projet des droits).
 
 Les points marqués **À valider** ne sont pas tranchés par le cadrage : ne pas les traiter comme acquis.
 
@@ -46,6 +46,20 @@ Les points marqués **À valider** ne sont pas tranchés par le cadrage : ne pas
 
 - Héritage des droits documentaires depuis le projet : un document lié à un projet est visible par les utilisateurs ayant `projects:view` sur ce projet ; un document `restricted` garde `documents.restricted:view`. Reprend le reste de la tâche 1.3 (« restrictions documentaires par projet »). Tests de non-régression d'accès (CA-10) sur listes, recherche, exports et téléchargements.
 
+## Tranche 4.1 — ce qui a été livré
+
+Décisions prises à la réalisation (réponses aux questions ouvertes 1 de l'ADR, à relire) :
+
+1. **Périodes de budget = dates explicites** (début et fin de chaque ligne), sans granularité imposée : une ligne peut couvrir un mois, un exercice ou toute la durée du projet. Aucune contrainte de cohérence avec les dates du projet ni avec les exercices (une ligne peut chevaucher deux exercices) ; le rapprochement avec le réalisé par exercice viendra avec la tranche 4.2.
+2. **Un seul brouillon à la fois par projet** (index partiel), pour qu'il n'y ait pas deux budgets en préparation qui se contredisent ; créer un brouillon recopie par défaut la dernière version (ou celle choisie). Un brouillon se modifie en **remplaçant l'ensemble de ses lignes** (`PUT /budgets/:id`), se supprime ; une version approuvée ou remplacée **ne se supprime ni ne se modifie** (déclencheurs SQL `budget_version_guard` et `budget_line_guard`, `TRUNCATE` refusé). Un budget **vide ne s'approuve pas**. Approuver remplace la version en vigueur dans la même transaction, sous le verrou du projet (numéros et approbations sérialisés).
+3. **Lignes** : charge ou produit, poste libre, compte **facultatif** (classe 6 pour une charge, classe 7 pour un produit, contrôlé en base), montant strictement positif en chaîne décimale. Pas encore de lien avec le réalisé (4.2).
+4. **Droits** : lecture `projects:view` (filtrée par la portée projet : un projet hors portée est introuvable, 404), préparation et suppression de brouillon `budgets:update`, approbation `budgets:approve` ; ces deux droits restent **globaux** (non scopables, `PROJECT_SCOPABLE_PERMISSIONS` inchangé). Dans les rôles par défaut, le trésorier prépare et le **membre du bureau approuve** : celui qui prépare n'approuve pas.
+5. **Participants** (`ProjectParticipant`) : un membre **ou** un utilisateur (contrainte SQL), rôle libre, dates facultatives, note ; modifiables et **retirables** (information sans effet comptable, retrait audité) ; **aucun droit d'accès** attaché, testé. L'écran propose les **membres actifs** ; le rattachement d'un utilisateur existe dans l'API (`userId`) mais pas encore dans l'écran. Droit `projects:update`, scopable par projet.
+6. **Audit** : `budget.created|updated|approved|deleted` et `project.participant.added|updated|removed`, sans montant ni donnée personnelle.
+7. **Écrans** : panneaux « Budget prévisionnel » et « Participants » sous la synthèse de la page Projets (`project-budget.ts`, `budget-dialog.ts`, `project-participants.ts`, `participant-dialog.ts`). Le brouillon est affiché d'office quand il existe ; l'approbation montre ses conséquences avant de s'exécuter.
+
+Reste de la fiche projet « complète » (cadrage §14.1) : objectifs, échéances et vue de synthèse regroupant financements et documents, à compléter avec les tranches suivantes.
+
 ## Critères d'acceptation ajoutés (à inscrire au jeu de référence)
 
 - **CA-14** : un engagement soldé par une écriture n'est jamais compté deux fois dans le « reste disponible ».
@@ -62,7 +76,7 @@ Les points marqués **À valider** ne sont pas tranchés par le cadrage : ne pas
 
 ## Questions ouvertes
 
-1. Granularité du budget : annuelle ou mensuelle ? (4.1)
+1. ~~Granularité du budget : annuelle ou mensuelle ?~~ Tranchée en 4.1 : dates explicites par ligne (voir ci-dessus), à relire.
 2. Coûts communs : clé de répartition dès 4.2 ou plus tard ? (4.2)
 3. Visibilité des subventions pour un responsable de projet. (4.3)
 4. Le trésorier pilote peut-il fournir une convention et un compte rendu réels (anonymisés) pour caler le modèle générique ? (4.4)

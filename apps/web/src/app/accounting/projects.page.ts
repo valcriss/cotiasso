@@ -8,13 +8,15 @@ import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { PageHeader } from '../ui/page-header';
 import { formatApiAmount } from './amount';
+import { ProjectBudget } from './project-budget';
 import { ProjectDialog } from './project-dialog';
+import { ProjectParticipants } from './project-participants';
 import { PROJECT_STATUS_LABELS } from './project-labels';
 
 /** Projets : axe analytique des charges et produits, avec leur synthèse globale et annuelle. */
 @Component({
   selector: 'app-projects-page',
-  imports: [MatButtonModule, MatIconModule, PageHeader],
+  imports: [MatButtonModule, MatIconModule, PageHeader, ProjectBudget, ProjectParticipants],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -130,6 +132,8 @@ import { PROJECT_STATUS_LABELS } from './project-labels';
           }
         }
       </section>
+      <app-project-budget [project]="project" />
+      <app-project-participants [project]="project" />
     }
   `,
 })

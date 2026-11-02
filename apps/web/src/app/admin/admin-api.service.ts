@@ -736,6 +736,51 @@ export interface ProjectSummaryInfo {
   years: ({ fiscalYearId: string; label: string } & ProjectTotalsInfo)[];
 }
 
+export type BudgetStatus = 'DRAFT' | 'APPROVED' | 'SUPERSEDED';
+export type BudgetLineKind = 'CHARGE' | 'PRODUCT';
+
+export interface BudgetLineInfo {
+  id: string;
+  kind: BudgetLineKind;
+  label: string;
+  accountId: string | null;
+  periodStart: string;
+  periodEnd: string;
+  amount: string;
+}
+
+export interface BudgetSummaryInfo {
+  id: string;
+  projectId: string;
+  number: number;
+  label: string;
+  status: BudgetStatus;
+  approvedAt: string | null;
+  createdAt: string;
+  lineCount: number;
+  charges: string;
+  products: string;
+  result: string;
+}
+
+export interface BudgetInfo extends BudgetSummaryInfo {
+  lines: BudgetLineInfo[];
+}
+
+export type BudgetLineBody = Omit<BudgetLineInfo, 'id'>;
+
+export interface ParticipantInfo {
+  id: string;
+  projectId: string;
+  memberId: string | null;
+  userId: string | null;
+  name: string;
+  role: string;
+  startDate: string | null;
+  endDate: string | null;
+  note: string;
+}
+
 export interface AllocationInfo {
   projectId: string;
   projectCode?: string;
@@ -1308,6 +1353,52 @@ export class AdminApiService {
 
   projectSummary(id: string): Promise<ProjectSummaryInfo> {
     return firstValueFrom(this.http.get<ProjectSummaryInfo>(`/api/projects/${id}/summary`));
+  }
+
+  listBudgets(projectId: string): Promise<BudgetSummaryInfo[]> {
+    return firstValueFrom(this.http.get<BudgetSummaryInfo[]>(`/api/projects/${projectId}/budgets`));
+  }
+
+  getBudget(id: string): Promise<BudgetInfo> {
+    return firstValueFrom(this.http.get<BudgetInfo>(`/api/budgets/${id}`));
+  }
+
+  createBudget(projectId: string, body: { label: string; fromBudgetId?: string }): Promise<BudgetInfo> {
+    return firstValueFrom(this.http.post<BudgetInfo>(`/api/projects/${projectId}/budgets`, body));
+  }
+
+  updateBudget(id: string, body: { label?: string; lines?: BudgetLineBody[] }): Promise<BudgetInfo> {
+    return firstValueFrom(this.http.put<BudgetInfo>(`/api/budgets/${id}`, body));
+  }
+
+  approveBudget(id: string): Promise<BudgetInfo> {
+    return firstValueFrom(this.http.post<BudgetInfo>(`/api/budgets/${id}/approve`, {}));
+  }
+
+  deleteBudget(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/budgets/${id}`));
+  }
+
+  listParticipants(projectId: string): Promise<ParticipantInfo[]> {
+    return firstValueFrom(this.http.get<ParticipantInfo[]>(`/api/projects/${projectId}/participants`));
+  }
+
+  addParticipant(
+    projectId: string,
+    body: { memberId?: string; userId?: string; role: string; startDate?: string | null; endDate?: string | null; note?: string },
+  ): Promise<ParticipantInfo> {
+    return firstValueFrom(this.http.post<ParticipantInfo>(`/api/projects/${projectId}/participants`, body));
+  }
+
+  updateParticipant(
+    id: string,
+    body: { role?: string; startDate?: string | null; endDate?: string | null; note?: string },
+  ): Promise<ParticipantInfo> {
+    return firstValueFrom(this.http.patch<ParticipantInfo>(`/api/project-participants/${id}`, body));
+  }
+
+  removeParticipant(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/project-participants/${id}`));
   }
 
   accountingSettings(): Promise<{ projectRequired: boolean }> {

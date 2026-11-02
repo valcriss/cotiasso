@@ -47,6 +47,7 @@ model User {
   mfaCredential    MfaCredential?
   mfaRecoveryCodes MfaRecoveryCode[]
   managedProjects  Project[]         @relation("ProjectManager")
+  projectParticipations ProjectParticipant[]
 }
 
 model Session {
@@ -311,6 +312,7 @@ model Account {
   lines                   JournalLine[]
   financialAccount        FinancialAccount?
   proposedForTransactions Transaction[]
+  budgetLines             BudgetLine[]
 }
 
 enum EntryStatus {
@@ -419,6 +421,8 @@ model Project {
   allocations     AnalyticalAllocation[]
   roleAssignments RoleAssignment[]
   transactions    Transaction[]
+  participants    ProjectParticipant[]
+  budgets         BudgetVersion[]
 }
 
 // Ventilation analytique d'une ligne de charge ou de produit : une ou plusieurs parts de projet dont le total égale
@@ -733,6 +737,7 @@ model MemberCategory {
 // Membre de l'association : jamais supprimé (l'historique comptable s'y réfère), anonymisable une fois sorti.
 model Member {
   id           String       @id @default(uuid()) @db.Uuid
+  projectParticipations ProjectParticipant[]
   firstName    String
   lastName     String
   email        String?
@@ -877,4 +882,72 @@ model PaymentAllocation {
 
   @@index([transactionId])
   @@index([membershipId])
+}
+
+// Participant d'un projet (ADR 0024, tranche 4.1) : un membre OU un utilisateur, avec un rôle libre et des dates.
+// Information seulement : aucun droit d'accès n'y est attaché (les droits restent dans les rôles et leur portée projet).
+model ProjectParticipant {
+  id        String    @id @default(uuid()) @db.Uuid
+  projectId String    @db.Uuid
+  memberId  String?   @db.Uuid
+  userId    String?   @db.Uuid
+  role      String
+  startDate DateTime? @db.Date
+  endDate   DateTime? @db.Date
+  note      String    @default("")
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  createdBy String?   @db.Uuid
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  member  Member? @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([projectId])
+}
+
+enum BudgetStatus {
+  DRAFT
+  APPROVED
+  SUPERSEDED
+}
+
+enum BudgetLineKind {
+  CHARGE
+  PRODUCT
+}
+
+// Version de budget d'un projet. Brouillon modifiable, puis approuvée (immuable), puis remplacée par la suivante.
+// Une seule version approuvée par projet. Un budget n'est pas de la comptabilité : il ne crée aucune écriture.
+model BudgetVersion {
+  id         String       @id @default(uuid()) @db.Uuid
+  projectId  String       @db.Uuid
+  number     Int
+  label      String
+  status     BudgetStatus @default(DRAFT)
+  approvedAt DateTime?    @db.Timestamptz(3)
+  approvedBy String?      @db.Uuid
+  createdAt  DateTime     @default(now()) @db.Timestamptz(3)
+  createdBy  String?      @db.Uuid
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  lines   BudgetLine[]
+
+  @@unique([projectId, number])
+}
+
+// Ligne de budget : un poste libre (compte facultatif), charge ou produit, sur une période explicite.
+model BudgetLine {
+  id          String         @id @default(uuid()) @db.Uuid
+  budgetId    String         @db.Uuid
+  kind        BudgetLineKind
+  label       String
+  accountId   String?        @db.Uuid
+  periodStart DateTime       @db.Date
+  periodEnd   DateTime       @db.Date
+  amount      Decimal        @db.Decimal(14, 2)
+
+  budget  BudgetVersion @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  account Account?      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([budgetId])
 }

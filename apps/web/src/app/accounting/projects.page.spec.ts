@@ -39,6 +39,13 @@ describe('ProjectsPage', () => {
     fixture.detectChanges();
     await fixture.whenStable();
   };
+  /** Ouvrir un projet charge aussi son budget et ses participants (panneaux voisins de la synthèse). */
+  const flushPanels = async (projectId: string) => {
+    await settle();
+    controller.expectOne(`/api/projects/${projectId}/budgets`).flush([]);
+    controller.expectOne(`/api/projects/${projectId}/participants`).flush([]);
+    await settle();
+  };
   const create = async (permissions: string[]) => {
     await TestBed.configureTestingModule({
       imports: [ProjectsPage],
@@ -82,6 +89,7 @@ describe('ProjectsPage', () => {
     await create(['projects:view']);
     await click('Ouvrir Festival');
     controller.expectOne('/api/projects/p1/summary').flush(summary);
+    await flushPanels('p1');
     await settle();
     const text = root.textContent!;
     expect(text).toContain('Synthèse de Festival');
@@ -95,6 +103,7 @@ describe('ProjectsPage', () => {
     await create(['projects:view']);
     await click('Ouvrir Festival');
     controller.expectOne('/api/projects/p1/summary').flush(empty);
+    await flushPanels('p1');
     await settle();
     expect(root.textContent).toContain("Aucune charge ni aucun produit n'a encore été ventilé");
   });
@@ -119,6 +128,7 @@ describe('ProjectsPage', () => {
     controller.expectOne('/api/projects').flush([permanent, project(), project({ id: 'p2', code: 'ATELIERS', name: 'Ateliers' })]);
     await settle();
     controller.expectOne('/api/projects/p2/summary').flush(empty);
+    await flushPanels('p2');
     await settle();
 
     // La boîte est fermée, un bandeau confirme, rien de vert n'est resté dans la page.
@@ -178,6 +188,7 @@ describe('ProjectsPage', () => {
     await create(['projects:view', 'projects:update']);
     await click('Ouvrir Fonctionnement');
     controller.expectOne('/api/projects/p0/summary').flush(empty);
+    await flushPanels('p0');
     await settle();
     await click('Modifier');
     expect(ui.title).toBe('Modifier le projet FONCT');
@@ -195,6 +206,7 @@ describe('ProjectsPage', () => {
     controller.expectOne('/api/projects').flush([{ ...permanent, name: 'Fonctionnement général' }]);
     await settle();
     controller.expectOne('/api/projects/p0/summary').flush(empty);
+    await flushPanels('p0');
     await settle();
     expect(ui.snackbar).toContain('Projet FONCT enregistré.');
   });
