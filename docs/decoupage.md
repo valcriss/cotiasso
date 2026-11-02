@@ -81,10 +81,12 @@ Points à trancher ou à ne pas perdre de vue avant de découper plus finement :
 
 ### Lot 4 — Projets et financements
 
-4.1 Fiche projet complète, budgets versionnés, engagements
-4.2 Rapports projet (global/annuel), absence de double comptage
-4.3 Financeurs, subventions, échéanciers, versements
-4.4 Affectation dépenses ↔ financements, comptes rendus financeurs
+Conception **proposée** dans l'[ADR 0024](decisions/0024-projets-budgets-et-financements.md) (à valider avant la tranche 4.1). Ordre : 4.1 → 4.2 → 4.3 → 4.4 ; 4.5 peut se faire à tout moment après 4.1. Aucune écriture comptable automatique dans ce lot.
+
+4.1 Fiche projet complète (participants), budgets versionnés (version approuvée immuable)
+4.2 Engagements, rapports projet (global/annuel), absence de double comptage (CA-14)
+4.3 Financeurs, subventions, échéanciers, versements (CA-15)
+4.4 Affectation dépenses ↔ financements, comptes rendus financeurs (CA-16)
 4.5 Droits détaillés par projet sur dossiers et documents
 
 ### Lot 5 — Circuits et finition

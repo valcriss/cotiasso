@@ -94,7 +94,7 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | # | Élément | Contenu | Dépend de |
 | --- | --- | --- | --- |
 | 3.1 | **Membres et cotisations (lot 3)** : membres, fonctions et mandats, campagnes (29/09 → 28/09), tarifs, cotisations attendues (CA-11), affectations de règlement partiel, groupé, trop-perçu (CA-07), remboursements, reçus simples | Fonction centrale d'une association ; règle comptable déjà tranchée : produit constaté à l'encaissement, sans créance (ADR 0002, 0004) | 2.2 |
-| 3.2 | **Projets et financements (lot 4)** : fiche projet complète, budgets versionnés, rapports sans double comptage, financeurs, subventions, échéanciers, comptes rendus financeurs | Peut se faire en parallèle du lot 3 | 2.1 |
+| 3.2 | **Projets et financements (lot 4)** : fiche projet complète, budgets versionnés, rapports sans double comptage, financeurs, subventions, échéanciers, comptes rendus financeurs. **Conception proposée** en quatre tranches 4.1 à 4.4 + 4.5 documents ([ADR 0024](decisions/0024-projets-budgets-et-financements.md), à valider) | Peut se faire en parallèle du lot 3 | 2.1 |
 | 3.3 | **Tableau de progression de la reprise** par exercice, compte et anomalie (5.4) | Donne une vue d'ensemble de ce qui reste à reprendre | Lots de reprise (ADR 0019) |
 | 3.4 | **Rapports figés** à la clôture et ouverture suivante complète (5.5) | S'appuie sur la clôture déjà livrée | 1.2 |
 | 3.5 | **Authentification OIDC optionnelle** | Décidée comme optionnelle (ADR 0005) | — |
