@@ -594,6 +594,15 @@ describe('AccountsPage', () => {
       expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Enregistrer tous'))).toBe(false);
     });
 
+    it('déplacer de l’argent entre mes comptes : la boîte parle de déplacement et d’enregistrement dans les comptes, pas de virement ni d’écriture', async () => {
+      const savings = account({ id: 'f2', name: 'Livret', accountId: 'a530', accountNumber: '530', journalCode: 'BQ-2' });
+      await create(SIMPLE, [account(), savings], 'simple');
+      await click('Déplacer de l’argent entre mes comptes');
+      expect(ui.title).toBe('Déplacer de l’argent entre mes comptes');
+      expect(ui.text).toContain('L’enregistrer aussi dans les comptes');
+      expect(ui.text).not.toContain('écriture comptable');
+    });
+
     it('classe la sélection avec des catégories plutôt qu’avec des numéros de compte', async () => {
       await openSimple([transaction({ id: 't1', label: 'Frais' })]);
       root.querySelector<HTMLInputElement>('mat-checkbox input')!.click();

@@ -1,6 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { ThemeService } from '../theme/theme.service';
 import { PageHeader } from '../ui/page-header';
 
 /** Rubriques des rapports : états de synthèse à présenter à l'assemblée générale. */
@@ -18,7 +19,9 @@ export const REPORT_TABS = [
     <app-page-header
       title="Rapports"
       icon="assessment"
-      description="Les états de synthèse de l'association, calculés à partir des écritures comptabilisées : ce sont ceux qu'on présente à l'assemblée générale."
+      [description]="simple()
+        ? 'Les états de synthèse de l’association, calculés à partir des opérations enregistrées dans les comptes : ce sont ceux qu’on présente à l’assemblée générale.'
+        : 'Les états de synthèse de l’association, calculés à partir des écritures comptabilisées : ce sont ceux qu’on présente à l’assemblée générale.'"
     />
     <nav class="tabs" aria-label="Rapports">
       @for (tab of tabs; track tab.path) {
@@ -31,5 +34,8 @@ export const REPORT_TABS = [
   `,
 })
 export class ReportsShell {
+  private readonly theme = inject(ThemeService);
+  protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
+
   protected readonly tabs = REPORT_TABS;
 }

@@ -14,6 +14,7 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 ### Nouveautés
 
+- **Vocabulaire simplifié sur les derniers écrans** (affichage Simple) : le rapprochement bancaire devient « Vérification avec la banque », les virements internes « Déplacer de l'argent entre mes comptes », les rapports, l'import de relevé et les projets parlent de période, de dépenses et de recettes et d'opérations enregistrées. L'affichage Comptable garde les termes de l'expert.
 - **Projet obligatoire expliqué** : quand une dépense ou une recette n'est rattachée à aucun projet, le message dit sur quelle ligne, pourquoi la règle existe et quoi faire ; l'éditeur d'écriture prévient avant la comptabilisation et propose de rattacher les lignes à « Fonctionnement » d'un clic.
 - **Enregistrer d'un coup les mouvements classés** : un seul bouton enregistre dans les comptes tous les mouvements déjà classés d'un compte (ou ceux qu'on a cochés), dans l'ordre des dates. Si l'un est refusé (exercice fermé, par exemple), les autres passent quand même et un compte rendu explique chaque refus.
 - **Parcours simplifiés, suite** : « Classer et enregistrer » un mouvement du relevé en choisissant seulement une catégorie, une situation lisible par mouvement (À classer, Classé, Enregistré, Vérifié avec la banque), catégories dans « Classer la sélection », rôle « Expert-comptable » en lecture seule (affichage comptable d'office), clôture d'exercice en trois étapes avec compte du résultat proposé, inscription à la double authentification expliquée pas à pas.

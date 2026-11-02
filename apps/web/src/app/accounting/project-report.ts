@@ -1,4 +1,4 @@
-import { Component, effect, inject, input, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
@@ -6,6 +6,7 @@ import { AdminApiService, type BudgetReportInfo, type BudgetReportRowInfo, type 
 import { describeHttpError } from '../auth/error-messages';
 import { ExportLink } from '../reports/export-link';
 import { formatApiAmount } from './amount';
+import { ThemeService } from '../theme/theme.service';
 
 /**
  * Suivi du budget d'un projet : ce qui était prévu, ce qui est promis sans être payé, ce qui est réellement dépensé, et ce
@@ -59,7 +60,7 @@ import { formatApiAmount } from './amount';
       </div>
       <p class="muted">
         Compare ce que vous aviez <strong>prévu</strong> (le budget), ce qui est <strong>promis mais pas encore payé</strong> (les
-        engagements) et ce qui est <strong>réellement dépensé</strong> (les écritures comptabilisées).
+        engagements) et ce qui est <strong>réellement dépensé</strong> ({{ simple() ? 'les opérations enregistrées dans les comptes' : 'les écritures comptabilisées' }}).
       </p>
       @if (error(); as message) {
         <p class="alert" role="alert">{{ message }}</p>
@@ -164,6 +165,8 @@ import { formatApiAmount } from './amount';
   `,
 })
 export class ProjectReport {
+  private readonly theme = inject(ThemeService);
+  protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
   private readonly api = inject(AdminApiService);
 
   readonly project = input.required<ProjectInfo>();

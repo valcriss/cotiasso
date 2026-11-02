@@ -4,6 +4,13 @@ import { TestBed } from '@angular/core/testing';
 import { mockAuth } from '../testing/auth-mock';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { ProjectBudget } from './project-budget';
+import { ThemeService } from '../theme/theme.service';
+
+/** Les tests historiques décrivent l'affichage comptable ; les tests « affichage simple » le demandent explicitement. */
+let view: 'simple' | 'accounting' = 'accounting';
+beforeEach(() => {
+  view = 'accounting';
+});
 
 const project = {
   id: 'p1',
@@ -54,6 +61,7 @@ describe('ProjectBudget', () => {
       providers: [provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
+    TestBed.inject(ThemeService).setViewMode(view);
     fixture = TestBed.createComponent(ProjectBudget);
     fixture.componentRef.setInput('project', project);
     root = fixture.nativeElement as HTMLElement;
@@ -87,6 +95,13 @@ describe('ProjectBudget', () => {
     expect(root.textContent).toContain("elle ne crée aucune écriture comptable");
     expect(root.textContent).toContain('Cliquez sur « Préparer un budget »');
     expect(buttons().some((b) => b.includes('Préparer un budget'))).toBe(true);
+  });
+
+  it('affichage simple : dit que le budget ne modifie pas les comptes, sans parler d’écriture', async () => {
+    view = 'simple';
+    await create(['projects:view', 'budgets:update'], []);
+    expect(root.textContent).toContain('elle ne modifie pas vos comptes');
+    expect(root.textContent).not.toContain('écriture comptable');
   });
 
   it('en lecture seule, ne propose aucune action', async () => {
@@ -241,6 +256,7 @@ describe('ProjectBudget', () => {
       providers: [provideHttpClient(), provideHttpClientTesting(), mockAuth(['projects:view', 'budgets:update']), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
+    TestBed.inject(ThemeService).setViewMode(view);
     fixture = TestBed.createComponent(ProjectBudget);
     fixture.componentRef.setInput('project', { ...project, status: 'ARCHIVED' });
     root = fixture.nativeElement as HTMLElement;

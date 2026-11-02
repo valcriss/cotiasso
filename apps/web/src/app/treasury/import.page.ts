@@ -1,4 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
+import { ThemeService } from '../theme/theme.service';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -19,7 +20,9 @@ import { ImportPanel } from './import-panel';
     <app-page-header
       title="Importer un relevé bancaire"
       icon="upload_file"
-      description="Déposez le fichier OFX de votre banque : l'application le lit, repère ce qui existe déjà et vous propose de rapprocher vos saisies. Rien n'est enregistré avant votre confirmation."
+      [description]="simple()
+        ? 'Déposez le fichier OFX de votre banque : l’application le lit, repère ce qui existe déjà et vous propose de relier vos saisies aux mouvements de la banque. Rien n’est enregistré avant votre confirmation.'
+        : 'Déposez le fichier OFX de votre banque : l’application le lit, repère ce qui existe déjà et vous propose de rapprocher vos saisies. Rien n’est enregistré avant votre confirmation.'"
     >
       <a mat-stroked-button routerLink="/comptes">
         <mat-icon fontSet="material-icons-outlined" aria-hidden="true">arrow_back</mat-icon> Retour aux comptes
@@ -30,7 +33,7 @@ import { ImportPanel } from './import-panel';
       <p class="alert" role="alert">{{ message }}</p>
     }
     @if (account(); as current) {
-      <p class="muted">Compte : <strong>{{ current.name }}</strong> ({{ current.journalCode }})</p>
+      <p class="muted">Compte : <strong>{{ current.name }}</strong> @if (!simple()) { ({{ current.journalCode }}) }</p>
       <app-import-panel [account]="current" (imported)="done()" />
     } @else if (!error()) {
       <p class="muted">Chargement…</p>
@@ -38,6 +41,8 @@ import { ImportPanel } from './import-panel';
   `,
 })
 export class ImportPage {
+  private readonly theme = inject(ThemeService);
+  protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
   private readonly api = inject(AdminApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);

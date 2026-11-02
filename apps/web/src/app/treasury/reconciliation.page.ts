@@ -18,6 +18,7 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
+import { ThemeService } from '../theme/theme.service';
 import { PageHeader } from '../ui/page-header';
 import { StatementDialog, type StatementDialogData } from './statement-dialog';
 
@@ -89,9 +90,11 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
   `,
   template: `
     <app-page-header
-      [title]="account() ? 'Rapprochement de ' + account()!.name : 'Rapprochement bancaire'"
+      [title]="(simple() ? 'Vérification avec la banque' : 'Rapprochement') + (account() ? ' de ' + account()!.name : simple() ? '' : ' bancaire')"
       icon="fact_check"
-      description="Comparez vos transactions au relevé de la banque : cochez celles qui y figurent jusqu'à ce que l'écart soit zéro. Ce qui n'y est pas encore (un chèque non débité…) reste simplement non coché."
+      [description]="simple()
+        ? 'Comparez vos mouvements au relevé de la banque : cochez ceux qui y figurent jusqu’à ce que l’écart soit zéro. Cela permet de repérer un oubli ou une erreur. Ce qui n’y est pas encore (un chèque non débité…) reste simplement non coché.'
+        : 'Comparez vos transactions au relevé de la banque : cochez celles qui y figurent jusqu’à ce que l’écart soit zéro. Ce qui n’y est pas encore (un chèque non débité…) reste simplement non coché.'"
     >
       <a mat-stroked-button routerLink="/comptes">
         <mat-icon fontSet="material-icons-outlined" aria-hidden="true">arrow_back</mat-icon> Retour aux comptes
@@ -119,9 +122,9 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
             <div class="hint">Le solde de fin indiqué par votre banque.</div>
           </div>
           <div class="figure">
-            <dt>Solde rapproché</dt>
+            <dt>{{ simple() ? 'Solde vérifié' : 'Solde rapproché' }}</dt>
             <dd>{{ amount(rec.pointedBalance) }} €</dd>
-            <div class="hint">{{ amount(rec.openingBalance) }} € au départ + {{ rec.pointedCount }} transaction(s) cochée(s)</div>
+            <div class="hint">{{ amount(rec.openingBalance) }} € au départ + {{ rec.pointedCount }} {{ simple() ? 'mouvement(s) coché(s)' : 'transaction(s) cochée(s)' }}</div>
           </div>
           <div class="figure">
             <dt>Écart</dt>
@@ -132,7 +135,7 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
             <dt>En circulation</dt>
             <dd>{{ rec.outstandingCount }}</dd>
             <div class="hint">
-              {{ amount(rec.outstandingTotal) }} € saisis mais pas sur ce relevé (chèque non débité, virement en route…).
+              {{ amount(rec.outstandingTotal) }} € enregistrés mais pas sur ce relevé (chèque non débité, virement en route…).
             </div>
           </div>
         </dl>
@@ -157,7 +160,7 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
               <mat-icon fontSet="material-icons-outlined" aria-hidden="true">playlist_add_check</mat-icon> Cocher les transactions importées
             </button>
             <button mat-flat-button type="button" [disabled]="busy() || !rec.canValidate" (click)="validate()">
-              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">task_alt</mat-icon> Valider le rapprochement
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">task_alt</mat-icon> {{ simple() ? 'Valider la vérification' : 'Valider le rapprochement' }}
             </button>
             <button mat-button class="danger" type="button" [disabled]="busy()" (click)="abandon()">Abandonner</button>
           </div>
@@ -171,7 +174,7 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
       <section class="panel" aria-label="Transactions à cocher">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">checklist</mat-icon><span>Transactions jusqu'au {{ rec.periodEnd }}</span></h3>
         @if (items().length === 0) {
-          <p class="muted">Aucune transaction à rapprocher jusqu'à cette date. Importez le relevé de votre banque ou saisissez les mouvements manquants.</p>
+          <p class="muted">{{ simple() ? 'Aucun mouvement à vérifier jusqu’à cette date. Importez le relevé de votre banque ou enregistrez les mouvements manquants.' : 'Aucune transaction à rapprocher jusqu’à cette date. Importez le relevé de votre banque ou saisissez les mouvements manquants.' }}</p>
         } @else {
           <table class="table">
             <caption class="sr-only">Transactions à cocher</caption>
@@ -180,7 +183,7 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
                 <th scope="col">Sur le relevé</th>
                 <th scope="col">Date</th>
                 <th scope="col">Libellé</th>
-                <th scope="col">Comptabilisation</th>
+                <th scope="col">{{ simple() ? 'Situation' : 'Comptabilisation' }}</th>
                 <th scope="col" class="amount">Montant</th>
               </tr>
             </thead>
@@ -283,6 +286,8 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
 })
 export class ReconciliationPage {
   private readonly api = inject(AdminApiService);
+  private readonly theme = inject(ThemeService);
+  protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly dialogs = inject(Dialogs);
@@ -361,14 +366,16 @@ export class ReconciliationPage {
     const rec = this.current();
     if (!rec) return;
     const confirmed = await this.dialogs.confirm({
-      title: 'Valider ce rapprochement ?',
-      message: `Le compte sera déclaré rapproché avec le relevé du ${rec.periodEnd} (solde ${this.amount(rec.closingBalance)} €). Les ${rec.pointedCount} transactions cochées ne pourront plus être modifiées ni supprimées. En cas d’erreur, vous pourrez annuler ce rapprochement tant qu’il est le dernier du compte.`,
+      title: this.simple() ? 'Valider cette vérification ?' : 'Valider ce rapprochement ?',
+      message: this.simple()
+        ? `Le compte sera déclaré vérifié avec le relevé du ${rec.periodEnd} (solde ${this.amount(rec.closingBalance)} €). Les ${rec.pointedCount} mouvements cochés ne pourront plus être modifiés ni supprimés. En cas d’erreur, vous pourrez annuler cette vérification tant qu’elle est la dernière du compte.`
+        : `Le compte sera déclaré rapproché avec le relevé du ${rec.periodEnd} (solde ${this.amount(rec.closingBalance)} €). Les ${rec.pointedCount} transactions cochées ne pourront plus être modifiées ni supprimées. En cas d’erreur, vous pourrez annuler ce rapprochement tant qu’il est le dernier du compte.`,
       confirmLabel: 'Valider',
     });
     if (!confirmed) return;
     await this.run(async () => {
       await this.api.validateReconciliation(rec.id);
-      this.notifier.success('Rapprochement validé : le compte est rapproché.');
+      this.notifier.success(this.simple() ? 'Vérification validée : le compte est vérifié avec la banque.' : 'Rapprochement validé : le compte est rapproché.');
       await this.reload();
     }, "Le rapprochement n'a pas pu être validé.");
   }

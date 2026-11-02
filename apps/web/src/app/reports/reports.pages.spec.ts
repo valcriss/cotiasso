@@ -6,6 +6,13 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { BalanceSheetPage } from './balance-sheet.page';
 import { IncomeStatementPage } from './income-statement.page';
 import { TreasuryStatementPage } from './treasury.page';
+import { ThemeService } from '../theme/theme.service';
+
+/** Les tests historiques décrivent l'affichage comptable ; les tests « affichage simple » le demandent explicitement. */
+let view: 'simple' | 'accounting' = 'accounting';
+beforeEach(() => {
+  view = 'accounting';
+});
 
 const year = (id: string, label: string, status = 'OPEN') => ({ id, label, start: `${label}-01-01`, end: `${label}-12-31`, status });
 const years = [year('y1', '2025', 'CLOSED'), year('y2', '2026')];
@@ -67,6 +74,7 @@ describe('états de synthèse', () => {
       providers: [provideRouter([{ path, component }]), provideHttpClient(), provideHttpClientTesting()],
     });
     controller = TestBed.inject(HttpTestingController);
+    TestBed.inject(ThemeService).setViewMode(view);
     harness = await RouterTestingHarness.create();
     const navigation = harness.navigateByUrl(`/${path}`, component);
     await settle();
@@ -83,7 +91,7 @@ describe('états de synthèse', () => {
   it('compte de résultat : rubriques, résultats, colonne précédente et explication du résultat', async () => {
     const root = await open(IncomeStatementPage, 'resultat', '/api/reports/income-statement', incomeStatement());
     const text = root.textContent!;
-    expect(text).toContain('Ce que l\'association a gagné');
+    expect(text).toContain('Ce que l’association a gagné');
     expect(text).toContain('Cotisations');
     expect(text).toContain('200,00');
     expect(text).toContain('150,00');
@@ -119,6 +127,32 @@ describe('états de synthèse', () => {
     expect(root.textContent).toContain('Déficit');
     expect(root.textContent).toContain('2 brouillon(s) d\'écriture ne sont pas pris en compte');
     expect(root.querySelector('[role="alert"]')!.textContent).toContain('864 Bénévolat');
+  });
+
+  it("affichage simple : les états parlent d'opérations enregistrées et de période, sans classe de comptes", async () => {
+    view = 'simple';
+    const root = await open(
+      IncomeStatementPage,
+      'resultat',
+      '/api/reports/income-statement',
+      incomeStatement({ draftEntries: 2, unclassified: [{ number: '864', label: 'Bénévolat', amount: '10.00' }] }),
+    );
+    const text = root.textContent!;
+    expect(root.querySelector('.help')!.textContent).toContain('Ce que l’association a reçu');
+    expect(root.querySelector('.help')!.textContent).toContain('opérations enregistrées dans les comptes');
+    expect(text).toContain('Période (exercice)');
+    expect(text).toContain('2 opération(s) en brouillon ne sont pas comptées : enregistrez-les définitivement');
+    expect(text).toContain('Montrez-le à votre expert-comptable');
+    expect(text).not.toContain('classe 8');
+    expect(text).not.toContain('écriture');
+  });
+
+  it("affichage simple : le bilan et la trésorerie reprennent les mêmes mots courants", async () => {
+    view = 'simple';
+    const root = await open(BalanceSheetPage, 'bilan', '/api/reports/balance-sheet', balanceSheet({ draftEntries: 1 }));
+    expect(root.querySelector('.help')!.textContent).toContain('à la fin de la période');
+    expect(root.textContent).toContain('1 opération(s) en brouillon ne sont pas comptées');
+    expect(root.textContent).not.toContain('brouillon(s) d’écriture');
   });
 
   it("bilan équilibré : totaux de l'actif et du passif et confirmation", async () => {
@@ -162,6 +196,7 @@ describe('état de trésorerie et exports', () => {
   const open = async (component: new () => unknown, path: string, endpoint: string, body: object) => {
     TestBed.configureTestingModule({ providers: [provideRouter([{ path, component }]), provideHttpClient(), provideHttpClientTesting()] });
     controller = TestBed.inject(HttpTestingController);
+    TestBed.inject(ThemeService).setViewMode(view);
     harness = await RouterTestingHarness.create();
     const navigation = harness.navigateByUrl(`/${path}`, component as never);
     await settle();

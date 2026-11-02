@@ -5,6 +5,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { ThemeService } from '../theme/theme.service';
 import { AdminApiService, type FinancialAccountInfo, type TransferInfo } from '../admin/admin-api.service';
 import { centsToApi, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
@@ -24,7 +25,7 @@ export interface TransferDialogData {
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
-        title="Nouveau virement interne"
+        [title]="simple ? 'Déplacer de l’argent entre mes comptes' : 'Nouveau virement interne'"
         description="De l'argent qui passe d'un de vos comptes à un autre (par exemple de la banque vers le livret, ou de la caisse vers la banque). Ce n'est ni une dépense ni une recette : rien n'est gagné ni perdu."
         submitLabel="Enregistrer le virement"
         [dirty]="form.dirty"
@@ -65,7 +66,7 @@ export interface TransferDialogData {
           <input matInput formControlName="label" placeholder="Virement vers le livret" />
           <mat-hint>Sans libellé, il sera nommé d'après les deux comptes.</mat-hint>
         </mat-form-field>
-        <mat-checkbox formControlName="prepareEntry">Préparer aussi l'écriture comptable (à relire avant de la comptabiliser)</mat-checkbox>
+        <mat-checkbox formControlName="prepareEntry">{{ simple ? 'L’enregistrer aussi dans les comptes (en brouillon, à relire avant de le valider)' : 'Préparer aussi l’écriture comptable (à relire avant de la comptabiliser)' }}</mat-checkbox>
       </app-form-dialog>
     </form>
   `,
@@ -75,6 +76,7 @@ export class TransferDialog {
   private readonly reference = inject<MatDialogRef<TransferDialog, TransferInfo>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<TransferDialogData>(MAT_DIALOG_DATA);
+  protected readonly simple = inject(ThemeService).viewMode() === 'simple';
 
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);

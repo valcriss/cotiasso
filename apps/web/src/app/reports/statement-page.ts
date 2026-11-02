@@ -1,4 +1,5 @@
-import { signal } from '@angular/core';
+import { computed, inject, signal } from '@angular/core';
+import { ThemeService } from '../theme/theme.service';
 import { AdminApiService, type FiscalYearInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { defaultYear } from '../accounting/report-filters';
@@ -6,6 +7,9 @@ import { defaultYear } from '../accounting/report-filters';
 /** Chargement commun des pages d'états : exercices, exercice choisi, état, erreur. */
 export abstract class StatementPageBase<T> {
   protected abstract readonly api: AdminApiService;
+  private readonly theme = inject(ThemeService);
+  /** Affichage simple (ADR 0028) : les phrases d'avertissement parlent d'opérations plutôt que d'écritures et de classes de comptes. */
+  protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
   protected readonly years = signal<FiscalYearInfo[]>([]);
   protected readonly yearId = signal('');
   protected readonly data = signal<T | null>(null);

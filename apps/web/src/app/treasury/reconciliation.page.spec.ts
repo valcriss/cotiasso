@@ -6,6 +6,13 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { mockAuth } from '../testing/auth-mock';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { ReconciliationPage } from './reconciliation.page';
+import { ThemeService } from '../theme/theme.service';
+
+/** Les tests historiques décrivent l'affichage comptable ; les tests « affichage simple » le demandent explicitement. */
+let view: 'simple' | 'accounting' = 'accounting';
+beforeEach(() => {
+  view = 'accounting';
+});
 
 const account = {
   id: 'f1',
@@ -95,6 +102,7 @@ describe('ReconciliationPage', () => {
       ],
     });
     controller = TestBed.inject(HttpTestingController);
+    TestBed.inject(ThemeService).setViewMode(view);
     harness = await RouterTestingHarness.create();
     ui = new DialogTester(settle);
     const navigation = harness.navigateByUrl('/comptes/f1/rapprochement', ReconciliationPage);
@@ -136,9 +144,27 @@ describe('ReconciliationPage', () => {
   it("explique qu'il faut d'abord enregistrer le solde d'un relevé quand il n'y en a aucun", async () => {
     await open(['financial-accounts:view', 'imports:post']);
     expect(root.querySelector('h1')!.textContent).toContain('Rapprochement de Compte courant');
-    expect(root.querySelector('.description')!.textContent).toContain("l'écart soit zéro");
+    expect(root.querySelector('.description')!.textContent).toContain("l’écart soit zéro");
     expect(root.textContent).toContain("il faut d'abord enregistrer le solde indiqué sur un relevé");
     expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Enregistrer un solde de relevé'))).toBe(true);
+  });
+
+  it("affichage simple : parle de vérification avec la banque, de mouvements et de situation, sans « rapprochement »", async () => {
+    view = 'simple';
+    await open(['financial-accounts:view', 'imports:post'], {
+      reconciliations: [reconciliation()],
+      transactions: [{ transaction: transaction('t1', 'Cotisation', '50.00'), pointed: false }],
+    });
+    expect(root.querySelector('h1')!.textContent).toContain('Vérification avec la banque de Compte courant');
+    expect(root.querySelector('.description')!.textContent).toContain('Comparez vos mouvements au relevé de la banque');
+    const text = root.textContent!;
+    expect(text).toContain('Solde vérifié');
+    expect(text).toContain('mouvement(s) coché(s)');
+    expect(text).toContain('enregistrés mais pas sur ce relevé');
+    expect(text).toContain('Situation');
+    expect((button('Valider la vérification') as HTMLButtonElement).disabled).toBe(true);
+    expect(text).not.toContain('Valider le rapprochement');
+    expect(text).not.toContain('Solde rapproché');
   });
 
   it('commence un rapprochement sur le relevé choisi', async () => {

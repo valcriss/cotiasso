@@ -5,6 +5,13 @@ import { provideRouter } from '@angular/router';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { mockAuth } from '../testing/auth-mock';
 import { ProjectsPage } from './projects.page';
+import { ThemeService } from '../theme/theme.service';
+
+/** Les tests historiques décrivent l'affichage comptable ; les tests « affichage simple » le demandent explicitement. */
+let view: 'simple' | 'accounting' = 'accounting';
+beforeEach(() => {
+  view = 'accounting';
+});
 
 const project = (overrides: Record<string, unknown> = {}) => ({
   id: 'p1',
@@ -63,6 +70,7 @@ describe('ProjectsPage', () => {
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
+    TestBed.inject(ThemeService).setViewMode(view);
     fixture = TestBed.createComponent(ProjectsPage);
     root = fixture.nativeElement as HTMLElement;
     ui = new DialogTester(settle);
@@ -136,7 +144,19 @@ describe('ProjectsPage', () => {
     controller.expectOne('/api/projects/p1/summary').flush(empty);
     await flushPanels('p1');
     await settle();
-    expect(root.textContent).toContain("Aucune charge ni aucun produit n'a encore été ventilé");
+    expect(root.textContent).toContain("Aucune charge ni aucun produit n’a encore été ventilé");
+  });
+
+  it('affichage simple : la synthèse parle de dépenses, de recettes et de périodes', async () => {
+    view = 'simple';
+    await create(['projects:view']);
+    await click('Ouvrir Festival');
+    controller.expectOne('/api/projects/p1/summary').flush(empty);
+    await flushPanels('p1');
+    await settle();
+    expect(root.textContent).toContain('Aucune dépense ni aucune recette n’a encore été rattachée à ce projet');
+    expect(root.textContent).toContain('les opérations enregistrées dans les comptes');
+    expect(root.textContent).not.toContain('ventilé');
   });
 
   it('crée un projet dans une boîte de dialogue, confirme par un bandeau et ouvre sa synthèse', async () => {

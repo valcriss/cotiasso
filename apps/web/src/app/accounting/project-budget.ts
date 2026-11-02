@@ -6,6 +6,7 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
+import { ThemeService } from '../theme/theme.service';
 import { formatApiAmount } from './amount';
 import { BudgetDialog } from './budget-dialog';
 import { BUDGET_KIND_LABELS, BUDGET_STATUS_LABELS } from './project-labels';
@@ -41,8 +42,8 @@ import { BUDGET_KIND_LABELS, BUDGET_STATUS_LABELS } from './project-labels';
         </div>
       </div>
       <p class="muted">
-        Ce que vous prévoyez de dépenser (charges) et de recevoir (produits) pour ce projet. C'est une prévision : elle ne crée aucune
-        écriture comptable.
+        Ce que vous prévoyez de dépenser (charges) et de recevoir (produits) pour ce projet. C'est une prévision : elle ne
+        {{ simple() ? 'modifie pas vos comptes' : 'crée aucune écriture comptable' }}.
         @if (hasDraft() && canPrepare()) {
           Un budget est déjà en préparation : approuvez-le ou supprimez-le avant d'en préparer un autre.
         }
@@ -155,6 +156,8 @@ import { BUDGET_KIND_LABELS, BUDGET_STATUS_LABELS } from './project-labels';
   `,
 })
 export class ProjectBudget {
+  private readonly theme = inject(ThemeService);
+  protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
   private readonly api = inject(AdminApiService);
   private readonly auth = inject(AuthService);
   private readonly dialogs = inject(Dialogs);
@@ -238,7 +241,7 @@ export class ProjectBudget {
         `Ce budget deviendra le budget en vigueur de « ${this.project().name} ».\n` +
         'Il ne pourra plus être modifié : pour le changer, vous préparerez une nouvelle version.\n' +
         (inForce ? `Le budget n° ${inForce.number} sera conservé comme « remplacé ».\n` : '') +
-        "Aucune écriture comptable n'est créée.",
+        (this.simple() ? 'Vos comptes ne sont pas modifiés.' : "Aucune écriture comptable n'est créée."),
       confirmLabel: 'Approuver',
     });
     if (!confirmed) return;

@@ -5,6 +5,13 @@ import { mockAuth } from '../testing/auth-mock';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { ImportPanel } from './import-panel';
 import type { FinancialAccountInfo, ImportInfo, ImportLineInfo } from '../admin/admin-api.service';
+import { ThemeService } from '../theme/theme.service';
+
+/** Les tests historiques décrivent l'affichage comptable ; les tests « affichage simple » le demandent explicitement. */
+let view: 'simple' | 'accounting' = 'accounting';
+beforeEach(() => {
+  view = 'accounting';
+});
 
 const account = { id: 'f1', name: 'Compte courant' } as FinancialAccountInfo;
 
@@ -74,6 +81,7 @@ describe('ImportPanel', () => {
       providers: [provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
+    TestBed.inject(ThemeService).setViewMode(view);
     fixture = TestBed.createComponent(ImportPanel);
     fixture.componentRef.setInput('account', account);
     root = fixture.nativeElement as HTMLElement;
@@ -140,6 +148,15 @@ describe('ImportPanel', () => {
     await upload(batch(mixed, { documentId: null }));
     expect(root.textContent).not.toContain("fichier d'origine");
     expect(root.querySelector('a[href^="/api/documents/"]')).toBeNull();
+  });
+
+  it("affichage simple : les saisies proches d'un mouvement de la banque sont « à relier », pas « à rapprocher »", async () => {
+    view = 'simple';
+    await create();
+    await upload(batch(mixed, { summary: { total: 4, new: 1, duplicate: 1, probableMatch: 1, error: 1 } }));
+    expect(root.textContent).toContain('1 à relier');
+    expect(root.textContent).toContain('1 ligne(s) à relier attendent votre choix');
+    expect(root.textContent).not.toContain('à rapprocher');
   });
 
   it('exige un choix explicite pour une ligne à rapprocher, sans valeur par défaut', async () => {

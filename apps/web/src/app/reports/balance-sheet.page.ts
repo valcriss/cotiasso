@@ -17,7 +17,9 @@ import { StatementGroups } from './statements';
   template: `
     <app-action-bar
       label="Bilan"
-      description="Une photo de l'association à la fin de l'exercice : à gauche ce qu'elle possède et ce qu'on lui doit (actif), à droite d'où cela vient : ses fonds propres, son résultat et ses dettes (passif). Les deux totaux doivent être égaux."
+      [description]="simple()
+        ? 'Une photo de l’association à la fin de la période : d’un côté ce qu’elle possède et ce qu’on lui doit (actif), de l’autre d’où cela vient : ses fonds propres, son résultat et ses dettes (passif). Les deux totaux doivent être égaux.'
+        : 'Une photo de l’association à la fin de l’exercice : à gauche ce qu’elle possède et ce qu’on lui doit (actif), à droite d’où cela vient : ses fonds propres, son résultat et ses dettes (passif). Les deux totaux doivent être égaux.'"
     >
       @if (yearId()) {
         <app-export-link path="balance-sheet" [params]="{ fiscalYearId: yearId() }" [print]="true" />
@@ -25,7 +27,7 @@ import { StatementGroups } from './statements';
     </app-action-bar>
     <section class="panel filters">
       <mat-form-field appearance="outline">
-        <mat-label>Exercice</mat-label>
+        <mat-label>{{ simple() ? 'Période (exercice)' : 'Exercice' }}</mat-label>
         <mat-select [value]="yearId()" (selectionChange)="choose($event.value)">
           @for (year of years(); track year.id) {
             <mat-option [value]="year.id">{{ year.label }}</mat-option>
@@ -46,13 +48,19 @@ import { StatementGroups } from './statements';
         <p class="alert" role="status">{{ warning }}</p>
       }
       @if (sheet.draftEntries > 0) {
-        <p class="muted" role="status">{{ sheet.draftEntries }} brouillon(s) d'écriture ne sont pas pris en compte : comptabilisez-les pour qu'ils y figurent.</p>
+        <p class="muted" role="status">
+          @if (simple()) {
+            {{ sheet.draftEntries }} opération(s) en brouillon ne sont pas comptées : enregistrez-les définitivement pour qu'elles y figurent.
+          } @else {
+            {{ sheet.draftEntries }} brouillon(s) d'écriture ne sont pas pris en compte : comptabilisez-les pour qu'ils y figurent.
+          }
+        </p>
       }
       @if (!sheet.balanced) {
         <p class="alert" role="alert">
           L'actif et le passif ne sont pas égaux (écart de {{ amount(sheet.difference) }} €).
           @if (sheet.unclassified.length > 0) {
-            Des comptes de classe 8 ne rentrent dans aucune rubrique :
+            {{ simple() ? 'Certains postes ne sont rangés dans aucune rubrique (à montrer à votre expert-comptable) :' : 'Des comptes de classe 8 ne rentrent dans aucune rubrique :' }}
             @for (account of sheet.unclassified; track account.number) {
               <span>{{ account.number }} {{ account.label }} ({{ amount(account.amount) }}) ; </span>
             }

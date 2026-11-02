@@ -17,7 +17,9 @@ import { StatementGroups } from './statements';
   template: `
     <app-action-bar
       label="Compte de résultat"
-      description="Ce que l'association a gagné (produits) et dépensé (charges) pendant l'exercice. La différence est le résultat : un excédent si on a gagné plus qu'on n'a dépensé, un déficit sinon. Seules les écritures comptabilisées sont prises en compte."
+      [description]="simple()
+        ? 'Ce que l’association a reçu (produits) et dépensé (charges) pendant la période. La différence est le résultat : un excédent si vous avez reçu plus que dépensé, un déficit sinon. Seules les opérations enregistrées dans les comptes sont comptées.'
+        : 'Ce que l’association a gagné (produits) et dépensé (charges) pendant l’exercice. La différence est le résultat : un excédent si on a gagné plus qu’on n’a dépensé, un déficit sinon. Seules les écritures comptabilisées sont prises en compte.'"
     >
       @if (yearId()) {
         <app-export-link path="income-statement" [params]="{ fiscalYearId: yearId() }" [print]="true" />
@@ -25,7 +27,7 @@ import { StatementGroups } from './statements';
     </app-action-bar>
     <section class="panel filters">
       <mat-form-field appearance="outline">
-        <mat-label>Exercice</mat-label>
+        <mat-label>{{ simple() ? 'Période (exercice)' : 'Exercice' }}</mat-label>
         <mat-select [value]="yearId()" (selectionChange)="choose($event.value)">
           @for (year of years(); track year.id) {
             <mat-option [value]="year.id">{{ year.label }}</mat-option>
@@ -43,11 +45,21 @@ import { StatementGroups } from './statements';
       <p class="muted">Aucun exercice n'est encore créé : créez-le dans Paramètres › Comptabilité.</p>
     } @else if (data(); as statement) {
       @if (statement.draftEntries > 0) {
-        <p class="muted" role="status">{{ statement.draftEntries }} brouillon(s) d'écriture ne sont pas pris en compte : comptabilisez-les pour qu'ils y figurent.</p>
+        <p class="muted" role="status">
+          @if (simple()) {
+            {{ statement.draftEntries }} opération(s) en brouillon ne sont pas comptées : enregistrez-les définitivement pour qu'elles y figurent.
+          } @else {
+            {{ statement.draftEntries }} brouillon(s) d'écriture ne sont pas pris en compte : comptabilisez-les pour qu'ils y figurent.
+          }
+        </p>
       }
       @if (statement.unclassified.length > 0) {
         <p class="alert" role="alert">
-          {{ statement.unclassified.length }} compte(s) ne rentrent dans aucune rubrique (classe 8) : cet état est incomplet.
+          @if (simple()) {
+            {{ statement.unclassified.length }} poste(s) ne sont rangés dans aucune rubrique : cet état est incomplet. Montrez-le à votre expert-comptable.
+          } @else {
+            {{ statement.unclassified.length }} compte(s) ne rentrent dans aucune rubrique (classe 8) : cet état est incomplet.
+          }
           @for (account of statement.unclassified; track account.number) {
             <span> {{ account.number }} {{ account.label }} ({{ amount(account.amount) }}) ; </span>
           }

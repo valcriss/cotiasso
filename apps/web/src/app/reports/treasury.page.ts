@@ -16,7 +16,9 @@ import { StatementPageBase } from './statement-page';
   template: `
     <app-action-bar
       label="Actions de l'état de trésorerie"
-      description="Pour chaque compte de banque ou de caisse : le solde au début de l'exercice, l'argent entré (encaissements), l'argent sorti (décaissements) et le solde à la fin. Un virement d'un de vos comptes à un autre apparaît comme une sortie d'un côté et une entrée de l'autre : ils s'annulent dans le total."
+      [description]="simple()
+        ? 'Pour chaque compte de banque ou de caisse : combien il y avait au début de la période, l’argent entré (encaissements), l’argent sorti (décaissements) et combien il y a à la fin. Un virement d’un de vos comptes à un autre apparaît comme une sortie d’un côté et une entrée de l’autre : ils s’annulent dans le total.'
+        : 'Pour chaque compte de banque ou de caisse : le solde au début de l’exercice, l’argent entré (encaissements), l’argent sorti (décaissements) et le solde à la fin. Un virement d’un de vos comptes à un autre apparaît comme une sortie d’un côté et une entrée de l’autre : ils s’annulent dans le total.'"
     >
       @if (yearId()) {
         <app-export-link path="treasury" [params]="{ fiscalYearId: yearId() }" [print]="true" />
@@ -24,7 +26,7 @@ import { StatementPageBase } from './statement-page';
     </app-action-bar>
     <section class="panel filters">
       <mat-form-field appearance="outline">
-        <mat-label>Exercice</mat-label>
+        <mat-label>{{ simple() ? 'Période (exercice)' : 'Exercice' }}</mat-label>
         <mat-select [value]="yearId()" (selectionChange)="choose($event.value)">
           @for (year of years(); track year.id) {
             <mat-option [value]="year.id">{{ year.label }}</mat-option>
@@ -45,14 +47,16 @@ import { StatementPageBase } from './statement-page';
         <p class="alert" role="status">{{ warning }}</p>
       }
       @if (statement.draftEntries > 0) {
-        <p class="muted" role="status">{{ statement.draftEntries }} brouillon(s) d'écriture ne sont pas pris en compte.</p>
+        <p class="muted" role="status">
+          {{ simple() ? statement.draftEntries + ' opération(s) en brouillon ne sont pas comptées.' : statement.draftEntries + ' brouillon(s) d’écriture ne sont pas pris en compte.' }}
+        </p>
       }
       @if (!statement.previous) {
         <p class="muted">Aucun exercice précédent : la colonne de comparaison est absente.</p>
       }
       @if (statement.rows.length === 0) {
         <section class="panel">
-          <p class="muted">Aucun mouvement comptabilisé sur un compte de banque ou de caisse pour cet exercice.</p>
+          <p class="muted">{{ simple() ? 'Aucun mouvement enregistré dans les comptes sur un compte de banque ou de caisse pour cette période.' : 'Aucun mouvement comptabilisé sur un compte de banque ou de caisse pour cet exercice.' }}</p>
         </section>
       } @else {
         <section class="panel">

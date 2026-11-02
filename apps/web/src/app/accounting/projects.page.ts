@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { ThemeService } from '../theme/theme.service';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { AdminApiService, type ProjectInfo, type ProjectStatus, type ProjectSummaryInfo } from '../admin/admin-api.service';
@@ -102,15 +103,15 @@ import { PROJECT_STATUS_LABELS } from './project-labels';
         }
         @if (summary(); as data) {
           @if (data.years.length === 0) {
-            <p class="muted">Aucune charge ni aucun produit n'a encore été ventilé sur ce projet.</p>
+            <p class="muted">{{ simple() ? 'Aucune dépense ni aucune recette n’a encore été rattachée à ce projet.' : 'Aucune charge ni aucun produit n’a encore été ventilé sur ce projet.' }}</p>
           } @else {
             <table class="table">
-              <caption class="sr-only">Charges et produits par exercice</caption>
+              <caption class="sr-only">{{ simple() ? 'Dépenses et recettes par période' : 'Charges et produits par exercice' }}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Exercice</th>
-                  <th scope="col" class="amount">Charges</th>
-                  <th scope="col" class="amount">Produits</th>
+                  <th scope="col">{{ simple() ? 'Période' : 'Exercice' }}</th>
+                  <th scope="col" class="amount">{{ simple() ? 'Dépenses' : 'Charges' }}</th>
+                  <th scope="col" class="amount">{{ simple() ? 'Recettes' : 'Produits' }}</th>
                   <th scope="col" class="amount">Résultat</th>
                 </tr>
               </thead>
@@ -126,7 +127,7 @@ import { PROJECT_STATUS_LABELS } from './project-labels';
               </tbody>
               <tfoot>
                 <tr>
-                  <td>Total (tous exercices)</td>
+                  <td>{{ simple() ? 'Total (toutes les périodes)' : 'Total (tous exercices)' }}</td>
                   <td class="amount">{{ amount(data.total.charges) }}</td>
                   <td class="amount">{{ amount(data.total.produits) }}</td>
                   <td class="amount">{{ amount(data.total.result) }}</td>
@@ -150,6 +151,8 @@ import { PROJECT_STATUS_LABELS } from './project-labels';
   `,
 })
 export class ProjectsPage {
+  private readonly theme = inject(ThemeService);
+  protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
   private readonly api = inject(AdminApiService);
   private readonly auth = inject(AuthService);
   private readonly dialogs = inject(Dialogs);

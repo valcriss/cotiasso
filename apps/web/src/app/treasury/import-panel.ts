@@ -1,4 +1,5 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { ThemeService } from '../theme/theme.service';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -96,7 +97,7 @@ const LINK = 'LINK:';
         <div class="counts">
           <span class="chip">{{ b.summary.total }} opération(s)</span>
           <span class="chip">{{ b.summary.new }} nouvelle(s)</span>
-          <span class="chip">{{ b.summary.probableMatch }} à rapprocher</span>
+          <span class="chip">{{ b.summary.probableMatch }} {{ simple() ? 'à relier' : 'à rapprocher' }}</span>
           <span class="chip">{{ b.summary.duplicate }} déjà importée(s)</span>
           <span class="chip">{{ b.summary.error }} en erreur</span>
         </div>
@@ -168,11 +169,11 @@ const LINK = 'LINK:';
               au {{ b.ledgerBalanceDate }}
             })
           </mat-checkbox>
-          <p class="muted">Une preuve datée : elle mesure l'écart avec le solde calculé, elle ne rapproche pas le compte.</p>
+          <p class="muted">Une preuve datée : elle mesure l'écart avec le solde calculé, elle ne {{ simple() ? 'vérifie pas' : 'rapproche pas' }} le compte.</p>
         }
 
         @if (pending() > 0) {
-          <p class="muted" role="status">{{ pending() }} ligne(s) à rapprocher attendent votre choix.</p>
+          <p class="muted" role="status">{{ pending() }} ligne(s) à {{ simple() ? 'relier' : 'rapprocher' }} attendent votre choix.</p>
         }
         <div class="actions">
           <button mat-flat-button type="button" [disabled]="busy() || pending() > 0" (click)="confirm()">
@@ -185,6 +186,8 @@ const LINK = 'LINK:';
   `,
 })
 export class ImportPanel {
+  private readonly theme = inject(ThemeService);
+  protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
   private readonly api = inject(AdminApiService);
   private readonly notifier = inject(Notifier);
   private readonly auth = inject(AuthService);
@@ -261,7 +264,7 @@ export class ImportPanel {
       const done = await this.api.commitImport(current.id, { decisions, recordStatement: this.recordStatement() });
       const result = done.summary.result!;
       this.batch.set(null);
-      this.notifier.success(`Import confirmé : ${result.created} créée(s), ${result.linked} rapprochée(s), ${result.skipped} ignorée(s).`);
+      this.notifier.success(`Import confirmé : ${result.created} créée(s), ${result.linked} ${this.simple() ? 'reliée(s)' : 'rapprochée(s)'}, ${result.skipped} ignorée(s).`);
       this.imported.emit(result);
     } catch (failure) {
       this.error.set(describeHttpError(failure, "L'import n'a pas pu être confirmé.").message);
