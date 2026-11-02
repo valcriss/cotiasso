@@ -6,6 +6,19 @@ import { mockAuth } from '../testing/auth-mock';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { CampaignsPage } from './campaigns.page';
 
+const allocation = (overrides: Record<string, unknown> = {}) => ({
+  id: 'al1',
+  transactionId: 'tx1',
+  transactionDate: '2025-11-12',
+  accountName: 'Banque',
+  amount: '10.00',
+  kind: 'PAYMENT',
+  note: null,
+  cancelled: false,
+  cancelReason: null,
+  ...overrides,
+});
+
 const tariff = { id: 't1', label: 'Plein tarif', amount: '30.00', categoryId: null, categoryName: null, membershipCount: 1 };
 const campaign = (overrides: Record<string, unknown> = {}) => ({
   id: 'c1',
@@ -32,6 +45,9 @@ const membership = (overrides: Record<string, unknown> = {}) => ({
   effectiveOn: null,
   effectiveOrigin: null,
   cancelReason: null,
+  paid: '0.00',
+  balance: '30.00',
+  overpaid: false,
   version: 1,
   ...overrides,
 });
@@ -215,5 +231,102 @@ describe('CampaignsPage', () => {
     await reloadAll([campaign()], [membership({ status: 'CANCELLED', cancelReason: 'Démission' })]);
     expect(ui.snackbar).toContain('Adhésion annulée');
     expect(root.textContent).toContain('Démission');
+  });
+
+  it("affiche le payé, le reste dû et le trop-perçu de chaque adhésion", async () => {
+    await create(['members:view']);
+    await openFirst([membership({ paid: '10.00', balance: '20.00' }), membership({ id: 'ms2', memberName: 'Martin Paul', paid: '50.00', balance: '-20.00', overpaid: true, status: 'EFFECTIVE', effectiveOn: '2026-01-10', effectiveOrigin: 'PAYMENT' })]);
+    const text = root.querySelector('section[aria-label="Adhésions de Adhésions 2025-2026"]')!.textContent!;
+    expect(text).toContain('10,00 €');
+    expect(text).toContain('20,00 €');
+    expect(text).toContain('Trop-perçu 20,00 €');
+  });
+
+  it("liste les cotisations restant dues et propose leur export CSV", async () => {
+    await create(['members:view']);
+    await openFirst([membership()]);
+    await click('Cotisations restant dues');
+    controller.expectOne('/api/campaigns/c1/reminders').flush({
+      campaignName: 'Adhésions 2025-2026',
+      totalDue: '30.00',
+      items: [{ membership: membership(), email: 'marie@asso.fr', phone: null }],
+    });
+    await settle();
+    const text = root.querySelector('[aria-label="Cotisations restant dues"]')!.textContent!;
+    expect(text).toContain('1 cotisation(s) restent à payer');
+    expect(text).toContain('30,00 €');
+    expect(text).toContain('marie@asso.fr');
+    const link = Array.from(root.querySelectorAll<HTMLAnchorElement>('a')).find((a) => a.textContent!.includes('Exporter la liste'))!;
+    expect(link.getAttribute('href')).toBe('/api/campaigns/c1/reminders/csv');
+  });
+
+  it("dit quand toutes les cotisations sont réglées", async () => {
+    await create(['members:view']);
+    await openFirst([membership()]);
+    await click('Cotisations restant dues');
+    controller.expectOne('/api/campaigns/c1/reminders').flush({ campaignName: 'x', totalDue: '0.00', items: [] });
+    await settle();
+    expect(root.textContent).toContain('Toutes les cotisations de cette campagne sont réglées');
+  });
+
+  it("affecte une transaction à une adhésion : candidats, montant proposé, effet sur l'adhésion", async () => {
+    await create(['members:view', 'members:manage']);
+    await openFirst();
+    await click('Règlements de Dupont Marie');
+    controller.expectOne('/api/memberships/ms1/allocations').flush([]);
+    await settle();
+    controller.expectOne((r) => r.url === '/api/memberships/ms1/payment-candidates').flush([
+      { id: 'tx1', operationDate: '2025-11-12', label: 'Chèque de Marie', accountName: 'Banque', amount: '30.00', remaining: '30.00' },
+    ]);
+    await settle();
+    expect(ui.title).toBe('Règlements de Dupont Marie');
+    expect(ui.text).toContain('Attendu : 30,00 €');
+    expect(ui.text).toContain('Aucun règlement affecté');
+    await ui.choose('mat-select[formcontrolname="transactionId"]', 'Chèque de Marie');
+    expect(ui.field<HTMLInputElement>('input[formcontrolname="amount"]').value).toBe('30,00');
+    ui.dialog!.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
+    await settle();
+    const request = controller.expectOne('/api/memberships/ms1/allocations');
+    expect(request.request.body).toEqual({ transactionId: 'tx1', amount: '30.00', kind: 'PAYMENT' });
+    request.flush({ allocation: allocation({ amount: '30.00' }), membership: membership({ status: 'EFFECTIVE', paid: '30.00', balance: '0.00', effectiveOrigin: 'PAYMENT', effectiveOn: '2025-11-12' }) });
+    await settle();
+    controller.expectOne('/api/memberships/ms1/allocations').flush([allocation({ amount: '30.00' })]);
+    await settle();
+    controller.expectOne((r) => r.url === '/api/memberships/ms1/payment-candidates').flush([]);
+    await settle();
+    expect(ui.snackbar).toContain("l’adhésion est effective");
+    expect(ui.text).toContain('Reste dû : 0,00 €');
+    expect(ui.text).toContain('Règlement de 30,00 €');
+    ui.dialog!.querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.textContent!.includes('Fermer') && b.click());
+    await settle();
+    await reloadAll([campaign()], [membership({ status: 'EFFECTIVE', paid: '30.00', balance: '0.00', effectiveOrigin: 'PAYMENT', effectiveOn: '2025-11-12' })]);
+  });
+
+  it("annule une affectation avec un motif, et montre le reçu simple dès qu'il y a un règlement", async () => {
+    await create(['members:view', 'members:manage']);
+    await openFirst([membership({ paid: '30.00', balance: '0.00', status: 'EFFECTIVE', effectiveOrigin: 'PAYMENT', effectiveOn: '2025-11-12' })]);
+    await click('Règlements de Dupont Marie');
+    controller.expectOne('/api/memberships/ms1/allocations').flush([allocation({ amount: '30.00' }), allocation({ id: 'al2', amount: '5.00', cancelled: true, cancelReason: 'Erreur' })]);
+    await settle();
+    controller.expectOne((r) => r.url === '/api/memberships/ms1/payment-candidates').flush([]);
+    await settle();
+    expect(ui.text).toContain('Voir le reçu simple');
+    expect(ui.text).toContain('annulé : Erreur');
+    ui.dialog!.querySelector<HTMLButtonElement>('button[aria-label^="Annuler l"]')!.click();
+    await settle();
+    expect(ui.title).toBe('Annuler cette affectation ?');
+    await ui.click("Annuler l'affectation");
+    expect(ui.error).toContain('3 caractères');
+    await ui.type('input[formcontrolname="reason"]', 'Chèque rejeté');
+    await ui.click("Annuler l'affectation");
+    const request = controller.expectOne('/api/allocations/al1/cancel');
+    expect(request.request.body).toEqual({ reason: 'Chèque rejeté' });
+    request.flush(membership({ paid: '0.00', balance: '30.00' }));
+    await settle();
+    controller.expectOne('/api/memberships/ms1/allocations').flush([allocation({ cancelled: true, cancelReason: 'Chèque rejeté' })]);
+    await settle();
+    controller.expectOne((r) => r.url === '/api/memberships/ms1/payment-candidates').flush([]);
+    await settle();
+    expect(ui.snackbar).toContain('Affectation annulée');
   });
 });

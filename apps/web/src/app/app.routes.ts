@@ -95,6 +95,13 @@ export const routes: Routes = [
         ],
       },
       {
+        path: 'membres/recu/:id',
+        title: 'Reçu de cotisation',
+        canActivate: [permissionGuard],
+        data: { permission: 'members:view' },
+        loadComponent: () => import('./members/receipt.page').then((m) => m.ReceiptPage),
+      },
+      {
         path: 'membres',
         title: 'Membres',
         canActivate: [permissionGuard],

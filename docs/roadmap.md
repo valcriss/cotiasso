@@ -48,6 +48,7 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | Virements internes | Deux transactions reliées et un brouillon banque à banque, sans charge ni produit (CA-05) | ADR 0017 |
 | Rapprochement bancaire | Pointage des transactions sur un relevé, écart nul exigé, figement, annulation du dernier, avertissement à la clôture | ADR 0018 |
 | État de trésorerie et exports (lot 2c.2) | État de trésorerie par compte avec exercice précédent ; export CSV sûr (formules neutralisées, audité) des états de synthèse et de lecture ; PDF par impression du navigateur | ADR 0021 |
+| Règlements, rappels et reçus (lots 3.3 et 3.4) | Affectation d'une transaction à une ou plusieurs adhésions (partiel, groupé, trop-perçu), remboursements, annulation motivée, reste dû, liste des cotisations restant dues avec export CSV, reçu simple imprimable (« pas un reçu fiscal ») ; aucune écriture comptable | ADR 0023 |
 | Campagnes et adhésions (lot 3.2) | Campagnes aux dates explicites, tarifs, adhésions (attendu figé, exonération motivée, trois modes d'adhésion effective), validation, annulation motivée ; aucune écriture comptable | ADR 0023 |
 | Membres (lot 3.1) | Fiches, catégories configurables, fonctions et mandats, sortie puis anonymisation irréversible et auditée, page Membres | ADR 0023 |
 | Portée projet des droits | Attributions de rôle limitées à un projet (intersection avec les droits applicables à un projet), accès filtrés côté serveur, écran « Accès effectifs » | ADR 0022 |

@@ -441,7 +441,50 @@ export interface MembershipInfo {
   effectiveOn: string | null;
   effectiveOrigin: 'PAYMENT' | 'VALIDATION' | 'START_DATE' | 'EXEMPTION' | null;
   cancelReason: string | null;
+  /** Règlements nets affectés ; `balance` = attendu − payé (négatif = trop-perçu). */
+  paid: string;
+  balance: string;
+  overpaid: boolean;
   version: number;
+}
+
+export interface PaymentAllocationInfo {
+  id: string;
+  transactionId: string;
+  transactionDate: string;
+  accountName: string;
+  amount: string;
+  kind: 'PAYMENT' | 'REFUND';
+  note: string | null;
+  cancelled: boolean;
+  cancelReason: string | null;
+}
+
+export interface PaymentCandidateInfo {
+  id: string;
+  operationDate: string;
+  label: string;
+  accountName: string;
+  amount: string;
+  remaining: string;
+}
+
+export interface ReminderInfo {
+  campaignName: string;
+  totalDue: string;
+  items: { membership: MembershipInfo; email: string | null; phone: string | null }[];
+}
+
+export interface ReceiptInfo {
+  association: { name: string; address: string; postalCode: string; city: string };
+  member: string;
+  campaign: { name: string; startsOn: string; endsOn: string };
+  expectedAmount: string;
+  payments: { date: string; amount: string; kind: 'PAYMENT' | 'REFUND' }[];
+  paid: string;
+  balance: string;
+  issuedOn: string;
+  notice: string;
 }
 
 export interface ComparedRowInfo {
@@ -1072,6 +1115,33 @@ export class AdminApiService {
     body: { memberId: string; tariffId: string; expectedAmount?: string; exemptionReason?: string; effectiveOn?: string },
   ): Promise<MembershipInfo> {
     return firstValueFrom(this.http.post<MembershipInfo>(`/api/campaigns/${campaignId}/memberships`, body));
+  }
+
+  listAllocations(membershipId: string): Promise<PaymentAllocationInfo[]> {
+    return firstValueFrom(this.http.get<PaymentAllocationInfo[]>(`/api/memberships/${membershipId}/allocations`));
+  }
+
+  paymentCandidates(membershipId: string, kind: 'PAYMENT' | 'REFUND'): Promise<PaymentCandidateInfo[]> {
+    return firstValueFrom(this.http.get<PaymentCandidateInfo[]>(`/api/memberships/${membershipId}/payment-candidates`, { params: { kind } }));
+  }
+
+  allocatePayment(
+    membershipId: string,
+    body: { transactionId: string; amount: string; kind: 'PAYMENT' | 'REFUND'; note?: string },
+  ): Promise<{ allocation: PaymentAllocationInfo; membership: MembershipInfo }> {
+    return firstValueFrom(this.http.post<{ allocation: PaymentAllocationInfo; membership: MembershipInfo }>(`/api/memberships/${membershipId}/allocations`, body));
+  }
+
+  cancelAllocation(id: string, reason: string): Promise<MembershipInfo> {
+    return firstValueFrom(this.http.post<MembershipInfo>(`/api/allocations/${id}/cancel`, { reason }));
+  }
+
+  reminders(campaignId: string): Promise<ReminderInfo> {
+    return firstValueFrom(this.http.get<ReminderInfo>(`/api/campaigns/${campaignId}/reminders`));
+  }
+
+  receipt(membershipId: string): Promise<ReceiptInfo> {
+    return firstValueFrom(this.http.get<ReceiptInfo>(`/api/memberships/${membershipId}/receipt`));
   }
 
   validateMembership(id: string): Promise<MembershipInfo> {

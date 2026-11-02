@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { formatApiAmount } from '../accounting/amount';
-import { AdminApiService, type CampaignInfo, type MemberCategoryInfo, type MemberInfo, type MembershipInfo } from '../admin/admin-api.service';
+import { AdminApiService, type CampaignInfo, type MemberCategoryInfo, type MemberInfo, type MembershipInfo, type ReminderInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { ActionBar } from '../ui/action-bar';
@@ -19,6 +19,7 @@ import {
   type MembershipDialogData,
   type TariffDialogData,
 } from './campaign-dialogs';
+import { PaymentsDialog, type PaymentsDialogData } from './payments-dialog';
 
 const STATUS_LABELS = { PENDING: 'En attente', EFFECTIVE: 'Effective', CANCELLED: 'Annulée' } as const;
 const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_DATE: 'date de début', EXEMPTION: 'exonération' } as const;
@@ -125,12 +126,34 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
       <section class="panel" [attr.aria-label]="'Adhésions de ' + campaign.name">
         <div class="head">
           <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">how_to_reg</mat-icon><span>Adhésions</span></h3>
+          <div class="actions">
+            <button mat-stroked-button type="button" (click)="toggleReminders(campaign)">
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">notifications_active</mat-icon> Cotisations restant dues
+            </button>
           @if (canManage()) {
             <button mat-flat-button type="button" [disabled]="campaign.tariffs.length === 0" (click)="newMembership(campaign)">
               <mat-icon fontSet="material-icons-outlined" aria-hidden="true">person_add</mat-icon> Nouvelle adhésion
             </button>
           }
+          </div>
         </div>
+        @if (reminders(); as due) {
+          <div class="reminders" aria-label="Cotisations restant dues">
+            @if (due.items.length === 0) {
+              <p class="success" role="status">Toutes les cotisations de cette campagne sont réglées.</p>
+            } @else {
+              <p>
+                <strong>{{ due.items.length }}</strong> cotisation(s) restent à payer, pour un total de <strong>{{ amount(due.totalDue) }} €</strong>.
+                <a mat-button [href]="'/api/campaigns/' + campaign.id + '/reminders/csv'" download>Exporter la liste (CSV)</a>
+              </p>
+              <ul>
+                @for (item of due.items; track item.membership.id) {
+                  <li>{{ item.membership.memberName }} — {{ amount(item.membership.balance) }} €@if (item.email) { · {{ item.email }} }@if (item.phone) { · {{ item.phone }} }</li>
+                }
+              </ul>
+            }
+          </div>
+        }
         @if (memberships().length === 0) {
           <p class="muted">Aucune adhésion pour cette campagne.</p>
         } @else {
@@ -141,6 +164,8 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
                 <th scope="col">Membre</th>
                 <th scope="col">Tarif</th>
                 <th scope="col" class="amount">Attendu</th>
+                <th scope="col" class="amount">Payé</th>
+                <th scope="col" class="amount">Reste dû</th>
                 <th scope="col">État</th>
                 <th scope="col"><span class="sr-only">Actions</span></th>
               </tr>
@@ -156,6 +181,16 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
                     }
                   </td>
                   <td class="amount">{{ amount(membership.expectedAmount) }} €</td>
+                  <td class="amount">{{ amount(membership.paid) }} €</td>
+                  <td class="amount" [class.danger-text]="membership.overpaid || (membership.status !== 'CANCELLED' && membership.balance !== '0.00')">
+                    @if (membership.status === 'CANCELLED') {
+                      —
+                    } @else if (membership.overpaid) {
+                      Trop-perçu {{ amount(membership.balance.replace('-', '')) }} €
+                    } @else {
+                      {{ amount(membership.balance) }} €
+                    }
+                  </td>
                   <td>
                     @if (membership.status === 'EFFECTIVE') {
                       <span class="status ok">{{ statusLabel(membership.status) }}</span>
@@ -168,6 +203,9 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
                     }
                   </td>
                   <td class="row-actions">
+                    @if (membership.status !== 'CANCELLED') {
+                      <button mat-button type="button" [attr.aria-label]="'Règlements de ' + membership.memberName" (click)="payments(membership)">Règlements</button>
+                    }
                     @if (canManage() && membership.status !== 'CANCELLED') {
                       @if (membership.status === 'PENDING' && campaign.effectiveMode === 'VALIDATION') {
                         <button mat-button type="button" [attr.aria-label]="'Valider l\\'adhésion de ' + membership.memberName" [disabled]="busy()" (click)="validate(membership)">Valider</button>
@@ -194,6 +232,8 @@ export class CampaignsPage {
   protected readonly selectedId = signal<string | null>(null);
   protected readonly selected = computed(() => this.campaigns().find((c) => c.id === this.selectedId()) ?? null);
   protected readonly memberships = signal<MembershipInfo[]>([]);
+  /** Cotisations restant dues, quand le panneau est ouvert. */
+  protected readonly reminders = signal<ReminderInfo | null>(null);
   private readonly categories = signal<MemberCategoryInfo[]>([]);
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
@@ -214,7 +254,25 @@ export class CampaignsPage {
 
   protected async open(id: string): Promise<void> {
     this.selectedId.set(id);
+    this.reminders.set(null);
     await this.run(async () => this.memberships.set(await this.api.listMemberships(id)), 'Impossible de charger les adhésions.');
+  }
+
+  protected async toggleReminders(campaign: CampaignInfo): Promise<void> {
+    if (this.reminders()) {
+      this.reminders.set(null);
+      return;
+    }
+    await this.run(async () => this.reminders.set(await this.api.reminders(campaign.id)), 'Impossible de calculer les cotisations restant dues.');
+  }
+
+  protected async payments(membership: MembershipInfo): Promise<void> {
+    const updated = await this.dialogs.open<MembershipInfo, PaymentsDialogData>(PaymentsDialog, {
+      size: 'lg',
+      dismissible: true,
+      data: { membership, canManage: this.canManage() },
+    });
+    if (updated) await this.refresh();
   }
 
   protected async newCampaign(): Promise<void> {
@@ -296,6 +354,7 @@ export class CampaignsPage {
     await this.reload();
     const id = this.selectedId();
     if (id) this.memberships.set(await this.api.listMemberships(id));
+    if (this.reminders() && id) this.reminders.set(await this.api.reminders(id));
   }
 
   private async init(): Promise<void> {

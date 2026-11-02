@@ -75,8 +75,8 @@ Points à trancher ou à ne pas perdre de vue avant de découper plus finement :
 
 3.1 Membres, fonctions, mandats (sans dépendre d'un compte de connexion) — **fait** ([ADR 0023](decisions/0023-membres-adhesions-et-cotisations.md)) : fiches, catégories, fonctions et mandats, sortie et anonymisation, page Membres
 3.2 Campagnes (29/09→28/09), tarifs, cotisations attendues (CA-11) — **fait** ([ADR 0023](decisions/0023-membres-adhesions-et-cotisations.md)) : campagnes sans chevauchement, mode d'adhésion effective figé, tarifs, adhésions, validation, annulation motivée, onglet Campagnes
-3.3 Affectations de règlement : partiel, groupé, trop-perçu (CA-07)
-3.4 Remboursements/annulations, rappels et reçus simples
+3.3 Affectations de règlement : partiel, groupé, trop-perçu (CA-07) — **fait** ([ADR 0023](decisions/0023-membres-adhesions-et-cotisations.md)) : affectation d'une transaction à une ou plusieurs adhésions, reste dû, trop-perçu signalé, adhésion effective à l'encaissement
+3.4 Remboursements/annulations, rappels et reçus simples — **fait** ([ADR 0023](decisions/0023-membres-adhesions-et-cotisations.md)) : remboursement affecté, annulation motivée, liste des cotisations restant dues (CSV sûr), reçu simple imprimable (jamais un reçu fiscal)
 3.5 Traitement comptable des cotisations : produit à l'encaissement, sans créance (ADR 0002) ; la créance reste un éventuel module ultérieur
 
 ### Lot 4 — Projets et financements
