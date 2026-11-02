@@ -880,6 +880,52 @@ export interface GrantInfo {
   residualNote: string | null;
   allocations: GrantAllocationInfo[];
   allocatedTotal: string;
+  /** Somme des versements reçus. */
+  received: string;
+}
+
+export type ScheduleState = 'PENDING' | 'PARTIAL' | 'RECEIVED';
+
+export interface GrantScheduleInfo {
+  id: string;
+  dueOn: string;
+  amount: string;
+  condition: string;
+  received: string;
+  state: ScheduleState;
+  overdue: boolean;
+}
+
+export interface GrantPaymentInfo {
+  id: string;
+  transactionId: string;
+  operationDate: string;
+  amount: string;
+  scheduleId: string | null;
+  note: string | null;
+  cancelled: boolean;
+  cancelReason: string | null;
+}
+
+export interface GrantFinanceInfo {
+  grantId: string;
+  granted: string | null;
+  planned: string;
+  received: string;
+  remaining: string | null;
+  unplanned: string | null;
+  overReceived: boolean;
+  schedule: GrantScheduleInfo[];
+  payments: GrantPaymentInfo[];
+}
+
+export interface PaymentCandidateInfo {
+  id: string;
+  operationDate: string;
+  label: string;
+  accountName: string;
+  amount: string;
+  remaining: string;
 }
 
 export interface GrantBody {
@@ -1533,6 +1579,37 @@ export class AdminApiService {
 
   closeGrant(id: string, body: { closedOn: string; residual: GrantResidual; note: string }): Promise<GrantInfo> {
     return firstValueFrom(this.http.post<GrantInfo>(`/api/grants/${id}/close`, body));
+  }
+
+  grantFinance(id: string): Promise<GrantFinanceInfo> {
+    return firstValueFrom(this.http.get<GrantFinanceInfo>(`/api/grants/${id}/finance`));
+  }
+
+  addGrantSchedule(grantId: string, body: { dueOn: string; amount: string; condition?: string }): Promise<GrantFinanceInfo> {
+    return firstValueFrom(this.http.post<GrantFinanceInfo>(`/api/grants/${grantId}/schedule`, body));
+  }
+
+  updateGrantSchedule(id: string, body: { dueOn?: string; amount?: string; condition?: string }): Promise<GrantFinanceInfo> {
+    return firstValueFrom(this.http.patch<GrantFinanceInfo>(`/api/grant-schedule/${id}`, body));
+  }
+
+  removeGrantSchedule(id: string): Promise<GrantFinanceInfo> {
+    return firstValueFrom(this.http.delete<GrantFinanceInfo>(`/api/grant-schedule/${id}`));
+  }
+
+  recordGrantPayment(
+    grantId: string,
+    body: { transactionId: string; amount: string; scheduleId?: string | null; note?: string | null },
+  ): Promise<GrantFinanceInfo> {
+    return firstValueFrom(this.http.post<GrantFinanceInfo>(`/api/grants/${grantId}/payments`, body));
+  }
+
+  cancelGrantPayment(id: string, reason: string): Promise<GrantFinanceInfo> {
+    return firstValueFrom(this.http.post<GrantFinanceInfo>(`/api/grant-payments/${id}/cancel`, { reason }));
+  }
+
+  grantPaymentCandidates(grantId: string): Promise<PaymentCandidateInfo[]> {
+    return firstValueFrom(this.http.get<PaymentCandidateInfo[]>(`/api/grants/${grantId}/payment-candidates`));
   }
 
   listBudgets(projectId: string): Promise<BudgetSummaryInfo[]> {

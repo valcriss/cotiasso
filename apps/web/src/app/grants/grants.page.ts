@@ -11,6 +11,7 @@ import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { PageHeader } from '../ui/page-header';
 import { FunderDialog } from './funder-dialog';
+import { GrantFinance } from './grant-finance';
 import { FUNDER_TYPE_LABELS, GRANT_STATUS_LABELS, RESIDUAL_LABELS } from './grant-labels';
 import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, GrantReasonDialog } from './grant-dialogs';
 
@@ -20,7 +21,7 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
  */
 @Component({
   selector: 'app-grants-page',
-  imports: [MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
+  imports: [GrantFinance, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -107,6 +108,7 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
               <th scope="col">État</th>
               <th scope="col" class="amount">Demandé</th>
               <th scope="col" class="amount">Accordé</th>
+              <th scope="col" class="amount">Reçu</th>
               <th scope="col">Projets</th>
               <th scope="col"><span class="sr-only">Actions</span></th>
             </tr>
@@ -124,6 +126,7 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
                 <td><span class="chip">{{ statusLabel(grant.status) }}</span></td>
                 <td class="amount">{{ amount(grant.requestedAmount) }}</td>
                 <td class="amount">{{ grant.grantedAmount === null ? '—' : amount(grant.grantedAmount) }}</td>
+                <td class="amount">{{ grant.grantedAmount === null ? '—' : amount(grant.received) }}</td>
                 <td>{{ projectCodes(grant) }}</td>
                 <td class="row-actions">
                   <button mat-button type="button" [attr.aria-label]="'Ouvrir ' + grant.title" (click)="open(grant)">Ouvrir</button>
@@ -239,6 +242,9 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
           }
         </table>
       </section>
+      @if (grant.status === 'GRANTED' || grant.status === 'CLOSED') {
+        <app-grant-finance [grant]="grant" [canManage]="canManage()" (changed)="refresh()" />
+      }
     }
 
     @if (showFunders()) {
@@ -439,6 +445,13 @@ export class GrantsPage {
     } catch (failure) {
       this.error.set(describeHttpError(failure, "Le financeur n'a pas pu être archivé. Réessayez dans un instant.").message);
     }
+  }
+
+  /** Recharge la liste et le détail après un versement ou une échéance, sans bandeau (le panneau a le sien). */
+  protected async refresh(): Promise<void> {
+    await this.load();
+    const target = this.selected()?.id;
+    if (target) this.selected.set(await this.api.getGrant(target));
   }
 
   private async done(message: string, show?: string): Promise<void> {

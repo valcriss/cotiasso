@@ -1,6 +1,6 @@
 # ADR 0024 — Projets, budgets et financements
 
-Statut : **proposé** (2 novembre 2026, lot 4) ; **tranches 4.1, 4.2 et 4.3a livrées** le 2 novembre 2026 (voir les sections « ce qui a été livré »), les tranches 4.3b à 4.5 restent à valider. Applique le cadrage §14 (projets et suivi analytique), §15 (subventions et financeurs) et le modèle de données §22 (`BudgetVersion`, `BudgetLine`, `Commitment`, `Funder`, `Grant`, `GrantSchedule`, `GrantProjectAllocation`, `FundingExpenseAllocation`). Prolonge l'[ADR 0013](0013-projets-et-ventilation-analytique.md) (noyau projet) et l'[ADR 0022](0022-portee-projet-des-droits.md) (portée projet des droits).
+Statut : **proposé** (2 novembre 2026, lot 4) ; **tranches 4.1, 4.2, 4.3a et 4.3b livrées** le 2 novembre 2026 (voir les sections « ce qui a été livré »), les tranches 4.4 et 4.5 restent à valider. Applique le cadrage §14 (projets et suivi analytique), §15 (subventions et financeurs) et le modèle de données §22 (`BudgetVersion`, `BudgetLine`, `Commitment`, `Funder`, `Grant`, `GrantSchedule`, `GrantProjectAllocation`, `FundingExpenseAllocation`). Prolonge l'[ADR 0013](0013-projets-et-ventilation-analytique.md) (noyau projet) et l'[ADR 0022](0022-portee-projet-des-droits.md) (portée projet des droits).
 
 Les points marqués **À valider** ne sont pas tranchés par le cadrage : ne pas les traiter comme acquis.
 
@@ -92,6 +92,22 @@ Décisions prises à la réalisation, en plus de celles arrêtées avec l'utilis
 7. **Audit** : `funder.created|updated|archived` et `grant.created|updated|allocations-set|reviewed|granted|refused|cancelled|closed`, sans aucun montant ; motif de refus et d'annulation en justification.
 8. **Écrans** : page **Subventions** (`apps/web/src/app/grants/`, route `/subventions`, entrée de menu existante) avec liste filtrable par état, détail et actions selon l'état, panneau des financeurs ; panneau **Financements** en lecture seule dans la page Projets. À l'accord, le bouton reste grisé tant que la répartition ne totalise pas exactement le montant accordé, avec le reste à répartir affiché en direct.
 9. **Pièces** : le type d'objet `grant` existe déjà pour les liens documentaires (lot 1.6) ; l'écran de la subvention ne présente pas encore ses documents liés (à ajouter avec 4.3b ou 4.4).
+
+## Tranche 4.3b — ce qui a été livré
+
+Décisions prises à la réalisation (à relire) :
+
+1. **Échéance** (`GrantSchedule`) : un versement attendu (date, montant, condition), seulement pour une subvention **accordée** et pas encore clôturée. **La somme des échéances ne dépasse jamais le montant accordé** (la base le vérifie sous le verrou de la subvention ; le service refuse d'abord avec « il ne reste que X € à planifier »). Modifiable, retirable tant qu'aucun versement n'y est rattaché ; **figée à la clôture**. C'est un plan : aucune écriture.
+2. **Versement reçu** (`GrantPayment`) : une part d'une **transaction** (un encaissement, montant positif) rattachée à une subvention accordée, avec en option l'échéance qu'elle règle. **Aucune écriture comptable** : l'encaissement se comptabilise à part (CA-15, testé : deux versements sur deux années, aucune écriture créée). Ne se modifie ni ne se supprime jamais (déclencheur SQL) : on l'**annule avec un motif** (3 caractères au moins), il reste dans l'historique et l'encaissement redevient disponible.
+3. **Plafond commun avec les cotisations** : une même transaction peut financer des cotisations et une subvention, mais **jamais plus que son montant au total**. La fonction `transaction_allocated_total` additionne les affectations de cotisations et les versements de subvention actifs ; le garde des affectations de cotisations (`payment_allocation_guard`) et le contrôle de modification du montant d'une transaction l'utilisent désormais (migration `add_grant_schedule_and_payments`), et la liste des encaissements candidats des cotisations aussi. Verrou sur la transaction pour les saisies simultanées.
+4. **Après la clôture, plus rien ne bouge** : on n'enregistre ni n'annule plus de versement, on ne touche plus à l'échéancier. **À relire** : un versement qui arriverait après la clôture est refusé avec un message ; il faut alors décider avec le financeur (le reliquat se règle à la clôture, ADR plus haut).
+5. **Trop-perçu signalé, jamais masqué** : le total reçu peut dépasser le montant accordé (comme un trop-perçu de cotisation) ; la vue le marque `overReceived` et l'écran l'écrit en toutes lettres.
+6. **Vue financière** (`GET /grants/:id/finance`) : accordé, prévu, **reçu**, **reste à recevoir** (accordé − reçu), part non planifiée, échéances avec état dérivé (`PENDING`, `PARTIAL`, `RECEIVED`) et retard (`overdue`, date passée et échéance non entièrement reçue), versements avec la date de l'encaissement et le montant. **Le libellé bancaire n'est pas exposé** ici (un responsable de projet ne consulte pas forcément les comptes) : il n'apparaît que dans la liste des encaissements candidats, qui exige aussi `financial-accounts:view`. `GrantView` porte la somme `received`. Même portée de lecture que la subvention (hors portée : 404).
+7. **Droits** : écriture `grants:manage` (comme pour les cotisations, pas de droit sur les transactions en plus) ; lecture `grants:view` filtrée par la portée projet.
+8. **Audit** : `grant.schedule.added|updated|removed` et `grant.payment.recorded|cancelled`, sans montant ; motif d'annulation en justification.
+9. **Écrans** : panneau « Échéancier et versements » (`grants/grant-finance.ts`, boîtes dans `grant-finance-dialogs.ts`) dans le détail d'une subvention accordée ou clôturée ; colonne « Reçu » dans la liste. L'encaissement choisi propose sa part disponible.
+
+**Reste** : le **montant du reliquat** reste à calculer (reçu − dépenses affectées) avec la tranche 4.4 ; les documents liés à la subvention ne sont toujours pas présentés sur sa fiche.
 
 ## Critères d'acceptation ajoutés (à inscrire au jeu de référence)
 

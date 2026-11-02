@@ -526,6 +526,7 @@ model Transaction {
   counterpartAccount Account?            @relation(fields: [counterpartAccountId], references: [id], onDelete: Restrict)
   reconciliation     Reconciliation?     @relation(fields: [reconciliationId], references: [id], onDelete: Restrict)
   paymentAllocations PaymentAllocation[]
+  grantPayments      GrantPayment[]
   importedFrom       ImportLine[]        @relation("ImportResult")
   matchedBy          ImportLine[]        @relation("ImportMatch")
   matches            TreasuryMatch[]
@@ -1053,6 +1054,8 @@ model Grant {
 
   funder      Funder                   @relation(fields: [funderId], references: [id], onDelete: Restrict)
   allocations GrantProjectAllocation[]
+  schedule    GrantSchedule[]
+  payments    GrantPayment[]
 
   @@index([funderId])
   @@index([status])
@@ -1071,4 +1074,45 @@ model GrantProjectAllocation {
 
   @@unique([grantId, projectId])
   @@index([projectId])
+}
+
+// Échéance d'une subvention accordée : un versement attendu (date, montant, condition). Un plan, pas une écriture.
+// La somme des échéances ne dépasse jamais le montant accordé.
+model GrantSchedule {
+  id        String   @id @default(uuid()) @db.Uuid
+  grantId   String   @db.Uuid
+  dueOn     DateTime @db.Date
+  amount    Decimal  @db.Decimal(14, 2)
+  condition String   @default("")
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  createdBy String?  @db.Uuid
+
+  grant    Grant          @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  payments GrantPayment[]
+
+  @@index([grantId, dueOn])
+}
+
+// Versement reçu : une part d'une transaction (un encaissement) rattachée à une subvention accordée, avec en option
+// l'échéance qu'elle règle. Ne crée aucune écriture comptable. Ne se modifie pas : elle s'annule avec un motif.
+model GrantPayment {
+  id            String    @id @default(uuid()) @db.Uuid
+  grantId       String    @db.Uuid
+  transactionId String    @db.Uuid
+  scheduleId    String?   @db.Uuid
+  amount        Decimal   @db.Decimal(14, 2)
+  note          String?
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  createdBy     String?   @db.Uuid
+  cancelledAt   DateTime? @db.Timestamptz(3)
+  cancelledBy   String?   @db.Uuid
+  cancelReason  String?
+
+  grant       Grant          @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  transaction Transaction    @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  schedule    GrantSchedule? @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+
+  @@index([grantId])
+  @@index([transactionId])
+  @@index([scheduleId])
 }

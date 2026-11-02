@@ -111,6 +111,8 @@ export interface GrantView {
   allocations: GrantAllocationView[];
   /** Somme des parts affectées aux projets. */
   allocatedTotal: string;
+  /** Somme des versements reçus (hors versements annulés). */
+  received: string;
 }
 
 type Row = Grant & {
@@ -126,7 +128,7 @@ const include = {
 const day = (date: Date | null) => (date ? date.toISOString().slice(0, 10) : null);
 const asDate = (value: string | null | undefined) => (value ? new Date(`${value}T00:00:00Z`) : null);
 
-const view = (row: Row): GrantView => {
+const view = (row: Row, received = "0.00"): GrantView => {
   const allocations = [...row.allocations]
     .sort((a, b) => a.project.code.localeCompare(b.project.code))
     .map((a) => ({ projectId: a.projectId, projectCode: a.project.code, projectName: a.project.name, amount: a.amount.toFixed(2) }));
@@ -150,8 +152,14 @@ const view = (row: Row): GrantView => {
     residualNote: row.residualNote,
     allocations,
     allocatedTotal: allocations.reduce((sum, a) => sum.add(Money.parse(a.amount)), Money.zero()).toString(),
+    received,
   };
 };
+
+/** Subventions visibles : toutes (droit global) ou celles qui financent un projet de la portée. */
+export function grantScope(access?: ProjectAccess): Prisma.GrantWhereInput {
+  return !access || access.all ? {} : { allocations: { some: { projectId: { in: [...access.ids] } } } };
+}
 
 const DECIDABLE: GrantStatus[] = ["REQUESTED", "UNDER_REVIEW"];
 
@@ -169,7 +177,19 @@ export class GrantsService {
   ) {}
 
   private scope(access?: ProjectAccess): Prisma.GrantWhereInput {
-    return !access || access.all ? {} : { allocations: { some: { projectId: { in: [...access.ids] } } } };
+    return grantScope(access);
+  }
+
+  /** Associe à chaque subvention la somme de ses versements reçus (les versements annulés ne comptent pas). */
+  private async withReceived(rows: Row[]): Promise<GrantView[]> {
+    if (rows.length === 0) return [];
+    const sums = await this.prisma.grantPayment.groupBy({
+      by: ["grantId"],
+      where: { grantId: { in: rows.map((r) => r.id) }, cancelledAt: null },
+      _sum: { amount: true },
+    });
+    const byGrant = new Map(sums.map((s) => [s.grantId, s._sum.amount ? s._sum.amount.toFixed(2) : "0.00"]));
+    return rows.map((row) => view(row, byGrant.get(row.id) ?? "0.00"));
   }
 
   async list(rawQuery: unknown, access?: ProjectAccess): Promise<GrantView[]> {
@@ -186,7 +206,7 @@ export class GrantsService {
       include,
       orderBy: [{ createdAt: "desc" }],
     });
-    return rows.map(view);
+    return this.withReceived(rows);
   }
 
   async listForProject(projectId: string, access?: ProjectAccess): Promise<GrantView[]> {
@@ -195,13 +215,13 @@ export class GrantsService {
       throw new AccountingNotFoundError("Projet");
     }
     const rows = await this.prisma.grant.findMany({ where: { allocations: { some: { projectId } } }, include, orderBy: { createdAt: "desc" } });
-    return rows.map(view);
+    return this.withReceived(rows);
   }
 
   async get(id: string, access?: ProjectAccess): Promise<GrantView> {
     const row = await this.prisma.grant.findFirst({ where: { AND: [{ id }, this.scope(access)] }, include });
     if (!row) throw new AccountingNotFoundError("Subvention");
-    return view(row);
+    return (await this.withReceived([row]))[0]!;
   }
 
   async create(body: unknown, actorId: string): Promise<GrantView> {

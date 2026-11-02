@@ -43,6 +43,7 @@ const grant = (over: Record<string, unknown> = {}) => ({
     { projectId: 'p2', projectCode: 'FESTIVAL', projectName: 'Festival', amount: '400.00' },
   ],
   allocatedTotal: '1000.00',
+  received: '0.00',
   ...over,
 });
 const projects = [
@@ -91,7 +92,24 @@ describe('GrantsPage', () => {
     if (detail) {
       controller.expectOne(`/api/grants/${(detail as { id: string }).id}`).flush(detail);
       await settle();
+      if (['GRANTED', 'CLOSED'].includes((detail as { status: string }).status)) await flushFinance((detail as { id: string }).id);
     }
+  };
+  /** Une subvention accordée ou clôturée affiche son échéancier : le panneau charge sa vue financière. */
+  const flushFinance = async (grantId = 'g1', over: Record<string, unknown> = {}) => {
+    controller.expectOne(`/api/grants/${grantId}/finance`).flush({
+      grantId,
+      granted: '1000.00',
+      planned: '0.00',
+      received: '0.00',
+      remaining: '1000.00',
+      unplanned: '1000.00',
+      overReceived: false,
+      schedule: [],
+      payments: [],
+      ...over,
+    });
+    await settle();
   };
   const click = async (label: string) => {
     const button = Array.from(root.querySelectorAll('button')).find(
@@ -139,12 +157,12 @@ describe('GrantsPage', () => {
   });
 
   it('montre objet, financeur, état, montants et projets de chaque subvention', async () => {
-    await create(MANAGER, [grant(), grant({ id: 'g2', title: 'Soutien', reference: null, status: 'GRANTED', grantedAmount: '900.00', requestedAmount: '1200.00', allocations: [] })], [funder()]);
+    await create(MANAGER, [grant(), grant({ id: 'g2', title: 'Soutien', reference: null, status: 'GRANTED', grantedAmount: '900.00', requestedAmount: '1200.00', received: '300.00', allocations: [] })], [funder()]);
     const rows = Array.from(root.querySelectorAll('section[aria-label="Subventions"] tbody tr')).map((tr) =>
       Array.from(tr.querySelectorAll('td')).map((td) => td.textContent!.replace(/\s+/g, ' ').trim()),
     );
-    expect(rows[0]).toEqual(['Aide au festival Réf. RF-14', 'Région', 'Demandée', '1 000,00', '—', 'ATELIERS, FESTIVAL', 'Ouvrir']);
-    expect(rows[1]).toEqual(['Soutien', 'Région', 'Accordée', '1 200,00', '900,00', '—', 'Ouvrir']);
+    expect(rows[0]).toEqual(['Aide au festival Réf. RF-14', 'Région', 'Demandée', '1 000,00', '—', '—', 'ATELIERS, FESTIVAL', 'Ouvrir']);
+    expect(rows[1]).toEqual(['Soutien', 'Région', 'Accordée', '1 200,00', '900,00', '300,00', '—', 'Ouvrir']);
   });
 
   it('filtre par état en rechargeant la liste', async () => {
@@ -175,6 +193,7 @@ describe('GrantsPage', () => {
     await click('Ouvrir Aide au festival');
     controller.expectOne('/api/grants/g1').flush(grant({ status: 'GRANTED', grantedAmount: '1000.00', decidedOn: '2026-03-15' }));
     await settle();
+    await flushFinance();
     expect(has('Clôturer')).toBe(true);
     for (const label of ['Projets financés', 'Passer en instruction', "Enregistrer l'accord", 'Enregistrer un refus', 'Annuler la demande']) {
       expect(has(label), label).toBe(false);
@@ -319,6 +338,7 @@ describe('GrantsPage', () => {
     await click('Ouvrir Aide au festival');
     controller.expectOne('/api/grants/g1').flush(granted);
     await settle();
+    await flushFinance();
     await click('Clôturer');
     expect(ui.title).toBe('Clôturer la subvention');
     expect(ui.text).toContain("Aucune écriture n'est créée dans la comptabilité");

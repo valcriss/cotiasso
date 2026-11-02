@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
@@ -18,6 +19,7 @@ import {
 import { AccountingConflictError, AccountingNotFoundError, AccountingValidationError } from "../accounting/errors.js";
 import type { AuthenticatedRequest } from "../auth/auth.guard.js";
 import { RequirePermission, RequireProjectAccess } from "../authz/decorators.js";
+import { GrantFinanceService, type GrantFinance, type PaymentCandidate } from "./grant-finance.service.js";
 import { FundersService, type FunderView } from "./funders.service.js";
 import { GrantsService, type GrantView } from "./grants.service.js";
 
@@ -44,6 +46,7 @@ export class GrantsController {
   constructor(
     @Inject(FundersService) private readonly funders: FundersService,
     @Inject(GrantsService) private readonly grants: GrantsService,
+    @Inject(GrantFinanceService) private readonly finance: GrantFinanceService,
   ) {}
 
   @RequirePermission("grants:view")
@@ -140,5 +143,51 @@ export class GrantsController {
   @HttpCode(200)
   close(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<GrantView> {
     return translate(() => this.grants.close(id, body, request.auth!.user.id));
+  }
+
+  // --- Échéancier et versements reçus (tranche 4.3b) ---
+
+  @RequireProjectAccess("grants:view")
+  @Get("grants/:id/finance")
+  financeOf(@Param("id", ParseUUIDPipe) id: string, @Req() request: AuthenticatedRequest): Promise<GrantFinance> {
+    return translate(() => this.finance.finance(id, request.projectAccess));
+  }
+
+  @RequirePermission("grants:manage")
+  @Post("grants/:id/schedule")
+  addSchedule(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<GrantFinance> {
+    return translate(() => this.finance.addSchedule(id, body, request.auth!.user.id));
+  }
+
+  @RequirePermission("grants:manage")
+  @Patch("grant-schedule/:id")
+  updateSchedule(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<GrantFinance> {
+    return translate(() => this.finance.updateSchedule(id, body, request.auth!.user.id));
+  }
+
+  @RequirePermission("grants:manage")
+  @Delete("grant-schedule/:id")
+  removeSchedule(@Param("id", ParseUUIDPipe) id: string, @Req() request: AuthenticatedRequest): Promise<GrantFinance> {
+    return translate(() => this.finance.removeSchedule(id, request.auth!.user.id));
+  }
+
+  @RequirePermission("grants:manage")
+  @Post("grants/:id/payments")
+  recordPayment(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<GrantFinance> {
+    return translate(() => this.finance.recordPayment(id, body, request.auth!.user.id));
+  }
+
+  @RequirePermission("grants:manage")
+  @Post("grant-payments/:id/cancel")
+  @HttpCode(200)
+  cancelPayment(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<GrantFinance> {
+    return translate(() => this.finance.cancelPayment(id, body, request.auth!.user.id));
+  }
+
+  /** Les encaissements disponibles montrent des mouvements bancaires : ils exigent aussi de pouvoir consulter les comptes. */
+  @RequirePermission("grants:manage", "financial-accounts:view")
+  @Get("grants/:id/payment-candidates")
+  candidates(@Param("id", ParseUUIDPipe) id: string): Promise<PaymentCandidate[]> {
+    return translate(() => this.finance.candidates(id));
   }
 }

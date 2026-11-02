@@ -148,10 +148,10 @@ export class PaymentsService {
     if (!(await this.prisma.membership.findUnique({ where: { id: membershipId }, select: { id: true } }))) throw new AccountingNotFoundError("Adhésion");
     const rows = await this.prisma.$queryRaw<{ id: string; operationDate: Date; label: string; accountName: string; amount: string; remaining: string }[]>`
       SELECT t."id", t."operationDate", t."label", f."name" AS "accountName", abs(t."amount")::text AS "amount",
-             (abs(t."amount") - COALESCE((SELECT SUM(a."amount") FROM "PaymentAllocation" a WHERE a."transactionId" = t."id" AND a."cancelledAt" IS NULL), 0))::text AS "remaining"
+             (abs(t."amount") - transaction_allocated_total(t."id"))::text AS "remaining"
       FROM "Transaction" t JOIN "FinancialAccount" f ON f."id" = t."financialAccountId"
       WHERE ${kind === "PAYMENT" ? Prisma.sql`t."amount" > 0` : Prisma.sql`t."amount" < 0`}
-        AND abs(t."amount") > COALESCE((SELECT SUM(a."amount") FROM "PaymentAllocation" a WHERE a."transactionId" = t."id" AND a."cancelledAt" IS NULL), 0)
+        AND abs(t."amount") > transaction_allocated_total(t."id")
       ORDER BY t."operationDate" DESC, t."id" DESC
       LIMIT 50`;
     return rows.map((r) => ({ id: r.id, operationDate: day(r.operationDate), label: r.label, accountName: r.accountName, amount: Money.parse(r.amount).toString(), remaining: Money.parse(r.remaining).toString() }));
