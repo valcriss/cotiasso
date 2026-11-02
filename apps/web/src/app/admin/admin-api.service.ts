@@ -836,6 +836,69 @@ export interface BudgetReportInfo {
   warnings: string[];
 }
 
+export type FunderType = 'LOCAL_AUTHORITY' | 'STATE' | 'FOUNDATION' | 'COMPANY' | 'OTHER';
+
+export interface FunderInfo {
+  id: string;
+  name: string;
+  type: FunderType;
+  contactName: string;
+  email: string;
+  phone: string;
+  note: string;
+  archived: boolean;
+  grantCount: number;
+}
+
+export type GrantStatus = 'REQUESTED' | 'UNDER_REVIEW' | 'GRANTED' | 'REFUSED' | 'CLOSED' | 'CANCELLED';
+export type GrantResidual = 'REFUND' | 'KEPT_WITH_AGREEMENT' | 'NONE';
+
+export interface GrantAllocationInfo {
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  amount: string;
+}
+
+export interface GrantInfo {
+  id: string;
+  funder: { id: string; name: string; type: FunderType; archived: boolean };
+  reference: string | null;
+  title: string;
+  status: GrantStatus;
+  requestedAmount: string;
+  grantedAmount: string | null;
+  requestedOn: string | null;
+  decidedOn: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  conditions: string;
+  note: string;
+  reason: string | null;
+  closedOn: string | null;
+  residual: GrantResidual | null;
+  residualNote: string | null;
+  allocations: GrantAllocationInfo[];
+  allocatedTotal: string;
+}
+
+export interface GrantBody {
+  funderId?: string;
+  title?: string;
+  reference?: string | null;
+  requestedAmount?: string;
+  requestedOn?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  conditions?: string;
+  note?: string;
+}
+
+export interface AllocationBody {
+  projectId: string;
+  amount: string;
+}
+
 export interface AllocationInfo {
   projectId: string;
   projectCode?: string;
@@ -1408,6 +1471,68 @@ export class AdminApiService {
 
   projectSummary(id: string): Promise<ProjectSummaryInfo> {
     return firstValueFrom(this.http.get<ProjectSummaryInfo>(`/api/projects/${id}/summary`));
+  }
+
+  listFunders(): Promise<FunderInfo[]> {
+    return firstValueFrom(this.http.get<FunderInfo[]>('/api/funders'));
+  }
+
+  createFunder(body: Partial<Omit<FunderInfo, 'id' | 'archived' | 'grantCount'>> & { name: string; type: FunderType }): Promise<FunderInfo> {
+    return firstValueFrom(this.http.post<FunderInfo>('/api/funders', body));
+  }
+
+  updateFunder(id: string, body: Partial<Omit<FunderInfo, 'id' | 'archived' | 'grantCount'>>): Promise<FunderInfo> {
+    return firstValueFrom(this.http.patch<FunderInfo>(`/api/funders/${id}`, body));
+  }
+
+  archiveFunder(id: string): Promise<FunderInfo> {
+    return firstValueFrom(this.http.post<FunderInfo>(`/api/funders/${id}/archive`, {}));
+  }
+
+  listGrants(filters: { status?: GrantStatus; funderId?: string; projectId?: string } = {}): Promise<GrantInfo[]> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(filters)) if (value) params = params.set(key, value);
+    return firstValueFrom(this.http.get<GrantInfo[]>('/api/grants', { params }));
+  }
+
+  listProjectGrants(projectId: string): Promise<GrantInfo[]> {
+    return firstValueFrom(this.http.get<GrantInfo[]>(`/api/projects/${projectId}/grants`));
+  }
+
+  getGrant(id: string): Promise<GrantInfo> {
+    return firstValueFrom(this.http.get<GrantInfo>(`/api/grants/${id}`));
+  }
+
+  createGrant(body: GrantBody & { funderId: string; title: string; requestedAmount: string; allocations?: AllocationBody[] }): Promise<GrantInfo> {
+    return firstValueFrom(this.http.post<GrantInfo>('/api/grants', body));
+  }
+
+  updateGrant(id: string, body: GrantBody): Promise<GrantInfo> {
+    return firstValueFrom(this.http.patch<GrantInfo>(`/api/grants/${id}`, body));
+  }
+
+  setGrantAllocations(id: string, allocations: AllocationBody[]): Promise<GrantInfo> {
+    return firstValueFrom(this.http.put<GrantInfo>(`/api/grants/${id}/allocations`, { allocations }));
+  }
+
+  reviewGrant(id: string): Promise<GrantInfo> {
+    return firstValueFrom(this.http.post<GrantInfo>(`/api/grants/${id}/review`, {}));
+  }
+
+  decideGrant(id: string, body: { grantedAmount: string; decidedOn: string; allocations?: AllocationBody[] }): Promise<GrantInfo> {
+    return firstValueFrom(this.http.post<GrantInfo>(`/api/grants/${id}/grant`, body));
+  }
+
+  refuseGrant(id: string, body: { decidedOn: string; reason: string }): Promise<GrantInfo> {
+    return firstValueFrom(this.http.post<GrantInfo>(`/api/grants/${id}/refuse`, body));
+  }
+
+  cancelGrant(id: string, reason: string): Promise<GrantInfo> {
+    return firstValueFrom(this.http.post<GrantInfo>(`/api/grants/${id}/cancel`, { reason }));
+  }
+
+  closeGrant(id: string, body: { closedOn: string; residual: GrantResidual; note: string }): Promise<GrantInfo> {
+    return firstValueFrom(this.http.post<GrantInfo>(`/api/grants/${id}/close`, body));
   }
 
   listBudgets(projectId: string): Promise<BudgetSummaryInfo[]> {

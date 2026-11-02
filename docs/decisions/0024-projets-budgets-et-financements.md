@@ -1,6 +1,6 @@
 # ADR 0024 — Projets, budgets et financements
 
-Statut : **proposé** (2 novembre 2026, lot 4) ; **tranches 4.1 et 4.2 livrées** le 2 novembre 2026 (voir « Tranche 4.1 — ce qui a été livré » et « Tranche 4.2 — ce qui a été livré »), les tranches 4.3 à 4.5 restent à valider. Applique le cadrage §14 (projets et suivi analytique), §15 (subventions et financeurs) et le modèle de données §22 (`BudgetVersion`, `BudgetLine`, `Commitment`, `Funder`, `Grant`, `GrantSchedule`, `GrantProjectAllocation`, `FundingExpenseAllocation`). Prolonge l'[ADR 0013](0013-projets-et-ventilation-analytique.md) (noyau projet) et l'[ADR 0022](0022-portee-projet-des-droits.md) (portée projet des droits).
+Statut : **proposé** (2 novembre 2026, lot 4) ; **tranches 4.1, 4.2 et 4.3a livrées** le 2 novembre 2026 (voir les sections « ce qui a été livré »), les tranches 4.3b à 4.5 restent à valider. Applique le cadrage §14 (projets et suivi analytique), §15 (subventions et financeurs) et le modèle de données §22 (`BudgetVersion`, `BudgetLine`, `Commitment`, `Funder`, `Grant`, `GrantSchedule`, `GrantProjectAllocation`, `FundingExpenseAllocation`). Prolonge l'[ADR 0013](0013-projets-et-ventilation-analytique.md) (noyau projet) et l'[ADR 0022](0022-portee-projet-des-droits.md) (portée projet des droits).
 
 Les points marqués **À valider** ne sont pas tranchés par le cadrage : ne pas les traiter comme acquis.
 
@@ -78,6 +78,20 @@ Décisions prises à la réalisation (à relire) :
 10. **Écrans** : panneaux « Suivi du budget » (période, tableaux dépenses/recettes, formule, avertissements, CSV, impression), « Engagements » (boîtes enregistrer/modifier, solder, annuler) dans la page Projets ; le suivi se recharge quand le budget ou un engagement change.
 
 **Coûts communs** : non traités (question ouverte 2 inchangée) ; la ventilation analytique reste ligne par ligne.
+
+## Tranche 4.3a — ce qui a été livré
+
+Décisions prises à la réalisation, en plus de celles arrêtées avec l'utilisateur (à relire) :
+
+1. **Financeur** (`Funder`) : nom (unique, casse et espaces ignorés), type (collectivité, État, fondation, entreprise, autre), contact, email, téléphone, note. **Jamais supprimé** ; **archivé**, il ne reçoit plus de nouvelle demande et ne se réactive pas (déclencheur `funder_guard`, `TRUNCATE` refusé).
+2. **Subvention** (`Grant`) : financeur, référence facultative (unique par financeur), objet, montant demandé, montant accordé, dates de demande et de décision, **période financée**, conditions, note. États `REQUESTED` → `UNDER_REVIEW` → `GRANTED` / `REFUSED` → `CLOSED`, ou `CANCELLED` ; **l'état n'avance que dans un sens** et n'existe qu'avec ses pièces (accord : montant et date ; refus et annulation : motif ; clôture : date et sort du reliquat), garantis par une contrainte et le déclencheur `grant_guard`. Une subvention **accordée** ne peut qu'être **clôturée** (pas annulée) ; **refusée, clôturée ou annulée**, seule sa **note** change. **Jamais supprimée.**
+3. **Répartition** (`GrantProjectAllocation`) : libre avant la décision, remplaçable en bloc (`PUT /grants/:id/allocations`) ; **à l'accord la base exige Σ parts = montant accordé et au moins un projet**, puis la répartition est figée (`grant_allocation_guard`). L'accord peut corriger la répartition dans le même appel, dans une seule transaction ; le service refuse d'abord avec un message qui donne les deux totaux.
+4. **Avenants : indisponibles, explicitement.** Après l'accord, le montant, les dates, le financeur et la répartition sont figés ; toute tentative de les changer est refusée avec le motif « les avenants ne sont pas encore pris en charge ». L'historique d'avenants mentionné plus haut reste à faire (tranche ultérieure) : on ne l'accepte pas « à moitié ». Restent modifiables après l'accord : objet, référence, conditions, note, date de la demande.
+5. **Reliquat** : à la clôture, choix obligatoire entre « à rembourser », « conservé avec l'accord du financeur » et « aucun », avec une **précision obligatoire** dès qu'il y a un reliquat ; enregistré, audité, affiché. **Aucune écriture comptable.** Le montant du reliquat n'est pas calculé ici : il viendra avec les versements (4.3b) et les dépenses affectées (4.4).
+6. **Droits** : `grants:view` rejoint `PROJECT_SCOPABLE_PERMISSIONS` ; la lecture passe par `@RequireProjectAccess('grants:view')` et **une subvention n'est visible que si elle finance un projet de la portée** (sinon introuvable, 404). Le responsable de projet la voit **entière** (montant total et autres projets financés compris), comme décidé. `GET /projects/:id/grants` liste celles d'un projet (404 hors portée). **La liste des financeurs reste réservée au droit global** `grants:view` ; l'écriture exige `grants:manage` (global). Conséquence : `/auth/me` renvoie aussi `grants:view` dans `projectPermissions` pour un responsable de projet.
+7. **Audit** : `funder.created|updated|archived` et `grant.created|updated|allocations-set|reviewed|granted|refused|cancelled|closed`, sans aucun montant ; motif de refus et d'annulation en justification.
+8. **Écrans** : page **Subventions** (`apps/web/src/app/grants/`, route `/subventions`, entrée de menu existante) avec liste filtrable par état, détail et actions selon l'état, panneau des financeurs ; panneau **Financements** en lecture seule dans la page Projets. À l'accord, le bouton reste grisé tant que la répartition ne totalise pas exactement le montant accordé, avec le reste à répartir affiché en direct.
+9. **Pièces** : le type d'objet `grant` existe déjà pour les liens documentaires (lot 1.6) ; l'écran de la subvention ne présente pas encore ses documents liés (à ajouter avec 4.3b ou 4.4).
 
 ## Critères d'acceptation ajoutés (à inscrire au jeu de référence)
 

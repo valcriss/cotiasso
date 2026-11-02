@@ -12,13 +12,14 @@ import { ProjectBudget } from './project-budget';
 import { ProjectCommitments } from './project-commitments';
 import { ProjectReport } from './project-report';
 import { ProjectDialog } from './project-dialog';
+import { ProjectGrants } from './project-grants';
 import { ProjectParticipants } from './project-participants';
 import { PROJECT_STATUS_LABELS } from './project-labels';
 
 /** Projets : axe analytique des charges et produits, avec leur synthèse globale et annuelle. */
 @Component({
   selector: 'app-projects-page',
-  imports: [MatButtonModule, MatIconModule, PageHeader, ProjectBudget, ProjectCommitments, ProjectParticipants, ProjectReport],
+  imports: [MatButtonModule, MatIconModule, PageHeader, ProjectBudget, ProjectCommitments, ProjectGrants, ProjectParticipants, ProjectReport],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -137,6 +138,9 @@ import { PROJECT_STATUS_LABELS } from './project-labels';
       <app-project-report [project]="project" [refreshKey]="refresh()" />
       <app-project-budget [project]="project" (changed)="bump()" />
       <app-project-commitments [project]="project" (changed)="bump()" />
+      @if (canSeeGrants(project.id)) {
+        <app-project-grants [project]="project" />
+      }
       <app-project-participants [project]="project" />
     }
   `,
@@ -175,6 +179,13 @@ export class ProjectsPage {
 
   constructor() {
     void this.load();
+  }
+
+  /** Les financements d'un projet se lisent avec `grants:view`, globalement ou sur ce projet. */
+  protected canSeeGrants(projectId: string): boolean {
+    this.auth.permissions();
+    this.auth.projectPermissions?.();
+    return this.auth.canOnProject('grants:view', projectId);
   }
 
   protected statusLabel(status: ProjectStatus): string {

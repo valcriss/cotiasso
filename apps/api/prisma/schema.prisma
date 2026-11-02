@@ -426,6 +426,7 @@ model Project {
   participants    ProjectParticipant[]
   budgets         BudgetVersion[]
   commitments     Commitment[]
+  grantAllocations GrantProjectAllocation[]
 }
 
 // Ventilation analytique d'une ligne de charge ou de produit : une ou plusieurs parts de projet dont le total égale
@@ -985,4 +986,89 @@ model Commitment {
   settledEntry JournalEntry? @relation(fields: [settledEntryId], references: [id], onDelete: Restrict)
 
   @@index([projectId, committedOn])
+}
+
+enum FunderType {
+  LOCAL_AUTHORITY
+  STATE
+  FOUNDATION
+  COMPANY
+  OTHER
+}
+
+// Financeur (ADR 0024, tranche 4.3a) : qui finance. Jamais supprimé ; archivé, il ne reçoit plus de nouvelle demande.
+model Funder {
+  id          String     @id @default(uuid()) @db.Uuid
+  name        String
+  type        FunderType
+  contactName String     @default("")
+  email       String     @default("")
+  phone       String     @default("")
+  note        String     @default("")
+  archivedAt  DateTime?  @db.Timestamptz(3)
+  createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+  createdBy   String?    @db.Uuid
+
+  grants Grant[]
+}
+
+enum GrantStatus {
+  REQUESTED
+  UNDER_REVIEW
+  GRANTED
+  REFUSED
+  CLOSED
+  CANCELLED
+}
+
+enum GrantResidual {
+  REFUND
+  KEPT_WITH_AGREEMENT
+  NONE
+}
+
+// Subvention : distincte du projet. Demandée, instruite, accordée ou refusée, puis clôturée avec le sort de son reliquat.
+// Suivi de gestion : aucune écriture comptable (fonds dédiés = module 6.5, après avis d'expert-comptable). Jamais supprimée.
+model Grant {
+  id              String         @id @default(uuid()) @db.Uuid
+  funderId        String         @db.Uuid
+  reference       String?
+  title           String
+  requestedAmount Decimal        @db.Decimal(14, 2)
+  grantedAmount   Decimal?       @db.Decimal(14, 2)
+  requestedOn     DateTime?      @db.Date
+  decidedOn       DateTime?      @db.Date
+  periodStart     DateTime?      @db.Date
+  periodEnd       DateTime?      @db.Date
+  conditions      String         @default("")
+  note            String         @default("")
+  status          GrantStatus    @default(REQUESTED)
+  // Motif du refus ou de l'annulation.
+  reason          String?
+  closedOn        DateTime?      @db.Date
+  residual        GrantResidual?
+  residualNote    String?
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  createdBy       String?        @db.Uuid
+
+  funder      Funder                   @relation(fields: [funderId], references: [id], onDelete: Restrict)
+  allocations GrantProjectAllocation[]
+
+  @@index([funderId])
+  @@index([status])
+}
+
+// Part d'une subvention affectée à un projet. Libre tant que la subvention n'est pas décidée ; à l'accord, la somme des
+// parts doit égaler le montant accordé, puis elle ne change plus.
+model GrantProjectAllocation {
+  id        String  @id @default(uuid()) @db.Uuid
+  grantId   String  @db.Uuid
+  projectId String  @db.Uuid
+  amount    Decimal @db.Decimal(14, 2)
+
+  grant   Grant   @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([grantId, projectId])
+  @@index([projectId])
 }

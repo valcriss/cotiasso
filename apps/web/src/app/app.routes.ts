@@ -45,7 +45,7 @@ export const routes: Routes = [
         title: overview!.label,
         loadComponent: () => import('./pages/overview.page').then((m) => m.OverviewPage),
       },
-      ...others.filter((item) => item.path !== 'documents' && item.path !== 'comptabilite' && item.path !== 'projets' && item.path !== 'comptes' && item.path !== 'rapports' && item.path !== 'membres').map((item) => ({
+      ...others.filter((item) => item.path !== 'documents' && item.path !== 'comptabilite' && item.path !== 'projets' && item.path !== 'comptes' && item.path !== 'rapports' && item.path !== 'membres' && item.path !== 'subventions').map((item) => ({
         path: item.path,
         title: item.label,
         canActivate: [permissionGuard],
@@ -153,6 +153,13 @@ export const routes: Routes = [
         canActivate: [permissionGuard],
         data: { permission: 'projects:view' },
         loadComponent: () => import('./accounting/projects.page').then((m) => m.ProjectsPage),
+      },
+      {
+        path: 'subventions',
+        title: 'Subventions',
+        canActivate: [permissionGuard],
+        data: { permission: 'grants:view' },
+        loadComponent: () => import('./grants/grants.page').then((m) => m.GrantsPage),
       },
       {
         path: 'documents',
