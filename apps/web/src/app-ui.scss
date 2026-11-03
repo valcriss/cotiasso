@@ -382,6 +382,14 @@ h4 {
   }
 }
 
+/* Petit écran : chaque champ prend toute la largeur (deux champs de 200 px côte à côte ne tiennent pas dans une boîte de 312 px). */
+@media (max-width: 600px) {
+  .row > * {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}
+
 .color {
   align-items: center;
   display: flex;
@@ -490,7 +498,7 @@ details pre {
 .color-grid {
   display: grid;
   gap: 20px 32px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   margin: 8px 0 20px;
 }
 

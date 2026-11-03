@@ -57,6 +57,14 @@ describe('OverviewPage', () => {
     expect(text).not.toContain('Commençons par préparer');
   });
 
+  it("ne propose plus « Démarrer » quand tout est prêt, même si le mode de démarrage n'a jamais été choisi (vu à l'essai sur téléphone)", async () => {
+    await create(['settings.accounting:admin', 'financial-accounts:view'], view({ setup: { ...complete, startMode: null, openingSituation: 'NONE' } }));
+    expect(root.textContent).not.toContain('Commençons par préparer');
+    TestBed.resetTestingModule();
+    await create(['settings.accounting:admin', 'financial-accounts:view'], view({ setup: { ...complete, categories: false, startMode: null, openingSituation: 'NONE' } }));
+    expect(root.textContent).toContain('Commençons par préparer');
+  });
+
   it('montre les dernières opérations avec leur situation en mots courants, et rien sans droit de lecture (#27)', async () => {
     const recent = [
       { id: 't1', date: '2026-11-02', label: 'Cotisation Dupont', amount: '30.00', accountName: 'Compte courant', situation: 'BOOKED' },

@@ -36,7 +36,7 @@ import { Skeleton } from '../ui/skeleton';
     .accounts {
       display: grid;
       gap: 16px;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
       list-style: none;
       margin: 0 0 20px;
       padding: 0;
@@ -75,6 +75,15 @@ import { Skeleton } from '../ui/skeleton';
       gap: 2px 12px;
       grid-template-columns: 1fr auto;
       margin: 0;
+    }
+    /* Petit écran : l'intitulé passe au-dessus de sa valeur, pour que les phrases d'explication aient toute la largeur. */
+    @media (max-width: 600px) {
+      .balances {
+        grid-template-columns: 1fr;
+      }
+      .balances dd {
+        text-align: left;
+      }
     }
     .balances dt {
       color: var(--mat-sys-on-surface-variant);
