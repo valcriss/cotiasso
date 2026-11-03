@@ -411,6 +411,19 @@ export interface TransactionInfo {
   /** Rapprochement où la transaction est pointée ; « validé » = rapprochée. */
   reconciliation: { id: string; status: 'IN_PROGRESS' | 'VALIDATED'; periodEnd: string } | null;
   version: number;
+  /** Proposition de classement (ADR 0019 amendé) : seulement dans la liste, jamais appliquée seule. */
+  suggestion?: TransactionSuggestionInfo | null;
+}
+
+export interface TransactionSuggestionInfo {
+  counterpartAccountId: string;
+  counterpartAccountNumber: string;
+  counterpartAccountLabel: string;
+  projectId: string | null;
+  projectCode: string | null;
+  /** Le mouvement le plus récent dont le classement est repris. */
+  basedOn: { label: string; operationDate: string };
+  matches: number;
 }
 
 export interface StatementInfo {
@@ -1705,6 +1718,11 @@ export class AdminApiService {
 
   qualifyTransactions(accountId: string, body: { transactionIds: string[]; counterpartAccountId?: string; projectId?: string }): Promise<{ updated: number }> {
     return firstValueFrom(this.http.post<{ updated: number }>(`/api/financial-accounts/${accountId}/transactions/qualify`, body));
+  }
+
+  /** Le serveur recalcule les propositions : on n'envoie que les identifiants des mouvements à classer. */
+  acceptSuggestions(accountId: string, transactionIds: string[]): Promise<{ updated: number }> {
+    return firstValueFrom(this.http.post<{ updated: number }>(`/api/financial-accounts/${accountId}/transactions/accept-suggestions`, { transactionIds }));
   }
 
   listStatements(accountId: string): Promise<StatementInfo[]> {

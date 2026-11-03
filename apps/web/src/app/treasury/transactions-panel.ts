@@ -19,6 +19,7 @@ import {
   type OperationCategoryInfo,
   type ProjectInfo,
   type TransactionInfo,
+  type TransactionSuggestionInfo,
 } from '../admin/admin-api.service';
 import { formatApiAmount } from '../accounting/amount';
 import { AuthService } from '../auth/auth.service';
@@ -86,6 +87,23 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
     .periods .active {
       background: var(--mat-sys-secondary-container);
     }
+    .suggestion {
+      display: flex;
+      flex-direction: column;
+      font: var(--mat-sys-body-small);
+      gap: 2px;
+      margin-top: 4px;
+    }
+    .suggestion mat-icon {
+      font-size: 16px;
+      height: 16px;
+      vertical-align: text-bottom;
+      width: 16px;
+    }
+    .suggestion-actions {
+      display: flex;
+      gap: 4px;
+    }
     .hint-banner {
       align-items: center;
       background: var(--app-surface-variant, var(--mat-sys-surface-container));
@@ -132,6 +150,11 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
             <a mat-stroked-button [routerLink]="['/comptes', account().id, 'import']">
               <mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload_file</mat-icon> Importer un relevé OFX
             </a>
+          }
+          @if (simple() && canManage() && suggestionTargets().length > 0) {
+            <button mat-flat-button type="button" [disabled]="busy()" (click)="acceptSuggestions()">
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">auto_fix_high</mat-icon> Accepter les propositions ({{ suggestionTargets().length }})
+            </button>
           }
           @if (canManage() && selectedIds().length > 0) {
             <button mat-stroked-button type="button" (click)="qualifySelection()">
@@ -279,7 +302,24 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
                   }
                 </td>
                 <td>{{ item.projectCode ?? '—' }}</td>
-                <td>{{ simple() ? categoryOf(item) : (item.counterpartAccountNumber ?? 'À qualifier') }}</td>
+                <td>
+                  {{ simple() ? categoryOf(item) : (item.counterpartAccountNumber ?? 'À qualifier') }}
+                  @if (simple() && showSuggestion(item); as suggestion) {
+                    <div class="suggestion">
+                      <span>
+                        <mat-icon fontSet="material-icons-outlined" aria-hidden="true">lightbulb</mat-icon>
+                        Proposition : <strong>{{ suggestionLabel(suggestion) }}</strong>
+                      </span>
+                      <span class="muted">comme le {{ suggestion.basedOn.operationDate | frDate }} pour « {{ suggestion.basedOn.label }} »@if (suggestion.matches > 1) { ({{ suggestion.matches }} fois) }. À vérifier avant d’accepter.</span>
+                      @if (canManage()) {
+                        <span class="suggestion-actions">
+                          <button mat-stroked-button type="button" [disabled]="busy()" [attr.aria-label]="'Accepter la proposition pour ' + item.label" (click)="acceptOne(item)">Accepter</button>
+                          <button mat-button type="button" [attr.aria-label]="'Ignorer la proposition pour ' + item.label" (click)="dismissSuggestion(item)">Ignorer</button>
+                        </span>
+                      }
+                    </div>
+                  }
+                </td>
                 <td>
                   @if (simple()) {
                     <span class="status" [class.ok]="simpleStatus(item).ok">
@@ -705,6 +745,60 @@ export class TransactionsPanel {
   protected async applyPeriod(key: PeriodKey): Promise<void> {
     this.filters.patchValue(key === 'all' ? { from: '', to: '' } : periodRange(key), { emitEvent: false });
     await this.search();
+  }
+
+  /** Propositions écartées pendant cette visite : elles reviennent au rechargement, rien n'est mémorisé. */
+  private readonly dismissedSuggestions = signal<ReadonlySet<string>>(new Set());
+
+  protected showSuggestion(item: TransactionInfo): TransactionSuggestionInfo | null {
+    return item.suggestion && !this.dismissedSuggestions().has(item.id) ? item.suggestion : null;
+  }
+
+  protected suggestionLabel(suggestion: TransactionSuggestionInfo): string {
+    const category = this.categories().find((c) => c.account.id === suggestion.counterpartAccountId)?.label;
+    const base = category ?? `${suggestion.counterpartAccountLabel}`;
+    return suggestion.projectCode ? `${base} · projet ${suggestion.projectCode}` : base;
+  }
+
+  /** Propositions visibles que « Accepter les propositions » appliquerait : la sélection si elle en contient, sinon toute la liste. */
+  protected readonly suggestionTargets = computed(() => {
+    const withSuggestion = this.transactions().filter((t) => this.showSuggestion(t));
+    const selected = this.selection();
+    const chosen = withSuggestion.filter((t) => selected.has(t.id));
+    return (chosen.length > 0 ? chosen : withSuggestion).slice(0, 200);
+  });
+
+  protected dismissSuggestion(item: TransactionInfo): void {
+    this.dismissedSuggestions.update((current) => new Set(current).add(item.id));
+  }
+
+  protected async acceptOne(item: TransactionInfo): Promise<void> {
+    await this.acceptIds([item.id], `« ${item.label} » est classé.`);
+  }
+
+  protected async acceptSuggestions(): Promise<void> {
+    const targets = this.suggestionTargets();
+    const confirmed = await this.dialogs.confirm({
+      title: `Classer ${targets.length} mouvement(s) comme les précédents ?`,
+      message:
+        'Chaque mouvement prendra le classement de celui, déjà classé par vous, qui porte le même nom. Rien n’est enregistré dans les comptes à ce stade, et vous pourrez corriger un classement ensuite. Si une proposition n’est plus valable, rien n’est modifié.',
+      confirmLabel: 'Classer',
+    });
+    if (!confirmed) return;
+    await this.acceptIds(targets.map((t) => t.id), `${targets.length} mouvement(s) classé(s).`);
+  }
+
+  private async acceptIds(ids: string[], success: string): Promise<void> {
+    let done = false;
+    await this.run(async () => {
+      await this.api.acceptSuggestions(this.account().id, ids);
+      done = true;
+    }, "Les propositions n'ont pas pu être appliquées. Rien n'a été modifié : classez ces mouvements vous-même, ou rechargez la liste.");
+    if (!done) return;
+    this.notifier.success(success);
+    this.selection.set(new Set());
+    await this.search();
+    this.changed.emit();
   }
 
   protected dismissHint(): void {
