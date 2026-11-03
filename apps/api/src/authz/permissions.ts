@@ -28,6 +28,7 @@ export const PERMISSIONS = {
   "documents:view": "Voir les documents",
   "documents:create": "Ajouter des documents et des pièces jointes",
   "documents.restricted:view": "Voir les documents confidentiels",
+  "workflows:view": "Voir les circuits de validation",
   "workflows:admin": "Régler les circuits de validation",
   "reports:view": "Voir les rapports (compte de résultat, bilan…)",
   "reports:export": "Télécharger ou imprimer les rapports",

@@ -1290,3 +1290,115 @@ model BrandLogo {
   data      Bytes
   createdAt DateTime @default(now()) @db.Timestamptz(3)
 }
+
+// --- Circuits de validation (ADR 0035) ---
+
+enum WorkflowVersionStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
+enum WorkflowInstanceStatus {
+  RUNNING
+  RETURNED
+  COMPLETED
+  REFUSED
+  CANCELLED
+}
+
+enum ApprovalOutcome {
+  APPROVED
+  AUTO_APPROVED
+  REFUSED
+  RETURNED
+  PROCESSED
+  CANCELLED
+}
+
+// Un circuit par type de demande (ex. « reimbursement »). Jamais supprimé.
+model WorkflowDefinition {
+  id          String   @id @default(uuid()) @db.Uuid
+  subjectType String   @unique
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  versions WorkflowDefinitionVersion[]
+}
+
+// Version d'un circuit : brouillon modifiable, puis active (immuable), puis retirée. `document` est le graphe
+// déclaratif validé par l'application (workflows/engine/circuit.ts).
+model WorkflowDefinitionVersion {
+  id            String                @id @default(uuid()) @db.Uuid
+  definitionId  String                @db.Uuid
+  number        Int
+  status        WorkflowVersionStatus @default(DRAFT)
+  document      Json
+  // Contrôle de version optimiste d'un brouillon.
+  revision      Int                   @default(1)
+  createdAt     DateTime              @default(now()) @db.Timestamptz(3)
+  createdBy     String?               @db.Uuid
+  activatedAt   DateTime?             @db.Timestamptz(3)
+  activatedBy   String?               @db.Uuid
+  retiredAt     DateTime?             @db.Timestamptz(3)
+
+  definition WorkflowDefinition @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  instances  WorkflowInstance[]
+
+  @@unique([definitionId, number])
+}
+
+// Une demande soumise à un circuit, rattachée à sa version figée (CA-09).
+model WorkflowInstance {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  definitionVersionId String                 @db.Uuid
+  subjectType         String
+  subjectId           String                 @db.Uuid
+  requesterUserId     String                 @db.Uuid
+  status              WorkflowInstanceStatus @default(RUNNING)
+  currentNodeId       String?
+  returnedFromNodeId  String?
+  // Passe en cours : augmente à chaque reprise après un renvoi (une décision effective par étape et par passe).
+  round               Int                    @default(1)
+  createdAt           DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime               @updatedAt @db.Timestamptz(3)
+  finishedAt          DateTime?              @db.Timestamptz(3)
+
+  definitionVersion WorkflowDefinitionVersion @relation(fields: [definitionVersionId], references: [id], onDelete: Restrict)
+  decisions         ApprovalDecision[]
+  reassignments     WorkflowReassignment[]
+
+  @@index([subjectType, subjectId])
+  @@index([status])
+}
+
+// Décision prise à une étape : ajout seul, jamais modifiée.
+model ApprovalDecision {
+  id          String          @id @default(uuid()) @db.Uuid
+  instanceId  String          @db.Uuid
+  nodeId      String?
+  outcome     ApprovalOutcome
+  actorUserId String          @db.Uuid
+  message     String?
+  round       Int
+  createdAt   DateTime        @default(now()) @db.Timestamptz(3)
+
+  instance WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Restrict)
+
+  @@index([instanceId])
+}
+
+// Personne, rôle ou fonction ajouté à une étape d'UNE demande par un administrateur (par exemple un validateur
+// parti) : ajout seul, avec motif.
+model WorkflowReassignment {
+  id          String   @id @default(uuid()) @db.Uuid
+  instanceId  String   @db.Uuid
+  nodeId      String
+  designation Json
+  reason      String
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  createdBy   String   @db.Uuid
+
+  instance WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Restrict)
+
+  @@index([instanceId])
+}
