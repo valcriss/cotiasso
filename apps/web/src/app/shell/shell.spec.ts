@@ -166,6 +166,8 @@ describe('Shell', () => {
       expect(status.incomplete()).toBe(true);
       status.set({ ...complete, startMode: 'OPENING', openingSituation: 'POSTED' });
       expect(status.incomplete()).toBe(false);
+      status.set({ ...complete, startMode: 'OPENING', openingSituation: 'SKIPPED' });
+      expect(status.incomplete()).toBe(false);
     });
   });
 });

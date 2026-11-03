@@ -21,7 +21,7 @@ export class SetupStatus {
       setup.fiscalYear &&
       setup.categories &&
       setup.financialAccount &&
-      (setup.startMode !== 'OPENING' || setup.openingSituation === 'POSTED')
+      (setup.startMode !== 'OPENING' || setup.openingSituation === 'POSTED' || setup.openingSituation === 'SKIPPED')
     );
   });
 
