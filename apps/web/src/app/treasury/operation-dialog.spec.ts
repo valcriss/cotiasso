@@ -167,6 +167,82 @@ describe("Saisie guidée « J'ai reçu / J'ai dépensé de l'argent »", () => {
     });
   });
 
+  describe('pièce jointe : facture ou ticket (#30)', () => {
+    const FILES = ['transactions:manage', 'entries:create', 'entries:post', 'documents:create'];
+    const result = { transactionId: 't1', entryId: 'e1', posted: true, journalCode: 'BQ-1', number: 3 };
+    const pick = async (name: string, size = 100) => {
+      const input = document.querySelector<HTMLInputElement>('.cdk-overlay-container #operation-attachment')!;
+      const file = new File(['x'], name);
+      Object.defineProperty(file, 'size', { value: size });
+      Object.defineProperty(input, 'files', { value: [file], configurable: true });
+      input.dispatchEvent(new Event('change'));
+      await settle();
+    };
+    const fill = async () => {
+      await ui.type('input[formcontrolname="amount"]', '25');
+      await ui.choose('mat-select[formcontrolname="categoryId"]', 'Assurance');
+      await ui.type('input[formcontrolname="label"]', 'Prime annuelle');
+    };
+
+    it('propose de joindre la pièce seulement à qui peut déposer des documents', async () => {
+      await start(['transactions:manage', 'entries:create', 'entries:post']);
+      await open('OUT');
+      expect(document.querySelector('.cdk-overlay-container #operation-attachment')).toBeNull();
+      ui.closeAll();
+    });
+
+    it('enregistre l’opération puis dépose le fichier, relié au mouvement, et le dit', async () => {
+      await start(FILES);
+      const { result: done } = await open('OUT');
+      expect(ui.text).toContain('Joindre la facture ou le ticket (photo ou PDF)');
+      await fill();
+      await pick('facture-maif.pdf');
+      expect(ui.text).toContain('facture-maif.pdf');
+      await ui.submit();
+      controller.expectOne('/api/guided-operations').flush(result, { status: 201, statusText: 'Created' });
+      await settle();
+      const upload = controller.expectOne('/api/documents');
+      const form = upload.request.body as FormData;
+      expect(form.get('title')).toBe('Facture : Prime annuelle');
+      expect(form.get('category')).toBe('facture');
+      expect(JSON.parse(form.get('links') as string)).toEqual([{ objectType: 'transaction', objectId: 't1' }]);
+      expect((form.get('file') as File).name).toBe('facture-maif.pdf');
+      upload.flush({ document: { id: 'd1' }, duplicates: [] }, { status: 201, statusText: 'Created' });
+      expect(await done).toMatchObject({ posted: true, document: { ok: true } });
+      await settle();
+      expect(ui.snackbar).toContain('Pièce jointe ajoutée.');
+    });
+
+    it('garde l’opération enregistrée quand le dépôt échoue, et dit comment le refaire', async () => {
+      await start(FILES);
+      const { result: done } = await open('OUT');
+      await fill();
+      await pick('facture.pdf');
+      await ui.submit();
+      controller.expectOne('/api/guided-operations').flush(result, { status: 201, statusText: 'Created' });
+      await settle();
+      controller.expectOne('/api/documents').flush({ message: 'Ce fichier est trop volumineux.' }, { status: 413, statusText: 'Payload Too Large' });
+      expect(await done).toMatchObject({ transactionId: 't1', document: { ok: false } });
+      await settle();
+      expect(ui.snackbar).toContain('Opération enregistrée');
+      expect(ui.snackbar).toContain('la pièce jointe n\'a pas pu être ajoutée');
+      expect(ui.snackbar).toContain('Documents');
+    });
+
+    it('refuse tout de suite un fichier d’un autre type ou trop gros, sans rien envoyer', async () => {
+      await start(FILES);
+      await open('OUT');
+      await pick('releve.xlsx');
+      expect(ui.text).toContain('n’est pas une photo (JPG, PNG) ni un PDF');
+      await pick('scan.pdf', 30 * 1024 * 1024);
+      expect(ui.text).toContain('dépasse 25 Mo');
+      await pick('ticket.JPG');
+      expect(ui.text).toContain('ticket.JPG');
+      expect(ui.text).not.toContain('dépasse 25 Mo');
+      ui.closeAll();
+    });
+  });
+
   describe('rattachement d’une cotisation ou d’une subvention (#4)', () => {
     const FULL = ['transactions:manage', 'entries:create', 'entries:post', 'members:view', 'members:manage', 'grants:view', 'grants:manage'];
     const membershipCategory = { id: 'c-memb', direction: 'IN', label: 'Cotisations des adhérents', hint: '', active: true, usage: 'MEMBERSHIP', account: { id: 'a756', number: '756', label: 'Cotisations' } };

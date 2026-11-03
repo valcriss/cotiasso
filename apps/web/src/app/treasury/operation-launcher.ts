@@ -51,12 +51,16 @@ export class OperationLauncher {
       const done = result.posted
         ? `Opération enregistrée${result.number ? ` (écriture ${result.journalCode} n° ${result.number})` : ''}.`
         : 'Opération envoyée pour validation (en brouillon) : elle comptera dans les rapports une fois relue et enregistrée par une personne autorisée.';
-      const { attachment } = result;
-      if (attachment?.ok) this.notifier.success(`${done} ${attachment.summary}`);
+      const { attachment, document } = result;
+      const proof = document?.ok ? ' Pièce jointe ajoutée.' : '';
+      if (document && !document.ok) {
+        // L'argent est bien enregistré : seul le dépôt du fichier est à refaire, depuis la page Documents.
+        this.notifier.notice(`${done} Mais la pièce jointe n'a pas pu être ajoutée : ${document.message} Vous pourrez la déposer depuis « Documents », en la reliant à ce mouvement.`);
+      } else if (attachment?.ok) this.notifier.success(`${done} ${attachment.summary}${proof}`);
       else if (attachment) {
         // L'argent est bien enregistré : seul le rattachement est à refaire, depuis l'écran qui le suit.
         this.notifier.notice(`${done} Mais le rattachement n'a pas pu se faire : ${attachment.message} Vous pourrez le refaire depuis « Membres et cotisations » (Règlements) ou « Subventions ».`);
-      } else this.notifier.success(done);
+      } else this.notifier.success(`${done}${proof}`);
     }
     return result;
   }

@@ -561,6 +561,15 @@ describe('AccountsPage', () => {
       expect(text).not.toContain('Rapprocher');
     });
 
+    it('signale par un trombone (lu à voix haute « Pièce jointe ») le mouvement qui a un justificatif (#30)', async () => {
+      await openSimple([transaction({ id: 't1', label: 'Avec facture', hasDocument: true }), transaction({ id: 't2', label: 'Sans facture', hasDocument: false })]);
+      const rows = Array.from(root.querySelectorAll('tbody tr'));
+      expect(rows[0]!.querySelector('.clip')).not.toBeNull();
+      expect(rows[0]!.textContent).toContain('Pièce jointe');
+      expect(rows[1]!.querySelector('.clip')).toBeNull();
+      expect(rows[1]!.textContent).not.toContain('Pièce jointe');
+    });
+
     describe('corriger une opération enregistrée (#17)', () => {
       const txUrl = (r: { url: string }) => r.url === '/api/financial-accounts/f1/transactions';
       const posted = (over: object = {}) =>
