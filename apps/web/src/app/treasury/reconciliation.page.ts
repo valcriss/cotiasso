@@ -23,6 +23,7 @@ import { PageHeader } from '../ui/page-header';
 import { StatementDialog, type StatementDialogData } from './statement-dialog';
 import { formatDate } from '../ui/dates';
 import { FrDatePipe } from '../ui/fr-date.pipe';
+import { Skeleton } from '../ui/skeleton';
 
 /**
  * Rapprochement bancaire (ADR 0018) : page dédiée, trop vaste pour une boîte de dialogue. On choisit un relevé, on
@@ -30,7 +31,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
  */
 @Component({
   selector: 'app-reconciliation-page',
-  imports: [FrDatePipe, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
+  imports: [Skeleton, FrDatePipe, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .figures {
@@ -113,7 +114,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
     }
 
     @if (loading()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="table" />
     } @else if (current(); as rec) {
       <section class="panel" aria-label="Rapprochement en cours">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">fact_check</mat-icon><span>Relevé au {{ rec.periodEnd | frDate }}</span></h3>

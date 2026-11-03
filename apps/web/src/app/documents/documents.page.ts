@@ -21,10 +21,11 @@ import { Notifier } from '../ui/notifier.service';
 import { PageHeader } from '../ui/page-header';
 import { formatSize, objectTypeLabel } from './format';
 import { UploadDialog, type UploadDialogData } from './upload-dialog';
+import { Skeleton } from '../ui/skeleton';
 
 @Component({
   selector: 'app-documents-page',
-  imports: [PageHeader, DatePipe, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [Skeleton, PageHeader, DatePipe, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .file-input {
@@ -178,7 +179,7 @@ import { UploadDialog, type UploadDialogData } from './upload-dialog';
     }
 
     @if (loading()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="table" />
     } @else if (documents().length === 0) {
       <p class="muted">Aucun document ne correspond à ces critères.@if (canCreate()) { Utilisez « Déposer un document » pour ajouter le premier. }</p>
     } @else {

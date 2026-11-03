@@ -8,11 +8,12 @@ import { ActionBar } from '../ui/action-bar';
 import { NoPeriod } from '../ui/no-period';
 import { ExportLink } from './export-link';
 import { StatementPageBase } from './statement-page';
+import { Skeleton } from '../ui/skeleton';
 
 /** État de trésorerie : pour chaque compte de banque ou de caisse, d'où l'on part, ce qui est entré et sorti, où l'on arrive. */
 @Component({
   selector: 'app-treasury-statement-page',
-  imports: [NoPeriod, MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink],
+  imports: [Skeleton, NoPeriod, MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink],
   styleUrl: '../admin/admin-pages.scss',
   template: `
     <app-action-bar
@@ -40,7 +41,7 @@ import { StatementPageBase } from './statement-page';
       <p class="alert" role="alert">{{ message }}</p>
     }
     @if (loading()) {
-      <p class="muted">Calcul en cours…</p>
+      <app-skeleton variant="table" />
     } @else if (years().length === 0) {
       <app-no-period />
     } @else if (data(); as statement) {

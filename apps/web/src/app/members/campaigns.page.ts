@@ -23,6 +23,7 @@ import {
 import { PaymentsDialog, type PaymentsDialogData } from './payments-dialog';
 import { BulkEnrollDialog, RenewCampaignDialog, type BulkEnrollDialogData, type RenewCampaignDialogData } from './renewal-dialogs';
 import { FrDatePipe } from '../ui/fr-date.pipe';
+import { Skeleton } from '../ui/skeleton';
 
 const STATUS_LABELS = { PENDING: 'En attente', EFFECTIVE: 'Effective', CANCELLED: 'Annulée' } as const;
 const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_DATE: 'date de début', EXEMPTION: 'exonération' } as const;
@@ -30,7 +31,7 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
 /** Saisons d'adhésion, tarifs et adhésions des membres (ADR 0023). */
 @Component({
   selector: 'app-campaigns-page',
-  imports: [FrDatePipe, MatButtonModule, MatIconModule, ActionBar],
+  imports: [Skeleton, FrDatePipe, MatButtonModule, MatIconModule, ActionBar],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -56,7 +57,7 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
     }
 
     @if (loading()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="cards" />
     } @else if (campaigns().length === 0) {
       <section class="panel">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">event_repeat</mat-icon><span>Aucune saison</span></h3>

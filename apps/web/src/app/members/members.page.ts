@@ -24,11 +24,12 @@ import {
   type OfficeDialogData,
 } from './member-dialogs';
 import { FrDatePipe } from '../ui/fr-date.pipe';
+import { Skeleton } from '../ui/skeleton';
 
 /** Membres : fiches, catégories, fonctions et mandats (ADR 0023). */
 @Component({
   selector: 'app-members-page',
-  imports: [FrDatePipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ActionBar],
+  imports: [Skeleton, FrDatePipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ActionBar],
   styleUrl: '../admin/admin-pages.scss',
   template: `
     <app-action-bar
@@ -166,7 +167,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
     }
 
     @if (loading()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="table" />
     } @else if (members().length === 0) {
       <section class="panel">
         <p class="muted">

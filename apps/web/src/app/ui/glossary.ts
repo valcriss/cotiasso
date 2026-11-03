@@ -80,9 +80,9 @@ export const GLOSSARY = {
     example: '« Assurance » correspond au compte 616 ; vous n’avez pas à le connaître.',
   },
   saison: {
-    simple: 'Campagne de cotisation',
+    simple: 'Saison de cotisation',
     definition: 'La période pendant laquelle les adhésions sont valables, avec ses tarifs. On en crée une par saison.',
-    example: 'Campagne « Adhésions 2026-2027 », du 29 septembre au 28 septembre.',
+    example: 'Saison « Adhésions 2026-2027 », du 29 septembre au 28 septembre.',
   },
   reliquat: {
     simple: 'Reliquat',
