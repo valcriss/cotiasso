@@ -21,7 +21,7 @@ import { ImportPanel } from './import-panel';
       title="Importer un relevé bancaire"
       icon="upload_file"
       [description]="simple()
-        ? 'Déposez le fichier OFX de votre banque : l’application le lit, repère ce qui existe déjà et vous propose de relier vos saisies aux mouvements de la banque. Rien n’est enregistré avant votre confirmation.'
+        ? 'Déposez le fichier de votre banque (format OFX) : l’application le lit, repère ce qui existe déjà et vous propose de relier vos saisies aux mouvements de la banque. Rien n’est enregistré avant votre confirmation.'
         : 'Déposez le fichier OFX de votre banque : l’application le lit, repère ce qui existe déjà et vous propose de rapprocher vos saisies. Rien n’est enregistré avant votre confirmation.'"
     >
       <a mat-stroked-button routerLink="/comptes">
@@ -32,6 +32,23 @@ import { ImportPanel } from './import-panel';
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
     }
+    <details class="panel help" open>
+      <summary><strong>{{ simple() ? 'Où trouver le fichier de ma banque ?' : 'Qu’est-ce qu’un fichier OFX ?' }}</strong></summary>
+      <p>
+        C’est un fichier que <strong>vous téléchargez sur le site (ou l’application) de votre banque</strong> : il contient la liste de vos opérations
+        bancaires. Il évite de tout ressaisir à la main, et l’application repère elle-même ce qui est déjà enregistré.
+      </p>
+      <ol>
+        <li>Connectez-vous à l’espace en ligne de votre banque et ouvrez votre compte.</li>
+        <li>Cherchez « Télécharger mes opérations », « Exporter » ou « Relevé téléchargeable ».</li>
+        <li>Choisissez le format <strong>OFX</strong> (parfois nommé « Money » ou « Quicken »), la période voulue, puis enregistrez le fichier sur votre ordinateur.</li>
+        <li>Déposez-le ci-dessous : rien n’est enregistré avant que vous ayez confirmé.</li>
+      </ol>
+      <p class="muted">
+        Votre banque ne propose pas le format OFX (seulement un tableur ou un PDF) ? Ces formats ne sont pas lus pour le moment : saisissez vos
+        opérations avec « J’ai reçu de l’argent » et « J’ai dépensé de l’argent » depuis la page Comptes.
+      </p>
+    </details>
     @if (account(); as current) {
       <p class="muted">Compte : <strong>{{ current.name }}</strong> @if (!simple()) { ({{ current.journalCode }}) }</p>
       <app-import-panel [account]="current" (imported)="done()" />
