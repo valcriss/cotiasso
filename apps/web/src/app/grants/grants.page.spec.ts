@@ -302,6 +302,26 @@ describe('GrantsPage', () => {
     expect(selected).toEqual(['Fondation du Sud']);
   });
 
+  it('enregistre la répartition entre projets quand on clique sur « Enregistrer »', async () => {
+    await create(MANAGER, [grant()], [funder()]);
+    await click('Ouvrir Aide au festival');
+    controller.expectOne('/api/grants/g1').flush(grant());
+    await settle();
+    await click('Projets financés');
+    controller.expectOne('/api/projects').flush(projects);
+    await settle();
+    expect(ui.title).toBe('Projets financés');
+
+    // Un vrai appui sur le bouton d'envoi, comme le fait la personne (et non un événement simulé sur le formulaire).
+    await ui.click('Enregistrer');
+    const request = controller.expectOne('/api/grants/g1/allocations');
+    expect(request.request.method).toBe('PUT');
+    request.flush(grant());
+    await reload([grant()], [funder()], grant());
+    expect(ui.isOpen).toBe(false);
+    expect(ui.snackbar).toContain('Répartition entre les projets enregistrée.');
+  });
+
   it('demande une subvention avec sa répartition, montants envoyés en décimales exactes', async () => {
     await create(MANAGER, [], [funder()]);
     await click('Demander une subvention');

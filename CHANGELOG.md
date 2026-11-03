@@ -69,3 +69,7 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 - Trésorerie : comptes bancaires, import OFX, virements internes, rapprochement bancaire, lots de reprise.
 - Comptabilité : exercices, journaux, plan de comptes, écritures, contrepassation, clôture avec à-nouveaux, projets et ventilation.
 - Socle : comptes, rôles et droits, double authentification, journal d'audit, documents, paramètres et marque blanche, sauvegardes chiffrées.
+
+### Corrections
+
+- Documents : « Changer la catégorie » ne faisait rien au clic sur « Enregistrer » ; la catégorie est maintenant bien enregistrée. Même correction pour « Projets financés » d'une subvention.
