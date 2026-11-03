@@ -5,6 +5,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { formatApiAmount } from '../accounting/amount';
 import { AdminApiService, type BalanceSheetInfo } from '../admin/admin-api.service';
 import { ActionBar } from '../ui/action-bar';
+import { NoPeriod } from '../ui/no-period';
 import { ExportLink } from './export-link';
 import { StatementPageBase } from './statement-page';
 import { StatementGroups } from './statements';
@@ -12,7 +13,7 @@ import { StatementGroups } from './statements';
 /** Bilan : ce que l'association possède (actif) et d'où ça vient (passif), à la fin de l'exercice. */
 @Component({
   selector: 'app-balance-sheet-page',
-  imports: [MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink, StatementGroups],
+  imports: [NoPeriod, MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink, StatementGroups],
   styleUrl: '../admin/admin-pages.scss',
   template: `
     <app-action-bar
@@ -42,7 +43,7 @@ import { StatementGroups } from './statements';
     @if (loading()) {
       <p class="muted">Calcul en cours…</p>
     } @else if (years().length === 0) {
-      <p class="muted">Aucun exercice n'est encore créé : créez-le dans Paramètres › Comptabilité.</p>
+      <app-no-period />
     } @else if (data(); as sheet) {
       @if (sheet.carryWarning; as warning) {
         <p class="alert" role="status">{{ warning }}</p>
@@ -70,7 +71,7 @@ import { StatementGroups } from './statements';
         <p class="success" role="status">Le bilan est équilibré : l'actif égale le passif ({{ amount(sheet.totalAssets) }} €).</p>
       }
       @if (!sheet.previous) {
-        <p class="muted">Aucun exercice précédent : la colonne de comparaison est absente.</p>
+        <p class="muted">{{ simple() ? 'Il n’y a pas de période précédente : la colonne de comparaison est absente.' : 'Aucun exercice précédent : la colonne de comparaison est absente.' }}</p>
       }
       <section class="panel">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">account_balance_wallet</mat-icon><span>Actif</span></h3>
