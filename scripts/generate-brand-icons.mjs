@@ -7,7 +7,8 @@ import { deflateSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-const outDir = join(dirname(fileURLToPath(import.meta.url)), "..", "apps", "web", "public");
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const outDir = join(root, "apps", "web", "public");
 
 const BLUE = [0x15, 0x65, 0xc0];
 const WHITE = [255, 255, 255];
@@ -138,4 +139,13 @@ writeFileSync(join(outDir, "favicon.ico"), ico([16, 32, 48]));
 writeFileSync(join(outDir, "apple-touch-icon.png"), png(180, 0));
 writeFileSync(join(outDir, "icon-192.png"), png(192, 14));
 writeFileSync(join(outDir, "icon-512.png"), png(512, 14));
+// Symbole intégré aux emails (pied de page « Propulsé par Cotiasso ») : le serveur l'embarque en code, sans fichier à déployer.
+writeFileSync(
+  join(root, "apps", "api", "src", "mail", "cotiasso-mark.ts"),
+  `// Fichier généré par scripts/generate-brand-icons.mjs : ne pas modifier à la main.
+/** Symbole de Cotiasso, PNG 64 × 64 en base64, intégré au pied des emails. */
+export const COTIASSO_MARK_PNG_BASE64 =
+  "${png(64, 14).toString("base64")}";
+`,
+);
 console.log("Icônes générées dans", outDir);

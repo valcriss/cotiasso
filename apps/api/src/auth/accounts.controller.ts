@@ -27,6 +27,7 @@ import {
   WeakPasswordError,
   WrongCurrentPasswordError,
 } from "./errors.js";
+import { AccountMailService, type MailOutcome } from "../mail/account-mail.service.js";
 import { LoginThrottleService } from "./login-throttle.service.js";
 import { PASSWORD_ISSUE_MESSAGES } from "./password-policy.js";
 import { PasswordTokenService } from "./password-token.service.js";
@@ -80,6 +81,7 @@ export class AccountsController {
     @Inject(PasswordTokenService) private readonly tokens: PasswordTokenService,
     @Inject(AccountService) private readonly account: AccountService,
     @Inject(LoginThrottleService) private readonly throttle: LoginThrottleService,
+    @Inject(AccountMailService) private readonly mails: AccountMailService,
   ) {}
 
   @RequirePermission("users:admin")
@@ -91,10 +93,13 @@ export class AccountsController {
       throw new BadRequestException("Champ invalide : roleIds.");
     }
     try {
-      return await this.admin.createUser(
+      const created = await this.admin.createUser(
         { email: string(input.email, "email"), displayName: string(input.displayName, "displayName"), roleIds: roleIds as string[] },
         request.auth!.user.id,
       );
+      // Un email qui échoue ne défait pas le compte : le lien reste affiché à l'administrateur.
+      const mail: MailOutcome = await this.mails.sendLink(created.user.id, created.invitation, request.auth!.user.id);
+      return { ...created, mail };
     } catch (error) {
       return translate(error);
     }
@@ -104,7 +109,9 @@ export class AccountsController {
   @Post("users/:id/password-reset")
   async issueReset(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
     try {
-      return await this.admin.issueReset(uuid(id), request.auth!.user.id);
+      const issued = await this.admin.issueReset(uuid(id), request.auth!.user.id);
+      const mail: MailOutcome = await this.mails.sendLink(uuid(id), issued, request.auth!.user.id);
+      return { ...issued, mail };
     } catch (error) {
       return translate(error);
     }

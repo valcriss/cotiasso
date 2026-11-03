@@ -22,6 +22,8 @@ const ACTION_LABELS: Record<string, string> = {
   'role.assigned': 'Rôle attribué',
   'role.revoked': 'Rôle retiré',
   'settings.updated': 'Paramètres modifiés',
+  'user.mail.sent': 'Email d’accès envoyé',
+  'user.mail.failed': 'Envoi de l’email d’accès échoué',
   'branding.logo.updated': 'Logo de l’association modifié',
   'branding.logo.removed': 'Logo de l’association retiré',
   'branding.logo.display-changed': 'Affichage du logo modifié',

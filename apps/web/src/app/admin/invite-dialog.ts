@@ -6,7 +6,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
-import { AdminApiService, type ManagedUser, type PasswordLink, type RoleSummary } from './admin-api.service';
+import { AdminApiService, type MailOutcome, type ManagedUser, type PasswordLink, type RoleSummary } from './admin-api.service';
 
 export interface InviteDialogData {
   roles: RoleSummary[];
@@ -15,6 +15,7 @@ export interface InviteDialogData {
 export interface InviteResult {
   user: { displayName: string };
   invitation: PasswordLink;
+  mail?: MailOutcome;
 }
 
 /** Invitation d'un utilisateur, en boîte de dialogue. Renvoie le compte créé et son lien d'invitation (affiché une seule fois). */
@@ -87,8 +88,8 @@ export class InviteDialog {
     this.details.set([]);
     this.busy.set(true);
     try {
-      const { invitation, user } = await this.api.createUser(this.form.getRawValue());
-      this.reference.close({ user: user as Pick<ManagedUser, 'displayName'>, invitation });
+      const { invitation, user, mail } = await this.api.createUser(this.form.getRawValue());
+      this.reference.close({ user: user as Pick<ManagedUser, 'displayName'>, invitation, mail });
     } catch (failure) {
       const described = describeHttpError(failure, "L'invitation n'a pas pu être créée. Réessayez dans un instant.");
       this.error.set(described.message);

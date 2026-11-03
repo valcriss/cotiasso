@@ -16,7 +16,7 @@ export interface IssuedPasswordToken {
 }
 
 const HOUR_MS = 3_600_000;
-const VALIDITY_HOURS: Record<PasswordTokenPurpose, number> = { INVITATION: 72, RESET: 24 };
+export const VALIDITY_HOURS: Record<PasswordTokenPurpose, number> = { INVITATION: 72, RESET: 24 };
 
 @Injectable()
 export class PasswordTokenService {

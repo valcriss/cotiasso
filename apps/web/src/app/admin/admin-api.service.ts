@@ -41,12 +41,17 @@ export interface PermissionInfo {
   sensitive?: boolean;
 }
 
+/** Résultat de l'envoi du lien par email : envoyé, échoué (l'administrateur transmet alors le lien lui-même) ou envoi non configuré. */
+export type MailOutcome = { status: 'SENT'; to: string } | { status: 'FAILED'; to: string } | { status: 'NOT_CONFIGURED' };
+
 /** Lien à usage unique à transmettre à l'utilisateur ; n'est montré qu'une seule fois. */
 export interface PasswordLink {
   token: string;
   path: string;
   expiresAt: string;
   purpose: 'INVITATION' | 'RESET';
+  /** Ce qu'il est advenu de l'email qui porte ce lien. */
+  mail?: MailOutcome;
 }
 
 export interface RoleDraft {
@@ -1371,8 +1376,8 @@ export class AdminApiService {
     return firstValueFrom(this.http.get<ManagedUser[]>('/api/users'));
   }
 
-  createUser(input: { email: string; displayName: string; roleIds: string[] }): Promise<{ user: ManagedUser; invitation: PasswordLink }> {
-    return firstValueFrom(this.http.post<{ user: ManagedUser; invitation: PasswordLink }>('/api/users', input));
+  createUser(input: { email: string; displayName: string; roleIds: string[] }): Promise<{ user: ManagedUser; invitation: PasswordLink; mail?: MailOutcome }> {
+    return firstValueFrom(this.http.post<{ user: ManagedUser; invitation: PasswordLink; mail?: MailOutcome }>('/api/users', input));
   }
 
   issueReset(userId: string): Promise<PasswordLink> {
