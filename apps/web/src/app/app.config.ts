@@ -6,6 +6,7 @@ import { routes } from './app.routes';
 import { csrfInterceptor } from './auth/csrf.interceptor';
 import { ThemeService } from './theme/theme.service';
 import { BrandingService } from './branding/branding.service';
+import { watchTableLabels } from './ui/table-labels';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -18,5 +19,9 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => inject(BrandingService).load()),
     // Mode et densité choisis par l'utilisateur, appliqués avant le premier affichage pour éviter tout clignotement.
     provideAppInitializer(() => inject(ThemeService).init()),
+    // Affichage mobile des tableaux en cartes : les libellés de colonnes sont posés sur les cellules (ui/table-labels.ts).
+    provideAppInitializer(() => {
+      watchTableLabels();
+    }),
   ],
 };

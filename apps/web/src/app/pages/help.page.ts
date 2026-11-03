@@ -53,6 +53,12 @@ const HOW_TO: HowTo[] = [
   imports: [MatFormFieldModule, MatIconModule, MatInputModule, RouterLink, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
+    /* Les liens des pas-à-pas sont assez hauts pour le doigt. */
+    details a {
+      align-items: center;
+      display: inline-flex;
+      min-height: 44px;
+    }
     dl.glossary {
       display: flex;
       flex-direction: column;

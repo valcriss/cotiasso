@@ -32,7 +32,6 @@ h3 {
 h4 {
   font: var(--mat-sys-label-large);
   margin: 8px 0 0;
-  text-transform: capitalize;
 }
 
 .head {
@@ -494,12 +493,133 @@ details pre {
   white-space: nowrap;
 }
 
-// Petits écrans : un tableau trop large défile dans son cadre au lieu d'élargir toute la page.
+// Petits écrans : un tableau devient une liste de cartes (une carte par ligne, « colonne : valeur »), sans défilement horizontal.
+// Les libellés viennent de l'en-tête (`data-label`, posé par ui/table-labels.ts). `.table.keep-table` garde le tableau classique.
 @media (max-width: 720px) {
-  .table {
+  .table:not(.keep-table),
+  table.stack-table {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    display: block;
+    max-width: 100%;
+    overflow: visible;
+
+    thead {
+      // En-tête masqué visuellement mais lu par les lecteurs d'écran.
+      block-size: 1px;
+      clip-path: inset(50%);
+      inline-size: 1px;
+      overflow: hidden;
+      position: absolute;
+      white-space: nowrap;
+    }
+
+    tbody,
+    tfoot {
+      display: block;
+    }
+
+    tr {
+      background: var(--app-surface);
+      border: 1px solid var(--app-border);
+      border-radius: var(--app-radius);
+      display: block;
+      margin: 0 0 10px;
+      overflow: hidden;
+      padding: 6px 12px;
+    }
+
+    tbody tr:hover td {
+      background: transparent;
+    }
+
+    td,
+    th {
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      display: block;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      padding: 4px 0;
+    }
+
+    // Cellule avec libellé de colonne : « Libellé » à gauche, valeur à droite.
+    td[data-label] {
+      align-items: baseline;
+      text-align: left;
+      column-gap: 12px;
+      display: grid;
+      grid-template-columns: minmax(70px, 38%) minmax(0, 1fr);
+    }
+
+    td[data-label]::before {
+      color: var(--mat-sys-on-surface-variant);
+      content: attr(data-label);
+      font: var(--mat-sys-label-medium);
+      grid-column: 1;
+      grid-row: 1 / span 20;
+    }
+
+    // Une cellule qui contient plusieurs blocs (nom puis email, valeur puis aide) garde tout son contenu dans la colonne de droite.
+    td[data-label] > * {
+      grid-column: 2;
+      min-width: 0;
+    }
+
+    // Cellule vide : rien à montrer.
+    td:empty {
+      display: none;
+    }
+
+    // En-tête de ligne ou cellule fusionnée (message d'état vide, totaux) : pleine largeur.
+    th[scope='row'] {
+      color: var(--mat-sys-on-surface);
+      font: var(--mat-sys-title-small);
+    }
+
+    td[colspan] {
+      display: block;
+    }
+
+    .row-actions {
+      border-top: 1px solid var(--app-border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 8px;
+      justify-content: flex-start;
+      margin-top: 4px;
+      padding-top: 6px;
+      text-align: left;
+      white-space: normal;
+    }
+
+    .row-actions:empty {
+      display: none;
+    }
+
+    tfoot tr {
+      background: var(--app-surface-muted);
+    }
+
+    .detail {
+      background: var(--app-surface-muted);
+    }
+  }
+
+  // Un tableau resté en tableau défile dans son cadre plutôt que d'élargir la page.
+  .table.keep-table {
     display: block;
     max-width: 100%;
     overflow-x: auto;
+  }
+
+  // Dans un panneau, les cartes remplacent le cadre du tableau.
+  .panel .table:not(.keep-table),
+  .group .table:not(.keep-table),
+  .link-card .table:not(.keep-table) {
+    margin: 0;
   }
 }
 
@@ -652,4 +772,148 @@ details pre {
   box-shadow: none;
   margin: 0;
   padding: 0;
+}
+
+// Petits écrans : des boutons rangés en grille de deux colonnes plutôt qu'empilés ; le bouton principal (plein) prend toute la ligne,
+// les libellés longs passent à la ligne au lieu de déborder.
+@media (max-width: 600px) {
+  app-page-header .actions,
+  app-action-bar .buttons,
+  .actions,
+  .detail-actions {
+    > .mat-mdc-button-base,
+    > a.mat-mdc-button-base,
+    > app-export-link > .mat-mdc-button-base {
+      --mat-button-filled-container-height: auto;
+      --mat-button-outlined-container-height: auto;
+      --mat-button-text-container-height: auto;
+      --mat-button-tonal-container-height: auto;
+      line-height: 1.25;
+      min-height: 40px;
+      min-width: 0;
+      padding-block: 6px;
+      width: 100%;
+
+      .mdc-button__label {
+        white-space: normal;
+      }
+    }
+
+    // Avec trois boutons ou plus, seul le premier bouton plein (l'action principale) prend toute la ligne ; les autres se partagent les deux colonnes.
+    > .mat-mdc-unelevated-button:first-child:not(:nth-last-child(2)) {
+      grid-column: 1 / -1;
+    }
+  }
+
+  // Barres de boutons qui ne sont pas des cartes (filtres, détail) : même grille.
+  .actions,
+  .detail-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+// ── Petits écrans : onglets repliés en « Rubrique : … », zones de toucher confortables, formulaires aérés ──
+.tabs-toggle {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  // Onglets d'une page (directive appTabsMenu) : seule la rubrique courante se voit ; le bouton déplie la liste, une rubrique par ligne.
+  nav.tabs:has(> .tabs-toggle) {
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    box-shadow: var(--app-shadow-xs);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 0 0 16px;
+    overflow: hidden;
+
+    .tabs-toggle {
+      align-items: center;
+      background: none;
+      border: 0;
+      color: var(--mat-sys-primary);
+      cursor: pointer;
+      display: flex;
+      font: var(--mat-sys-label-large);
+      gap: 8px;
+      justify-content: space-between;
+      min-height: 48px;
+      padding: 8px 14px;
+      text-align: left;
+      width: 100%;
+    }
+
+    .tabs-toggle-label {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .tabs-toggle-icon {
+      flex: none;
+      font-size: 24px;
+    }
+
+    .tabs-toggle:focus-visible {
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: -2px;
+    }
+
+    > a {
+      border-bottom: 0;
+      border-top: 1px solid var(--app-border);
+      display: none;
+      margin: 0;
+      min-height: 48px;
+      padding: 10px 14px;
+    }
+
+    &.open > a {
+      display: inline-flex;
+    }
+
+    > a.active {
+      background: var(--app-surface-muted);
+      border-bottom: 0;
+      box-shadow: inset 3px 0 0 var(--mat-sys-primary);
+    }
+  }
+}
+
+@media (max-width: 600px) {
+  // Zones de toucher : au moins ~32 px de côté sans agrandir l'aspect (marge négative qui compense).
+  .chip-remove {
+    height: 32px;
+    margin: -5px -6px -5px 0;
+    width: 32px;
+  }
+
+  // Champs de saisie de tableau (montants du budget…) : assez hauts pour le doigt.
+  table.stack-table input {
+    min-height: 44px;
+  }
+
+  // Formulaires en colonne : un espace entre deux champs qui se suivent.
+  form > mat-form-field + mat-form-field,
+  form > mat-form-field + app-date-field,
+  form > app-date-field + mat-form-field {
+    margin-top: 8px;
+  }
+}
+
+// Très petits écrans (≤ 360 px) : un libellé de champ trop long est coupé proprement au lieu de dépasser du champ,
+// et la boîte de dialogue ne défile jamais de côté.
+@media (max-width: 360px) {
+  .mat-mdc-form-field .mdc-floating-label {
+    max-width: calc(100% - 32px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .app-dialog .mat-mdc-dialog-surface {
+    overflow-x: hidden;
+  }
 }

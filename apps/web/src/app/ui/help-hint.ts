@@ -27,6 +27,13 @@ import { GLOSSARY, type GlossaryKey } from './glossary';
       padding: 2px;
       vertical-align: middle;
     }
+    /* Sur téléphone, la zone de toucher grandit (marge négative : la ligne de texte ne bouge pas). */
+    @media (max-width: 600px) {
+      .toggle {
+        margin: -8px -6px;
+        padding: 8px;
+      }
+    }
     .toggle mat-icon {
       font-size: 18px;
       height: 18px;

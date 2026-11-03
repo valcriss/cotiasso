@@ -49,6 +49,12 @@ interface BudgetState {
       background-color: color-mix(in srgb, var(--mat-sys-primary) 6%, transparent);
     }
     th:first-child { text-align: left; }
+    @media (max-width: 720px) {
+      /* En carte (voir app-ui.scss) : plus de largeur minimale ni de défilement horizontal. */
+      .budget-table { overflow-x: visible; }
+      table { min-width: 0; table-layout: auto; }
+      input { width: 100%; }
+    }
     input { width: 8rem; padding: 6px; text-align: right; border: 1px solid var(--mat-sys-outline); border-radius: 4px; }
   `,
   template: `
@@ -85,7 +91,7 @@ interface BudgetState {
             @for (group of groups(); track group.title) {
               <h3>{{ group.title }}</h3>
               <div class="budget-table">
-                <table>
+                <table class="stack-table">
                   <colgroup>
                     <col />
                     <col class="amount-column" span="3" />
@@ -131,7 +137,7 @@ interface BudgetState {
             }
             @let result = exerciseResult();
             <div class="budget-table">
-              <table>
+              <table class="stack-table">
                 <colgroup>
                   <col />
                   <col class="amount-column" span="3" />
@@ -160,7 +166,7 @@ interface BudgetState {
               <summary>Historique des modifications</summary>
               @if (history().length) {
                 <div class="budget-table">
-                  <table class="history-table">
+                  <table class="history-table stack-table">
                     <thead><tr>
                       <th scope="col">Date et heure</th>
                       <th scope="col">Modifié par</th>

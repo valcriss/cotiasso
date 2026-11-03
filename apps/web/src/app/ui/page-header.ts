@@ -47,6 +47,32 @@ import { MatIconModule } from '@angular/material/icon';
       font: var(--mat-sys-body-medium);
       margin: 6px 0 0;
     }
+    /* Petit écran : un en-tête plus compact, pour que le contenu apparaisse dès le premier écran. */
+    @media (max-width: 600px) {
+      :host {
+        margin: 0 0 12px;
+      }
+      .page-header {
+        gap: 8px;
+      }
+      .page-text {
+        padding: 12px 14px;
+      }
+      h1 {
+        font: var(--mat-sys-title-large);
+        gap: 8px;
+      }
+      h1 mat-icon {
+        font-size: 24px;
+        height: 24px;
+        width: 24px;
+      }
+      .description {
+        font: var(--mat-sys-body-medium);
+        line-height: 1.4;
+        margin-top: 4px;
+      }
+    }
     /* Barre d'outils : une carte sous le titre, boutons alignés à gauche, le principal en premier. */
     .actions {
       align-items: center;
@@ -61,6 +87,14 @@ import { MatIconModule } from '@angular/material/icon';
     }
     .actions:empty {
       display: none;
+    }
+    /* Petit écran : les boutons se rangent en deux colonnes (règles des boutons dans app-ui.scss) au lieu de s'empiler un par ligne. */
+    @media (max-width: 600px) {
+      .actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding: 12px;
+      }
     }
   `,
   template: `

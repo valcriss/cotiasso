@@ -100,11 +100,19 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
     .filter-summary { margin: 8px 0; }
     .advanced-filters { margin-block-start: 12px; }
     @media (max-width: 600px) {
-      .filter-bar { align-items: flex-start; }
-    .filter-bar > button {
-      --mat-button-outlined-container-height: var(--mat-form-field-container-height, 56px);
-    }
-    .movement-search { flex-basis: 100%; }
+      /* Boutons de filtre en deux colonnes, recherche sur toute la largeur. */
+      .filter-bar {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .filter-bar > button {
+        --mat-button-outlined-container-height: 44px;
+        min-width: 0;
+        padding-inline: 8px;
+        white-space: normal;
+      }
+      .movement-search { grid-column: 1 / -1; }
     }
     .suggestion {
       display: flex;
@@ -156,6 +164,14 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
     }
     .movement-description > .chip {
       flex-shrink: 0;
+    }
+    @media (max-width: 720px) {
+      // En carte, la pastille passe sous le libellé au lieu de l'écraser.
+      .movement-description {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+      }
     }
     .negative {
       color: var(--mat-sys-error);

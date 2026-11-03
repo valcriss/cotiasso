@@ -2,7 +2,8 @@ import { Component, computed, effect, inject, signal } from '@angular/core';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { BrandingService } from '../branding/branding.service';
 import { HELP_ITEM, NAVIGATION, SETTINGS_ITEM, START_ITEM } from '../navigation';
@@ -41,8 +42,23 @@ export class Shell {
   protected readonly densities = DENSITIES;
   protected readonly user = this.auth.user;
   protected readonly collapsed = signal(false);
+  /** Petit écran (≤ 720 px) : le menu est un tiroir fermé par défaut, jamais une colonne d'icônes qui prend de la largeur. */
+  protected readonly mobile = signal(false);
+  protected readonly menuOpen = signal(false);
+  /** Menu réduit à ses icônes : seulement sur grand écran. */
+  protected readonly compact = computed(() => this.collapsed() && !this.mobile());
 
   constructor() {
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      const query = window.matchMedia('(max-width: 720px)');
+      this.mobile.set(query.matches);
+      query.addEventListener('change', (event) => {
+        this.mobile.set(event.matches);
+        this.menuOpen.set(false);
+      });
+    }
+    // Choisir une page referme le tiroir.
+    this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe(() => this.menuOpen.set(false));
     // Un expert-comptable (lecture et export des états, sans saisie) ouvre l'affichage comptable d'office ; son choix prime ensuite.
     effect(() => {
       this.auth.permissions();
@@ -55,7 +71,19 @@ export class Shell {
   }
 
   protected toggle(): void {
-    this.collapsed.update((value) => !value);
+    if (this.mobile()) {
+      this.menuOpen.set(false);
+    } else {
+      this.collapsed.update((value) => !value);
+    }
+  }
+
+  protected openMenu(): void {
+    this.menuOpen.set(true);
+  }
+
+  protected closeMenu(): void {
+    this.menuOpen.set(false);
   }
 
   protected async logout(): Promise<void> {

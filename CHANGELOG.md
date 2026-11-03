@@ -15,6 +15,8 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 ### Nouveautés
 
+- Affichage mobile revu après un audit sur écran de 390 px : les tableaux deviennent des cartes « colonne : valeur » (plus de défilement horizontal), le menu s’ouvre en tiroir depuis une barre du haut au lieu de garder une colonne d’icônes, les boutons se rangent en deux colonnes au lieu de s’empiler, les onglets d’une page se replient en un bouton « Rubrique : … », les en-têtes de page sont plus compacts, les zones de toucher (aide « ? », retrait d’un rôle, montants du budget) sont plus grandes, la page de connexion occupe tout l’écran, et les lignes des dernières opérations se lisent sur deux lignes.
+
 - Justificatifs d'un mouvement : dans la liste des transactions, un menu ⋮ en fin de ligne regroupe « Modifier » et « Justificatifs » ; on y voit les pièces reliées au mouvement et on peut en déposer une (glisser-déposer), reliée automatiquement.
 - Fractionner un montant : dans « Classer et enregistrer » et dans « J'ai reçu / dépensé de l'argent », le bouton « Fractionner entre plusieurs catégories » permet de répartir un montant (par exemple 10 € de cotisations et 10 € de dons). On ne peut valider que lorsque tout le montant est réparti ; l'écriture comptable comporte alors une ligne par catégorie.
 - Dépôt de fichiers : l'import d'un relevé OFX et le dépôt de documents proposent une zone où glisser le fichier (ou cliquer pour le choisir) ; un format non accepté est refusé tout de suite avec une phrase claire.
