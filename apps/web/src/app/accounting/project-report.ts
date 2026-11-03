@@ -22,6 +22,9 @@ import { ThemeService } from '../theme/theme.service';
       text-align: right;
       white-space: nowrap;
     }
+    .debit {
+      color: var(--mat-sys-error);
+    }
     .other td {
       font-style: italic;
     }
@@ -101,7 +104,7 @@ import { ThemeService } from '../theme/theme.service';
                 </td>
                 <td class="amount">{{ amount(row.budget) }}</td>
                 <td class="amount">{{ amount(row.engaged) }}</td>
-                <td class="amount">{{ amount(row.actual) }}</td>
+                <td class="amount debit">{{ amount(row.actual) }}</td>
                 <td class="amount">{{ amount(row.remaining) }} @if (over(row.remaining)) { <span class="chip">Dépassement</span> }</td>
               </tr>
             } @empty {
@@ -115,7 +118,7 @@ import { ThemeService } from '../theme/theme.service';
               <td>Total des dépenses</td>
               <td class="amount">{{ amount(data.charges.total.budget) }}</td>
               <td class="amount">{{ amount(data.charges.total.engaged) }}</td>
-              <td class="amount">{{ amount(data.charges.total.actual) }}</td>
+              <td class="amount debit">{{ amount(data.charges.total.actual) }}</td>
               <td class="amount">{{ amount(data.charges.total.remaining) }} @if (over(data.charges.total.remaining)) { <span class="chip">Dépassement</span> }</td>
             </tr>
           </tfoot>
