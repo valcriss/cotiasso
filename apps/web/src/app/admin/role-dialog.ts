@@ -22,14 +22,14 @@ interface PermissionGroup {
 /** Noms courants des familles de droits (les clés techniques restent le repli). */
 const RESOURCE_LABELS: Record<string, string> = {
   'settings.association': "Association",
-  'settings.accounting': 'Paramètres comptables',
-  users: 'Utilisateurs et rôles',
+  'settings.accounting': 'Réglages de la comptabilité',
+  users: 'Comptes et droits',
   members: 'Membres et cotisations',
   'financial-accounts': 'Comptes bancaires',
-  transactions: 'Transactions',
-  imports: 'Relevés bancaires',
-  entries: 'Écritures comptables',
-  'fiscal-years': 'Exercices',
+  transactions: 'Mouvements d’argent',
+  imports: 'Relevé de la banque',
+  entries: 'Comptabilité (écritures)',
+  'fiscal-years': 'Périodes (exercices)',
   projects: 'Projets',
   budgets: 'Budgets',
   grants: 'Subventions',
@@ -42,6 +42,33 @@ const RESOURCE_LABELS: Record<string, string> = {
   backups: 'Sauvegardes',
   audit: "Journal d'audit",
 };
+
+/** Grandes familles affichées dans l'écran : l'argent, les personnes, les projets, les documents… (les ressources inconnues vont dans « Autres »). */
+const THEMES: { title: string; resources: string[] }[] = [
+  { title: 'L’argent et la comptabilité', resources: ['financial-accounts', 'transactions', 'imports', 'entries', 'fiscal-years'] },
+  { title: 'Les membres', resources: ['members'] },
+  { title: 'Les projets et les subventions', resources: ['projects', 'budgets', 'grants', 'expenses'] },
+  { title: 'Les documents', resources: ['documents', 'documents.restricted'] },
+  { title: 'Les rapports et les données', resources: ['reports', 'data', 'audit'] },
+  { title: 'L’administration', resources: ['settings.association', 'settings.accounting', 'users', 'workflows', 'backups'] },
+];
+
+export interface PermissionTheme {
+  title: string;
+  groups: PermissionGroup[];
+}
+
+/** Range les familles de droits par grand thème, dans un ordre stable ; rien n'est perdu si une famille est inconnue. */
+export function themePermissions(groups: PermissionGroup[]): PermissionTheme[] {
+  const used = new Set<string>();
+  const themes: PermissionTheme[] = THEMES.map((theme) => {
+    const inTheme = theme.resources.flatMap((resource) => groups.filter((g) => g.resource === resource));
+    inTheme.forEach((g) => used.add(g.resource));
+    return { title: theme.title, groups: inTheme };
+  }).filter((theme) => theme.groups.length > 0);
+  const others = groups.filter((g) => !used.has(g.resource));
+  return others.length > 0 ? [...themes, { title: 'Autres', groups: others }] : themes;
+}
 
 /** Regroupe les permissions `ressource:action` par ressource pour une lecture plus simple. */
 export function groupPermissions(permissions: PermissionInfo[]): PermissionGroup[] {
@@ -88,6 +115,15 @@ export function roleKeyFrom(name: string): string {
       font: var(--mat-sys-label-large);
       margin: 8px 0 0;
     }
+    h3.theme {
+      border-top: 1px solid var(--app-border);
+      font: var(--mat-sys-title-small);
+      margin: 16px 0 0;
+      padding-top: 12px;
+    }
+    .sensitive {
+      margin-left: 8px;
+    }
   `,
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
@@ -118,15 +154,20 @@ export function roleKeyFrom(name: string): string {
 
         <fieldset class="permissions">
           <legend>Ce que ce rôle peut faire</legend>
-          @for (group of groups(); track group.resource) {
-            <div class="group">
-              <h4>{{ resourceLabel(group.resource) }}</h4>
-              @for (permission of group.permissions; track permission.key) {
-                <mat-checkbox [checked]="selected().has(permission.key)" (change)="toggle(permission.key, $event.checked)">
-                  {{ permission.label }}
-                </mat-checkbox>
-              }
-            </div>
+          <p class="muted">Les droits marqués « À confier avec soin » donnent accès à la sécurité, rendent des comptes définitifs ou sortent toutes les données.</p>
+          @for (theme of themes(); track theme.title) {
+            <h3 class="theme">{{ theme.title }}</h3>
+            @for (group of theme.groups; track group.resource) {
+              <div class="group">
+                <h4>{{ resourceLabel(group.resource) }}</h4>
+                @for (permission of group.permissions; track permission.key) {
+                  <mat-checkbox [checked]="selected().has(permission.key)" (change)="toggle(permission.key, $event.checked)">
+                    {{ permission.label }}
+                    @if (permission.sensitive) { <span class="chip sensitive">À confier avec soin</span> }
+                  </mat-checkbox>
+                }
+              </div>
+            }
           }
         </fieldset>
       </app-form-dialog>
@@ -141,6 +182,7 @@ export class RoleDialog {
   protected readonly role = this.data.role;
 
   protected readonly groups = computed(() => groupPermissions(this.data.catalog));
+  protected readonly themes = computed(() => themePermissions(this.groups()));
   protected readonly selected = signal<ReadonlySet<string>>(new Set(this.role?.permissions ?? []));
   protected readonly requiresMfa = signal(this.role?.requiresMfa ?? false);
   protected readonly permissionsChanged = signal(false);

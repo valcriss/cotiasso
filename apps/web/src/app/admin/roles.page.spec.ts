@@ -4,12 +4,12 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { mockAuth } from '../testing/auth-mock';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
-import { groupPermissions, roleKeyFrom } from './role-dialog';
+import { groupPermissions, roleKeyFrom, themePermissions } from './role-dialog';
 import { RolesPage } from './roles.page';
 
 const catalog = [
   { key: 'entries:view', label: 'Consulter les écritures' },
-  { key: 'entries:post', label: 'Comptabiliser les écritures' },
+  { key: 'entries:post', label: 'Comptabiliser les écritures', sensitive: true },
   { key: 'users:admin', label: 'Administrer les utilisateurs' },
 ];
 const roles = [
@@ -22,6 +22,22 @@ describe('groupPermissions', () => {
       { resource: 'entries', permissions: [catalog[0], catalog[1]] },
       { resource: 'users', permissions: [catalog[2]] },
     ]);
+  });
+});
+
+describe('themePermissions (#31)', () => {
+  it('range les droits par grand thème, dans un ordre stable, sans rien perdre', () => {
+    const all = groupPermissions([
+      { key: 'users:admin', label: 'Créer des comptes' },
+      { key: 'members:view', label: 'Voir la liste des membres' },
+      { key: 'entries:post', label: 'Enregistrer définitivement', sensitive: true },
+      { key: 'inconnu:view', label: 'Un droit futur' },
+      { key: 'documents:view', label: 'Voir les documents' },
+    ]);
+    const themes = themePermissions(all);
+    expect(themes.map((t) => t.title)).toEqual(['L’argent et la comptabilité', 'Les membres', 'Les documents', 'L’administration', 'Autres']);
+    expect(themes.flatMap((t) => t.groups).length).toBe(all.length);
+    expect(themes.at(-1)!.groups[0]!.resource).toBe('inconnu');
   });
 });
 
@@ -66,6 +82,17 @@ describe('RolesPage', () => {
   afterEach(() => {
     ui.closeAll();
     controller.verify();
+  });
+
+  it('range les droits par grand thème et signale ceux à confier avec soin (#31)', async () => {
+    await create(['users:view', 'users:admin']);
+    buttonWith('Nouveau rôle')!.click();
+    await settle();
+    expect(ui.text).toContain('L’argent et la comptabilité');
+    expect(ui.text).toContain('L’administration');
+    expect(ui.text).toMatch(/Comptabiliser les écritures\s*À confier avec soin/);
+    expect(ui.text).not.toMatch(/Consulter les écritures\s*À confier avec soin/);
+    expect(ui.text).toContain('donnent accès à la sécurité');
   });
 
   it('liste les rôles sans boutons de modification pour un simple lecteur', async () => {
