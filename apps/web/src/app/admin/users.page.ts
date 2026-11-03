@@ -9,7 +9,7 @@ import { ActionBar } from '../ui/action-bar';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { AccessDialog, type AccessDialogData } from './access-dialog';
-import { AdminApiService, type ManagedUser, type PasswordLink, type ProjectInfo, type RoleSummary } from './admin-api.service';
+import { AdminApiService, type MailOutcome, type ManagedUser, type PasswordLink, type ProjectInfo, type RoleSummary } from './admin-api.service';
 import { InviteDialog, type InviteDialogData, type InviteResult } from './invite-dialog';
 import { LinkDialog, type LinkDialogData } from './link-dialog';
 import { fullLink } from './password-link';
@@ -176,7 +176,7 @@ export class UsersPage {
     const result = await this.dialogs.open<InviteResult, InviteDialogData>(InviteDialog, { size: 'md', data: { roles: this.roles() } });
     if (!result) return;
     await this.load();
-    await this.showLink(`Lien d'invitation pour ${result.user.displayName}`, result.invitation);
+    await this.showLink(`Lien d'invitation pour ${result.user.displayName}`, result.invitation, result.mail);
   }
 
   protected issueReset(user: ManagedUser): Promise<void> {
@@ -241,11 +241,11 @@ export class UsersPage {
     });
   }
 
-  private async showLink(title: string, link: PasswordLink): Promise<void> {
+  private async showLink(title: string, link: PasswordLink, mail: MailOutcome | undefined = link.mail): Promise<void> {
     await this.dialogs.open<boolean, LinkDialogData>(LinkDialog, {
       size: 'md',
       dismissible: true,
-      data: { title, url: fullLink(link), expiresAt: new Date(link.expiresAt).toLocaleString('fr-FR') },
+      data: { title, url: fullLink(link), expiresAt: new Date(link.expiresAt).toLocaleString('fr-FR'), mail },
     });
   }
 

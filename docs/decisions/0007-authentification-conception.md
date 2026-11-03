@@ -10,7 +10,7 @@ Statut : accepté — 1er novembre 2026. Précise l'[ADR 0005](0005-authentifica
 | Durée | Inactivité 2 h, durée maximale 12 h ; paramétrables par association. |
 | Mot de passe | 12 caractères minimum, aucune règle de composition, refus d'une liste de mots de passe triviaux embarquée localement. Aucun envoi à un service externe. Haché avec argon2id. |
 | Identifiant | Adresse email, normalisée en minuscules, unique. |
-| Récupération | Lien de réinitialisation à usage unique et durée limitée, généré par un administrateur et transmis par lui ; envoi automatique par email seulement si SMTP est configuré (lot 5.3). |
+| Récupération | Lien de réinitialisation à usage unique et durée limitée, généré par un administrateur et transmis par lui ; envoi automatique par email si SMTP est configuré ([ADR 0034](0034-emails-d-invitation-et-de-reinitialisation.md)) ; le lien reste toujours affiché à l'administrateur. |
 | Premier administrateur | Au premier démarrage sans utilisateur, l'API génère un jeton à usage unique affiché dans les logs. L'assistant initial (cadrage §8.1) l'exige pour créer le compte, puis le jeton est invalidé. |
 | Essais répétés | Délai croissant par compte et par adresse IP, sans verrouillage permanent (évite le déni de service sur un compte). Tentatives et blocages audités. |
 | MFA | TOTP. 10 codes de secours à usage unique, affichés une fois, stockés hachés. Un administrateur peut réinitialiser le MFA d'un compte ; l'action est auditée. |

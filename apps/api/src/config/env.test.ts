@@ -19,6 +19,41 @@ describe("readEnv", () => {
       backupsDir: null,
       changelogFile: null,
       appVersion: "développement",
+      smtp: null,
+    });
+  });
+
+  describe("SMTP", () => {
+    const smtp = { ...base, SMTP_HOST: "smtp.asso.fr", SMTP_FROM: "no-reply@asso.fr", PUBLIC_URL: "https://compta.asso.fr/" };
+
+    it("reste désactivé sans SMTP_HOST", () => {
+      expect(readEnv({ ...base, SMTP_FROM: "no-reply@asso.fr" }).smtp).toBeNull();
+    });
+
+    it("lit la configuration, retire le « / » final de l'adresse publique et choisit le port selon le mode", () => {
+      expect(readEnv(smtp).smtp).toEqual({
+        host: "smtp.asso.fr",
+        port: 587,
+        secure: false,
+        user: null,
+        password: null,
+        from: "no-reply@asso.fr",
+        publicUrl: "https://compta.asso.fr",
+      });
+      expect(readEnv({ ...smtp, SMTP_SECURE: "true", SMTP_USER: "u", SMTP_PASSWORD: "p" }).smtp).toMatchObject({ port: 465, secure: true, user: "u", password: "p" });
+      expect(readEnv({ ...smtp, SMTP_PORT: "2525" }).smtp?.port).toBe(2525);
+    });
+
+    it("exige l'adresse d'expédition et l'adresse publique dès que l'hôte est renseigné", () => {
+      expect(() => readEnv({ ...smtp, SMTP_FROM: "" })).toThrow(/SMTP_FROM/);
+      expect(() => readEnv({ ...smtp, SMTP_FROM: "Asso <no-reply@asso.fr>" })).toThrow(/SMTP_FROM/);
+      expect(() => readEnv({ ...smtp, PUBLIC_URL: "" })).toThrow(/PUBLIC_URL/);
+      expect(() => readEnv({ ...smtp, PUBLIC_URL: "compta.asso.fr" })).toThrow(/PUBLIC_URL/);
+    });
+
+    it("exige l'identifiant et le mot de passe ensemble", () => {
+      expect(() => readEnv({ ...smtp, SMTP_USER: "u" })).toThrow(/SMTP_USER et SMTP_PASSWORD/);
+      expect(() => readEnv({ ...smtp, SMTP_PASSWORD: "p" })).toThrow(/SMTP_USER et SMTP_PASSWORD/);
     });
   });
 

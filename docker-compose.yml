@@ -36,6 +36,15 @@ services:
       # Chiffre les secrets de l'authentification à deux facteurs. À sauvegarder avec la base : sans cette clé, les secrets sont illisibles.
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?Renseigner MFA_ENCRYPTION_KEY dans .env.prod (openssl rand -base64 32)}
       DOCUMENTS_MAX_MB: ${DOCUMENTS_MAX_MB:-25}
+      # Envoi des invitations et réinitialisations par email (facultatif : sans SMTP_HOST, l'administrateur transmet le lien lui-même).
+      # Dès que SMTP_HOST est renseigné, SMTP_FROM et PUBLIC_URL sont obligatoires.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      PUBLIC_URL: ${PUBLIC_URL:-}
       # Écran d'exploitation : l'API lit l'état des sauvegardes, en lecture seule.
       BACKUPS_DIR: /backups
       COTIASSO_VERSION: ${COTIASSO_VERSION}
