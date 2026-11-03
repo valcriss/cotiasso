@@ -135,6 +135,13 @@ p.error {
   margin: 8px 0 0;
 }
 
+.token-help .command {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .token-help code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   overflow-wrap: anywhere;

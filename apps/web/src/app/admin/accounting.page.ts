@@ -4,6 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { RouterLink } from '@angular/router';
 import { MatInputModule } from '@angular/material/input';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
@@ -53,7 +54,7 @@ export function parseAccountCsv(text: string): ParsedAccounts {
 /** Paramètres › Comptabilité : exercices, journaux et plan de comptes. Création en boîtes de dialogue. */
 @Component({
   selector: 'app-accounting-page',
-  imports: [FormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, ActionBar, CategoriesPanel],
+  imports: [RouterLink, FormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, ActionBar, CategoriesPanel],
   styleUrl: './admin-pages.scss',
   template: `
     <app-action-bar
@@ -61,6 +62,9 @@ export function parseAccountCsv(text: string): ParsedAccounts {
       description="La structure de votre comptabilité : les exercices (périodes comptables), les journaux (cahiers d'enregistrement) et le plan de comptes."
     >
       @if (canEdit()) {
+        <a mat-stroked-button routerLink="/demarrage">
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">rocket_launch</mat-icon> Réglages de départ
+        </a>
         <button mat-flat-button type="button" (click)="addYear()">
           <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Nouvel exercice
         </button>
