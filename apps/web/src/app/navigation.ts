@@ -37,6 +37,13 @@ export const START_ITEM: NavigationItem = {
   global: true,
 };
 
+/** Aide et lexique : ouverte à tout utilisateur connecté, placée en bas du menu avec les réglages. */
+export const HELP_ITEM: NavigationItem = {
+  path: 'aide',
+  label: 'Aide et lexique',
+  icon: 'help_outline',
+};
+
 export const SETTINGS_ITEM: NavigationItem = {
   path: 'parametres',
   label: 'Paramètres',

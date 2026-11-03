@@ -59,7 +59,7 @@ describe('StartPage', () => {
     await settle();
     await loads(overview, accounts, years);
   };
-  const stepButtons = () => Array.from(root.querySelectorAll<HTMLButtonElement>('ol.steps li:not(:first-child) button'));
+  const stepButtons = () => Array.from(root.querySelectorAll<HTMLButtonElement>('ol.steps li:not(:first-child) button:not(.toggle)'));
   const click = async (label: string) => {
     const button = Array.from(root.querySelectorAll('button')).find((b) => b.textContent!.includes(label));
     expect(button, label).toBeTruthy();

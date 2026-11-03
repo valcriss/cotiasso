@@ -24,11 +24,12 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
 import { TransactionsPanel } from './transactions-panel';
 import { formatDate } from '../ui/dates';
 import { FrDatePipe } from '../ui/fr-date.pipe';
+import { HelpHint } from '../ui/help-hint';
 
 /** Comptes : banques et caisses avec leurs soldes (ouverture, calculé, comptable, relevé) et leurs transactions. */
 @Component({
   selector: 'app-accounts-page',
-  imports: [FrDatePipe, MatButtonModule, MatIconModule, RouterLink, PageHeader, TransactionsPanel],
+  imports: [HelpHint, FrDatePipe, MatButtonModule, MatIconModule, RouterLink, PageHeader, TransactionsPanel],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .accounts {
@@ -149,7 +150,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
             }
             <div class="big">{{ amount(account.balances.computed) }} €</div>
             @if (simple()) {
-              <div class="muted">Solde d’après vos enregistrements</div>
+              <div class="muted">Solde d’après vos enregistrements <app-help-hint term="solde" /></div>
               @if (account.balances.lastStatement; as statement) {
                 <p class="gap" [class.danger-text]="statement.gap !== '0.00'" role="status">
                   <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ statement.gap === '0.00' ? 'check_circle' : 'warning' }}</mat-icon>
@@ -157,7 +158,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
                 </p>
               }
               <dl class="balances">
-                <dt>Vérifié avec la banque</dt>
+                <dt>Vérifié avec la banque <app-help-hint term="verifie" /></dt>
                 <dd>
                   @if (account.balances.reconciled; as reconciled) {
                     Oui, au {{ reconciled.periodEnd | frDate }}

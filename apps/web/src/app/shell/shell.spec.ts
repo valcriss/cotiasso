@@ -51,7 +51,7 @@ describe('Shell', () => {
     const fixture = TestBed.createComponent(Shell);
     await fixture.whenStable();
     const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim());
-    expect(labels).toEqual(["Vue d'ensemble", 'Projets', 'Documents'].map((l) => expect.stringContaining(l)));
+    expect(labels).toEqual(["Vue d'ensemble", 'Projets', 'Documents', 'Aide et lexique'].map((l) => expect.stringContaining(l)));
   });
 
   it('pour un droit limité à un projet, montre les rubriques filtrées par le serveur mais pas la page Documents générale', async () => {
@@ -60,7 +60,7 @@ describe('Shell', () => {
     const fixture = TestBed.createComponent(Shell);
     await fixture.whenStable();
     const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim());
-    expect(labels).toEqual(["Vue d'ensemble", 'Projets', 'Subventions'].map((l) => expect.stringContaining(l)));
+    expect(labels).toEqual(["Vue d'ensemble", 'Projets', 'Subventions', 'Aide et lexique'].map((l) => expect.stringContaining(l)));
   });
 
   it("affiche le nom de l'association défini par la marque blanche", async () => {
@@ -76,7 +76,7 @@ describe('Shell', () => {
       a.textContent?.trim(),
     );
     // Affichage simple par défaut : les rubriques de l'expert (Comptabilité) sont masquées du menu.
-    expect(labels).toEqual([...NAVIGATION.filter((item) => !item.expert).map((item) => item.label), 'Paramètres'].map((l) => expect.stringContaining(l)));
+    expect(labels).toEqual([...NAVIGATION.filter((item) => !item.expert).map((item) => item.label), 'Paramètres', 'Aide et lexique'].map((l) => expect.stringContaining(l)));
     expect(labels.join(' ')).not.toContain('Comptabilité');
   });
 
@@ -85,7 +85,7 @@ describe('Shell', () => {
     const fixture = TestBed.createComponent(Shell);
     await fixture.whenStable();
     const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim());
-    expect(labels).toEqual([...NAVIGATION.map((item) => item.label), 'Paramètres'].map((l) => expect.stringContaining(l)));
+    expect(labels).toEqual([...NAVIGATION.map((item) => item.label), 'Paramètres', 'Aide et lexique'].map((l) => expect.stringContaining(l)));
     TestBed.inject(ThemeService).setViewMode('simple');
   });
 

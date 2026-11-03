@@ -5,7 +5,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { BrandingService } from '../branding/branding.service';
-import { NAVIGATION, SETTINGS_ITEM, START_ITEM } from '../navigation';
+import { HELP_ITEM, NAVIGATION, SETTINGS_ITEM, START_ITEM } from '../navigation';
 import { SetupStatus } from '../pages/setup-status.service';
 import { DENSITIES, THEME_MODES, ThemeService, VIEW_MODES } from '../theme/theme.service';
 
@@ -35,6 +35,7 @@ export class Shell {
     this.auth.permissions();
     return this.auth.can(SETTINGS_ITEM.permission) ? SETTINGS_ITEM : null;
   });
+  protected readonly help = HELP_ITEM;
   protected readonly modes = THEME_MODES;
   protected readonly viewModes = VIEW_MODES;
   protected readonly densities = DENSITIES;
