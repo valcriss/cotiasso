@@ -812,3 +812,108 @@ details pre {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+// ── Petits écrans : onglets repliés en « Rubrique : … », zones de toucher confortables, formulaires aérés ──
+.tabs-toggle {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  // Onglets d'une page (directive appTabsMenu) : seule la rubrique courante se voit ; le bouton déplie la liste, une rubrique par ligne.
+  nav.tabs:has(> .tabs-toggle) {
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    box-shadow: var(--app-shadow-xs);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 0 0 16px;
+    overflow: hidden;
+
+    .tabs-toggle {
+      align-items: center;
+      background: none;
+      border: 0;
+      color: var(--mat-sys-primary);
+      cursor: pointer;
+      display: flex;
+      font: var(--mat-sys-label-large);
+      gap: 8px;
+      justify-content: space-between;
+      min-height: 48px;
+      padding: 8px 14px;
+      text-align: left;
+      width: 100%;
+    }
+
+    .tabs-toggle-label {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .tabs-toggle-icon {
+      flex: none;
+      font-size: 24px;
+    }
+
+    .tabs-toggle:focus-visible {
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: -2px;
+    }
+
+    > a {
+      border-bottom: 0;
+      border-top: 1px solid var(--app-border);
+      display: none;
+      margin: 0;
+      min-height: 48px;
+      padding: 10px 14px;
+    }
+
+    &.open > a {
+      display: inline-flex;
+    }
+
+    > a.active {
+      background: var(--app-surface-muted);
+      border-bottom: 0;
+      box-shadow: inset 3px 0 0 var(--mat-sys-primary);
+    }
+  }
+}
+
+@media (max-width: 600px) {
+  // Zones de toucher : au moins ~32 px de côté sans agrandir l'aspect (marge négative qui compense).
+  .chip-remove {
+    height: 32px;
+    margin: -5px -6px -5px 0;
+    width: 32px;
+  }
+
+  // Champs de saisie de tableau (montants du budget…) : assez hauts pour le doigt.
+  table.stack-table input {
+    min-height: 44px;
+  }
+
+  // Formulaires en colonne : un espace entre deux champs qui se suivent.
+  form > mat-form-field + mat-form-field,
+  form > mat-form-field + app-date-field,
+  form > app-date-field + mat-form-field {
+    margin-top: 8px;
+  }
+}
+
+// Très petits écrans (≤ 360 px) : un libellé de champ trop long est coupé proprement au lieu de dépasser du champ,
+// et la boîte de dialogue ne défile jamais de côté.
+@media (max-width: 360px) {
+  .mat-mdc-form-field .mdc-floating-label {
+    max-width: calc(100% - 32px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .app-dialog .mat-mdc-dialog-surface {
+    overflow-x: hidden;
+  }
+}

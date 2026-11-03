@@ -1,6 +1,7 @@
 import { Component, computed, inject } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { PageHeader } from '../ui/page-header';
+import { TabsMenu } from '../ui/tabs-menu';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 
@@ -24,7 +25,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
 
 @Component({
   selector: 'app-settings-page',
-  imports: [MatIconModule, PageHeader, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [MatIconModule, PageHeader, TabsMenu, RouterLink, RouterLinkActive, RouterOutlet],
   styleUrl: './admin-pages.scss',
   template: `
     <app-page-header
@@ -35,7 +36,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     @if (sections().length === 0) {
       <p class="muted">Aucune rubrique de paramètres n'est disponible pour votre profil.</p>
     } @else {
-      <nav class="tabs" aria-label="Rubriques des paramètres">
+      <nav class="tabs" appTabsMenu aria-label="Rubriques des paramètres">
         @for (section of sections(); track section.path) {
           <a [routerLink]="section.path" routerLinkActive="active">
             <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ section.icon }}</mat-icon><span>{{ section.label }}</span>
