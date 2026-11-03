@@ -76,6 +76,8 @@ const ACTION_LABELS: Record<string, string> = {
   'member.office.updated': 'Fonction d’un membre modifiée',
   'member.office.removed': 'Fonction d’un membre retirée',
   'campaign.created': 'Campagne d’adhésion créée',
+  'campaign.renewed': 'Campagne d’adhésion préparée à partir de la précédente',
+  'membership.bulk-created': 'Adhésions créées en une fois',
   'campaign.updated': 'Campagne d’adhésion modifiée',
   'campaign.tariff.added': 'Tarif ajouté',
   'campaign.tariff.updated': 'Tarif modifié',

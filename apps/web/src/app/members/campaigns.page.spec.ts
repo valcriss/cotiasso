@@ -243,6 +243,120 @@ describe('CampaignsPage', () => {
     expect(text).toContain('Trop-perçu 20,00 €');
   });
 
+  describe('nouvelle campagne et inscriptions en masse (#21)', () => {
+    const preview = (over: object = {}) => ({
+      campaign: { id: 'c2', name: 'Adhésions 2026-2027' },
+      source: { id: 'c1', name: 'Adhésions 2025-2026' },
+      tariffs: [
+        { id: 'n1', label: 'Plein tarif', amount: '30.00' },
+        { id: 'n2', label: 'Tarif réduit', amount: '15.00' },
+      ],
+      items: [
+        { memberId: 'm1', memberName: 'Dupont Marie', categoryName: 'Adulte', previouslyEnrolled: true, previousTariffLabel: 'Plein tarif', proposedTariffId: 'n1' },
+        { memberId: 'm2', memberName: 'Martin Paul', categoryName: null, previouslyEnrolled: true, previousTariffLabel: 'Tarif réduit', proposedTariffId: 'n2' },
+        { memberId: 'm3', memberName: 'Bernard Léa', categoryName: 'Étudiant', previouslyEnrolled: false, previousTariffLabel: null, proposedTariffId: null },
+      ],
+      ...over,
+    });
+
+    it('prépare la campagne suivante avec des dates et un nom proposés, puis l\'ouvre', async () => {
+      await create(['members:view', 'members:manage']);
+      await openFirst();
+      await click('Préparer la campagne suivante');
+      expect(ui.title).toBe('Préparer la campagne suivante');
+      expect(ui.text).toContain('2 tarif(s)');
+      expect(ui.field<HTMLInputElement>('input[formcontrolname="name"]').value).toBe('Adhésions 2026-2027');
+      expect(ui.field<HTMLInputElement>('input[formcontrolname="startsOn"]').value).toBe('2026-09-29');
+      expect(ui.field<HTMLInputElement>('input[formcontrolname="endsOn"]').value).toBe('2027-09-28');
+      await ui.submit();
+      const request = controller.expectOne('/api/campaigns/c1/renew');
+      expect(request.request.body).toEqual({ name: 'Adhésions 2026-2027', startsOn: '2026-09-29', endsOn: '2027-09-28' });
+      request.flush(campaign({ id: 'c2', name: 'Adhésions 2026-2027', startsOn: '2026-09-29', endsOn: '2027-09-28', membershipCount: 0, locked: false }), { status: 201, statusText: 'Created' });
+      await settle();
+      controller.expectOne('/api/campaigns').flush([campaign(), campaign({ id: 'c2', name: 'Adhésions 2026-2027', startsOn: '2026-09-29', endsOn: '2027-09-28', membershipCount: 0, locked: false })]);
+      await settle();
+      controller.expectOne('/api/campaigns/c2/memberships').flush([]);
+      await settle();
+      expect(ui.snackbar).toContain('Campagne « Adhésions 2026-2027 » créée avec 2 tarif(s)');
+    });
+
+    it('explique le refus du serveur (dates qui se chevauchent) sans fermer la boîte', async () => {
+      await create(['members:view', 'members:manage']);
+      await openFirst();
+      await click('Préparer la campagne suivante');
+      await ui.submit();
+      controller.expectOne('/api/campaigns/c1/renew').flush({ message: 'Ces dates chevauchent une autre campagne.' }, { status: 409, statusText: 'Conflict' });
+      await settle();
+      expect(ui.isOpen).toBe(true);
+      expect(ui.error).toContain('chevauchent');
+    });
+
+    it('propose les membres actuels, coche ceux de la dernière fois avec leur tarif, et annonce le total', async () => {
+      await create(['members:view', 'members:manage'], [campaign({ id: 'c2', name: 'Adhésions 2026-2027', locked: false, membershipCount: 0 }), campaign()]);
+      await click('Ouvrir la campagne Adhésions 2026-2027');
+      controller.expectOne('/api/campaigns/c2/memberships').flush([]);
+      await settle();
+      await click('Inscrire plusieurs membres');
+      controller.expectOne('/api/campaigns/c2/renewal-preview').flush(preview());
+      await settle();
+      expect(ui.title).toBe('Inscrire les membres à cette campagne');
+      expect(ui.text).toContain('cochés d’office');
+      expect(ui.text).toContain('Dupont Marie');
+      expect(ui.text).toContain('pas inscrit la dernière fois');
+      // Marie (30 €) et Paul (15 €) sont cochés ; Léa n'a pas de tarif évident et reste décochée.
+      expect(ui.text).toContain('2 cotisation(s) seront créées, pour un total attendu de 45,00 €');
+      expect(ui.button('Inscrire 2 membre(s)')).toBeTruthy();
+
+      await ui.submit();
+      const request = controller.expectOne('/api/campaigns/c2/memberships/bulk');
+      expect(request.request.body).toEqual({ items: [{ memberId: 'm1', tariffId: 'n1' }, { memberId: 'm2', tariffId: 'n2' }] });
+      request.flush({ created: 2, expectedTotal: '45.00', skipped: [{ memberId: 'm9', memberName: 'Test Dora', reason: 'Déjà inscrit à cette campagne.' }] });
+      await settle();
+      controller.expectOne('/api/campaigns').flush([campaign({ id: 'c2', name: 'Adhésions 2026-2027', locked: true, membershipCount: 2 }), campaign()]);
+      await settle();
+      controller.expectOne('/api/campaigns/c2/memberships').flush([membership({ id: 'x1', campaignId: 'c2' })]);
+      await settle();
+      expect(ui.snackbar).toContain('2 cotisation(s) créée(s), pour un total attendu de 45,00 €');
+      expect(ui.snackbar).toContain('1 membre(s) étaient déjà inscrits');
+    });
+
+    it('refuse de valider tant qu\'un membre coché n\'a pas de tarif, et n\'envoie rien', async () => {
+      await create(['members:view', 'members:manage'], [campaign({ id: 'c2', name: 'Adhésions 2026-2027', locked: false, membershipCount: 0 }), campaign()]);
+      await click('Ouvrir la campagne Adhésions 2026-2027');
+      controller.expectOne('/api/campaigns/c2/memberships').flush([]);
+      await settle();
+      await click('Inscrire plusieurs membres');
+      controller.expectOne('/api/campaigns/c2/renewal-preview').flush(preview());
+      await settle();
+      // On coche Léa sans lui donner de tarif.
+      // Troisième case de la liste : Bernard Léa (les deux premières, cochées d'office, sont Dupont et Martin).
+      (document.querySelectorAll('.cdk-overlay-container mat-checkbox input')[2] as HTMLInputElement).click();
+      await settle();
+      expect(ui.text).toContain('1 membre(s) coché(s) n’ont pas de tarif');
+      await ui.submit();
+      expect(ui.error).toContain('choisissez leur tarif ou décochez-les');
+      controller.expectNone((r) => r.url.endsWith('/memberships/bulk'));
+    });
+
+    it('dit quand tous les membres sont déjà inscrits, et ne propose rien en lecture seule', async () => {
+      await create(['members:view', 'members:manage'], [campaign({ id: 'c2', name: 'Adhésions 2026-2027', locked: true, membershipCount: 3 }), campaign()]);
+      await click('Ouvrir la campagne Adhésions 2026-2027');
+      controller.expectOne('/api/campaigns/c2/memberships').flush([]);
+      await settle();
+      await click('Inscrire plusieurs membres');
+      controller.expectOne('/api/campaigns/c2/renewal-preview').flush(preview({ items: [] }));
+      await settle();
+      expect(ui.text).toContain('Tous les membres actuels sont déjà inscrits');
+    });
+
+    it('masque ces gestes sans le droit de gérer les membres', async () => {
+      await create(['members:view']);
+      await openFirst();
+      expect(root.textContent).not.toContain('Préparer la campagne suivante');
+      expect(root.textContent).not.toContain('Inscrire plusieurs membres');
+    });
+  });
+
   it("liste les cotisations restant dues et propose leur export CSV", async () => {
     await create(['members:view']);
     await openFirst([membership()]);
