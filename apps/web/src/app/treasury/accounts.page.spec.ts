@@ -528,6 +528,38 @@ describe('AccountsPage', () => {
       expect(text).not.toContain('Rapprocher');
     });
 
+    describe('actions de ligne et bandeau (#26)', () => {
+      const rowButtons = (index: number) => Array.from(root.querySelectorAll('tbody tr')[index]!.querySelectorAll('button, a')).map((b) => b.textContent!.trim());
+      const menuItems = () => Array.from(document.querySelectorAll('.cdk-overlay-container [role="menuitem"]')).map((b) => b.textContent!.trim());
+
+      it('met un seul bouton principal par ligne et range le reste dans « Autres actions »', async () => {
+        await openSimple([
+          transaction({ id: 't1', label: 'À faire' }),
+          transaction({ id: 't4', label: 'Fait', accounting: 'POSTED', counterpartAccountId: 'a616', counterpartAccountNumber: '616', entry: entryRef({ id: 'e4', status: 'POSTED', number: 4 }), financialLock: 'ENTRY', deletable: false }),
+        ]);
+        expect(rowButtons(0).filter((t) => t)).toEqual(['Classer et enregistrer', 'more_vert']);
+        expect(rowButtons(1).filter((t) => t)).toEqual(['more_vert']);
+        // Le geste destructeur n'est jamais au premier plan : il faut ouvrir le menu.
+        expect(root.textContent).not.toContain('Annuler l’opération');
+        (root.querySelectorAll('tbody tr')[1]!.querySelector('button[aria-label^="Autres actions"]') as HTMLElement).click();
+        await settle();
+        expect(menuItems()).toEqual(expect.arrayContaining(['Modifier', 'Annuler l’opération']));
+        ui.closeAll();
+      });
+
+      it('range l’explication des situations après « Compris » et la rend sur demande', async () => {
+        localStorage.removeItem('cotiasso.transactions.situations-hint-dismissed');
+        await openSimple([transaction({ id: 't1' })]);
+        expect(root.querySelector('.hint-banner')!.textContent).toContain('trois situations');
+        await click('Compris');
+        expect(root.querySelector('.hint-banner')).toBeNull();
+        expect(localStorage.getItem('cotiasso.transactions.situations-hint-dismissed')).toBe('1');
+        await click('Rappel : les situations');
+        expect(root.querySelector('.hint-banner')).not.toBeNull();
+        localStorage.removeItem('cotiasso.transactions.situations-hint-dismissed');
+      });
+    });
+
     describe('filtres de la liste (#25)', () => {
       const txUrl = (r: { url: string }) => r.url === '/api/financial-accounts/f1/transactions';
 

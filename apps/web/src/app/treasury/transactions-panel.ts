@@ -7,6 +7,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterLink } from '@angular/router';
 import {
@@ -33,6 +34,23 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
 import { todayLocalIso } from '../ui/dates';
 import { FrDatePipe } from '../ui/fr-date.pipe';
 
+const HINT_KEY = 'cotiasso.transactions.situations-hint-dismissed';
+function readHintFlag(): boolean {
+  try {
+    return localStorage.getItem(HINT_KEY) !== '1';
+  } catch {
+    return true;
+  }
+}
+function writeHintFlag(visible: boolean): void {
+  try {
+    if (visible) localStorage.removeItem(HINT_KEY);
+    else localStorage.setItem(HINT_KEY, '1');
+  } catch {
+    // Stockage refusé (navigation privée…) : le choix vaut pour cette page seulement.
+  }
+}
+
 type PeriodKey = 'month' | 'last-month' | 'year' | 'all';
 const PERIOD_SHORTCUTS: { key: PeriodKey; label: string }[] = [
   { key: 'month', label: 'Ce mois-ci' },
@@ -56,7 +74,7 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
 /** Transactions d'un compte : liste filtrable, saisie (boîte de dialogue) et accès à l'import d'un relevé. */
 @Component({
   selector: 'app-transactions-panel',
-  imports: [FrDatePipe, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [FrDatePipe, MatMenuModule, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .periods {
@@ -67,6 +85,16 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
     }
     .periods .active {
       background: var(--mat-sys-secondary-container);
+    }
+    .hint-banner {
+      align-items: center;
+      background: var(--app-surface-variant, var(--mat-sys-surface-container));
+      border-radius: var(--app-radius);
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      margin: 0 0 12px;
+      padding: 8px 12px;
     }
     .todo-count {
       align-items: center;
@@ -197,11 +225,18 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
         </p>
       } @else {
         @if (simple()) {
-          <p class="muted">
-            Un mouvement passe par trois situations : <strong>À classer</strong> (on ne sait pas encore à quoi il correspond), <strong>Classé</strong> (la
-            catégorie est choisie, il reste à l'enregistrer dans les comptes) puis <strong>Enregistré dans les comptes</strong>. Une fois le relevé de la
-            banque comparé, il est aussi <strong>Vérifié avec la banque</strong>.
-          </p>
+          @if (hintVisible()) {
+            <p class="hint-banner" role="note">
+              <span>
+                Un mouvement passe par trois situations : <strong>À classer</strong> (on ne sait pas encore à quoi il correspond), <strong>Classé</strong> (la
+                catégorie est choisie, il reste à l'enregistrer dans les comptes) puis <strong>Enregistré dans les comptes</strong>. Une fois le relevé de la
+                banque comparé, il est aussi <strong>Vérifié avec la banque</strong>.
+              </span>
+              <button mat-button type="button" (click)="dismissHint()">Compris</button>
+            </p>
+          } @else {
+            <p class="muted"><button mat-button type="button" (click)="showHint()">Rappel : les situations d’un mouvement</button></p>
+          }
         } @else {
           <p class="muted">« Comptabilisée » veut dire qu'une écriture validée enregistre ce mouvement dans les comptes de l'association.</p>
         }
@@ -293,17 +328,39 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
                   @if (item.entry && canViewEntries() && (!simple() || item.accounting === 'IN_PROGRESS')) {
                     <a mat-button [attr.aria-label]="(simple() ? 'Relire le brouillon de ' : 'Voir l’écriture de ') + item.label" [routerLink]="['/comptabilite/ecritures', item.entry.id]">{{ simple() ? 'Relire le brouillon' : "Voir l'écriture" }}</a>
                   }
-                  @if (canCancelOperation() && item.accounting === 'POSTED' && item.entry && !item.transfer && item.reconciliation?.status !== 'VALIDATED') {
-                    <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler l’opération ' + item.label" [disabled]="busy()" (click)="cancelOperation(item)">Annuler l’opération</button>
-                  }
-                  @if (canLink() && item.accounting === 'IN_PROGRESS') {
-                    <button mat-button type="button" [attr.aria-label]="'Dissocier ' + item.label" [disabled]="busy()" (click)="unlink(item)">Dissocier</button>
-                  }
-                  @if (canManage() && item.financialLock === 'TRANSFER' && item.transfer) {
-                    <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler le virement ' + item.label" [disabled]="busy()" (click)="cancelTransfer(item)">Annuler le virement</button>
-                  }
-                  @if (canManage()) {
-                    <button mat-button type="button" [attr.aria-label]="'Modifier ' + item.label" (click)="open(item)">Modifier</button>
+                  @if (simple()) {
+                    @if (canManage() || canLink() || canCancelOperation()) {
+                      <button mat-icon-button type="button" [matMenuTriggerFor]="rowMenu" [attr.aria-label]="'Autres actions pour ' + item.label" [disabled]="busy()">
+                        <mat-icon fontSet="material-icons-outlined" aria-hidden="true">more_vert</mat-icon>
+                      </button>
+                      <mat-menu #rowMenu="matMenu">
+                        @if (canManage()) {
+                          <button mat-menu-item type="button" [attr.aria-label]="'Modifier ' + item.label" (click)="open(item)">Modifier</button>
+                        }
+                        @if (canLink() && item.accounting === 'IN_PROGRESS') {
+                          <button mat-menu-item type="button" [attr.aria-label]="'Dissocier ' + item.label" (click)="unlink(item)">Dissocier</button>
+                        }
+                        @if (canCancelOperation() && item.accounting === 'POSTED' && item.entry && !item.transfer && item.reconciliation?.status !== 'VALIDATED') {
+                          <button mat-menu-item class="danger" type="button" [attr.aria-label]="'Annuler l’opération ' + item.label" (click)="cancelOperation(item)">Annuler l’opération</button>
+                        }
+                        @if (canManage() && item.financialLock === 'TRANSFER' && item.transfer) {
+                          <button mat-menu-item class="danger" type="button" [attr.aria-label]="'Annuler le virement ' + item.label" (click)="cancelTransfer(item)">Annuler le virement</button>
+                        }
+                      </mat-menu>
+                    }
+                  } @else {
+                    @if (canCancelOperation() && item.accounting === 'POSTED' && item.entry && !item.transfer && item.reconciliation?.status !== 'VALIDATED') {
+                      <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler l’opération ' + item.label" [disabled]="busy()" (click)="cancelOperation(item)">Annuler l’opération</button>
+                    }
+                    @if (canLink() && item.accounting === 'IN_PROGRESS') {
+                      <button mat-button type="button" [attr.aria-label]="'Dissocier ' + item.label" [disabled]="busy()" (click)="unlink(item)">Dissocier</button>
+                    }
+                    @if (canManage() && item.financialLock === 'TRANSFER' && item.transfer) {
+                      <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler le virement ' + item.label" [disabled]="busy()" (click)="cancelTransfer(item)">Annuler le virement</button>
+                    }
+                    @if (canManage()) {
+                      <button mat-button type="button" [attr.aria-label]="'Modifier ' + item.label" (click)="open(item)">Modifier</button>
+                    }
                   }
                 </div></td>
               </tr>
@@ -376,6 +433,8 @@ export class TransactionsPanel {
   protected readonly hasFilter = computed(() => Object.values(this.filterValues()).some((value) => value !== ''));
   protected readonly toClassifyOnly = computed(() => this.filterValues().qualified === 'false');
   protected readonly periodShortcuts = PERIOD_SHORTCUTS;
+  /** Explication des situations : lue une fois, elle se range (choix gardé en local, le stockage peut être refusé). */
+  protected readonly hintVisible = signal(readHintFlag());
   protected readonly activePeriod = computed(() => {
     const { from, to } = this.filterValues();
     if (!from && !to) return 'all';
@@ -646,6 +705,16 @@ export class TransactionsPanel {
   protected async applyPeriod(key: PeriodKey): Promise<void> {
     this.filters.patchValue(key === 'all' ? { from: '', to: '' } : periodRange(key), { emitEvent: false });
     await this.search();
+  }
+
+  protected dismissHint(): void {
+    this.hintVisible.set(false);
+    writeHintFlag(false);
+  }
+
+  protected showHint(): void {
+    this.hintVisible.set(true);
+    writeHintFlag(true);
   }
 
   protected async clearFilters(): Promise<void> {
