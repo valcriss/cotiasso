@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type FinancialAccountInfo, type FiscalYearInfo, type GuidedOperationResult, type OperationCategoryInfo, type ProjectInfo } from '../admin/admin-api.service';
 import { centsToApi, formatCents, parseAmountToCents } from '../accounting/amount';
+import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { formatDate, todayLocalIso } from '../ui/dates';
 import { ThemeService } from '../theme/theme.service';
@@ -14,7 +15,15 @@ import { FormDialog } from '../ui/form-dialog';
 import { OperationLink, type LinkPick, type LinkTarget } from './operation-link';
 
 /** Ce que la saisie renvoie : l'opération, et le sort du rattachement demandé (cotisation, subvention) s'il y en avait un. */
-export type OperationDialogResult = GuidedOperationResult & { attachment?: { ok: true; summary: string } | { ok: false; message: string } };
+export type OperationDialogResult = GuidedOperationResult & {
+  attachment?: { ok: true; summary: string } | { ok: false; message: string };
+  /** Sort de la pièce jointe (facture, ticket) demandée à la saisie, s'il y en avait une. */
+  document?: { ok: true } | { ok: false; message: string };
+};
+
+/** Pièces acceptées (liste blanche du serveur, DOCUMENTS_MAX_MB = 25 par défaut) ; le serveur reste l'autorité. */
+const ATTACHMENT_EXTENSIONS = ['pdf', 'png', 'jpg', 'jpeg'];
+const ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024;
 
 export interface OperationDialogData {
   direction: 'IN' | 'OUT';
@@ -94,6 +103,19 @@ export interface OperationDialogData {
             <mat-error>Choisissez une catégorie.</mat-error>
           }
         </mat-form-field>
+        @if (canAttach()) {
+          <div class="attach">
+            <label class="muted" for="operation-attachment">{{ incoming ? 'Joindre un justificatif (photo ou PDF) — facultatif' : 'Joindre la facture ou le ticket (photo ou PDF) — facultatif' }}</label>
+            <input id="operation-attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf" [disabled]="busy()" (change)="pickFile($event)" />
+            @if (attachment(); as picked) {
+              <span class="muted">{{ picked.name }} <button type="button" class="link" (click)="clearFile()">Retirer</button></span>
+            }
+            <span class="muted">Le fichier reste sur votre serveur, relié à cette opération. 25 Mo au plus.</span>
+            @if (attachmentProblem(); as problem) {
+              <span class="danger-text" role="alert">{{ problem }}</span>
+            }
+          </div>
+        }
         @if (incoming && selectedCategory()?.usage; as usage) {
           <app-operation-link [usage]="usage" (picked)="onLink($event)" />
         }
@@ -163,6 +185,19 @@ export interface OperationDialogData {
       gap: 6px;
       padding: 12px 16px;
     }
+    .attach {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .link {
+      background: none;
+      border: 0;
+      color: var(--mat-sys-primary);
+      cursor: pointer;
+      padding: 0;
+      text-decoration: underline;
+    }
     .notice {
       border-left: 4px solid var(--mat-sys-tertiary, var(--app-border));
       margin: 0;
@@ -202,6 +237,40 @@ export class OperationDialog {
   protected readonly data = inject<OperationDialogData>(MAT_DIALOG_DATA);
 
   private readonly theme = inject(ThemeService);
+  private readonly auth = inject(AuthService);
+
+  /** Joindre la pièce à l'opération demande le droit de déposer des documents. */
+  protected readonly canAttach = computed(() => {
+    this.auth.permissions();
+    return this.auth.can('documents:create');
+  });
+  protected readonly attachment = signal<File | null>(null);
+  protected readonly attachmentProblem = signal<string | null>(null);
+
+  protected pickFile(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    this.attachmentProblem.set(null);
+    if (!file) return;
+    const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+    if (!ATTACHMENT_EXTENSIONS.includes(extension)) {
+      this.attachment.set(null);
+      this.attachmentProblem.set('Ce fichier n’est pas une photo (JPG, PNG) ni un PDF. Prenez la facture en photo, ou scannez-la en PDF, puis choisissez le fichier obtenu.');
+      return;
+    }
+    if (file.size > ATTACHMENT_MAX_BYTES) {
+      this.attachment.set(null);
+      this.attachmentProblem.set('Ce fichier dépasse 25 Mo. Réduisez la taille de la photo, ou envoyez un PDF plus léger.');
+      return;
+    }
+    this.attachment.set(file);
+  }
+
+  protected clearFile(): void {
+    this.attachment.set(null);
+    this.attachmentProblem.set(null);
+  }
   protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
   protected readonly incoming = this.data.direction === 'IN';
   protected readonly choices = this.data.categories.filter((c) => c.direction === this.data.direction && c.active);
@@ -296,6 +365,20 @@ export class OperationDialog {
     }
   }
 
+  private async deposit(file: File, transactionId: string, label: string): Promise<OperationDialogResult['document']> {
+    const form = new FormData();
+    form.append('title', `${this.incoming ? 'Justificatif' : 'Facture'} : ${label}`.slice(0, 200));
+    form.append('category', this.incoming ? 'autre' : 'facture');
+    form.append('links', JSON.stringify([{ objectType: 'transaction', objectId: transactionId }]));
+    form.append('file', file);
+    try {
+      await this.api.uploadDocument(form);
+      return { ok: true };
+    } catch (failure) {
+      return { ok: false, message: describeHttpError(failure, 'Le fichier n’a pas pu être déposé.').message };
+    }
+  }
+
   private async attach(target: LinkTarget, transactionId: string, amount: string): Promise<OperationDialogResult['attachment']> {
     try {
       if (target.kind === 'MEMBERSHIP') {
@@ -341,7 +424,10 @@ export class OperationDialog {
       // L'argent est enregistré : un refus du rattachement ne le défait pas (deux mécanismes distincts, ADR 0023/0024/0028).
       const target = this.link();
       const attachment = target ? await this.attach(target, result.transactionId, centsToApi(cents)) : undefined;
-      this.reference.close({ ...result, ...(attachment && { attachment }) });
+      // Pareil pour la pièce jointe : l'opération reste enregistrée si le dépôt échoue, et le message dit comment le refaire.
+      const file = this.attachment();
+      const document = file ? await this.deposit(file, result.transactionId, raw.label.trim()) : undefined;
+      this.reference.close({ ...result, ...(attachment && { attachment }), ...(document && { document }) });
     } catch (failure) {
       const described = describeHttpError(failure, "L'opération n'a pas pu être enregistrée. Réessayez dans un instant.");
       this.error.set(described.message);
