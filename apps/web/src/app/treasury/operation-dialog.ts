@@ -9,6 +9,7 @@ import { AdminApiService, type FinancialAccountInfo, type GuidedOperationResult,
 import { centsToApi, formatCents, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { todayLocalIso } from '../ui/dates';
+import { ThemeService } from '../theme/theme.service';
 import { FormDialog } from '../ui/form-dialog';
 
 export interface OperationDialogData {
@@ -104,8 +105,10 @@ export interface OperationDialogData {
         </mat-form-field>
 
         @if (preview(); as lines) {
-          <section class="preview" aria-label="Ce que verra l’expert-comptable">
-            <strong>Ce que verra l’expert-comptable</strong>
+          <section class="preview" aria-label="Récapitulatif de l’opération">
+            <p class="summary" role="status">{{ summary() }}</p>
+            <details [open]="!simple()">
+              <summary><strong>Ce que verra l’expert-comptable</strong></summary>
             <p class="muted">
               Chaque opération est notée deux fois dans les comptes, c’est ce qu’on appelle la « partie double » : une fois où l’argent est
               passé, une fois pour dire pourquoi. Vous n’avez rien à saisir de plus.
@@ -124,6 +127,7 @@ export interface OperationDialogData {
                 }
               </tbody>
             </table>
+            </details>
             <p class="muted">
               @if (data.canPost) {
                 L’opération sera enregistrée définitivement. Si vous vous trompez, vous pourrez l’annuler : une opération inverse est alors
@@ -150,6 +154,12 @@ export interface OperationDialogData {
     .preview p {
       margin: 0;
     }
+    .preview .summary {
+      font-weight: 500;
+    }
+    .preview summary {
+      cursor: pointer;
+    }
     .preview table {
       border-collapse: collapse;
       width: 100%;
@@ -171,6 +181,8 @@ export class OperationDialog {
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<OperationDialogData>(MAT_DIALOG_DATA);
 
+  private readonly theme = inject(ThemeService);
+  protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
   protected readonly incoming = this.data.direction === 'IN';
   protected readonly choices = this.data.categories.filter((c) => c.direction === this.data.direction && c.active);
   protected readonly projects = this.data.projects.filter((p) => p.status !== 'ARCHIVED' && !p.permanent);
@@ -200,6 +212,18 @@ export class OperationDialog {
     const bank = { account: `${account.accountNumber} · ${account.name}`, debit: this.incoming ? amount : '', credit: this.incoming ? '' : amount };
     const other = { account: `${category.account.number} · ${category.account.label}`, debit: this.incoming ? '' : amount, credit: this.incoming ? amount : '' };
     return [bank, other];
+  });
+
+  /** Une phrase courante : où va l'argent et dans quelle catégorie il est rangé, sans numéro de compte ni débit/crédit. */
+  protected readonly summary = computed(() => {
+    const account = this.data.accounts.find((a) => a.id === this.values().accountId);
+    const category = this.selectedCategory();
+    const cents = this.amountCents();
+    if (!account || !category || cents === null || cents <= 0) return '';
+    const amount = formatCents(cents);
+    return this.incoming
+      ? `${amount} € arriveront sur « ${account.name} » et seront classés dans « ${category.label} ».`
+      : `${amount} € sortiront de « ${account.name} » et seront classés dans « ${category.label} ».`;
   });
 
   protected async save(): Promise<void> {

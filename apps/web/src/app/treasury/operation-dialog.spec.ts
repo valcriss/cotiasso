@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { mockAuth } from '../testing/auth-mock';
+import { ThemeService } from '../theme/theme.service';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { OperationLauncher } from './operation-launcher';
 
@@ -95,6 +96,28 @@ describe("Saisie guidée « J'ai reçu / J'ai dépensé de l'argent »", () => {
     await settle();
     expect(ui.snackbar).toContain('Opération enregistrée');
     expect(ui.snackbar).toContain('BQ-1 n° 7');
+  });
+
+  it('dit en une phrase courante où va l’argent, et replie le détail comptable en affichage simple (#15)', async () => {
+    await start(['transactions:manage', 'entries:create', 'entries:post']);
+    TestBed.inject(ThemeService).setViewMode('simple');
+    await open('OUT');
+    await ui.type('input[formcontrolname="amount"]', '25,5');
+    await ui.choose('mat-select[formcontrolname="categoryId"]', 'Assurance');
+    expect(ui.text).toContain('25,50 € sortiront de « Compte courant » et seront classés dans « Assurance ».');
+    const details = document.querySelector<HTMLDetailsElement>('.cdk-overlay-container details')!;
+    expect(details.open).toBe(false);
+    expect(details.querySelector('summary')!.textContent).toContain('Ce que verra l’expert-comptable');
+  });
+
+  it('en affichage comptable, garde le détail débit/crédit déplié', async () => {
+    await start(['transactions:manage', 'entries:create', 'entries:post']);
+    TestBed.inject(ThemeService).setViewMode('accounting');
+    await open('IN');
+    await ui.type('input[formcontrolname="amount"]', '10');
+    await ui.choose('mat-select[formcontrolname="categoryId"]', 'Cotisations des adhérents');
+    expect(document.querySelector<HTMLDetailsElement>('.cdk-overlay-container details')!.open).toBe(true);
+    expect(ui.text).toContain('10,00 € arriveront sur « Compte courant »');
   });
 
   it('garde la boîte ouverte et la saisie quand le serveur refuse, avec le motif', async () => {
