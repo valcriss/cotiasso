@@ -91,6 +91,7 @@ const ACTION_LABELS: Record<string, string> = {
   'recovery.batch.posted': 'Lot de reprise comptabilisé',
   'recovery.batch.abandoned': 'Lot de reprise abandonné',
   'transactions.qualified': 'Transactions qualifiées en masse',
+  'transactions.suggestions.accepted': 'Propositions de classement acceptées',
   'reconciliation.started': 'Rapprochement bancaire commencé',
   'reconciliation.points.changed': 'Pointage d’un rapprochement modifié',
   'reconciliation.validated': 'Rapprochement bancaire validé',

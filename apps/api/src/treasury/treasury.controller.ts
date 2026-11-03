@@ -140,6 +140,18 @@ export class TreasuryController {
     return translate(() => this.transactions.qualifyMany(id, body, request.auth!.user.id));
   }
 
+  /** Accepte les propositions de classement (ADR 0019 amendé) : le serveur les recalcule, le client n'envoie que des identifiants. */
+  @RequirePermission("transactions:manage")
+  @Post("financial-accounts/:id/transactions/accept-suggestions")
+  @HttpCode(HttpStatus.OK)
+  acceptSuggestions(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<{ updated: number }> {
+    return translate(() => this.transactions.acceptSuggestions(id, body, request.auth!.user.id));
+  }
+
   @RequirePermission("transactions:manage")
   @Patch("transactions/:id")
   updateTransaction(

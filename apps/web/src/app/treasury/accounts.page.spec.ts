@@ -560,6 +560,77 @@ describe('AccountsPage', () => {
       });
     });
 
+    describe('propositions de classement (#7, ADR 0019 amendé)', () => {
+      const suggestion = (over: object = {}) => ({
+        counterpartAccountId: 'a616',
+        counterpartAccountNumber: '616',
+        counterpartAccountLabel: "Primes d'assurance",
+        projectId: null,
+        projectCode: null,
+        basedOn: { label: 'PRLV SEPA MAIF 0910', operationDate: '2026-09-12' },
+        matches: 2,
+        ...over,
+      });
+      const txUrl = (r: { url: string }) => r.url === '/api/financial-accounts/f1/transactions';
+
+      it('montre la proposition avec sa source et la catégorie en mots courants, sans rien appliquer', async () => {
+        await openSimple([transaction({ id: 't1', label: 'PRLV SEPA MAIF 1110', suggestion: suggestion() }), transaction({ id: 't2', label: 'Sans précédent' })]);
+        const row = root.querySelectorAll('tbody tr')[0]!;
+        const text = row.textContent!.replace(/\s+/g, ' ');
+        expect(text).toContain('Proposition : Assurance');
+        expect(text).toContain('comme le 12/09/2026 pour « PRLV SEPA MAIF 0910 » (2 fois)');
+        expect(text).toContain('À vérifier avant d’accepter');
+        expect(root.querySelectorAll('tbody tr')[1]!.textContent).not.toContain('Proposition');
+        controller.expectNone((r) => r.url.endsWith('/accept-suggestions'));
+      });
+
+      it('accepte une proposition par un geste explicite, puis recharge la liste', async () => {
+        await openSimple([transaction({ id: 't1', label: 'PRLV SEPA MAIF 1110', suggestion: suggestion() })]);
+        await click('Accepter la proposition pour PRLV SEPA MAIF 1110');
+        const accept = controller.expectOne('/api/financial-accounts/f1/transactions/accept-suggestions');
+        expect(accept.request.method).toBe('POST');
+        expect(accept.request.body).toEqual({ transactionIds: ['t1'] });
+        accept.flush({ updated: 1 });
+        await settle();
+        // La liste se recharge d'abord, puis les soldes du compte (l'événement `changed`).
+        controller.expectOne(txUrl).flush({ transactions: [transaction({ id: 't1', label: 'PRLV SEPA MAIF 1110', counterpartAccountId: 'a616', counterpartAccountNumber: '616' })], next: null });
+        await settle();
+        controller.expectOne('/api/financial-accounts').flush([account()]);
+        await settle();
+        expect(ui.snackbar).toContain('est classé');
+        expect(root.textContent).not.toContain('Proposition :');
+      });
+
+      it('accepte toutes les propositions après confirmation, ou ignore une proposition sans rien envoyer', async () => {
+        await openSimple([
+          transaction({ id: 't1', label: 'A', suggestion: suggestion() }),
+          transaction({ id: 't2', label: 'B', suggestion: suggestion() }),
+          transaction({ id: 't3', label: 'C' }),
+        ]);
+        await click('Ignorer la proposition pour B');
+        controller.expectNone((r) => r.url.endsWith('/accept-suggestions'));
+        expect(root.querySelectorAll('tbody tr')[1]!.textContent).not.toContain('Proposition');
+        await click('Accepter les propositions (1)');
+        expect(ui.title).toContain('Classer 1 mouvement(s) comme les précédents');
+        await ui.click('Classer');
+        const accept = controller.expectOne('/api/financial-accounts/f1/transactions/accept-suggestions');
+        expect(accept.request.body).toEqual({ transactionIds: ['t1'] });
+        accept.flush({ message: 'Le mouvement « A » n\'a plus de proposition de classement' }, { status: 409, statusText: 'Conflict' });
+        await settle();
+        expect(root.textContent).toContain('plus de proposition');
+      });
+
+      it('ne montre aucune proposition en affichage comptable ni sans le droit de gérer les transactions', async () => {
+        await create(['financial-accounts:view'], [account()], 'simple');
+        await click('Ouvrir Compte courant');
+        controller.expectOne(txUrl).flush({ transactions: [transaction({ id: 't1', label: 'A', suggestion: suggestion() })], next: null });
+        controller.expectOne('/api/operation-categories').flush(cats);
+        await settle();
+        expect(root.textContent).toContain('Proposition : Assurance');
+        expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Accepter'))).toBe(false);
+      });
+    });
+
     describe('filtres de la liste (#25)', () => {
       const txUrl = (r: { url: string }) => r.url === '/api/financial-accounts/f1/transactions';
 
