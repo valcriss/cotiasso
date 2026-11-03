@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "💾 Backend",
+      "type": "shell",
+      "command": "npm run dev:api",
+      "problemMatcher": []
+    },
+    {
+      "label": "🌐 Frontend",
+      "type": "shell",
+      "command": "npm run dev:frontend",
+      "problemMatcher": []
+    },
+    {
+      "label": "🏛️ Migrate",
+      "type": "shell",
+      "command": "cd apps/api; npm run db:migrate; cd ..",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true,
+        "close": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}
