@@ -11,6 +11,7 @@ import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
 import { FrDatePipe } from '../ui/fr-date.pipe';
 import { todayLocalIso } from '../ui/dates';
+import { DateField } from '../ui/date-field';
 
 export interface AdjustAmountDialogData {
   transaction: TransactionInfo;
@@ -23,7 +24,7 @@ export interface AdjustAmountDialogData {
  */
 @Component({
   selector: 'app-adjust-amount-dialog',
-  imports: [FrDatePipe, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
+  imports: [DateField, FrDatePipe, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
   template: `
     <form [formGroup]="form" (submit)="$event.preventDefault(); save()" novalidate>
       <app-form-dialog
@@ -44,11 +45,7 @@ export interface AdjustAmountDialogData {
           <input matInput formControlName="amount" inputmode="decimal" autocomplete="off" required />
           <mat-hint>Le montant que l’opération aurait dû avoir, sans signe.</mat-hint>
         </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Date de la correction</mat-label>
-          <input matInput type="date" formControlName="date" required />
-          <mat-hint>La correction est datée d’aujourd’hui par défaut ; l’opération d’origine garde sa date.</mat-hint>
-        </mat-form-field>
+        <app-date-field label="Date de la correction" formControlName="date" hint="La correction est datée d’aujourd’hui par défaut ; l’opération d’origine garde sa date." required />
         @if (consequence(); as text) {
           <p class="notice">{{ text }}</p>
         }

@@ -281,8 +281,8 @@ describe('CampaignsPage', () => {
       expect(ui.title).toBe('Préparer la saison suivante');
       expect(ui.text).toContain('2 tarif(s)');
       expect(ui.field<HTMLInputElement>('input[formcontrolname="name"]').value).toBe('Adhésions 2026-2027');
-      expect(ui.field<HTMLInputElement>('input[formcontrolname="startsOn"]').value).toBe('2026-09-29');
-      expect(ui.field<HTMLInputElement>('input[formcontrolname="endsOn"]').value).toBe('2027-09-28');
+      expect(ui.field<HTMLInputElement>('input[formcontrolname="startsOn"]').value).toBe('29/09/2026');
+      expect(ui.field<HTMLInputElement>('input[formcontrolname="endsOn"]').value).toBe('28/09/2027');
       await ui.submit();
       const request = controller.expectOne('/api/campaigns/c1/renew');
       expect(request.request.body).toEqual({ name: 'Adhésions 2026-2027', startsOn: '2026-09-29', endsOn: '2027-09-28' });

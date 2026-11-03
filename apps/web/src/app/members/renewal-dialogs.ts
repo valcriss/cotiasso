@@ -9,6 +9,7 @@ import { AdminApiService, type BulkEnrollInfo, type CampaignInfo, type RenewalPr
 import { formatApiAmount, formatCents, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { DateField } from '../ui/date-field';
 
 /** Ajoute `years` années à une date `AAAA-MM-JJ` sans fuseau ; le 29 février devient le 28 février d'une année non bissextile. */
 export function shiftYear(iso: string, years: number): string {
@@ -34,7 +35,7 @@ export interface RenewCampaignDialogData {
 /** « Préparer la saison suivante » : mêmes réglages et tarifs, nouvelles dates. Renvoie la saison créée. */
 @Component({
   selector: 'app-renew-campaign-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -53,14 +54,8 @@ export interface RenewCampaignDialogData {
           }
         </mat-form-field>
         <div class="row">
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Début</mat-label>
-            <input matInput type="date" formControlName="startsOn" required />
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Fin (incluse)</mat-label>
-            <input matInput type="date" formControlName="endsOn" required />
-          </mat-form-field>
+          <app-date-field class="grow" label="Début" formControlName="startsOn" required />
+          <app-date-field class="grow" label="Fin (incluse)" formControlName="endsOn" required />
         </div>
         <p class="muted">Les tarifs gardent leurs montants : vous pourrez les modifier ensuite, avant d’inscrire les membres.</p>
       </app-form-dialog>

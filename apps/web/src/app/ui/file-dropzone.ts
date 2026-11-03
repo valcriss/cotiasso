@@ -115,6 +115,8 @@ export class FileDropzone {
   /** Formats en clair, pour la personne (« PDF, PNG »). */
   readonly formats = input<string>('');
   readonly label = input<string>('Choisir un fichier');
+  /** Faux : tout fichier est transmis, c'est l'appelant qui explique un format refusé (ex. un tableur déposé à la place d'un relevé OFX). */
+  readonly strict = input<boolean>(true);
   readonly disabled = input<boolean>(false);
   /** Nom du fichier déjà choisi, affiché dans la zone. */
   readonly fileName = input<string>('');
@@ -156,7 +158,7 @@ export class FileDropzone {
   private take(file: File): void {
     const allowed = this.extensions();
     const extension = file.name.includes('.') ? `.${file.name.split('.').pop()!.toLowerCase()}` : '';
-    if (allowed.length > 0 && !allowed.includes(extension)) {
+    if (this.strict() && allowed.length > 0 && !allowed.includes(extension)) {
       this.error.set(
         `« ${file.name} » n’est pas un format accepté${this.formats() ? ` (${this.formats()})` : ''}. Choisissez un autre fichier.`,
       );
