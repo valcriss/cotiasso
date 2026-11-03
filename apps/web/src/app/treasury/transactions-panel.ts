@@ -149,7 +149,7 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
         <div class="actions">
           @if (canImport() && !account().archivedOn) {
             <a mat-stroked-button [routerLink]="['/comptes', account().id, 'import']">
-              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload_file</mat-icon> Importer un relevé OFX
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload_file</mat-icon> {{ simple() ? 'Importer le relevé de ma banque' : 'Importer un relevé OFX' }}
             </a>
           }
           @if (simple() && canManage() && suggestionTargets().length > 0) {

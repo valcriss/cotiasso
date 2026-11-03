@@ -116,6 +116,21 @@ describe('ImportPanel', () => {
     controller.verify();
   });
 
+  it('refuse tout de suite un fichier tableur ou PDF, avec ce qu\'il faut faire, sans l\'envoyer au serveur (#5)', async () => {
+    await create();
+    for (const name of ['releve.csv', 'releve.PDF', 'compte.xlsx']) {
+      const input = root.querySelector<HTMLInputElement>('input[type="file"]')!;
+      Object.defineProperty(input, 'files', { value: [new File(['a;b'], name)], configurable: true });
+      input.dispatchEvent(new Event('change'));
+      await settle();
+      const message = root.querySelector('[role="alert"]')!.textContent!;
+      expect(message).toContain(`« ${name} » n'est pas un relevé au format OFX`);
+      expect(message).toContain('Télécharger mes opérations');
+      expect(message).toContain("J'ai reçu de l'argent");
+    }
+    controller.expectNone('/api/financial-accounts/f1/imports');
+  });
+
   it("analyse d'abord : montre le classement des lignes avant toute création", async () => {
     await create();
     expect(root.textContent).toContain('aucune transaction n\'est créée avant votre confirmation');
@@ -157,6 +172,22 @@ describe('ImportPanel', () => {
     expect(root.textContent).toContain('1 à relier');
     expect(root.textContent).toContain('1 ligne(s) à relier attendent votre choix');
     expect(root.textContent).not.toContain('à rapprocher');
+  });
+
+  it("affichage simple : les choix de chaque ligne parlent d'ajouter un mouvement, sans « créer la transaction » ni numéro technique (#5)", async () => {
+    view = 'simple';
+    await create();
+    expect(root.textContent).toContain('Seuls les relevés au format OFX sont pris en charge');
+    expect(root.textContent).not.toContain('OFX 1.x');
+    await upload(batch(mixed, { summary: { total: 4, new: 1, duplicate: 1, probableMatch: 1, error: 1 } }));
+    const text = root.textContent!;
+    expect(text).toContain('Ajouter ce mouvement');
+    expect(text).toContain('Ne pas l’ajouter');
+    expect(text).toContain('Déjà saisi à la main : relier à');
+    expect(text).toContain('C’est un autre paiement : l’ajouter quand même');
+    expect(text).toContain('Peut-être déjà saisie');
+    expect(text).toContain('Impossible à importer');
+    for (const jargon of ['Créer la transaction', 'Paiement distinct', 'Ressemble à une saisie', 'En erreur']) expect(text).not.toContain(jargon);
   });
 
   it('exige un choix explicite pour une ligne à rapprocher, sans valeur par défaut', async () => {
