@@ -773,3 +773,41 @@ details pre {
   margin: 0;
   padding: 0;
 }
+
+// Petits écrans : des boutons rangés en grille de deux colonnes plutôt qu'empilés ; le bouton principal (plein) prend toute la ligne,
+// les libellés longs passent à la ligne au lieu de déborder.
+@media (max-width: 600px) {
+  app-page-header .actions,
+  app-action-bar .buttons,
+  .actions,
+  .detail-actions {
+    > .mat-mdc-button-base,
+    > a.mat-mdc-button-base {
+      --mat-button-filled-container-height: auto;
+      --mat-button-outlined-container-height: auto;
+      --mat-button-text-container-height: auto;
+      --mat-button-tonal-container-height: auto;
+      line-height: 1.25;
+      min-height: 40px;
+      min-width: 0;
+      padding-block: 6px;
+      width: 100%;
+
+      .mdc-button__label {
+        white-space: normal;
+      }
+    }
+
+    // Seul le premier bouton plein (l'action principale) prend toute la ligne ; les autres se partagent les deux colonnes.
+    > .mat-mdc-unelevated-button:first-child {
+      grid-column: 1 / -1;
+    }
+  }
+
+  // Barres de boutons qui ne sont pas des cartes (filtres, détail) : même grille.
+  .actions,
+  .detail-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
