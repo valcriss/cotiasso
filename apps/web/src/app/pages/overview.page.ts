@@ -93,6 +93,31 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
     ul.recent .amount.in {
       color: var(--app-success, var(--mat-sys-primary));
     }
+    @media (max-width: 600px) {
+      ul.recent li {
+        align-items: baseline;
+        display: grid;
+        gap: 2px 12px;
+        grid-template-areas:
+          'date amount'
+          'text text';
+        grid-template-columns: 1fr auto;
+        padding: 12px 0;
+      }
+      ul.recent .date {
+        color: var(--mat-sys-on-surface-variant);
+        font-size: 0.875rem;
+        grid-area: date;
+      }
+      ul.recent .amount {
+        font-size: 1.125rem;
+        font-weight: 500;
+        grid-area: amount;
+      }
+      ul.recent .text {
+        grid-area: text;
+      }
+    }
     ul.todo {
       display: flex;
       flex-direction: column;
