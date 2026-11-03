@@ -1630,6 +1630,11 @@ export class AdminApiService {
     return firstValueFrom(this.http.get<MembershipInfo[]>(`/api/campaigns/${campaignId}/memberships`));
   }
 
+  /** Cotisations d'un membre, toutes saisons (celles qui restent à payer ont un `balance` positif). */
+  listMemberMemberships(memberId: string): Promise<MembershipInfo[]> {
+    return firstValueFrom(this.http.get<MembershipInfo[]>(`/api/members/${memberId}/memberships`));
+  }
+
   createMembership(
     campaignId: string,
     body: { memberId: string; tariffId: string; expectedAmount?: string; exemptionReason?: string; effectiveOn?: string },

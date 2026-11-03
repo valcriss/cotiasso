@@ -11,6 +11,10 @@ import { describeHttpError } from '../auth/error-messages';
 import { formatDate, todayLocalIso } from '../ui/dates';
 import { ThemeService } from '../theme/theme.service';
 import { FormDialog } from '../ui/form-dialog';
+import { OperationLink, type LinkPick, type LinkTarget } from './operation-link';
+
+/** Ce que la saisie renvoie : l'opération, et le sort du rattachement demandé (cotisation, subvention) s'il y en avait un. */
+export type OperationDialogResult = GuidedOperationResult & { attachment?: { ok: true; summary: string } | { ok: false; message: string } };
 
 export interface OperationDialogData {
   direction: 'IN' | 'OUT';
@@ -32,7 +36,7 @@ export interface OperationDialogData {
  */
 @Component({
   selector: 'app-operation-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [ReactiveFormsModule, FormDialog, OperationLink, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -90,6 +94,9 @@ export interface OperationDialogData {
             <mat-error>Choisissez une catégorie.</mat-error>
           }
         </mat-form-field>
+        @if (incoming && selectedCategory()?.usage; as usage) {
+          <app-operation-link [usage]="usage" (picked)="onLink($event)" />
+        }
         <mat-form-field appearance="outline">
           <mat-label>Description</mat-label>
           <input matInput formControlName="label" [placeholder]="incoming ? 'Cotisation de Marie Dupont' : 'Facture de l’assureur'" autocomplete="off" required />
@@ -190,7 +197,7 @@ export interface OperationDialogData {
 })
 export class OperationDialog {
   private readonly api = inject(AdminApiService);
-  private readonly reference = inject<MatDialogRef<OperationDialog, GuidedOperationResult>>(MatDialogRef);
+  private readonly reference = inject<MatDialogRef<OperationDialog, OperationDialogResult>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<OperationDialogData>(MAT_DIALOG_DATA);
 
@@ -270,6 +277,38 @@ export class OperationDialog {
       : `${amount} € sortiront de « ${account.name} » et seront classés dans « ${category.label} ».`;
   });
 
+  /** Rattachement choisi (cotisation ou subvention) ; `null` quand la personne n'en veut pas. */
+  private readonly link = signal<LinkTarget | null>(null);
+  /** Dernières valeurs proposées par le rattachement : on ne remplace que ce que la personne n'a pas écrit elle-même. */
+  private autoLabel = '';
+  private autoAmount = '';
+
+  protected onLink(pick: LinkPick): void {
+    this.link.set(pick.target);
+    const current = this.form.getRawValue();
+    if (pick.label && (current.label.trim() === '' || current.label === this.autoLabel)) {
+      this.autoLabel = pick.label;
+      this.form.patchValue({ label: pick.label });
+    }
+    if (pick.amountCents && (current.amount.trim() === '' || current.amount === this.autoAmount)) {
+      this.autoAmount = formatCents(pick.amountCents);
+      this.form.patchValue({ amount: this.autoAmount });
+    }
+  }
+
+  private async attach(target: LinkTarget, transactionId: string, amount: string): Promise<OperationDialogResult['attachment']> {
+    try {
+      if (target.kind === 'MEMBERSHIP') {
+        await this.api.allocatePayment(target.membershipId, { transactionId, amount, kind: 'PAYMENT' });
+        return { ok: true, summary: `Cotisation de ${target.memberName} (${target.campaignName}) rattachée.` };
+      }
+      await this.api.recordGrantPayment(target.grantId, { transactionId, amount, scheduleId: target.scheduleId });
+      return { ok: true, summary: `Versement noté dans le suivi de la subvention « ${target.title} » (${target.funderName}).` };
+    } catch (failure) {
+      return { ok: false, message: describeHttpError(failure, 'Le rattachement n’a pas pu se faire.').message };
+    }
+  }
+
   protected async save(): Promise<void> {
     const raw = this.form.getRawValue();
     const cents = parseAmountToCents(raw.amount);
@@ -289,18 +328,20 @@ export class OperationDialog {
     this.details.set([]);
     this.busy.set(true);
     try {
-      this.reference.close(
-        await this.api.recordOperation({
-          financialAccountId: raw.accountId,
-          direction: this.data.direction,
-          amount: centsToApi(cents),
-          date: raw.date,
-          label: raw.label.trim(),
-          categoryId: raw.categoryId,
-          ...(raw.projectId && { projectId: raw.projectId }),
-          post: this.data.canPost,
-        }),
-      );
+      const result = await this.api.recordOperation({
+        financialAccountId: raw.accountId,
+        direction: this.data.direction,
+        amount: centsToApi(cents),
+        date: raw.date,
+        label: raw.label.trim(),
+        categoryId: raw.categoryId,
+        ...(raw.projectId && { projectId: raw.projectId }),
+        post: this.data.canPost,
+      });
+      // L'argent est enregistré : un refus du rattachement ne le défait pas (deux mécanismes distincts, ADR 0023/0024/0028).
+      const target = this.link();
+      const attachment = target ? await this.attach(target, result.transactionId, centsToApi(cents)) : undefined;
+      this.reference.close({ ...result, ...(attachment && { attachment }) });
     } catch (failure) {
       const described = describeHttpError(failure, "L'opération n'a pas pu être enregistrée. Réessayez dans un instant.");
       this.error.set(described.message);
