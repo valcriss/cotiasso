@@ -38,11 +38,12 @@ describe("Saisie guidée « J'ai reçu / J'ai dépensé de l'argent »", () => {
     ui = new DialogTester(settle);
   };
   /** Ouvre la boîte et répond aux trois chargements (comptes, catégories, projets). */
-  const open = async (direction: 'IN' | 'OUT', accounts: object[] = [bank], list: object[] = categories) => {
+  const open = async (direction: 'IN' | 'OUT', accounts: object[] = [bank], list: object[] = categories, years: object[] = []) => {
     const result = launcher.open(direction);
     await settle();
     controller.expectOne('/api/financial-accounts').flush(accounts);
     controller.expectOne('/api/operation-categories').flush(list);
+    controller.expectOne('/api/fiscal-years').flush(years);
     controller.expectOne('/api/projects').flush([{ id: 'p0', code: 'FONC', name: 'Fonctionnement', status: 'ACTIVE', permanent: true }, { id: 'p1', code: 'FEST', name: 'Festival', status: 'ACTIVE', permanent: false }]);
     await settle();
     // Enveloppé : une promesse renvoyée par une fonction asynchrone serait attendue, or elle ne se règle qu'à la fermeture de la boîte.
@@ -118,6 +119,50 @@ describe("Saisie guidée « J'ai reçu / J'ai dépensé de l'argent »", () => {
     await ui.choose('mat-select[formcontrolname="categoryId"]', 'Cotisations des adhérents');
     expect(document.querySelector<HTMLDetailsElement>('.cdk-overlay-container details')!.open).toBe(true);
     expect(ui.text).toContain('10,00 € arriveront sur « Compte courant »');
+  });
+
+  describe('avertissement de date (#16)', () => {
+    const year = (over: object) => ({ id: 'y1', label: 'Exercice 2025', start: '2025-01-01', end: '2025-12-31', status: 'OPEN', ...over });
+
+    it('prévient dès le choix d’une date hors de toute période et n’envoie rien', async () => {
+      await start(['transactions:manage', 'entries:create', 'entries:post']);
+      await open('OUT', [bank], categories, [year({})]);
+      await ui.type('input[formcontrolname="date"]', '2024-06-15');
+      expect(ui.text).toContain('Le 15/06/2024 n’est dans aucune période de comptabilité');
+      expect(ui.text).toContain('du 01/01/2025 au 31/12/2025');
+      expect(ui.text).toContain('« Démarrer »');
+
+      await ui.type('input[formcontrolname="amount"]', '10');
+      await ui.choose('mat-select[formcontrolname="categoryId"]', 'Assurance');
+      await ui.type('input[formcontrolname="label"]', 'Prime');
+      await ui.submit();
+      controller.expectNone('/api/guided-operations');
+      expect(ui.error).toContain('n’est dans aucune période');
+    });
+
+    it('explique qu’une période clôturée ou fermée à la saisie n’accepte plus d’opération', async () => {
+      await start(['transactions:manage', 'entries:create', 'entries:post']);
+      await open('OUT', [bank], categories, [year({ status: 'CLOSED' })]);
+      await ui.type('input[formcontrolname="date"]', '2025-03-10');
+      expect(ui.text).toContain('n’accepte plus de nouvelles opérations (elle est clôturée)');
+      await ui.type('input[formcontrolname="date"]', '2025-04-10');
+      expect(ui.text).toContain('Cela protège des comptes déjà arrêtés');
+    });
+
+    it('ne dit rien pour une date dans une période ouverte, ni sans droit de lire les périodes', async () => {
+      await start(['transactions:manage', 'entries:create', 'entries:post']);
+      await open('OUT', [bank], categories, [year({})]);
+      await ui.type('input[formcontrolname="date"]', '2025-06-15');
+      expect(ui.text).not.toContain('période de comptabilité');
+      expect(ui.text).not.toContain('n’accepte plus');
+    });
+
+    it('prévient sans bloquer quand la date est dans plus d’un an', async () => {
+      await start(['transactions:manage', 'entries:create', 'entries:post']);
+      await open('OUT', [bank], categories, [year({ start: '2000-01-01', end: '2099-12-31' })]);
+      await ui.type('input[formcontrolname="date"]', '2090-01-01');
+      expect(ui.text).toContain('est dans plus d’un an');
+    });
   });
 
   it('garde la boîte ouverte et la saisie quand le serveur refuse, avec le motif', async () => {

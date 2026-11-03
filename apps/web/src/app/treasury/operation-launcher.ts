@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { AdminApiService, type GuidedOperationResult, type ProjectInfo } from '../admin/admin-api.service';
+import { AdminApiService, type FiscalYearInfo, type GuidedOperationResult, type ProjectInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
@@ -19,12 +19,14 @@ export class OperationLauncher {
 
   /** Renvoie le résultat si une opération a été enregistrée, sinon `undefined` (abandon ou impossibilité, déjà expliquée). */
   async open(direction: 'IN' | 'OUT', accountId: string | null = null): Promise<GuidedOperationResult | undefined> {
-    let accounts, categories, projects: ProjectInfo[];
+    let accounts, categories, projects: ProjectInfo[], fiscalYears: FiscalYearInfo[];
     try {
-      [accounts, categories, projects] = await Promise.all([
+      [accounts, categories, projects, fiscalYears] = await Promise.all([
         this.api.listFinancialAccounts(),
         this.api.listOperationCategories(),
         this.api.listProjects().catch(() => [] as ProjectInfo[]),
+        // Sans droit de lire les périodes, on n'avertit simplement pas : le serveur reste l'autorité.
+        this.api.listFiscalYears().catch(() => [] as FiscalYearInfo[]),
       ]);
     } catch (failure) {
       this.notifier.notice(describeHttpError(failure, 'Impossible de charger vos comptes pour le moment. Réessayez dans un instant.').message);
@@ -43,7 +45,7 @@ export class OperationLauncher {
     }
     const result = await this.dialogs.open<GuidedOperationResult, OperationDialogData>(OperationDialog, {
       size: 'md',
-      data: { direction, accounts: active, categories, projects, accountId, canPost: this.auth.can('entries:post') },
+      data: { direction, accounts: active, categories, projects, fiscalYears, accountId, canPost: this.auth.can('entries:post') },
     });
     if (result) {
       this.notifier.success(

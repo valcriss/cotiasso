@@ -5,10 +5,10 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { AdminApiService, type FinancialAccountInfo, type GuidedOperationResult, type OperationCategoryInfo, type ProjectInfo } from '../admin/admin-api.service';
+import { AdminApiService, type FinancialAccountInfo, type FiscalYearInfo, type GuidedOperationResult, type OperationCategoryInfo, type ProjectInfo } from '../admin/admin-api.service';
 import { centsToApi, formatCents, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
-import { todayLocalIso } from '../ui/dates';
+import { formatDate, todayLocalIso } from '../ui/dates';
 import { ThemeService } from '../theme/theme.service';
 import { FormDialog } from '../ui/form-dialog';
 
@@ -18,6 +18,8 @@ export interface OperationDialogData {
   accounts: FinancialAccountInfo[];
   categories: OperationCategoryInfo[];
   projects: ProjectInfo[];
+  /** Périodes de comptabilité connues, pour avertir dès le choix de la date ; vide si la personne ne peut pas les lire. */
+  fiscalYears: FiscalYearInfo[];
   /** Compte proposé d'office (celui qui est ouvert), s'il y en a un. */
   accountId: string | null;
   /** L'utilisateur peut-il comptabiliser tout de suite ? Sinon l'opération reste un brouillon à relire. */
@@ -59,6 +61,9 @@ export interface OperationDialogData {
             }
           </mat-form-field>
         </div>
+        @if (dateNotice(); as notice) {
+          <p class="notice" [class.blocking]="notice.blocking" role="status">{{ notice.message }}</p>
+        }
         <div class="row">
           <mat-form-field appearance="outline">
             <mat-label>Montant (€)</mat-label>
@@ -151,6 +156,14 @@ export interface OperationDialogData {
       gap: 6px;
       padding: 12px 16px;
     }
+    .notice {
+      border-left: 4px solid var(--mat-sys-tertiary, var(--app-border));
+      margin: 0;
+      padding: 4px 12px;
+    }
+    .notice.blocking {
+      border-left-color: var(--mat-sys-error);
+    }
     .preview p {
       margin: 0;
     }
@@ -214,6 +227,37 @@ export class OperationDialog {
     return [bank, other];
   });
 
+  /**
+   * Avertit dès le choix de la date (trois temps : ce qui se passe, pourquoi, que faire) au lieu d'attendre le refus du serveur.
+   * Un refus certain (période fermée ou clôturée, ou date hors de toute période) bloque l'envoi ; une date très lointaine prévient seulement.
+   */
+  protected readonly dateNotice = computed<{ message: string; blocking: boolean } | null>(() => {
+    const date = this.values().date;
+    const years = this.data.fiscalYears;
+    if (!date || years.length === 0) return null;
+    const year = years.find((y) => y.start <= date && date <= y.end);
+    if (!year) {
+      const first = [...years].sort((a, b) => a.start.localeCompare(b.start))[0]!;
+      const last = [...years].sort((a, b) => b.end.localeCompare(a.end))[0]!;
+      return {
+        blocking: true,
+        message: `Le ${formatDate(date)} n’est dans aucune période de comptabilité : vos périodes vont du ${formatDate(first.start)} au ${formatDate(last.end)}. Une opération doit tomber dans une période. Choisissez une autre date, ou ajoutez la période manquante dans l’assistant « Démarrer ».`,
+      };
+    }
+    if (year.status !== 'OPEN') {
+      return {
+        blocking: true,
+        message: `La période du ${formatDate(year.start)} au ${formatDate(year.end)} n’accepte plus de nouvelles opérations (${year.status === 'CLOSED' ? 'elle est clôturée' : 'la saisie est fermée'}). Cela protège des comptes déjà arrêtés. Choisissez une date dans la période en cours.`,
+      };
+    }
+    const limit = new Date();
+    limit.setFullYear(limit.getFullYear() + 1);
+    if (date > todayLocalIso(limit)) {
+      return { blocking: false, message: `Le ${formatDate(date)} est dans plus d’un an : vérifiez l’année de la date.` };
+    }
+    return null;
+  });
+
   /** Une phrase courante : où va l'argent et dans quelle catégorie il est rangé, sans numéro de compte ni débit/crédit. */
   protected readonly summary = computed(() => {
     const account = this.data.accounts.find((a) => a.id === this.values().accountId);
@@ -232,6 +276,12 @@ export class OperationDialog {
     this.form.markAllAsTouched();
     if (this.form.invalid || cents === null || cents <= 0 || !raw.date) {
       this.error.set('Vérifiez les champs signalés : le compte, un montant supérieur à zéro (par exemple 25,00), la date, la catégorie et une description sont nécessaires.');
+      this.details.set([]);
+      return;
+    }
+    const notice = this.dateNotice();
+    if (notice?.blocking) {
+      this.error.set(notice.message);
       this.details.set([]);
       return;
     }
