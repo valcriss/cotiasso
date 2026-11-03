@@ -301,11 +301,11 @@ describe("Saisie guidée « J'ai reçu / J'ai dépensé de l'argent »", () => {
   it('sans le droit de comptabiliser, annonce un brouillon et l’envoie comme tel', async () => {
     await start(['transactions:manage', 'entries:create']);
     const { result } = await open('OUT');
-    expect(ui.dialog!.textContent).toContain('Enregistrer en brouillon');
+    expect(ui.dialog!.textContent).toContain('Envoyer pour validation');
     await ui.type('input[formcontrolname="amount"]', '8');
     await ui.choose('mat-select[formcontrolname="categoryId"]', 'Assurance');
     await ui.type('input[formcontrolname="label"]', 'Timbres');
-    expect(ui.text).toContain('brouillon pour qu’une personne habilitée la relise');
+    expect(ui.text).toContain('envoyée pour validation, en brouillon');
     await ui.submit();
     const request = controller.expectOne('/api/guided-operations');
     expect(request.request.body).toMatchObject({ post: false });

@@ -46,7 +46,7 @@ export interface OperationDialogData {
             ? 'Cotisation, don, subvention, vente… Indiquez sur quel compte l’argent est arrivé, combien et pourquoi : le logiciel s’occupe de la comptabilité.'
             : 'Achat, loyer, assurance… Indiquez de quel compte l’argent est sorti, combien et pourquoi : le logiciel s’occupe de la comptabilité.'
         "
-        [submitLabel]="data.canPost ? 'Enregistrer l’opération' : 'Enregistrer en brouillon'"
+        [submitLabel]="data.canPost ? 'Enregistrer l’opération' : 'Envoyer pour validation'"
         [dirty]="form.dirty"
         [busy]="busy()"
         [error]="error()"
@@ -145,7 +145,7 @@ export interface OperationDialogData {
                 L’opération sera enregistrée définitivement. Si vous vous trompez, vous pourrez l’annuler : une opération inverse est alors
                 ajoutée, l’historique reste lisible.
               } @else {
-                Vous n’avez pas le droit d’enregistrer définitivement : l’opération sera mise en brouillon pour qu’une personne habilitée la relise.
+                Vous n’avez pas le droit d’enregistrer définitivement : l’opération sera envoyée pour validation, en brouillon. Une personne autorisée la relira puis l’enregistrera ; rien n’est compté dans les rapports avant.
               }
             </p>
           </section>

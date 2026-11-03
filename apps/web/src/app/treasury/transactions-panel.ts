@@ -327,7 +327,10 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
                     <span class="status" [class.ok]="simpleStatus(item).ok">
                       <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ simpleStatus(item).icon }}</mat-icon> {{ simpleStatus(item).label }}
                     </span>
-                    @if (item.accounting === 'IN_PROGRESS') { <app-help-hint term="brouillon" /> }
+                    @if (item.accounting === 'IN_PROGRESS') {
+                      <app-help-hint term="brouillon" />
+                      <div class="muted">{{ canCancelOperation() ? 'À relire puis enregistrer : rien n’est encore compté dans les rapports.' : 'En attente de validation par une personne autorisée : rien n’est encore compté dans les rapports.' }}</div>
+                    }
                     @if (item.transfer; as transfer) {
                       <div class="muted">Virement {{ transfer.direction === 'OUT' ? 'vers' : 'depuis' }} {{ transfer.otherAccountName }}</div>
                     }

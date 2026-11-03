@@ -50,7 +50,7 @@ export class OperationLauncher {
     if (result) {
       const done = result.posted
         ? `Opération enregistrée${result.number ? ` (écriture ${result.journalCode} n° ${result.number})` : ''}.`
-        : 'Opération mise en brouillon : elle sera prise en compte une fois relue et enregistrée.';
+        : 'Opération envoyée pour validation (en brouillon) : elle comptera dans les rapports une fois relue et enregistrée par une personne autorisée.';
       const { attachment } = result;
       if (attachment?.ok) this.notifier.success(`${done} ${attachment.summary}`);
       else if (attachment) {

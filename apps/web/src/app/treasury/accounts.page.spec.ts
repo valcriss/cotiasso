@@ -633,6 +633,20 @@ describe('AccountsPage', () => {
       });
     });
 
+    it('explique ce qu’est un brouillon : à relire pour qui peut enregistrer, en attente de validation pour les autres (#18)', async () => {
+      const draft = () => transaction({ id: 't3', label: 'Brouillon', accounting: 'IN_PROGRESS', counterpartAccountId: 'a616', counterpartAccountNumber: '616', entry: entryRef(), financialLock: 'ENTRY', deletable: false });
+      await openSimple([draft()]);
+      expect(root.textContent).toContain('À relire puis enregistrer : rien n’est encore compté dans les rapports.');
+      expect(root.querySelector('button[aria-label="Aide : Brouillon"]')).not.toBeNull();
+      TestBed.resetTestingModule();
+      await create(['financial-accounts:view', 'transactions:manage', 'entries:create', 'entries:view'], [account()], 'simple');
+      await click('Ouvrir Compte courant');
+      controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: [draft()], next: null });
+      controller.expectOne('/api/operation-categories').flush(cats);
+      await settle();
+      expect(root.textContent).toContain('En attente de validation par une personne autorisée : rien n’est encore compté dans les rapports.');
+    });
+
     describe('actions de ligne et bandeau (#26)', () => {
       const rowButtons = (index: number) => Array.from(root.querySelectorAll('tbody tr')[index]!.querySelectorAll('button, a')).map((b) => b.textContent!.trim());
       const menuItems = () => Array.from(document.querySelectorAll('.cdk-overlay-container [role="menuitem"]')).map((b) => b.textContent!.trim());
