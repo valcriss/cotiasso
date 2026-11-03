@@ -1,3 +1,4 @@
+import { formatEuroAmount } from './amount';
 import { DatePipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
@@ -240,7 +241,7 @@ export class ProgressPage {
 
   protected openingLabel(account: ProgressAccount): string {
     if (!account.opening) return '—';
-    return account.opening.state === 'NOT_NEEDED' ? OPENING_LABELS.NOT_NEEDED : `${OPENING_LABELS[account.opening.state]} (${account.opening.amount} €)`;
+    return account.opening.state === 'NOT_NEEDED' ? OPENING_LABELS.NOT_NEEDED : `${OPENING_LABELS[account.opening.state]} (${formatEuroAmount(account.opening.amount)})`;
   }
 
   protected bankControl(account: ProgressAccount): string {

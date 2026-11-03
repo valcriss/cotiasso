@@ -19,7 +19,7 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
-import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from './amount';
+import { formatEuroCents, centsToApi, formatEuroAmount, parseAmountToCents } from './amount';
 import { ThirdPartyDialog } from './third-party-dialog';
 import { DateField } from '../ui/date-field';
 import { FrDatePipe } from '../ui/fr-date.pipe';
@@ -242,13 +242,13 @@ export const ENTRY_STATUS_LABELS = {
                   </td>
                   <td>
                     <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                      <mat-label>Débit</mat-label>
+                      <mat-label>Débit (€)</mat-label>
                       <input matInput class="amount" inputmode="decimal" formControlName="debit" />
                     </mat-form-field>
                   </td>
                   <td>
                     <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                      <mat-label>Crédit</mat-label>
+                      <mat-label>Crédit (€)</mat-label>
                       <input matInput class="amount" inputmode="decimal" formControlName="credit" />
                     </mat-form-field>
                   </td>
@@ -431,11 +431,11 @@ export class EntryEditor {
       credit += c;
     }
     return {
-      debit: formatCents(debit),
-      credit: formatCents(credit),
+      debit: formatEuroCents(debit),
+      credit: formatEuroCents(credit),
       invalid,
       balanced: !invalid && debit === credit && debit > 0,
-      gap: formatCents(Math.abs(debit - credit)),
+      gap: formatEuroCents(Math.abs(debit - credit)),
     };
   });
 
@@ -457,7 +457,7 @@ export class EntryEditor {
     this.form.markAsDirty();
   }
 
-  protected readonly format = formatApiAmount;
+  protected readonly format = formatEuroAmount;
   protected readonly multi = MULTI_PROJECT;
 
   constructor() {
@@ -509,7 +509,7 @@ export class EntryEditor {
   }
 
   protected projectsOf(allocations: AllocationInfo[]): string {
-    return allocations.map((a) => (allocations.length > 1 ? `${a.projectCode} (${formatApiAmount(a.amount)})` : a.projectCode)).join(', ');
+    return allocations.map((a) => (allocations.length > 1 ? `${a.projectCode} (${formatEuroAmount(a.amount)})` : a.projectCode)).join(', ');
   }
 
   protected addLine(): void {
@@ -540,7 +540,7 @@ export class EntryEditor {
     if (this.totals().balanced) {
       const confirmed = await this.dialogs.confirm({
         title: 'Comptabiliser cette écriture ?',
-        message: `Total : ${this.totals().debit} € au débit et au crédit. Une fois comptabilisée, l’écriture reçoit son numéro et ne peut plus être modifiée ni supprimée. En cas d’erreur, vous pourrez la contrepasser (l’annuler par une écriture inverse) puis en saisir une nouvelle.`,
+        message: `Total : ${this.totals().debit} au débit et au crédit. Une fois comptabilisée, l’écriture reçoit son numéro et ne peut plus être modifiée ni supprimée. En cas d’erreur, vous pourrez la contrepasser (l’annuler par une écriture inverse) puis en saisir une nouvelle.`,
         confirmLabel: 'Comptabiliser',
       });
       if (!confirmed) return;

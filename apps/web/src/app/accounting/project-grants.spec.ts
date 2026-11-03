@@ -60,7 +60,7 @@ describe('ProjectGrants', () => {
   it('liste les subventions du projet avec la part qui lui revient, pas le total', async () => {
     await create([grant]);
     const cells = Array.from(root.querySelectorAll('tbody td')).map((td) => td.textContent!.replace(/\s+/g, ' ').trim());
-    expect(cells).toEqual(['Aide au festival', 'Région', 'Accordée', '600,00']);
+    expect(cells).toEqual(['Aide au festival', 'Région', 'Accordée', '600,00 €']);
     expect(root.textContent).toContain('la part qui lui revient');
     expect(root.querySelector('a[href="/subventions"]')).toBeTruthy();
   });

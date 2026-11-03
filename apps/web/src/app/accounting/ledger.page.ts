@@ -10,7 +10,7 @@ import {
   type LedgerAccountInfo,
 } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
-import { formatApiAmount, formatBalance } from './amount';
+import { formatEuroAmount, formatBalance } from './amount';
 import { ActionBar } from '../ui/action-bar';
 import { ExportLink } from '../reports/export-link';
 import { ReportFilters, type PeriodFilter } from './report-filters';
@@ -118,7 +118,7 @@ export class LedgerPage {
   protected accountId = '';
   protected prefix = '';
 
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly balance = formatBalance;
 
   constructor() {

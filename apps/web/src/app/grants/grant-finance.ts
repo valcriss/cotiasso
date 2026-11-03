@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { AdminApiService, type GrantFinanceInfo, type GrantInfo, type GrantScheduleInfo, type ScheduleState } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
@@ -85,12 +85,12 @@ const STATE_LABELS: Record<ScheduleState, string> = { PENDING: 'Attendu', PARTIA
         <p class="muted">Chargement…</p>
       } @else if (finance(); as data) {
         <dl class="figures">
-          <div><dt>Accordé</dt><dd>{{ amount(data.granted) }} €</dd></div>
-          <div><dt>Prévu en échéances</dt><dd>{{ amount(data.planned) }} €</dd></div>
-          <div><dt>Reçu</dt><dd>{{ amount(data.received) }} €</dd></div>
+          <div><dt>Accordé</dt><dd>{{ amount(data.granted) }}</dd></div>
+          <div><dt>Prévu en échéances</dt><dd>{{ amount(data.planned) }}</dd></div>
+          <div><dt>Reçu</dt><dd>{{ amount(data.received) }}</dd></div>
           <div>
             <dt>{{ data.overReceived ? 'Reçu en trop' : 'Reste à recevoir' }}</dt>
-            <dd>{{ data.overReceived ? amount(over(data)) : amount(data.remaining) }} €</dd>
+            <dd>{{ data.overReceived ? amount(over(data)) : amount(data.remaining) }}</dd>
           </div>
         </dl>
         @if (data.overReceived) {
@@ -137,7 +137,7 @@ const STATE_LABELS: Record<ScheduleState, string> = { PENDING: 'Attendu', PARTIA
               <tr>
                 <td colspan="6" class="muted">
                   @if (editable()) {
-                    Aucune échéance prévue. Ajoutez les versements que vous attendez, avec leur date : {{ amount(data.unplanned) }} € restent à planifier.
+                    Aucune échéance prévue. Ajoutez les versements que vous attendez, avec leur date : {{ amount(data.unplanned) }} restent à planifier.
                   } @else {
                     Aucune échéance n'a été prévue.
                   }
@@ -213,7 +213,7 @@ export class GrantFinance {
   protected readonly finance = signal<GrantFinanceInfo | null>(null);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = (value: string | null) => (value === null ? '—' : formatApiAmount(value));
+  protected readonly amount = (value: string | null) => (value === null ? '—' : formatEuroAmount(value));
   protected readonly editable = computed(() => this.canManage() && this.grant().status === 'GRANTED');
 
   constructor() {
@@ -233,7 +233,7 @@ export class GrantFinance {
 
   protected lineLabel(schedule: GrantScheduleInfo[], id: string | null): string {
     const line = schedule.find((l) => l.id === id);
-    return line ? `${formatDate(line.dueOn)} — ${formatApiAmount(line.amount)} €` : '—';
+    return line ? `${formatDate(line.dueOn)} — ${formatEuroAmount(line.amount)}` : '—';
   }
 
   protected async addLine(): Promise<void> {
@@ -255,7 +255,7 @@ export class GrantFinance {
   protected async removeLine(line: GrantScheduleInfo): Promise<void> {
     const confirmed = await this.dialogs.confirm({
       title: "Retirer cette échéance ?",
-      message: `L'échéance du ${formatDate(line.dueOn)} (${formatApiAmount(line.amount)} €) sera retirée du plan. Aucun versement n'y est rattaché, et le montant accordé ne change pas.`,
+      message: `L'échéance du ${formatDate(line.dueOn)} (${formatEuroAmount(line.amount)}) sera retirée du plan. Aucun versement n'y est rattaché, et le montant accordé ne change pas.`,
       confirmLabel: 'Retirer',
       danger: true,
     });

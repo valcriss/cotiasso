@@ -3,7 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { LinkedDocuments } from '../documents/linked-documents';
 import { AdminApiService, type FunderInfo, type GrantFinanceInfo, type GrantInfo, type GrantStatus } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
@@ -189,10 +189,10 @@ import { Skeleton } from '../ui/skeleton';
           <dt>État</dt>
           <dd>{{ statusLabel(grant.status) }}</dd>
           <dt>Montant demandé</dt>
-          <dd>{{ amount(grant.requestedAmount) }} €{{ grant.requestedOn ? ' (demande du ' + (grant.requestedOn | frDate) + ')' : '' }}</dd>
+          <dd>{{ amount(grant.requestedAmount) }}{{ grant.requestedOn ? ' (demande du ' + (grant.requestedOn | frDate) + ')' : '' }}</dd>
           @if (grant.grantedAmount !== null) {
             <dt>Montant accordé</dt>
-            <dd>{{ amount(grant.grantedAmount) }} € (décision du {{ grant.decidedOn | frDate }})</dd>
+            <dd>{{ amount(grant.grantedAmount) }} (décision du {{ grant.decidedOn | frDate }})</dd>
           }
           @if (grant.periodStart || grant.periodEnd) {
             <dt>Période financée</dt>
@@ -320,7 +320,7 @@ export class GrantsPage {
   protected readonly filter = signal<GrantStatus | ''>('');
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   /** Change quand un versement ou une affectation change : le compte rendu se recharge. */
   protected readonly reportKey = signal(0);
   protected readonly statuses = (Object.keys(GRANT_STATUS_LABELS) as GrantStatus[]).map((value) => ({ value, label: GRANT_STATUS_LABELS[value] }));
@@ -438,7 +438,7 @@ export class GrantsPage {
 
   protected async decide(grant: GrantInfo): Promise<void> {
     const saved = await this.dialogs.open<GrantInfo>(GrantDecisionDialog, { size: 'lg', data: { grant } });
-    if (saved) await this.done(`Accord enregistré : ${formatApiAmount(saved.grantedAmount ?? '0.00')} € pour « ${saved.title} ».`, saved.id);
+    if (saved) await this.done(`Accord enregistré : ${formatEuroAmount(saved.grantedAmount ?? '0.00')} pour « ${saved.title} ».`, saved.id);
   }
 
   protected async reason(grant: GrantInfo, mode: 'refuse' | 'cancel'): Promise<void> {

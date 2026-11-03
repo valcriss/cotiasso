@@ -4,7 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 import { AdminApiService, type OverviewInfo, type RecentOperationInfo, type TodoItemInfo } from '../admin/admin-api.service';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { HealthService } from '../health.service';
@@ -58,7 +58,7 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
       color: var(--app-success, var(--mat-sys-primary));
     }
     .figure .out {
-      color: var(--mat-sys-on-surface);
+      color: var(--mat-sys-error);
     }
     ul.recent {
       display: flex;
@@ -172,12 +172,12 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
           @if (view.cash; as cash) {
             <section class="figure" aria-label="Argent disponible">
               <span class="muted">Argent disponible <app-help-hint term="solde" /></span>
-              <span class="big">{{ amount(cash.total) }} €</span>
+              <span class="big" [class.in]="+cash.total > 0" [class.out]="+cash.total < 0">{{ amount(cash.total) }}</span>
               <span class="muted">D’après vos enregistrements, pas forcément le solde de la banque</span>
               @if (cash.accounts.length > 1) {
                 <ul class="accounts-detail">
                   @for (account of cash.accounts; track account.id) {
-                    <li class="muted">{{ account.name }} : {{ amount(account.balance) }} €</li>
+                    <li class="muted">{{ account.name }} : {{ amount(account.balance) }}</li>
                   }
                 </ul>
               }
@@ -186,12 +186,12 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
           @if (view.month; as month) {
             <section class="figure" aria-label="Reçu ce mois-ci">
               <span class="muted">Reçu ce mois-ci</span>
-              <span class="big in">{{ amount(month.received) }} €</span>
+              <span class="big" [class.in]="+month.received > 0">{{ amount(month.received) }}</span>
               <span class="muted">Argent entré depuis le début du mois</span>
             </section>
             <section class="figure" aria-label="Dépensé ce mois-ci">
               <span class="muted">Dépensé ce mois-ci</span>
-              <span class="big out">{{ amount(month.spent) }} €</span>
+              <span class="big" [class.out]="+month.spent > 0">{{ amount(month.spent) }}</span>
               <span class="muted">Argent sorti depuis le début du mois</span>
             </section>
           }
@@ -209,7 +209,7 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
                   <strong>{{ operation.label }}</strong>
                   <span class="muted">{{ operation.accountName }} · {{ situation(operation) }}</span>
                 </span>
-                <span class="amount" [class.in]="!operation.amount.startsWith('-')">{{ amount(operation.amount) }} €</span>
+                <span class="amount" [class.in]="!operation.amount.startsWith('-')">{{ amount(operation.amount) }}</span>
               </li>
             }
           </ul>
@@ -294,7 +294,7 @@ export class OverviewPage {
   }
 
   protected amount(value: string): string {
-    return formatApiAmount(value);
+    return formatEuroAmount(value);
   }
 
   /** Où en est l'opération, en mots courants. */

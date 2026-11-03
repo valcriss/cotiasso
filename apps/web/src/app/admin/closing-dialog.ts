@@ -6,7 +6,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { Notifier } from '../ui/notifier.service';
 import { AdminApiService, type AccountInfo, type ClosingReportInfo, type FiscalYearInfo, type FrozenOutcomeInfo } from './admin-api.service';
@@ -96,10 +96,10 @@ export function frozenSentence(outcome: FrozenOutcomeInfo | undefined, subject: 
               Sera reporté : {{ p.accountCount }} compte(s) de bilan.
               @switch (p.result.kind) {
                 @case ('SURPLUS') {
-                  Résultat de l'exercice : excédent de {{ amount(p.result.amount) }} €.
+                  Résultat de l'exercice : excédent de {{ amount(p.result.amount) }}.
                 }
                 @case ('DEFICIT') {
-                  Résultat de l'exercice : déficit de {{ amount(p.result.amount) }} €.
+                  Résultat de l'exercice : déficit de {{ amount(p.result.amount) }}.
                 }
                 @default {
                   Résultat de l'exercice : nul.
@@ -171,7 +171,7 @@ export class ClosingDialog {
   protected readonly report = signal<ClosingReportInfo | null>(null);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 
   protected readonly equityAccounts = computed(() => this.data.accounts.filter((a) => a.active && /^[1-5]/.test(a.number)));
   protected readonly form = this.fb.group({ surplusAccountId: [''], deficitAccountId: [''], confirmed: [false] });

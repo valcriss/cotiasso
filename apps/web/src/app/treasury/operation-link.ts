@@ -7,7 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { debounceTime } from 'rxjs';
 import { AdminApiService, type GrantInfo, type GrantScheduleInfo, type MemberInfo, type MembershipInfo } from '../admin/admin-api.service';
-import { formatApiAmount, parseAmountToCents } from '../accounting/amount';
+import { formatEuroAmount, parseAmountToCents } from '../accounting/amount';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { FrDatePipe } from '../ui/fr-date.pipe';
@@ -58,7 +58,7 @@ export interface LinkPick {
               <mat-label>Quelle cotisation ?</mat-label>
               <mat-select [formControl]="membershipId" (selectionChange)="pickMembership()">
                 @for (m of dueMemberships(); track m.id) {
-                  <mat-option [value]="m.id">{{ m.campaignName }} — reste {{ amount(m.balance) }} €</mat-option>
+                  <mat-option [value]="m.id">{{ m.campaignName }} — reste {{ amount(m.balance) }}</mat-option>
                 }
                 <mat-option value="">Ne pas rattacher à une cotisation</mat-option>
               </mat-select>
@@ -100,7 +100,7 @@ export interface LinkPick {
             <mat-select [formControl]="scheduleId" (selectionChange)="pickSchedule()">
               <mat-option value="">Aucune échéance en particulier</mat-option>
               @for (line of schedule(); track line.id) {
-                <mat-option [value]="line.id">{{ line.dueOn | frDate }} — {{ amount(line.amount) }} € attendus</mat-option>
+                <mat-option [value]="line.id">{{ line.dueOn | frDate }} — {{ amount(line.amount) }} attendus</mat-option>
               }
             </mat-select>
           </mat-form-field>
@@ -137,7 +137,7 @@ export class OperationLink {
   readonly usage = input<'MEMBERSHIP' | 'GRANT' | null>(null);
   readonly picked = output<LinkPick>();
 
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly canMembers = computed(() => {
     this.auth.permissions();
     return this.auth.can('members:view') && this.auth.can('members:manage');

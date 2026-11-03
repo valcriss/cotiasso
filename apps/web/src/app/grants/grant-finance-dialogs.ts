@@ -15,7 +15,7 @@ import {
   type PaymentCandidateInfo,
 } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
-import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from '../accounting/amount';
+import { centsToApi, formatEuroAmount, formatCents, parseAmountToCents } from '../accounting/amount';
 import { FormDialog } from '../ui/form-dialog';
 import { AutoBook } from '../treasury/auto-book';
 import type { OperationCategoryInfo } from '../admin/admin-api.service';
@@ -56,7 +56,7 @@ export interface ScheduleDialogData {
           <mat-form-field appearance="outline">
             <mat-label>Montant attendu (€)</mat-label>
             <input matInput inputmode="decimal" formControlName="amount" placeholder="300,00" autocomplete="off" required />
-            <mat-hint>Reste à planifier : {{ unplanned }} €.</mat-hint>
+            <mat-hint>Reste à planifier : {{ unplanned }}.</mat-hint>
             @if (form.controls.amount.hasError('required') || form.controls.amount.hasError('amount')) {
               <mat-error>Saisissez un montant positif, par exemple 300 ou 120,50.</mat-error>
             }
@@ -75,7 +75,7 @@ export class ScheduleDialog {
   private readonly reference = inject<MatDialogRef<ScheduleDialog, GrantFinanceInfo>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<ScheduleDialogData>(MAT_DIALOG_DATA);
-  protected readonly unplanned = formatApiAmount(this.data.unplanned);
+  protected readonly unplanned = formatEuroAmount(this.data.unplanned);
 
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -158,7 +158,7 @@ export interface PaymentDialogData {
             <mat-label>Part de cette subvention (€)</mat-label>
             <input matInput inputmode="decimal" formControlName="amount" autocomplete="off" required />
             @if (selected(); as chosen) {
-              <mat-hint>Disponible sur cet encaissement : {{ amount(chosen.remaining) }} €.</mat-hint>
+              <mat-hint>Disponible sur cet encaissement : {{ amount(chosen.remaining) }}.</mat-hint>
             }
             @if (form.controls.amount.hasError('required') || form.controls.amount.hasError('amount')) {
               <mat-error>Saisissez un montant positif, par exemple 300 ou 120,50.</mat-error>
@@ -170,7 +170,7 @@ export interface PaymentDialogData {
               <mat-select formControlName="scheduleId">
                 <mat-option value="">Aucune</mat-option>
                 @for (line of data.schedule; track line.id) {
-                  <mat-option [value]="line.id">{{ line.dueOn | frDate }} — {{ amount(line.amount) }} € attendus</mat-option>
+                  <mat-option [value]="line.id">{{ line.dueOn | frDate }} — {{ amount(line.amount) }} attendus</mat-option>
                 }
               </mat-select>
               <mat-hint>Pour suivre ce qui est attendu et ce qui est arrivé.</mat-hint>
@@ -203,7 +203,7 @@ export class GrantPaymentDialog {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly details = signal<string[]>([]);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly form = this.fb.group({
     transactionId: ['', [Validators.required]],
     amount: ['', [Validators.required, positive]],
@@ -232,7 +232,7 @@ export class GrantPaymentDialog {
   }
 
   protected label(candidate: PaymentCandidateInfo): string {
-    return `${formatDate(candidate.operationDate)} · ${candidate.label} · ${candidate.accountName} — ${formatApiAmount(candidate.amount)} €`;
+    return `${formatDate(candidate.operationDate)} · ${candidate.label} · ${candidate.accountName} — ${formatEuroAmount(candidate.amount)}`;
   }
 
   protected async save(): Promise<void> {

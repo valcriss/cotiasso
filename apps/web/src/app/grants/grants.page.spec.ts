@@ -185,8 +185,8 @@ describe('GrantsPage', () => {
     const rows = Array.from(root.querySelectorAll('section[aria-label="Subventions"] tbody tr')).map((tr) =>
       Array.from(tr.querySelectorAll('td')).map((td) => td.textContent!.replace(/\s+/g, ' ').trim()),
     );
-    expect(rows[0]).toEqual(['Aide au festival Réf. RF-14', 'Région', 'Demandée', '1 000,00', '—', '—', 'ATELIERS, FESTIVAL', 'Ouvrir']);
-    expect(rows[1]).toEqual(['Soutien', 'Région', 'Accordée', '1 200,00', '900,00', '300,00', '—', 'Ouvrir']);
+    expect(rows[0]).toEqual(['Aide au festival Réf. RF-14', 'Région', 'Demandée', '1 000,00 €', '—', '—', 'ATELIERS, FESTIVAL', 'Ouvrir']);
+    expect(rows[1]).toEqual(['Soutien', 'Région', 'Accordée', '1 200,00 €', '900,00 €', '300,00 €', '—', 'Ouvrir']);
   });
 
   it('filtre par état en rechargeant la liste', async () => {

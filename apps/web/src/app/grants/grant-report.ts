@@ -1,6 +1,6 @@
 import { Component, effect, inject, input, signal, untracked } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { AdminApiService, type GrantInfo, type GrantReportInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { ExportLink } from '../reports/export-link';
@@ -85,10 +85,10 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
           Période financée : {{ financed(data) }}.
         </p>
         <dl class="figures">
-          <div><dt>Montant accordé</dt><dd>{{ amount(data.granted) }} €</dd></div>
-          <div><dt>Dépenses affectées</dt><dd>{{ amount(data.spent) }} €</dd></div>
-          <div><dt>Versements reçus</dt><dd>{{ amount(data.received) }} €</dd></div>
-          <div><dt>Reliquat (reçu − dépenses)</dt><dd>{{ amount(data.residual) }} €</dd></div>
+          <div><dt>Montant accordé</dt><dd>{{ amount(data.granted) }}</dd></div>
+          <div><dt>Dépenses affectées</dt><dd>{{ amount(data.spent) }}</dd></div>
+          <div><dt>Versements reçus</dt><dd>{{ amount(data.received) }}</dd></div>
+          <div><dt>Reliquat (reçu − dépenses)</dt><dd>{{ amount(data.residual) }}</dd></div>
         </dl>
         @if (data.warnings.length > 0) {
           <ul class="warnings" aria-label="À savoir">
@@ -173,7 +173,7 @@ export class GrantReport {
   protected readonly to = signal('');
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = (value: string | null) => (value === null ? '—' : formatApiAmount(value));
+  protected readonly amount = (value: string | null) => (value === null ? '—' : formatEuroAmount(value));
 
   constructor() {
     effect(() => {

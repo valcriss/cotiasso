@@ -2,7 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { AdminApiService, type ReceiptInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { PageHeader } from '../ui/page-header';
@@ -67,20 +67,20 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
               <tr>
                 <td>{{ payment.date | frDate }}</td>
                 <td>{{ payment.kind === 'REFUND' ? 'Remboursement' : 'Règlement' }}</td>
-                <td class="amount">{{ payment.kind === 'REFUND' ? '−' : '' }}{{ amount(payment.amount) }} €</td>
+                <td class="amount">{{ payment.kind === 'REFUND' ? '−' : '' }}{{ amount(payment.amount) }}</td>
               </tr>
             }
           </tbody>
           <tfoot>
             <tr>
               <th scope="row" colspan="2">Total reçu</th>
-              <td class="amount"><strong>{{ amount(r.paid) }} €</strong></td>
+              <td class="amount"><strong>{{ amount(r.paid) }}</strong></td>
             </tr>
           </tfoot>
         </table>
         <p>
-          Cotisation attendue : {{ amount(r.expectedAmount) }} € ·
-          @if (Number(r.balance) > 0) { reste dû : {{ amount(r.balance) }} € } @else if (Number(r.balance) < 0) { trop-perçu : {{ amount(r.balance.replace('-', '')) }} € } @else { cotisation réglée }
+          Cotisation attendue : {{ amount(r.expectedAmount) }} ·
+          @if (Number(r.balance) > 0) { reste dû : {{ amount(r.balance) }} } @else if (Number(r.balance) < 0) { trop-perçu : {{ amount(r.balance.replace('-', '')) }} } @else { cotisation réglée }
         </p>
         <p class="muted">Établi le {{ r.issuedOn | frDate }}.</p>
         <p class="notice">{{ r.notice }}</p>
@@ -93,7 +93,7 @@ export class ReceiptPage {
   private readonly route = inject(ActivatedRoute);
   protected readonly receipt = signal<ReceiptInfo | null>(null);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly Number = Number;
 
   constructor() {

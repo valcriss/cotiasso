@@ -7,7 +7,7 @@ import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { ThemeService } from '../theme/theme.service';
-import { formatApiAmount } from './amount';
+import { formatEuroAmount } from './amount';
 import { BudgetDialog } from './budget-dialog';
 import { BUDGET_KIND_LABELS, BUDGET_STATUS_LABELS } from './project-labels';
 import { FrDatePipe } from '../ui/fr-date.pipe';
@@ -173,7 +173,7 @@ export class ProjectBudget {
   protected readonly current = signal<BudgetInfo | null>(null);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 
   protected readonly hasDraft = computed(() => this.versions().some((version) => version.status === 'DRAFT'));
   protected readonly canPrepare = computed(() => {

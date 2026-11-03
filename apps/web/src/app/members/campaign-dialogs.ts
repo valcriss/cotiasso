@@ -5,7 +5,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type CampaignInfo, type MemberCategoryInfo, type MemberInfo, type MembershipInfo, type MembershipModeInfo, type TariffInfo } from '../admin/admin-api.service';
-import { centsToApi, parseAmountToCents } from '../accounting/amount';
+import { formatEuroAmount, centsToApi, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
 import { DateField } from '../ui/date-field';
@@ -225,7 +225,7 @@ export interface MembershipDialogData {
           <mat-label>Tarif</mat-label>
           <mat-select formControlName="tariffId" required>
             @for (tariff of data.campaign.tariffs; track tariff.id) {
-              <mat-option [value]="tariff.id">{{ tariff.label }} — {{ tariff.amount }} €</mat-option>
+              <mat-option [value]="tariff.id">{{ tariff.label }} — {{ amount(tariff.amount) }}</mat-option>
             }
           </mat-select>
           @if (data.campaign.tariffs.length === 0) {
@@ -234,7 +234,7 @@ export interface MembershipDialogData {
         </mat-form-field>
         <div class="row">
           <mat-form-field appearance="outline" class="grow">
-            <mat-label>Montant différent du tarif (facultatif)</mat-label>
+            <mat-label>Montant différent du tarif (€ · facultatif)</mat-label>
             <input matInput inputmode="decimal" formControlName="expectedAmount" placeholder="0 pour une exonération" />
           </mat-form-field>
           <mat-form-field appearance="outline" class="grow">
@@ -248,6 +248,7 @@ export interface MembershipDialogData {
   `,
 })
 export class MembershipDialog {
+  protected readonly amount = formatEuroAmount;
   private readonly api = inject(AdminApiService);
   private readonly reference = inject<MatDialogRef<MembershipDialog, MembershipInfo>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;

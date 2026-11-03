@@ -10,7 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { startWith } from 'rxjs';
 import { AdminApiService, type FunderInfo, type GrantFinanceInfo, type GrantInfo, type GrantResidual, type ProjectInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
-import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from '../accounting/amount';
+import { centsToApi, formatEuroAmount, formatCents, parseAmountToCents } from '../accounting/amount';
 import { todayLocalIso } from '../ui/dates';
 import { Dialogs } from '../ui/dialogs.service';
 import { FormDialog } from '../ui/form-dialog';
@@ -317,7 +317,7 @@ export class AllocationsDialog {
           <mat-form-field appearance="outline">
             <mat-label>Montant accordé (€)</mat-label>
             <input matInput inputmode="decimal" formControlName="grantedAmount" autocomplete="off" required />
-            <mat-hint>Demandé : {{ requested }} €.</mat-hint>
+            <mat-hint>Demandé : {{ requested }}.</mat-hint>
             @if (form.controls.grantedAmount.hasError('required') || form.controls.grantedAmount.hasError('amount')) {
               <mat-error>Saisissez un montant positif, par exemple 900 ou 1200,50.</mat-error>
             }
@@ -341,7 +341,7 @@ export class GrantDecisionDialog {
   private readonly reference = inject<MatDialogRef<GrantDecisionDialog, GrantInfo>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly grant = inject<{ grant: GrantInfo }>(MAT_DIALOG_DATA).grant;
-  protected readonly requested = formatApiAmount(this.grant.requestedAmount);
+  protected readonly requested = formatEuroAmount(this.grant.requestedAmount);
 
   private readonly loaded = useProjects(this.api, this.grant.allocations.map((a) => a.projectId));
   protected readonly projects = this.loaded.projects;
@@ -494,8 +494,8 @@ export class GrantReasonDialog {
       >
         @if (finance(); as figures) {
           <p class="muted" aria-live="polite">
-            Reliquat calculé : {{ amount(figures.received) }} € reçus − {{ amount(figures.spent) }} € de dépenses affectées =
-            <strong>{{ amount(figures.residual) }} €</strong>. Si ce montant est positif, il reste de l'argent non dépensé ; s'il est négatif, les dépenses
+            Reliquat calculé : {{ amount(figures.received) }} reçus − {{ amount(figures.spent) }} de dépenses affectées =
+            <strong>{{ amount(figures.residual) }}</strong>. Si ce montant est positif, il reste de l'argent non dépensé ; s'il est négatif, les dépenses
             affectées dépassent ce qui a été reçu.
           </p>
         }
@@ -529,7 +529,7 @@ export class GrantCloseDialog {
   protected readonly options = (Object.keys(RESIDUAL_LABELS) as GrantResidual[]).map((value) => ({ value, label: RESIDUAL_LABELS[value] }));
   /** Reliquat calculé (reçu − dépenses affectées), à titre d'indication : le choix reste celui de l'utilisateur. */
   protected readonly finance = signal<GrantFinanceInfo | null>(null);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly details = signal<string[]>([]);

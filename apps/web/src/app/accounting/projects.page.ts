@@ -9,7 +9,7 @@ import { formatDate } from '../ui/dates';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { PageHeader } from '../ui/page-header';
-import { formatApiAmount } from './amount';
+import { formatEuroAmount } from './amount';
 import { LinkedDocuments } from '../documents/linked-documents';
 import { ProjectBudget } from './project-budget';
 import { ProjectCommitments } from './project-commitments';
@@ -165,7 +165,7 @@ export class ProjectsPage {
   protected readonly summary = signal<ProjectSummaryInfo | null>(null);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   /** Change quand le budget ou un engagement change : le suivi du budget se recharge. */
   protected readonly refresh = signal(0);
 

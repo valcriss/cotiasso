@@ -7,7 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type OpeningSituationInfo, type OpeningSituationResultInfo, type ThirdPartyInfo } from '../admin/admin-api.service';
-import { centsToApi, formatCents, parseAmountToCents } from '../accounting/amount';
+import { formatEuroCents, centsToApi, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
 
@@ -89,9 +89,9 @@ export interface OpeningSituationDialogData {
           <h4>1. L’argent que vous avez</h4>
           <p class="muted">Repris de vos comptes bancaires et caisses. Pour corriger un montant, modifiez le compte dans la page Comptes.</p>
           @for (account of data.situation.accounts; track account.id) {
-            <div class="line"><span>{{ account.name }}</span><span class="num">{{ format(account.openingBalance) }} €</span></div>
+            <div class="line"><span>{{ account.name }}</span><span class="num">{{ format(account.openingBalance) }}</span></div>
           }
-          <div class="line total"><span>Total de l’argent</span><span class="num">{{ formatCents(cash()) }} €</span></div>
+          <div class="line total"><span>Total de l’argent</span><span class="num">{{ formatEuroCents(cash()) }}</span></div>
         </section>
 
         <section class="block" aria-label="Sommes qu'on vous doit">
@@ -200,7 +200,7 @@ export interface OpeningSituationDialogData {
           <h4>4. Ce qui reste : le fonds de l’association</h4>
           <p>
             Argent + ce qu’on vous doit − ce que vous devez =
-            <strong class="num">{{ formatCents(equityCents()) }} €</strong>. C’est la valeur de l’association à cette date, ce qu’elle possède
+            <strong class="num">{{ formatEuroCents(equityCents()) }}</strong>. C’est la valeur de l’association à cette date, ce qu’elle possède
             en propre (on parle de « fonds associatifs » ou de « report à nouveau »).
           </p>
           @if (equityCents() !== 0) {
@@ -231,7 +231,7 @@ export interface OpeningSituationDialogData {
           <h4>Ce que verra l’expert-comptable</h4>
           <p class="muted">
             Une seule écriture dans le journal des à-nouveaux, au {{ dateLabel() }}. À gauche (débit) : l’argent et ce qu’on vous doit,
-            {{ formatCents(debit()) }} €. À droite (crédit) : ce que vous devez et le fonds de l’association, {{ formatCents(credit()) }} €.
+            {{ formatEuroCents(debit()) }}. À droite (crédit) : ce que vous devez et le fonds de l’association, {{ formatEuroCents(credit()) }}.
             Les deux totaux sont égaux.
           </p>
         </section>
@@ -244,7 +244,7 @@ export class OpeningSituationDialog {
   private readonly reference = inject<MatDialogRef<OpeningSituationDialog, OpeningSituationResultInfo | { skipped: true }>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<OpeningSituationDialogData>(MAT_DIALOG_DATA);
-  protected readonly formatCents = formatCents;
+  protected readonly formatEuroCents = formatEuroCents;
   protected readonly parties = (this.data.thirdParties ?? []).filter((p) => !p.archived);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -290,7 +290,7 @@ export class OpeningSituationDialog {
   }
 
   protected format(value: string): string {
-    return formatCents(this.signedCents(value));
+    return formatEuroCents(this.signedCents(value));
   }
 
   protected row(side: 'RECEIVABLE' | 'PAYABLE') {

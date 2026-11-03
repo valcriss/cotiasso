@@ -5,7 +5,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { defaultYear } from '../accounting/report-filters';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { AdminApiService, type FiscalYearInfo, type FrozenReportDetailInfo, type FrozenReportSummaryInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
@@ -156,9 +156,9 @@ import { NoPeriod } from '../ui/no-period';
           [previousLabel]="report.content.incomeStatement.previous?.label ?? null"
         />
         <p class="total-line">
-          <strong>Résultat : {{ amount(report.content.incomeStatement.result) }} €</strong>
+          <strong>Résultat : {{ amount(report.content.incomeStatement.result) }}</strong>
           @if (report.content.incomeStatement.previousResult !== null) {
-            <span class="muted"> (précédent : {{ amount(report.content.incomeStatement.previousResult) }} €)</span>
+            <span class="muted"> (précédent : {{ amount(report.content.incomeStatement.previousResult) }})</span>
           }
         </p>
       </section>
@@ -171,16 +171,16 @@ import { NoPeriod } from '../ui/no-period';
           [yearLabel]="report.content.balanceSheet.fiscalYear.label"
           [previousLabel]="report.content.balanceSheet.previous?.label ?? null"
         />
-        <p class="total-line"><strong>Total de l’actif : {{ amount(report.content.balanceSheet.totalAssets) }} €</strong></p>
+        <p class="total-line"><strong>Total de l’actif : {{ amount(report.content.balanceSheet.totalAssets) }}</strong></p>
         <app-statement-groups
           caption="Passif figé"
           [groups]="report.content.balanceSheet.liabilities"
           [yearLabel]="report.content.balanceSheet.fiscalYear.label"
           [previousLabel]="report.content.balanceSheet.previous?.label ?? null"
         />
-        <p class="total-line"><strong>Total du passif : {{ amount(report.content.balanceSheet.totalLiabilities) }} €</strong></p>
+        <p class="total-line"><strong>Total du passif : {{ amount(report.content.balanceSheet.totalLiabilities) }}</strong></p>
         @if (!report.content.balanceSheet.balanced) {
-          <p class="alert" role="status">L’actif et le passif n’étaient pas égaux à ce moment-là (écart de {{ amount(report.content.balanceSheet.difference) }} €).</p>
+          <p class="alert" role="status">L’actif et le passif n’étaient pas égaux à ce moment-là (écart de {{ amount(report.content.balanceSheet.difference) }}).</p>
         }
       </section>
 
@@ -234,7 +234,7 @@ export class FrozenReportsPage {
   private readonly dialogs = inject(Dialogs);
   private readonly notifier = inject(Notifier);
 
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly years = signal<FiscalYearInfo[]>([]);
   protected readonly yearId = signal('');
   protected readonly versions = signal<FrozenReportSummaryInfo[]>([]);

@@ -118,7 +118,7 @@ describe('GrantExpenses', () => {
     const cells = Array.from(root.querySelectorAll('tbody tr')[0]!.querySelectorAll('td')).map((td) => td.textContent!.replace(/\s+/g, ' ').trim());
     expect(cells[0]).toBe('01/03/2026');
     expect(cells[1]).toBe('Facture traiteur 606 — Achats');
-    expect(cells.slice(2, 4)).toEqual(['ATELIERS', '250,00']);
+    expect(cells.slice(2, 4)).toEqual(['ATELIERS', '250,00 €']);
   });
 
   it('signale en toutes lettres un dépassement, une dépense hors période et une écriture annulée', async () => {

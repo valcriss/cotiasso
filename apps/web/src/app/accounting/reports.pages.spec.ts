@@ -18,9 +18,9 @@ const accounts = [{ id: 'a1', number: '512', label: 'Banque', active: true, repo
 
 describe('formatBalance', () => {
   it('affiche le sens du solde', () => {
-    expect(formatBalance('1180.00')).toBe('1 180,00 D');
-    expect(formatBalance('-300.00')).toBe('300,00 C');
-    expect(formatBalance('0.00')).toBe('0,00');
+    expect(formatBalance('1180.00')).toBe('1 180,00 € D');
+    expect(formatBalance('-300.00')).toBe('300,00 € C');
+    expect(formatBalance('0.00')).toBe('0,00 €');
   });
 });
 
@@ -76,8 +76,8 @@ describe('états de lecture', () => {
     const text = root.textContent!;
     expect(text).toContain('512 — Banque');
     expect(text).toContain('Apport');
-    expect(text).toContain('1 000,00 D');
-    expect(text).toContain('1 180,00 D');
+    expect(text).toContain('1 000,00 € D');
+    expect(text).toContain('1 180,00 € D');
     expect(text).toContain('Totaux');
   });
 

@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 import { AdminApiService, type GrantInfo, type ProjectInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { GRANT_STATUS_LABELS } from '../grants/grant-labels';
-import { formatApiAmount } from './amount';
+import { formatEuroAmount } from './amount';
 
 /** Financements d'un projet : les subventions qui le financent et la part de chacune. Lecture seule. */
 @Component({
@@ -83,7 +83,7 @@ export class ProjectGrants {
 
   protected part(grant: GrantInfo): string {
     const found = grant.allocations.find((a) => a.projectId === this.project().id);
-    return found ? formatApiAmount(found.amount) : '—';
+    return found ? formatEuroAmount(found.amount) : '—';
   }
 
   private async load(projectId: string): Promise<void> {

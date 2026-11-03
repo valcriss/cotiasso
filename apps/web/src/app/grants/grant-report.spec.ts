@@ -106,10 +106,10 @@ describe('GrantReport', () => {
   it('regroupe les dépenses par poste et liste les versements reçus', async () => {
     await create(report());
     expect(rows(0)).toEqual([
-      ['606 — Achats', '2', '350,00'],
-      ['607 — Fournitures', '1', '120,00'],
+      ['606 — Achats', '2', '350,00 €'],
+      ['607 — Fournitures', '1', '120,00 €'],
     ]);
-    expect(rows(1)).toEqual([['10/05/2026', '400,00']]);
+    expect(rows(1)).toEqual([['10/05/2026', '400,00 €']]);
     expect(root.querySelector('tfoot')!.textContent).toContain('Total des dépenses affectées');
   });
 

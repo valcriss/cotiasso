@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { AdminApiService, type IncomeStatementInfo } from '../admin/admin-api.service';
 import { ActionBar } from '../ui/action-bar';
 import { NoPeriod } from '../ui/no-period';
@@ -16,6 +16,13 @@ import { Skeleton } from '../ui/skeleton';
   selector: 'app-income-statement-page',
   imports: [Skeleton, NoPeriod, MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink, StatementGroups],
   styleUrl: '../admin/admin-pages.scss',
+  styles: `
+    tfoot .amount {
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      white-space: nowrap;
+    }
+  `,
   template: `
     <app-action-bar
       label="Compte de résultat"
@@ -76,10 +83,8 @@ import { Skeleton } from '../ui/skeleton';
           [groups]="statement.sections"
           [yearLabel]="statement.fiscalYear.label"
           [previousLabel]="statement.previous?.label ?? null"
-        />
-        <table class="table">
-          <caption class="sr-only">Résultats</caption>
-          <tbody>
+        >
+          <tfoot>
             @for (line of statement.intermediate; track line.code) {
               <tr>
                 <th scope="row">{{ line.label }}</th>
@@ -99,8 +104,8 @@ import { Skeleton } from '../ui/skeleton';
                 <td class="amount">{{ statement.previousResult === null ? '—' : amount(statement.previousResult) }}</td>
               }
             </tr>
-          </tbody>
-        </table>
+          </tfoot>
+        </app-statement-groups>
       </section>
       @if (statement.defaulted.length > 0) {
         <p class="muted">
@@ -116,7 +121,7 @@ import { Skeleton } from '../ui/skeleton';
 })
 export class IncomeStatementPage extends StatementPageBase<IncomeStatementInfo> {
   protected readonly api = inject(AdminApiService);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 
   constructor() {
     super();

@@ -6,7 +6,7 @@ import { MatInputModule } from '@angular/material/input';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
 import { AdminApiService, type AdjustAmountResult, type TransactionInfo } from '../admin/admin-api.service';
-import { centsToApi, formatApiAmount, parseAmountToCents } from '../accounting/amount';
+import { centsToApi, formatEuroAmount, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
 import { FrDatePipe } from '../ui/fr-date.pipe';
@@ -38,7 +38,7 @@ export interface AdjustAmountDialogData {
       >
         <p class="summary">
           <strong>{{ data.transaction.label }}</strong><br />
-          <span class="muted">{{ data.transaction.operationDate | frDate }} · {{ amount(data.transaction.amount) }} € · {{ data.accountName }}</span>
+          <span class="muted">{{ data.transaction.operationDate | frDate }} · {{ amount(data.transaction.amount) }} · {{ data.accountName }}</span>
         </p>
         <mat-form-field appearance="outline">
           <mat-label>Montant juste (€)</mat-label>
@@ -58,7 +58,7 @@ export class AdjustAmountDialog {
   private readonly reference = inject<MatDialogRef<AdjustAmountDialog, AdjustAmountResult>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<AdjustAmountDialogData>(MAT_DIALOG_DATA);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly details = signal<string[]>([]);
@@ -75,7 +75,7 @@ export class AdjustAmountDialog {
     const incoming = !this.data.transaction.amount.startsWith('-');
     const reduces = gap > 0;
     const sign = incoming === reduces ? 'dépensé' : 'reçu';
-    return `Une correction de ${formatApiAmount(centsToApi(Math.abs(gap)))} € « argent ${sign} » sera ajoutée. Une fois faite, l’opération vaudra bien ${formatApiAmount(centsToApi(cents))} €.`;
+    return `Une correction de ${formatEuroAmount(centsToApi(Math.abs(gap)))} « argent ${sign} » sera ajoutée. Une fois faite, l’opération vaudra bien ${formatEuroAmount(centsToApi(cents))}.`;
   });
 
   protected async save(): Promise<void> {

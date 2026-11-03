@@ -82,10 +82,10 @@ describe('ProjectReport', () => {
     expect(text()).toContain('ce que vous aviez prévu');
     expect(text()).toContain('promis mais pas encore payé');
     expect(text()).toContain('Budget en vigueur : n° 2 — Budget voté.');
-    expect(cells('606')).toEqual(['606 — Achats', '1 000,00', '300,00', '200,00', '500,00']);
-    expect(cells('Total des dépenses')).toEqual(['Total des dépenses', '1 000,00', '300,00', '230,00', '470,00']);
-    expect(cells('706')).toEqual(['706 — Prestations', '800,00', '500,00', '300,00']);
-    expect(cells('Total des recettes')).toEqual(['Total des recettes', '800,00', '500,00', '300,00']);
+    expect(cells('606')).toEqual(['606 — Achats', '1 000,00 €', '300,00 €', '200,00 €', '500,00 €']);
+    expect(cells('Total des dépenses')).toEqual(['Total des dépenses', '1 000,00 €', '300,00 €', '230,00 €', '470,00 €']);
+    expect(cells('706')).toEqual(['706 — Prestations', '800,00 €', '500,00 €', '300,00 €']);
+    expect(cells('Total des recettes')).toEqual(['Total des recettes', '800,00 €', '500,00 €', '300,00 €']);
     expect(text()).toContain('Reste à recevoir');
   });
 
@@ -102,7 +102,7 @@ describe('ProjectReport', () => {
     expect(other).toHaveLength(1);
     expect(other[0]!.textContent).toContain('607 — Fournitures');
     expect(other[0]!.textContent).toContain('Compte non indiqué dans le budget');
-    expect(cells('607').slice(1)).toEqual(['—', '0,00', '30,00', '—']);
+    expect(cells('607').slice(1)).toEqual(['—', '0,00 €', '30,00 €', '—']);
   });
 
   it('dit « Dépassement » en toutes lettres quand le reste est négatif, sans se fier à la couleur', async () => {
@@ -111,7 +111,7 @@ describe('ProjectReport', () => {
     data.charges.total.remaining = '-120.00';
     await create(data);
     expect(root.querySelectorAll('.chip')).toHaveLength(2);
-    expect(cells('606')[4]).toBe('-120,00 Dépassement');
+    expect(cells('606')[4]).toBe('-120,00 € Dépassement');
   });
 
   it('sans budget en vigueur, affiche l’avertissement et aucun reste', async () => {
@@ -125,7 +125,7 @@ describe('ProjectReport', () => {
     );
     expect(text()).toContain("Aucun budget n'est en vigueur");
     expect(text()).not.toContain('Budget en vigueur :');
-    expect(cells('Total des dépenses')).toEqual(['Total des dépenses', '—', '0,00', '200,00', '—']);
+    expect(cells('Total des dépenses')).toEqual(['Total des dépenses', '—', '0,00 €', '200,00 €', '—']);
     expect(text()).toContain('Aucune recette prévue ni enregistrée');
   });
 

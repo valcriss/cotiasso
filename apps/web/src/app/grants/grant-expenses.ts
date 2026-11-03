@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { AdminApiService, type GrantExpenseInfo, type GrantExpensesInfo, type GrantInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
@@ -84,11 +84,11 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
         <p class="muted">Chargement…</p>
       } @else if (data(); as info) {
         <dl class="figures">
-          <div><dt>Accordé</dt><dd>{{ amount(info.granted) }} €</dd></div>
-          <div><dt>Dépenses affectées</dt><dd>{{ amount(info.spent) }} €</dd></div>
+          <div><dt>Accordé</dt><dd>{{ amount(info.granted) }}</dd></div>
+          <div><dt>Dépenses affectées</dt><dd>{{ amount(info.spent) }}</dd></div>
           <div>
             <dt>{{ info.overGranted ? 'Au-delà du montant accordé' : 'Encore affectable' }}</dt>
-            <dd>{{ info.overGranted ? amount(info.overBy) : amount(left(info)) }} €</dd>
+            <dd>{{ info.overGranted ? amount(info.overBy) : amount(left(info)) }}</dd>
           </div>
         </dl>
         @if (info.warnings.length > 0) {
@@ -168,7 +168,7 @@ export class GrantExpenses {
   protected readonly data = signal<GrantExpensesInfo | null>(null);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = (value: string | null) => (value === null ? '—' : formatApiAmount(value));
+  protected readonly amount = (value: string | null) => (value === null ? '—' : formatEuroAmount(value));
   /** Affecter une dépense lit des écritures comptables : il faut aussi pouvoir les consulter. */
   protected readonly editable = computed(() => {
     this.auth.permissions();

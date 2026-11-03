@@ -9,7 +9,7 @@ import {
   type JournalInfo,
 } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
-import { formatApiAmount } from './amount';
+import { formatEuroAmount } from './amount';
 import { ActionBar } from '../ui/action-bar';
 import { ExportLink } from '../reports/export-link';
 import { ReportFilters, type PeriodFilter } from './report-filters';
@@ -129,7 +129,7 @@ export class JournalBookPage {
   protected readonly error = signal<string | null>(null);
   protected journalId = '';
 
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 
   constructor() {
     void this.init();

@@ -15,7 +15,7 @@ import { RouterLink } from '@angular/router';
 import { ActionBar } from '../ui/action-bar';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
-import { formatApiAmount } from './amount';
+import { formatEuroAmount } from './amount';
 import { ENTRY_STATUS_LABELS } from './entry-editor';
 import { FrDatePipe } from '../ui/fr-date.pipe';
 import { Skeleton } from '../ui/skeleton';
@@ -140,7 +140,7 @@ export class EntriesPage {
   });
 
   protected readonly filters = this.fb.group({ fiscalYearId: [''], journalId: [''], status: [''] });
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 
   constructor() {
     void this.init();

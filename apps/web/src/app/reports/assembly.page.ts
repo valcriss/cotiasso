@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
 import { defaultYear } from '../accounting/report-filters';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import {
   AdminApiService,
   type BalanceSheetInfo,
@@ -94,9 +94,9 @@ import { StatementGroups } from './statements';
       <section class="panel" aria-label="Résumé">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">summarize</mat-icon><span>{{ year()?.label }} — le résumé</span></h3>
         <p class="summary">
-          Sur cette période, l’association a reçu {{ amount(incomeStatement.products) }} € et dépensé {{ amount(incomeStatement.charges) }} €.
+          Sur cette période, l’association a reçu {{ amount(incomeStatement.products) }} et dépensé {{ amount(incomeStatement.charges) }}.
           {{ resultSentence(incomeStatement.result) }}
-          À la fin de la période, il lui reste {{ amount(cash.totals.closing) }} € sur ses comptes de banque et de caisse.
+          À la fin de la période, il lui reste {{ amount(cash.totals.closing) }} sur ses comptes de banque et de caisse.
         </p>
         <p class="muted">Du {{ year()?.start | frDate }} au {{ year()?.end | frDate }}.</p>
         @if (incomeStatement.draftEntries > 0) {
@@ -118,11 +118,11 @@ import { StatementGroups } from './statements';
       <section class="panel" aria-label="Ce que l’association possède et doit">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">balance</mat-icon><span>Ce que l’association possède et doit (bilan)</span></h3>
         <app-statement-groups caption="Ce que l’association possède (actif)" [groups]="balance.assets" [yearLabel]="balance.fiscalYear.label" [previousLabel]="balance.previous?.label ?? null" />
-        <p class="total-line"><strong>Total de ce qu’elle possède : {{ amount(balance.totalAssets) }} €</strong></p>
+        <p class="total-line"><strong>Total de ce qu’elle possède : {{ amount(balance.totalAssets) }}</strong></p>
         <app-statement-groups caption="D’où cela vient (passif)" [groups]="balance.liabilities" [yearLabel]="balance.fiscalYear.label" [previousLabel]="balance.previous?.label ?? null" />
-        <p class="total-line"><strong>Total : {{ amount(balance.totalLiabilities) }} €</strong></p>
+        <p class="total-line"><strong>Total : {{ amount(balance.totalLiabilities) }}</strong></p>
         @if (!balance.balanced) {
-          <p class="alert" role="alert">Les deux totaux ne sont pas égaux (écart de {{ amount(balance.difference) }} €) : montrez ce bilan à votre expert-comptable avant de le présenter.</p>
+          <p class="alert" role="alert">Les deux totaux ne sont pas égaux (écart de {{ amount(balance.difference) }}) : montrez ce bilan à votre expert-comptable avant de le présenter.</p>
         }
       </section>
 
@@ -177,8 +177,8 @@ import { StatementGroups } from './statements';
                 @for (grant of list; track grant.id) {
                   <tr>
                     <td>{{ grant.funder.name }} — {{ grant.title }}</td>
-                    <td class="amount">{{ amount(grant.grantedAmount ?? '0.00') }} €</td>
-                    <td class="amount">{{ amount(grant.received) }} €</td>
+                    <td class="amount">{{ amount(grant.grantedAmount ?? '0.00') }}</td>
+                    <td class="amount">{{ amount(grant.received) }}</td>
                     <td>{{ grant.status === 'CLOSED' ? 'Terminée' : 'En cours' }}</td>
                   </tr>
                 }
@@ -206,7 +206,7 @@ export class AssemblyPage {
   private readonly api = inject(AdminApiService);
   private readonly auth = inject(AuthService);
 
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly years = signal<FiscalYearInfo[]>([]);
   protected readonly yearId = signal('');
   protected readonly year = computed(() => this.years().find((y) => y.id === this.yearId()) ?? null);
@@ -225,8 +225,8 @@ export class AssemblyPage {
 
   protected resultSentence(result: string): string {
     const cents = Number(result);
-    const abs = formatApiAmount(result.replace('-', ''));
-    return cents > 0 ? `Elle termine la période avec un excédent de ${abs} € (elle a reçu plus qu’elle n’a dépensé).` : cents < 0 ? `Elle termine la période avec un déficit de ${abs} € (elle a dépensé plus qu’elle n’a reçu).` : 'Elle termine la période à l’équilibre : autant reçu que dépensé.';
+    const abs = formatEuroAmount(result.replace('-', ''));
+    return cents > 0 ? `Elle termine la période avec un excédent de ${abs} (elle a reçu plus qu’elle n’a dépensé).` : cents < 0 ? `Elle termine la période avec un déficit de ${abs} (elle a dépensé plus qu’elle n’a reçu).` : 'Elle termine la période à l’équilibre : autant reçu que dépensé.';
   }
 
   protected print(): void {

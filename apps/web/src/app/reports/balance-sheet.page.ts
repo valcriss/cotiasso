@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { AdminApiService, type BalanceSheetInfo } from '../admin/admin-api.service';
 import { ActionBar } from '../ui/action-bar';
 import { NoPeriod } from '../ui/no-period';
@@ -60,7 +60,7 @@ import { Skeleton } from '../ui/skeleton';
       }
       @if (!sheet.balanced) {
         <p class="alert" role="alert">
-          L'actif et le passif ne sont pas égaux (écart de {{ amount(sheet.difference) }} €).
+          L'actif et le passif ne sont pas égaux (écart de {{ amount(sheet.difference) }}).
           @if (sheet.unclassified.length > 0) {
             {{ simple() ? 'Certains postes ne sont rangés dans aucune rubrique (à montrer à votre expert-comptable) :' : 'Des comptes de classe 8 ne rentrent dans aucune rubrique :' }}
             @for (account of sheet.unclassified; track account.number) {
@@ -69,7 +69,7 @@ import { Skeleton } from '../ui/skeleton';
           }
         </p>
       } @else {
-        <p class="success" role="status">Le bilan est équilibré : l'actif égale le passif ({{ amount(sheet.totalAssets) }} €).</p>
+        <p class="success" role="status">Le bilan est équilibré : l'actif égale le passif ({{ amount(sheet.totalAssets) }}).</p>
       }
       @if (!sheet.previous) {
         <p class="muted">{{ simple() ? 'Il n’y a pas de période précédente : la colonne de comparaison est absente.' : 'Aucun exercice précédent : la colonne de comparaison est absente.' }}</p>
@@ -77,19 +77,19 @@ import { Skeleton } from '../ui/skeleton';
       <section class="panel">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">account_balance_wallet</mat-icon><span>Actif</span></h3>
         <app-statement-groups caption="Actif" [groups]="sheet.assets" [yearLabel]="sheet.fiscalYear.label" [previousLabel]="sheet.previous?.label ?? null" />
-        <p class="total-line"><strong>Total de l'actif : {{ amount(sheet.totalAssets) }} €</strong>@if (sheet.previousTotalAssets !== null) { <span class="muted"> (précédent : {{ amount(sheet.previousTotalAssets) }} €)</span> }</p>
+        <p class="total-line"><strong>Total de l'actif : {{ amount(sheet.totalAssets) }}</strong>@if (sheet.previousTotalAssets !== null) { <span class="muted"> (précédent : {{ amount(sheet.previousTotalAssets) }})</span> }</p>
       </section>
       <section class="panel">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">savings</mat-icon><span>Passif</span></h3>
         <app-statement-groups caption="Passif" [groups]="sheet.liabilities" [yearLabel]="sheet.fiscalYear.label" [previousLabel]="sheet.previous?.label ?? null" />
-        <p class="total-line"><strong>Total du passif : {{ amount(sheet.totalLiabilities) }} €</strong>@if (sheet.previousTotalLiabilities !== null) { <span class="muted"> (précédent : {{ amount(sheet.previousTotalLiabilities) }} €)</span> }</p>
+        <p class="total-line"><strong>Total du passif : {{ amount(sheet.totalLiabilities) }}</strong>@if (sheet.previousTotalLiabilities !== null) { <span class="muted"> (précédent : {{ amount(sheet.previousTotalLiabilities) }})</span> }</p>
       </section>
     }
   `,
 })
 export class BalanceSheetPage extends StatementPageBase<BalanceSheetInfo> {
   protected readonly api = inject(AdminApiService);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 
   constructor() {
     super();

@@ -9,7 +9,7 @@ import { describeHttpError } from '../auth/error-messages';
 import { ActionBar } from '../ui/action-bar';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
-import { formatApiAmount } from './amount';
+import { formatEuroAmount } from './amount';
 import { ThirdPartyDialog } from './third-party-dialog';
 
 const KIND_LABELS: Record<ThirdPartyKindInfo, string> = {
@@ -91,23 +91,23 @@ const KIND_LABELS: Record<ThirdPartyKindInfo, string> = {
                     {{ row.name }} <span class="chip">{{ kindLabel(row.kind) }}</span>
                     <div class="detail">{{ accountsOf(row) }}</div>
                   </th>
-                  <td class="amount">{{ row.owedToYou === '0.00' ? '' : format(row.owedToYou) + ' €' }}</td>
-                  <td class="amount">{{ row.youOwe === '0.00' ? '' : format(row.youOwe) + ' €' }}</td>
+                  <td class="amount">{{ row.owedToYou === '0.00' ? '' : format(row.owedToYou) }}</td>
+                  <td class="amount">{{ row.youOwe === '0.00' ? '' : format(row.youOwe) }}</td>
                 </tr>
               }
             </tbody>
             <tfoot>
               <tr>
                 <th scope="row">Total</th>
-                <td class="amount">{{ format(data.totals.owedToYou) }} €</td>
-                <td class="amount">{{ format(data.totals.youOwe) }} €</td>
+                <td class="amount">{{ format(data.totals.owedToYou) }}</td>
+                <td class="amount">{{ format(data.totals.youOwe) }}</td>
               </tr>
             </tfoot>
           </table>
         }
         @if (data.untracked.lines > 0) {
           <p class="muted">
-            {{ data.untracked.lines }} ligne(s) de comptes de tiers n’ont pas de tiers indiqué ({{ format(data.untracked.net) }} € au total, positif
+            {{ data.untracked.lines }} ligne(s) de comptes de tiers n’ont pas de tiers indiqué ({{ format(data.untracked.net) }} au total, positif
             = on vous doit). Elles ne sont pas dans ce tableau : indiquez « Qui ? » dans l’écriture pour les y faire apparaître.
           </p>
         }
@@ -172,7 +172,7 @@ export class ThirdPartiesPage {
   }
 
   protected format(value: string): string {
-    return formatApiAmount(value);
+    return formatEuroAmount(value);
   }
 
   protected accountsOf(row: { accounts: { number: string; label: string }[] }): string {

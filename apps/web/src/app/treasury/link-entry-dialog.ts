@@ -4,7 +4,7 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type EntryCandidateInfo, type TransactionInfo } from '../admin/admin-api.service';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
 import { FrDatePipe } from '../ui/fr-date.pipe';
@@ -33,7 +33,7 @@ export interface LinkEntryDialogData {
         } @else if (candidates().length === 0) {
           <p class="muted">
             Aucune écriture ne correspond à cette transaction : il faut une écriture dont la ligne de banque est de
-            {{ amount(data.transaction.amount) }} € sur ce compte. Utilisez plutôt « Comptabiliser » pour en préparer une.
+            {{ amount(data.transaction.amount) }} sur ce compte. Utilisez plutôt « Comptabiliser » pour en préparer une.
           </p>
         } @else {
           <mat-form-field appearance="outline">
@@ -65,7 +65,7 @@ export class LinkEntryDialog {
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly description =
     "Vous avez déjà saisi l'écriture de ce mouvement ? Reliez-la à la transaction : elles seront considérées comme un seul et même mouvement, sans doublon.";
   protected readonly form = this.fb.group({ entryId: [''] });

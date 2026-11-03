@@ -5,7 +5,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type BudgetReportInfo, type BudgetReportRowInfo, type ProjectInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { ExportLink } from '../reports/export-link';
-import { formatApiAmount } from './amount';
+import { formatEuroAmount } from './amount';
 import { ThemeService } from '../theme/theme.service';
 
 /**
@@ -187,7 +187,7 @@ export class ProjectReport {
   }
 
   protected amount(value: string | null): string {
-    return value === null ? '—' : formatApiAmount(value);
+    return value === null ? '—' : formatEuroAmount(value);
   }
 
   protected over(value: BudgetReportRowInfo['remaining']): boolean {

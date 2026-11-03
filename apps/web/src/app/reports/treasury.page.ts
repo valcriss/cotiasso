@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { AdminApiService, type TreasuryStatementInfo } from '../admin/admin-api.service';
 import { ActionBar } from '../ui/action-bar';
 import { NoPeriod } from '../ui/no-period';
@@ -120,7 +120,7 @@ import { Skeleton } from '../ui/skeleton';
 })
 export class TreasuryStatementPage extends StatementPageBase<TreasuryStatementInfo> {
   protected readonly api = inject(AdminApiService);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 
   constructor() {
     super();

@@ -8,7 +8,7 @@ import { AdminApiService, type AccountInfo, type CommitmentInfo, type EntryCandi
 import { describeHttpError } from '../auth/error-messages';
 import { todayLocalIso } from '../ui/dates';
 import { FormDialog } from '../ui/form-dialog';
-import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from './amount';
+import { centsToApi, formatEuroAmount, formatCents, parseAmountToCents } from './amount';
 import { DateField } from '../ui/date-field';
 import { formatDate } from '../ui/dates';
 
@@ -206,7 +206,7 @@ export class CommitmentSettleDialog {
 
   protected label(candidate: EntryCandidateInfo): string {
     const number = candidate.number === null ? '' : ` n° ${candidate.number}`;
-    return `${candidate.journalCode}${number} · ${formatDate(candidate.date)} · ${candidate.label} — ${formatApiAmount(candidate.projectAmount)} € sur ce projet`;
+    return `${candidate.journalCode}${number} · ${formatDate(candidate.date)} · ${candidate.label} — ${formatEuroAmount(candidate.projectAmount)} sur ce projet`;
   }
 
   protected async save(): Promise<void> {

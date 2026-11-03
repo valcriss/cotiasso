@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import type { CategorySplitBody, OperationCategoryInfo } from '../admin/admin-api.service';
-import { centsToApi, formatCents, parseAmountToCents } from '../accounting/amount';
+import { formatEuroCents, centsToApi, formatCents, parseAmountToCents } from '../accounting/amount';
 
 /** Une ligne de la répartition : la catégorie, le montant tel qu'écrit, et si la personne l'a saisi (sinon il se calcule). */
 export interface SplitRow {
@@ -165,11 +165,11 @@ function withAutoRemainder(rows: SplitRow[], total: number | null): SplitRow[] {
           @if (!(totalCents() !== null && totalCents()! > 0)) {
             <mat-icon fontSet="material-icons-outlined" aria-hidden="true">info</mat-icon> Indiquez d’abord le montant à répartir.
           } @else if (state().remaining === 0) {
-            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">check_circle</mat-icon> Tout le montant ({{ format(totalCents()!) }} €) est réparti.
+            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">check_circle</mat-icon> Tout le montant ({{ format(totalCents()!) }}) est réparti.
           } @else if (state().remaining > 0) {
-            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">error_outline</mat-icon> Reste à répartir : {{ format(state().remaining) }} € sur {{ format(totalCents()!) }} €
+            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">error_outline</mat-icon> Reste à répartir : {{ format(state().remaining) }} sur {{ format(totalCents()!) }}
           } @else {
-            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">error_outline</mat-icon> Trop réparti de {{ format(-state().remaining) }} € : le total ne doit pas dépasser {{ format(totalCents()!) }} €
+            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">error_outline</mat-icon> Trop réparti de {{ format(-state().remaining) }} : le total ne doit pas dépasser {{ format(totalCents()!) }}
           }
         </span>
         <span>
@@ -223,7 +223,7 @@ export class CategoryField {
   readonly splits = model<SplitRow[] | null>(null);
 
   protected readonly maxRows = MAX_SPLIT_ROWS;
-  protected readonly format = formatCents;
+  protected readonly format = formatEuroCents;
   protected readonly state = computed(() => evaluateSplit(this.splits() ?? [], this.totalCents()));
 
   constructor() {

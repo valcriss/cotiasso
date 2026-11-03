@@ -6,7 +6,7 @@ import { firstValueFrom } from 'rxjs';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from '../accounting/amount';
+import { centsToApi, formatEuroAmount, formatEuroCents, parseAmountToCents } from '../accounting/amount';
 import { defaultYear } from '../accounting/report-filters';
 import { AdminApiService, type ComparedRowInfo, type FiscalYearInfo, type IncomeStatementInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
@@ -90,14 +90,14 @@ interface BudgetState {
                     @for (row of group.rows; track row.code) {
                       <tr>
                         <th scope="row">{{ row.label }}</th>
-                        <td><input matInput inputmode="decimal" [attr.aria-label]="'Montant estimé · ' + row.label"
+                        <td><input matInput inputmode="decimal" [attr.aria-label]="'Montant estimé en euros · ' + row.label"
                           [name]="row.code" [ngModel]="estimates()[row.code] ?? ''"
                           (ngModelChange)="updateEstimate(row.code, $event)" [readonly]="!canEdit()" (blur)="save(row)" placeholder="0,00" /></td>
-                        <td>{{ formatAmount(group.direction === -1 ? reverseSign(row.amount) : row.amount) }} €</td>
+                        <td>{{ formatAmount(group.direction === -1 ? reverseSign(row.amount) : row.amount) }}</td>
                         <td>
                           @let gap = difference(row.amount, estimates()[row.code], group.direction);
                           @if (gap !== null) {
-                            <span [class.positive]="gap > 0" [class.negative]="gap < 0">{{ gap > 0 ? "+" : "" }}{{ formatCents(gap) }} €</span>
+                            <span [class.positive]="gap > 0" [class.negative]="gap < 0">{{ gap > 0 ? "+" : "" }}{{ formatEuroCents(gap) }}</span>
                           } @else { — }
                         </td>
                       </tr>
@@ -107,11 +107,11 @@ interface BudgetState {
                     @let total = totals(group.rows, group.direction);
                     <tr>
                       <th scope="row">{{ group.direction === 1 ? 'Total des recettes' : 'Total des dépenses' }}</th>
-                      <td>{{ total.estimated === null ? '—' : formatCents(total.estimated) + ' €' }}</td>
-                      <td>{{ formatCents(total.actual) }} €</td>
+                      <td>{{ total.estimated === null ? '—' : formatEuroCents(total.estimated) }}</td>
+                      <td>{{ formatEuroCents(total.actual) }}</td>
                       <td>
                         @if (total.gap !== null) {
-                          <span [class.positive]="total.gap > 0" [class.negative]="total.gap < 0">{{ total.gap > 0 ? "+" : "" }}{{ formatCents(total.gap) }} €</span>
+                          <span [class.positive]="total.gap > 0" [class.negative]="total.gap < 0">{{ total.gap > 0 ? "+" : "" }}{{ formatEuroCents(total.gap) }}</span>
                         } @else { — }
                       </td>
                     </tr>
@@ -134,11 +134,11 @@ interface BudgetState {
                 </tr></thead>
                 <tfoot><tr>
                   <th scope="row">Résultat de l’exercice (recettes moins dépenses)</th>
-                  <td>{{ result.estimated === null ? '—' : formatCents(result.estimated) + ' €' }}</td>
-                  <td>{{ formatCents(result.actual) }} €</td>
+                  <td>{{ result.estimated === null ? '—' : formatEuroCents(result.estimated) }}</td>
+                  <td>{{ formatEuroCents(result.actual) }}</td>
                   <td>
                     @if (result.gap !== null) {
-                      <span [class.positive]="result.gap > 0" [class.negative]="result.gap < 0">{{ result.gap > 0 ? "+" : "" }}{{ formatCents(result.gap) }} €</span>
+                      <span [class.positive]="result.gap > 0" [class.negative]="result.gap < 0">{{ result.gap > 0 ? "+" : "" }}{{ formatEuroCents(result.gap) }}</span>
                     } @else { — }
                   </td>
                 </tr></tfoot>
@@ -164,8 +164,8 @@ interface BudgetState {
                           <td>{{ change.date | date:"dd/MM/yyyy 'à' HH:mm" }}</td>
                           <td>{{ change.actor }}</td>
                           <td>{{ historyCategory(change.label, change.code) }}</td>
-                          <td>{{ formatAmount(change.previous) }} €</td>
-                          <td>{{ formatAmount(change.amount) }} €</td>
+                          <td>{{ formatAmount(change.previous) }}</td>
+                          <td>{{ formatAmount(change.amount) }}</td>
                         </tr>
                       }
                     </tbody>
@@ -198,7 +198,7 @@ export class BudgetPage {
   readonly error = signal('');
   readonly feedback = signal('');
   readonly estimates = signal<Record<string, string>>({});
-  readonly formatAmount = formatApiAmount;
+  readonly formatAmount = formatEuroAmount;
   readonly groups = computed(() => {
     const sections = this.statement()?.sections ?? [];
     return [
@@ -217,7 +217,7 @@ export class BudgetPage {
     this.feedback.set('');
   }
 
-  readonly formatCents = formatCents;
+  readonly formatEuroCents = formatEuroCents;
 
   reverseSign(amount: string): string {
     return amount.startsWith('-') ? amount.slice(1) : '-' + amount;

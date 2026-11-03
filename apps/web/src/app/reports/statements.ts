@@ -1,5 +1,5 @@
 import { Component, input } from '@angular/core';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import type { ComparedGroupInfo } from '../admin/admin-api.service';
 
 /**
@@ -69,6 +69,7 @@ import type { ComparedGroupInfo } from '../admin/admin-api.service';
           </tr>
         </tbody>
       }
+      <ng-content select="tfoot" />
     </table>
   `,
 })
@@ -78,5 +79,5 @@ export class StatementGroups {
   readonly yearLabel = input.required<string>();
   /** Libellé de la colonne N−1, ou `null` quand il n'y a pas d'exercice précédent. */
   readonly previousLabel = input<string | null>(null);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 }

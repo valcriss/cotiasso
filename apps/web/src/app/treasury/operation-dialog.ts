@@ -6,12 +6,13 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type FinancialAccountInfo, type FiscalYearInfo, type GuidedOperationResult, type OperationCategoryInfo, type ProjectInfo } from '../admin/admin-api.service';
-import { centsToApi, formatCents, parseAmountToCents } from '../accounting/amount';
+import { formatEuroCents, centsToApi, formatCents, parseAmountToCents } from '../accounting/amount';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { formatDate, todayLocalIso } from '../ui/dates';
 import { ThemeService } from '../theme/theme.service';
 import { FormDialog } from '../ui/form-dialog';
+import { FileDropzone } from '../ui/file-dropzone';
 import { CategoryField, evaluateSplit, type SplitRow } from './category-field';
 import { DateField } from '../ui/date-field';
 import { OperationLink, type LinkPick, type LinkTarget } from './operation-link';
@@ -47,7 +48,7 @@ export interface OperationDialogData {
  */
 @Component({
   selector: 'app-operation-dialog',
-  imports: [CategoryField, DateField, ReactiveFormsModule, FormDialog, OperationLink, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [CategoryField, DateField, FileDropzone, ReactiveFormsModule, FormDialog, OperationLink, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -102,9 +103,11 @@ export interface OperationDialogData {
         @if (canAttach()) {
           <div class="attach">
             <label class="muted" for="operation-attachment">{{ incoming ? 'Joindre un justificatif (photo ou PDF) — facultatif' : 'Joindre la facture ou le ticket (photo ou PDF) — facultatif' }}</label>
-            <input id="operation-attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf" [disabled]="busy()" (change)="pickFile($event)" />
-            @if (attachment(); as picked) {
-              <span class="muted">{{ picked.name }} <button type="button" class="link" (click)="clearFile()">Retirer</button></span>
+            <app-file-dropzone inputId="operation-attachment" label="Choisir un justificatif"
+              accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf" formats="PDF, PNG, JPG"
+              [strict]="false" [disabled]="busy()" [fileName]="attachment()?.name ?? ''" (picked)="pickFile($event)" />
+            @if (attachment()) {
+              <button type="button" class="link" [disabled]="busy()" (click)="clearFile()">Retirer le fichier</button>
             }
             <span class="muted">Le fichier reste sur votre serveur, relié à cette opération. 25 Mo au plus.</span>
             @if (attachmentProblem(); as problem) {
@@ -157,8 +160,8 @@ export interface OperationDialogData {
                 @for (line of lines; track line.account) {
                   <tr>
                     <td>{{ line.account }}</td>
-                    <td class="amount">{{ line.debit }}</td>
-                    <td class="amount">{{ line.credit }}</td>
+                    <td class="amount">{{ line.debit ? line.debit + ' €' : '' }}</td>
+                    <td class="amount">{{ line.credit ? line.credit + ' €' : '' }}</td>
                   </tr>
                 }
               </tbody>
@@ -249,12 +252,8 @@ export class OperationDialog {
   protected readonly attachment = signal<File | null>(null);
   protected readonly attachmentProblem = signal<string | null>(null);
 
-  protected pickFile(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
-    input.value = '';
+  protected pickFile(file: File): void {
     this.attachmentProblem.set(null);
-    if (!file) return;
     const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
     if (!ATTACHMENT_EXTENSIONS.includes(extension)) {
       this.attachment.set(null);
@@ -360,17 +359,17 @@ export class OperationDialog {
         .map((row) => ({ label: this.choices.find((c) => c.id === row.categoryId)?.label, cents: parseAmountToCents(row.amount) }))
         .filter((part): part is { label: string; cents: number } => !!part.label && part.cents !== null && part.cents > 0);
       if (!account || cents === null || cents <= 0 || parts.length === 0) return '';
-      const list = parts.map((part) => `« ${part.label} » (${formatCents(part.cents)} €)`).join(', ');
+      const list = parts.map((part) => `« ${part.label} » (${formatEuroCents(part.cents)})`).join(', ');
       return this.incoming
-        ? `${formatCents(cents)} € arriveront sur « ${account.name} » et seront répartis entre : ${list}.`
-        : `${formatCents(cents)} € sortiront de « ${account.name} » et seront répartis entre : ${list}.`;
+        ? `${formatEuroCents(cents)} arriveront sur « ${account.name} » et seront répartis entre : ${list}.`
+        : `${formatEuroCents(cents)} sortiront de « ${account.name} » et seront répartis entre : ${list}.`;
     }
     const category = this.selectedCategory();
     if (!account || !category || cents === null || cents <= 0) return '';
-    const amount = formatCents(cents);
+    const amount = formatEuroCents(cents);
     return this.incoming
-      ? `${amount} € arriveront sur « ${account.name} » et seront classés dans « ${category.label} ».`
-      : `${amount} € sortiront de « ${account.name} » et seront classés dans « ${category.label} ».`;
+      ? `${amount} arriveront sur « ${account.name} » et seront classés dans « ${category.label} ».`
+      : `${amount} sortiront de « ${account.name} » et seront classés dans « ${category.label} ».`;
   });
 
   /** Rattachement choisi (cotisation ou subvention) ; `null` quand la personne n'en veut pas. */

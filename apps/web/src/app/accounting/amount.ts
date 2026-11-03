@@ -34,10 +34,19 @@ export function formatApiAmount(value: string): string {
   return negative && cents !== 0 ? `-${formatCents(cents)}` : formatCents(cents);
 }
 
-/** Solde (débit − crédit) de l'API en affichage français, avec son sens : « 1 180,00 D » ou « 300,00 C ». */
+/** Solde (débit − crédit) de l'API en affichage français, avec son sens : « 1 180,00 € D » ou « 300,00 € C ». */
 export function formatBalance(value: string): string {
   const cents = parseAmountToCents(value.replace(/^-/, ''));
   if (cents === null) return value;
-  if (cents === 0) return formatCents(0);
-  return `${formatCents(cents)} ${value.startsWith('-') ? 'C' : 'D'}`;
+  if (cents === 0) return formatEuroCents(0);
+  return `${formatEuroCents(cents)} ${value.startsWith('-') ? 'C' : 'D'}`;
+}
+
+/** Montant en euros pour la lecture, au format français. */
+export function formatEuroAmount(value: string): string {
+  return formatApiAmount(value) + ' €';
+}
+
+export function formatEuroCents(cents: number): string {
+  return formatCents(cents) + ' €';
 }

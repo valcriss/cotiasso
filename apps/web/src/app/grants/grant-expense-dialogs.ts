@@ -8,7 +8,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { startWith } from 'rxjs';
 import { AdminApiService, type ExpenseCandidateInfo, type GrantExpensesInfo, type GrantInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
-import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from '../accounting/amount';
+import { centsToApi, formatEuroAmount, formatCents, parseAmountToCents } from '../accounting/amount';
 import { FormDialog } from '../ui/form-dialog';
 import { FrDatePipe } from '../ui/fr-date.pipe';
 import { formatDate } from '../ui/dates';
@@ -68,7 +68,7 @@ const positive = (control: { value: string }) => {
             <mat-label>Part prise en charge par la subvention (€)</mat-label>
             <input matInput inputmode="decimal" formControlName="amount" autocomplete="off" required />
             @if (selected(); as chosen) {
-              <mat-hint>Disponible sur cette dépense : {{ amount(chosen.remaining) }} € (sur {{ amount(chosen.amount) }} €).</mat-hint>
+              <mat-hint>Disponible sur cette dépense : {{ amount(chosen.remaining) }} (sur {{ amount(chosen.amount) }}).</mat-hint>
             }
             @if (form.controls.amount.hasError('required') || form.controls.amount.hasError('amount')) {
               <mat-error>Saisissez un montant positif, par exemple 250 ou 120,50.</mat-error>
@@ -96,7 +96,7 @@ export class GrantExpenseDialog {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly details = signal<string[]>([]);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly form = this.fb.group({
     allocationId: ['', [Validators.required]],
     amount: ['', [Validators.required, positive]],
@@ -123,7 +123,7 @@ export class GrantExpenseDialog {
 
   protected label(candidate: ExpenseCandidateInfo): string {
     const number = candidate.entry.number === null ? '' : ` n° ${candidate.entry.number}`;
-    return `${formatDate(candidate.entry.date)} · ${candidate.entry.label} (${candidate.entry.journalCode}${number}) · ${candidate.account.number} ${candidate.account.label} · ${candidate.project.code} — ${formatApiAmount(candidate.remaining)} € libres`;
+    return `${formatDate(candidate.entry.date)} · ${candidate.entry.label} (${candidate.entry.journalCode}${number}) · ${candidate.account.number} ${candidate.account.label} · ${candidate.project.code} — ${formatEuroAmount(candidate.remaining)} libres`;
   }
 
   protected async save(): Promise<void> {

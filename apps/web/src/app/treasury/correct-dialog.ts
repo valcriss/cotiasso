@@ -5,7 +5,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type CorrectOperationBody, type GuidedOperationResult, type OperationCategoryInfo, type ProjectInfo, type TransactionInfo } from '../admin/admin-api.service';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
 import { FrDatePipe } from '../ui/fr-date.pipe';
@@ -38,7 +38,7 @@ export interface CorrectDialogData {
       >
         <p class="summary">
           <strong>{{ data.transaction.label }}</strong><br />
-          <span class="muted">{{ data.transaction.operationDate | frDate }} · {{ amount(data.transaction.amount) }} € · {{ data.accountName }}</span>
+          <span class="muted">{{ data.transaction.operationDate | frDate }} · {{ amount(data.transaction.amount) }} · {{ data.accountName }}</span>
         </p>
         <mat-form-field appearance="outline">
           <mat-label>{{ incoming ? 'D’où vient cet argent ?' : 'À quoi a servi cet argent ?' }}</mat-label>
@@ -77,7 +77,7 @@ export class CorrectDialog {
   private readonly reference = inject<MatDialogRef<CorrectDialog, GuidedOperationResult>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<CorrectDialogData>(MAT_DIALOG_DATA);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 
   protected readonly incoming = !this.data.transaction.amount.startsWith('-');
   protected readonly choices = this.data.categories.filter((c) => c.active && c.direction === (this.incoming ? 'IN' : 'OUT'));

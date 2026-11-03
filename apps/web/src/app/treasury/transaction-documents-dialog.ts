@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { LinkedDocuments } from '../documents/linked-documents';
 import type { TransactionInfo } from '../admin/admin-api.service';
 
@@ -23,7 +23,7 @@ export interface TransactionDocumentsDialogData {
     <mat-dialog-content>
       <p class="help">
         <strong>{{ data.transaction.label }}</strong><br />
-        <span class="muted">{{ data.transaction.operationDate }} · {{ amount(data.transaction.amount) }} €</span>
+        <span class="muted">{{ data.transaction.operationDate }} · {{ amount(data.transaction.amount) }}</span>
       </p>
       <app-linked-documents objectType="transaction" [objectId]="data.transaction.id" [name]="data.transaction.label" [canDeposit]="data.canDeposit" />
     </mat-dialog-content>
@@ -34,5 +34,5 @@ export interface TransactionDocumentsDialogData {
 })
 export class TransactionDocumentsDialog {
   protected readonly data = inject<TransactionDocumentsDialogData>(MAT_DIALOG_DATA);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 }

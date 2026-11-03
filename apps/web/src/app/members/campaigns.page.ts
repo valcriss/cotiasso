@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { AdminApiService, type BulkEnrollInfo, type CampaignInfo, type MemberCategoryInfo, type MemberInfo, type MembershipInfo, type ReminderInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { BrandingService } from '../branding/branding.service';
@@ -114,7 +114,7 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
                 <tr>
                   <td>{{ tariff.label }}</td>
                   <td>{{ tariff.categoryName ?? 'Toutes' }}</td>
-                  <td class="amount">{{ amount(tariff.amount) }} €</td>
+                  <td class="amount">{{ amount(tariff.amount) }}</td>
                   <td class="row-actions">
                     @if (canManage()) {
                       <button mat-button type="button" [attr.aria-label]="'Modifier le tarif ' + tariff.label" (click)="editTariff(campaign, tariff)">Modifier</button>
@@ -153,7 +153,7 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
               <p class="success" role="status">Toutes les cotisations de cette saison sont réglées.</p>
             } @else {
               <p>
-                <strong>{{ due.items.length }}</strong> cotisation(s) restent à payer, pour un total de <strong>{{ amount(due.totalDue) }} €</strong>.
+                <strong>{{ due.items.length }}</strong> cotisation(s) restent à payer, pour un total de <strong>{{ amount(due.totalDue) }}</strong>.
                 <a mat-button [href]="'/api/campaigns/' + campaign.id + '/reminders/csv'" download>Exporter la liste (CSV)</a>
               </p>
               @if (emails(due).length > 0) {
@@ -176,7 +176,7 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
               }
               <ul>
                 @for (item of due.items; track item.membership.id) {
-                  <li>{{ item.membership.memberName }} — {{ amount(item.membership.balance) }} €@if (item.email) { · {{ item.email }} }@if (item.phone) { · {{ item.phone }} }</li>
+                  <li>{{ item.membership.memberName }} — {{ amount(item.membership.balance) }}@if (item.email) { · {{ item.email }} }@if (item.phone) { · {{ item.phone }} }</li>
                 }
               </ul>
             }
@@ -208,15 +208,15 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
                       <div class="muted">{{ membership.exemptionReason }}</div>
                     }
                   </td>
-                  <td class="amount">{{ amount(membership.expectedAmount) }} €</td>
-                  <td class="amount">{{ amount(membership.paid) }} €</td>
+                  <td class="amount">{{ amount(membership.expectedAmount) }}</td>
+                  <td class="amount">{{ amount(membership.paid) }}</td>
                   <td class="amount" [class.danger-text]="membership.overpaid || (membership.status !== 'CANCELLED' && membership.balance !== '0.00')">
                     @if (membership.status === 'CANCELLED') {
                       —
                     } @else if (membership.overpaid) {
-                      Trop-perçu {{ amount(membership.balance.replace('-', '')) }} €
+                      Trop-perçu {{ amount(membership.balance.replace('-', '')) }}
                     } @else {
-                      {{ amount(membership.balance) }} €
+                      {{ amount(membership.balance) }}
                     }
                   </td>
                   <td>
@@ -266,7 +266,7 @@ export class CampaignsPage {
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly canManage = computed(() => {
     this.auth.permissions();
     return this.auth.can('members:manage');
@@ -354,7 +354,7 @@ export class CampaignsPage {
     if (!result) return;
     await this.refresh();
     const skipped = result.skipped.length > 0 ? ` ${result.skipped.length} membre(s) étaient déjà inscrits et n’ont pas été modifiés.` : '';
-    this.notifier.success(`${result.created} cotisation(s) créée(s), pour un total attendu de ${formatApiAmount(result.expectedTotal)} €.${skipped}`);
+    this.notifier.success(`${result.created} cotisation(s) créée(s), pour un total attendu de ${formatEuroAmount(result.expectedTotal)}.${skipped}`);
   }
 
   protected async newCampaign(): Promise<void> {

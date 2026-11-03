@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { AdminApiService, type FiscalYearInfo, type TrialBalanceInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
-import { formatApiAmount } from './amount';
+import { formatEuroAmount } from './amount';
 import { ActionBar } from '../ui/action-bar';
 import { ExportLink } from '../reports/export-link';
 import { ReportFilters, type PeriodFilter } from './report-filters';
@@ -111,7 +111,7 @@ export class TrialBalancePage {
   protected readonly filtered = signal(false);
   protected prefix = '';
 
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 
   constructor() {
     void this.init();

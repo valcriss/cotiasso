@@ -8,7 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
-import { centsToApi, formatApiAmount, parseAmountToCents } from '../accounting/amount';
+import { centsToApi, formatEuroAmount, parseAmountToCents } from '../accounting/amount';
 import { AdminApiService, type PaymentAllocationInfo, type MembershipInfo, type PaymentCandidateInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
@@ -118,12 +118,12 @@ export class CancelAllocationDialog {
         comptes, la cotisation est suivie ici mais n'apparaît pas encore dans vos comptes.
       </p>
       <div class="figures">
-        <span>Attendu : <strong>{{ amount(membership().expectedAmount) }} €</strong></span>
-        <span>Payé : <strong>{{ amount(membership().paid) }} €</strong></span>
+        <span>Attendu : <strong>{{ amount(membership().expectedAmount) }}</strong></span>
+        <span>Payé : <strong>{{ amount(membership().paid) }}</strong></span>
         @if (membership().overpaid) {
-          <span class="danger-text">Trop-perçu : <strong>{{ amount(overpayment()) }} €</strong> à rembourser ou à imputer</span>
+          <span class="danger-text">Trop-perçu : <strong>{{ amount(overpayment()) }}</strong> à rembourser ou à imputer</span>
         } @else {
-          <span>Reste dû : <strong>{{ amount(membership().balance) }} €</strong></span>
+          <span>Reste dû : <strong>{{ amount(membership().balance) }}</strong></span>
         }
       </div>
       @if (error(); as message) {
@@ -134,7 +134,7 @@ export class CancelAllocationDialog {
       @for (allocation of allocations(); track allocation.id) {
         <div class="alloc" [class.muted]="allocation.cancelled">
           <span>
-            {{ allocation.kind === 'REFUND' ? 'Remboursement' : 'Règlement' }} de {{ amount(allocation.amount) }} € · {{ allocation.transactionDate | frDate }} · {{ allocation.accountName }}
+            {{ allocation.kind === 'REFUND' ? 'Remboursement' : 'Règlement' }} de {{ amount(allocation.amount) }} · {{ allocation.transactionDate | frDate }} · {{ allocation.accountName }}
             @if (allocation.note) { · {{ allocation.note }} }
             @if (allocation.cancelled) { · annulé : {{ allocation.cancelReason }} }
           </span>
@@ -170,7 +170,7 @@ export class CancelAllocationDialog {
               <mat-label>Transaction</mat-label>
               <mat-select formControlName="transactionId" (selectionChange)="suggest()">
                 @for (candidate of candidates(); track candidate.id) {
-                  <mat-option [value]="candidate.id">{{ candidate.operationDate | frDate }} · {{ candidate.label }} · reste {{ amount(candidate.remaining) }} €</mat-option>
+                  <mat-option [value]="candidate.id">{{ candidate.operationDate | frDate }} · {{ candidate.label }} · reste {{ amount(candidate.remaining) }}</mat-option>
                 }
               </mat-select>
               @if (candidates().length === 0) {
@@ -210,7 +210,7 @@ export class PaymentsDialog {
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<PaymentsDialogData>(MAT_DIALOG_DATA);
   protected readonly Number = Number;
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 
   protected readonly membership = signal<MembershipInfo>(this.data.membership);
   protected readonly allocations = signal<PaymentAllocationInfo[]>([]);

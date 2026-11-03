@@ -1,3 +1,4 @@
+import { formatEuroAmount } from './amount';
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
@@ -104,7 +105,7 @@ export interface OpeningDialogData {
             <mat-label>Compte</mat-label>
             <mat-select formControlName="financialAccountId" required>
               @for (account of data.accounts; track account.id) {
-                <mat-option [value]="account.id">{{ account.name }} — {{ account.balances.opening }} € au {{ account.openedOn | frDate }}</mat-option>
+                <mat-option [value]="account.id">{{ account.name }} — {{ amount(account.balances.opening) }} au {{ account.openedOn | frDate }}</mat-option>
               }
             </mat-select>
           </mat-form-field>
@@ -131,6 +132,7 @@ export interface OpeningDialogData {
   `,
 })
 export class OpeningDialog {
+  protected readonly amount = formatEuroAmount;
   private readonly api = inject(AdminApiService);
   private readonly reference = inject<MatDialogRef<OpeningDialog, RecoveryItemInfo>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;

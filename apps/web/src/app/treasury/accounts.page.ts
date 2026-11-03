@@ -10,7 +10,7 @@ import {
   type ProjectInfo,
   type TransferInfo,
 } from '../admin/admin-api.service';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
@@ -252,7 +252,7 @@ import { Skeleton } from '../ui/skeleton';
             } @else if (account.reference) {
               <div class="muted">{{ account.reference }}</div>
             }
-            <div class="big">{{ amount(account.balances.computed) }} €</div>
+            <div class="big">{{ amount(account.balances.computed) }}</div>
             @if (simple()) {
               <div class="muted">Solde d’après vos enregistrements <app-help-hint term="solde" /></div>
               @if (account.balances.lastStatement; as statement) {
@@ -326,7 +326,7 @@ export class AccountsPage {
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 
   /**
    * L'écart est « relevé − enregistrements » : positif, la banque indique plus que ce qui est enregistré (il manque sans doute des
@@ -336,10 +336,10 @@ export class AccountsPage {
     const date = formatDate(statement.periodEnd);
     if (statement.gap === '0.00') return `Vos enregistrements correspondent au relevé du ${date}.`;
     const negative = statement.gap.startsWith('-');
-    const amount = formatApiAmount(negative ? statement.gap.slice(1) : statement.gap);
+    const amount = formatEuroAmount(negative ? statement.gap.slice(1) : statement.gap);
     return negative
-      ? `Au ${date}, votre banque indique ${amount} € de moins que vos enregistrements : un mouvement est peut-être en trop, ou n’a pas encore été débité.`
-      : `Au ${date}, votre banque indique ${amount} € de plus que vos enregistrements : il manque sans doute des mouvements.`;
+      ? `Au ${date}, votre banque indique ${amount} de moins que vos enregistrements : un mouvement est peut-être en trop, ou n’a pas encore été débité.`
+      : `Au ${date}, votre banque indique ${amount} de plus que vos enregistrements : il manque sans doute des mouvements.`;
   }
 
   protected readonly canAdmin = computed(() => {

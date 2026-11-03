@@ -86,7 +86,7 @@ describe('ProgressPage', () => {
     expect(cells[1]).toBe('30 / 40');
     expect(cells[2]).toBe('20 / 40');
     expect(cells[3]).toContain('10 / 40');
-    expect(cells[5]).toBe('À expliquer (1000.00 €)');
+    expect(cells[5]).toBe('À expliquer (1 000,00 €)');
     expect(text).toContain('Aucun relevé saisi');
     expect(root.querySelector('progress')!.getAttribute('max')).toBe('40');
     expect(root.textContent).toContain("Ce tableau ne modifie rien");

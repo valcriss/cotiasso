@@ -1,7 +1,7 @@
 import { Component, computed, input, output } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { formatApiAmount, parseAmountToCents } from '../accounting/amount';
+import { formatEuroAmount, parseAmountToCents } from '../accounting/amount';
 import type { GrantFinanceInfo, GrantInfo } from '../admin/admin-api.service';
 
 export type ProgressAction = 'allocate' | 'decide' | 'close';
@@ -134,10 +134,10 @@ export class GrantProgress {
         const received = parseAmountToCents(finance.received) ?? 0;
         const spent = parseAmountToCents(finance.spent) ?? 0;
         if (received < granted) {
-          return { text: `${formatApiAmount(finance.remaining ?? '0.00')} € restent à recevoir. Enregistrez chaque versement dès qu’il arrive sur le compte.` };
+          return { text: `${formatEuroAmount(finance.remaining ?? '0.00')} restent à recevoir. Enregistrez chaque versement dès qu’il arrive sur le compte.` };
         }
         if (spent < received) {
-          return { text: `${formatApiAmount(finance.residual)} € reçus ne sont pas encore justifiés par des dépenses. Affectez les dépenses du projet à cette subvention.` };
+          return { text: `${formatEuroAmount(finance.residual)} reçus ne sont pas encore justifiés par des dépenses. Affectez les dépenses du projet à cette subvention.` };
         }
         return { text: 'Tout l’argent reçu est justifié par des dépenses : vous pouvez clôturer la subvention.', action: { key: 'close', label: 'Clôturer la subvention' } };
       }

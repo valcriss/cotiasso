@@ -12,7 +12,7 @@ import {
   type ImportInfo,
   type ImportLineInfo,
 } from '../admin/admin-api.service';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { AuthService } from '../auth/auth.service';
 import { Notifier } from '../ui/notifier.service';
@@ -188,7 +188,7 @@ const LINK = 'LINK:';
 
         @if (b.ledgerBalance) {
           <mat-checkbox [checked]="recordStatement()" (change)="recordStatement.set($event.checked)">
-            Enregistrer aussi le solde du relevé ({{ amount(b.ledgerBalance) }} €@if (b.ledgerBalanceDate) {
+            Enregistrer aussi le solde du relevé ({{ amount(b.ledgerBalance) }}@if (b.ledgerBalanceDate) {
               au {{ b.ledgerBalanceDate | frDate }}
             })
           </mat-checkbox>
@@ -233,7 +233,7 @@ export class ImportPanel {
   protected readonly error = signal<string | null>(null);
   protected readonly recordStatement = signal(false);
   protected readonly link = LINK;
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 
   /** Décisions choisies : ligne → valeur. Les lignes nouvelles prennent « créer » par défaut, pas les rapprochements. */
   private readonly decisions = signal<Record<string, string>>({});

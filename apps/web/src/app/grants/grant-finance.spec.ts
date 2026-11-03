@@ -124,8 +124,8 @@ describe('GrantFinance', () => {
 
   it('liste les échéances avec leur état et signale celles en retard', async () => {
     await create(finance());
-    expect(cells(0, 0).slice(0, 5)).toEqual(['01/05/2026', 'À la signature', '300,00', '300,00', 'Reçu']);
-    expect(cells(0, 1).slice(0, 4)).toEqual(['01/11/2026', 'Après bilan', '400,00', '150,00']);
+    expect(cells(0, 0).slice(0, 5)).toEqual(['01/05/2026', 'À la signature', '300,00 €', '300,00 €', 'Reçu']);
+    expect(cells(0, 1).slice(0, 4)).toEqual(['01/11/2026', 'Après bilan', '400,00 €', '150,00 €']);
     expect(cells(0, 1)[4]).toContain('Partiellement reçu');
     expect(cells(0, 1)[4]).toContain('En retard');
     expect(cells(0, 0)[4]).not.toContain('En retard');
@@ -133,7 +133,7 @@ describe('GrantFinance', () => {
 
   it('liste les versements reçus et barre ceux qui sont annulés, avec leur motif', async () => {
     await create(finance({ payments: [payment(), payment({ id: 'pay3', cancelled: true, cancelReason: 'Rattaché par erreur', amount: '50.00', scheduleId: null })] }));
-    expect(cells(1, 0).slice(0, 3)).toEqual(['10/05/2026', '01/05/2026 — 300,00 €', '300,00']);
+    expect(cells(1, 0).slice(0, 3)).toEqual(['10/05/2026', '01/05/2026 — 300,00 €', '300,00 €']);
     expect(root.querySelectorAll('table')[1]!.querySelectorAll('tbody tr')[1]!.classList.contains('cancelled')).toBe(true);
     expect(text()).toContain('Annulé : Rattaché par erreur');
     // Un versement annulé n'a plus d'action.

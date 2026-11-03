@@ -7,7 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { startWith } from 'rxjs';
 import type { ProjectInfo } from '../admin/admin-api.service';
-import { formatCents } from '../accounting/amount';
+import { formatEuroCents } from '../accounting/amount';
 import { allocationTotalCents, newAllocationRow, type AllocationRow } from './allocation-rows';
 
 /**
@@ -75,15 +75,15 @@ import { allocationTotalCents, newAllocationRow, type AllocationRow } from './al
       </button>
     </div>
     <p class="summary" aria-live="polite">
-      Total réparti : <strong>{{ format(total()) }} €</strong>
+      Total réparti : <strong>{{ format(total()) }}</strong>
       @if (target(); as goal) {
-        · {{ goal.label }} : <strong>{{ format(goal.cents) }} €</strong> ·
+        · {{ goal.label }} : <strong>{{ format(goal.cents) }}</strong> ·
         @if (total() === goal.cents) {
           <strong>La répartition est complète.</strong>
         } @else if (total() < goal.cents) {
-          <strong>Il reste {{ format(goal.cents - total()) }} € à répartir.</strong>
+          <strong>Il reste {{ format(goal.cents - total()) }} à répartir.</strong>
         } @else {
-          <strong>La répartition dépasse de {{ format(total() - goal.cents) }} €.</strong>
+          <strong>La répartition dépasse de {{ format(total() - goal.cents) }}.</strong>
         }
       }
     </p>
@@ -96,7 +96,7 @@ export class AllocationsFields {
   readonly target = input<{ label: string; cents: number } | null>(null);
 
   protected readonly total = signal(0);
-  protected readonly format = formatCents;
+  protected readonly format = formatEuroCents;
 
   constructor() {
     effect((onCleanup) => {

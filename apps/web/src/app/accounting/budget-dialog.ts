@@ -18,7 +18,7 @@ import {
 } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
-import { centsToApi, formatCents, parseAmountToCents } from './amount';
+import { formatEuroCents, centsToApi, formatCents, parseAmountToCents } from './amount';
 import { BUDGET_KIND_LABELS } from './project-labels';
 import { DateField } from '../ui/date-field';
 
@@ -150,8 +150,8 @@ export type BudgetDialogData =
             </button>
           </div>
           <p class="totals" aria-live="polite">
-            Dépenses prévues : <strong>{{ format(totals().charges) }} €</strong> · Recettes prévues :
-            <strong>{{ format(totals().products) }} €</strong> · Résultat prévu : <strong>{{ format(totals().products - totals().charges) }} €</strong>
+            Dépenses prévues : <strong>{{ format(totals().charges) }}</strong> · Recettes prévues :
+            <strong>{{ format(totals().products) }}</strong> · Résultat prévu : <strong>{{ format(totals().products - totals().charges) }}</strong>
           </p>
         }
       </app-form-dialog>
@@ -169,7 +169,7 @@ export class BudgetDialog {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly details = signal<string[]>([]);
-  protected readonly format = formatCents;
+  protected readonly format = formatEuroCents;
   protected readonly budgetNumber = this.data.mode === 'edit' ? this.data.budget.number : 0;
 
   private readonly amountValidator = (control: { value: string }) => {

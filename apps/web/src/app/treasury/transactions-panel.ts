@@ -22,7 +22,7 @@ import {
   type TransactionInfo,
   type TransactionSuggestionInfo,
 } from '../admin/admin-api.service';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
@@ -506,7 +506,7 @@ export class TransactionsPanel {
   protected readonly loading = signal(true);
   protected readonly loadingMore = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
   private readonly categories = signal<OperationCategoryInfo[]>([]);
   private categoriesRequested = false;

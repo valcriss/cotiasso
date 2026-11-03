@@ -16,7 +16,7 @@ import { describeHttpError } from '../auth/error-messages';
 import { ActionBar } from '../ui/action-bar';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
-import { formatApiAmount } from './amount';
+import { formatEuroAmount } from './amount';
 import {
   BatchDialog,
   OpeningDialog,
@@ -149,7 +149,7 @@ type Report = { kind: 'prepare'; data: PrepareReportInfo } | { kind: 'post'; dat
             @if (current.data.skipped.length > 0) {
               <ul>
                 @for (skipped of current.data.skipped; track skipped.transactionId) {
-                  <li>{{ skipped.date | frDate }} · {{ skipped.label }} ({{ amount(skipped.amount) }} €) — {{ skipped.message }}</li>
+                  <li>{{ skipped.date | frDate }} · {{ skipped.label }} ({{ amount(skipped.amount) }}) — {{ skipped.message }}</li>
                 }
               </ul>
             }
@@ -241,7 +241,7 @@ export class RecoveryPage {
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
 
   protected readonly canWrite = computed(() => {
     this.auth.permissions();

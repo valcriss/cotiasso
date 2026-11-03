@@ -6,7 +6,7 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
-import { formatApiAmount } from './amount';
+import { formatEuroAmount } from './amount';
 import { CommitmentCancelDialog, CommitmentDialog, CommitmentSettleDialog } from './commitment-dialogs';
 import { FrDatePipe } from '../ui/fr-date.pipe';
 
@@ -153,7 +153,7 @@ export class ProjectCommitments {
     });
   }
 
-  protected amount = formatApiAmount;
+  protected amount = formatEuroAmount;
 
   protected stateLabel(state: CommitmentState): string {
     return STATE_LABELS[state];

@@ -13,7 +13,7 @@ import {
   type ReconciliationInfo,
   type StatementInfo,
 } from '../admin/admin-api.service';
-import { formatApiAmount } from '../accounting/amount';
+import { formatEuroAmount } from '../accounting/amount';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
@@ -121,24 +121,24 @@ import { Skeleton } from '../ui/skeleton';
         <dl class="figures">
           <div class="figure">
             <dt>Solde du relevé</dt>
-            <dd>{{ amount(rec.closingBalance) }} €</dd>
+            <dd>{{ amount(rec.closingBalance) }}</dd>
             <div class="hint">Le solde de fin indiqué par votre banque.</div>
           </div>
           <div class="figure">
             <dt>{{ simple() ? 'Solde vérifié' : 'Solde rapproché' }}</dt>
-            <dd>{{ amount(rec.pointedBalance) }} €</dd>
-            <div class="hint">{{ amount(rec.openingBalance) }} € au départ + {{ rec.pointedCount }} {{ simple() ? 'mouvement(s) coché(s)' : 'transaction(s) cochée(s)' }}</div>
+            <dd>{{ amount(rec.pointedBalance) }}</dd>
+            <div class="hint">{{ amount(rec.openingBalance) }} au départ + {{ rec.pointedCount }} {{ simple() ? 'mouvement(s) coché(s)' : 'transaction(s) cochée(s)' }}</div>
           </div>
           <div class="figure">
             <dt>Écart</dt>
-            <dd [class.gap-zero]="gapIsZero()" [class.danger-text]="!gapIsZero()">{{ amount(rec.gap) }} €</dd>
+            <dd [class.gap-zero]="gapIsZero()" [class.danger-text]="!gapIsZero()">{{ amount(rec.gap) }}</dd>
             <div class="hint">{{ gapIsZero() ? 'Ça tombe juste.' : 'Doit être à zéro pour valider.' }}</div>
           </div>
           <div class="figure">
             <dt>En circulation</dt>
             <dd>{{ rec.outstandingCount }}</dd>
             <div class="hint">
-              {{ amount(rec.outstandingTotal) }} € enregistrés mais pas sur ce relevé (chèque non débité, virement en route…).
+              {{ amount(rec.outstandingTotal) }} enregistrés mais pas sur ce relevé (chèque non débité, virement en route…).
             </div>
           </div>
         </dl>
@@ -249,7 +249,7 @@ import { Skeleton } from '../ui/skeleton';
               <mat-label>Relevé</mat-label>
               <mat-select formControlName="statementId" required>
                 @for (statement of available(); track statement.id) {
-                  <mat-option [value]="statement.id">Au {{ statement.periodEnd | frDate }} — solde {{ amount(statement.closingBalance) }} €</mat-option>
+                  <mat-option [value]="statement.id">Au {{ statement.periodEnd | frDate }} — solde {{ amount(statement.closingBalance) }}</mat-option>
                 }
               </mat-select>
             </mat-form-field>
@@ -273,7 +273,7 @@ import { Skeleton } from '../ui/skeleton';
                 } @else {
                   <span class="muted">Annulé (relevé du {{ rec.periodEnd | frDate }})</span>
                 }
-                · solde {{ amount(rec.closingBalance) }} €, {{ rec.pointedCount }} transaction(s)
+                · solde {{ amount(rec.closingBalance) }}, {{ rec.pointedCount }} transaction(s)
               </span>
               @if (rec.id === lastValidatedId() && !current() && canWrite()) {
                 <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler le rapprochement du ' + (rec.periodEnd | frDate)" [disabled]="busy()" (click)="cancel(rec)">
@@ -304,7 +304,7 @@ export class ReconciliationPage {
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly startForm = this.fb.group({ statementId: [''] });
 
   protected readonly canWrite = computed(() => {
@@ -371,8 +371,8 @@ export class ReconciliationPage {
     const confirmed = await this.dialogs.confirm({
       title: this.simple() ? 'Valider cette vérification ?' : 'Valider ce rapprochement ?',
       message: this.simple()
-        ? `Le compte sera déclaré vérifié avec le relevé du ${formatDate(rec.periodEnd)} (solde ${this.amount(rec.closingBalance)} €). Les ${rec.pointedCount} mouvements cochés ne pourront plus être modifiés ni supprimés. En cas d’erreur, vous pourrez annuler cette vérification tant qu’elle est la dernière du compte.`
-        : `Le compte sera déclaré rapproché avec le relevé du ${formatDate(rec.periodEnd)} (solde ${this.amount(rec.closingBalance)} €). Les ${rec.pointedCount} transactions cochées ne pourront plus être modifiées ni supprimées. En cas d’erreur, vous pourrez annuler ce rapprochement tant qu’il est le dernier du compte.`,
+        ? `Le compte sera déclaré vérifié avec le relevé du ${formatDate(rec.periodEnd)} (solde ${this.amount(rec.closingBalance)}). Les ${rec.pointedCount} mouvements cochés ne pourront plus être modifiés ni supprimés. En cas d’erreur, vous pourrez annuler cette vérification tant qu’elle est la dernière du compte.`
+        : `Le compte sera déclaré rapproché avec le relevé du ${formatDate(rec.periodEnd)} (solde ${this.amount(rec.closingBalance)}). Les ${rec.pointedCount} transactions cochées ne pourront plus être modifiées ni supprimées. En cas d’erreur, vous pourrez annuler ce rapprochement tant qu’il est le dernier du compte.`,
       confirmLabel: 'Valider',
     });
     if (!confirmed) return;

@@ -6,7 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type BulkEnrollInfo, type CampaignInfo, type RenewalPreviewInfo } from '../admin/admin-api.service';
-import { formatApiAmount, formatCents, parseAmountToCents } from '../accounting/amount';
+import { formatEuroCents, formatEuroAmount, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
 import { DateField } from '../ui/date-field';
@@ -154,7 +154,7 @@ interface Row {
                       <mat-select [value]="tariffs().get(row.memberId) ?? ''" (selectionChange)="setTariff(row.memberId, $event.value)">
                         <mat-option value="">À choisir</mat-option>
                         @for (tariff of preview()!.tariffs; track tariff.id) {
-                          <mat-option [value]="tariff.id">{{ tariff.label }} — {{ amount(tariff.amount) }} €</mat-option>
+                          <mat-option [value]="tariff.id">{{ tariff.label }} — {{ amount(tariff.amount) }}</mat-option>
                         }
                       </mat-select>
                     </mat-form-field>
@@ -164,7 +164,7 @@ interface Row {
             </tbody>
           </table>
           <p role="status" class="total">
-            {{ chosen().length }} cotisation(s) seront créées, pour un total attendu de <strong>{{ total() }} €</strong>.
+            {{ chosen().length }} cotisation(s) seront créées, pour un total attendu de <strong>{{ total() }}</strong>.
             @if (missing() > 0) { <span class="danger-text"> {{ missing() }} membre(s) coché(s) n’ont pas de tarif : choisissez-le ou décochez-les.</span> }
           </p>
         }
@@ -189,7 +189,7 @@ export class BulkEnrollDialog {
   private readonly api = inject(AdminApiService);
   private readonly reference = inject<MatDialogRef<BulkEnrollDialog, BulkEnrollInfo>>(MatDialogRef);
   protected readonly data = inject<BulkEnrollDialogData>(MAT_DIALOG_DATA);
-  protected readonly amount = formatApiAmount;
+  protected readonly amount = formatEuroAmount;
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly loading = signal(true);
@@ -204,7 +204,7 @@ export class BulkEnrollDialog {
   protected readonly missing = computed(() => this.rows().filter((r) => this.checked().has(r.memberId) && !this.tariffs().get(r.memberId)).length);
   protected readonly total = computed(() => {
     const prices = new Map((this.preview()?.tariffs ?? []).map((t) => [t.id, parseAmountToCents(t.amount) ?? 0]));
-    return formatCents(this.chosen().reduce((sum, r) => sum + (prices.get(this.tariffs().get(r.memberId)!) ?? 0), 0));
+    return formatEuroCents(this.chosen().reduce((sum, r) => sum + (prices.get(this.tariffs().get(r.memberId)!) ?? 0), 0));
   });
 
   constructor() {
