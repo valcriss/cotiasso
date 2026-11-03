@@ -157,6 +157,14 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
     .movement-description > .chip {
       flex-shrink: 0;
     }
+    @media (max-width: 720px) {
+      // En carte, la pastille passe sous le libellé au lieu de l'écraser.
+      .movement-description {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+      }
+    }
     .negative {
       color: var(--mat-sys-error);
     }

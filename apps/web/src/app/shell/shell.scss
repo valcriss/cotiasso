@@ -108,17 +108,72 @@ nav {
   position: relative;
 }
 
+// Petit écran : barre du haut + menu en tiroir (fermé par défaut), pour que le contenu garde toute la largeur.
+.topbar,
+.scrim {
+  display: none;
+}
+
 @media (max-width: 720px) {
   .content {
-    padding: 16px;
+    padding: 12px;
   }
-  .shell {
-    grid-template-columns: 64px minmax(0, 1fr);
+
+  .shell,
+  .shell.collapsed {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
-  .shell .name,
-  .shell .who,
-  .shell .item span {
-    display: none;
+
+  .topbar {
+    align-items: center;
+    background: light-dark(var(--app-sidebar-bg), color-mix(in srgb, var(--app-sidebar-bg) 16%, #12151b));
+    color: light-dark(var(--app-sidebar-text), #e8ebf2);
+    display: flex;
+    gap: 8px;
+    min-height: 48px;
+    padding: 4px 8px;
+
+    .name {
+      font: var(--mat-sys-title-medium);
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .sidebar {
+    bottom: 0;
+    left: 0;
+    overflow-y: auto;
+    position: fixed;
+    top: 0;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+    visibility: hidden;
+    width: min(280px, 85vw);
+    z-index: 1100;
+  }
+
+  .menu-open .sidebar {
+    transform: none;
+    transition: transform 0.2s ease;
+    visibility: visible;
+  }
+
+  .scrim {
+    background: rgb(0 0 0 / 45%);
+    display: block;
+    inset: 0;
+    position: fixed;
+    z-index: 1099;
+  }
+}
+
+@media (max-width: 720px) and (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
   }
 }
 

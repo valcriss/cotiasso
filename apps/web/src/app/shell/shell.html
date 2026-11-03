@@ -1,17 +1,27 @@
-<div class="shell" [class.collapsed]="collapsed()">
-  <aside class="sidebar">
+<div class="shell" [class.collapsed]="compact()" [class.menu-open]="menuOpen()" (keydown.escape)="closeMenu()">
+  <!-- Petit écran : barre du haut avec le bouton du menu, qui s'ouvre en tiroir par-dessus la page (le contenu garde toute la largeur). -->
+  <header class="topbar">
+    <button type="button" class="toggle" (click)="openMenu()" aria-label="Ouvrir le menu" aria-controls="main-menu">
+      <mat-icon fontSet="material-icons-outlined">menu</mat-icon>
+    </button>
+    <span class="name">{{ associationName() }}</span>
+  </header>
+  @if (menuOpen()) {
+    <div class="scrim" (click)="closeMenu()" aria-hidden="true"></div>
+  }
+  <aside class="sidebar" id="main-menu">
     <header class="brand">
-      @if (!collapsed()) {
+      @if (!compact()) {
         <span class="name">{{ associationName() }}</span>
       }
       <button
         type="button"
         class="toggle"
         (click)="toggle()"
-        [attr.aria-label]="collapsed() ? 'Déplier le menu' : 'Replier le menu'"
-        [attr.aria-expanded]="!collapsed()"
+        [attr.aria-label]="mobile() ? 'Fermer le menu' : compact() ? 'Déplier le menu' : 'Replier le menu'"
+        [attr.aria-expanded]="!compact()"
       >
-        <mat-icon fontSet="material-icons-outlined">{{ collapsed() ? 'menu' : 'menu_open' }}</mat-icon>
+        <mat-icon fontSet="material-icons-outlined">{{ mobile() ? 'close' : compact() ? 'menu' : 'menu_open' }}</mat-icon>
       </button>
     </header>
 
@@ -21,11 +31,11 @@
           class="item"
           [routerLink]="item.path"
           routerLinkActive="active"
-          [matTooltip]="collapsed() ? item.label : ''"
+          [matTooltip]="compact() ? item.label : ''"
           matTooltipPosition="right"
         >
           <mat-icon fontSet="material-icons-outlined">{{ item.icon }}</mat-icon>
-          @if (!collapsed()) {
+          @if (!compact()) {
             <span>{{ item.label }}</span>
           }
         </a>
@@ -38,11 +48,11 @@
           class="item"
           [routerLink]="settingsItem.path"
           routerLinkActive="active"
-          [matTooltip]="collapsed() ? settingsItem.label : ''"
+          [matTooltip]="compact() ? settingsItem.label : ''"
           matTooltipPosition="right"
         >
           <mat-icon fontSet="material-icons-outlined">{{ settingsItem.icon }}</mat-icon>
-          @if (!collapsed()) {
+          @if (!compact()) {
             <span>{{ settingsItem.label }}</span>
           }
         </a>
@@ -52,11 +62,11 @@
         class="item"
         [routerLink]="help.path"
         routerLinkActive="active"
-        [matTooltip]="collapsed() ? help.label : ''"
+        [matTooltip]="compact() ? help.label : ''"
         matTooltipPosition="right"
       >
         <mat-icon fontSet="material-icons-outlined">{{ help.icon }}</mat-icon>
-        @if (!collapsed()) {
+        @if (!compact()) {
           <span>{{ help.label }}</span>
         }
       </a>
@@ -65,11 +75,11 @@
         class="item appearance"
         [matMenuTriggerFor]="appearanceMenu"
         aria-label="Apparence de l'écran"
-        [matTooltip]="collapsed() ? 'Apparence' : ''"
+        [matTooltip]="compact() ? 'Apparence' : ''"
         matTooltipPosition="right"
       >
         <mat-icon fontSet="material-icons-outlined">palette</mat-icon>
-        @if (!collapsed()) {
+        @if (!compact()) {
           <span>Apparence</span>
         }
       </button>
@@ -107,7 +117,7 @@
       </mat-menu>
 
       <div class="account">
-        @if (!collapsed()) {
+        @if (!compact()) {
           <a class="who" routerLink="/compte" [title]="user()?.email ?? ''">{{ user()?.displayName }}</a>
         }
         <button
@@ -115,7 +125,7 @@
           class="toggle"
           (click)="logout()"
           aria-label="Se déconnecter"
-          [matTooltip]="collapsed() ? 'Se déconnecter' : ''"
+          [matTooltip]="compact() ? 'Se déconnecter' : ''"
           matTooltipPosition="right"
         >
           <mat-icon fontSet="material-icons-outlined">logout</mat-icon>

@@ -494,12 +494,132 @@ details pre {
   white-space: nowrap;
 }
 
-// Petits écrans : un tableau trop large défile dans son cadre au lieu d'élargir toute la page.
+// Petits écrans : un tableau devient une liste de cartes (une carte par ligne, « colonne : valeur »), sans défilement horizontal.
+// Les libellés viennent de l'en-tête (`data-label`, posé par ui/table-labels.ts). `.table.keep-table` garde le tableau classique.
 @media (max-width: 720px) {
-  .table {
+  .table:not(.keep-table) {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    display: block;
+    max-width: 100%;
+    overflow: visible;
+
+    thead {
+      // En-tête masqué visuellement mais lu par les lecteurs d'écran.
+      block-size: 1px;
+      clip-path: inset(50%);
+      inline-size: 1px;
+      overflow: hidden;
+      position: absolute;
+      white-space: nowrap;
+    }
+
+    tbody,
+    tfoot {
+      display: block;
+    }
+
+    tr {
+      background: var(--app-surface);
+      border: 1px solid var(--app-border);
+      border-radius: var(--app-radius);
+      display: block;
+      margin: 0 0 10px;
+      overflow: hidden;
+      padding: 6px 12px;
+    }
+
+    tbody tr:hover td {
+      background: transparent;
+    }
+
+    td,
+    th {
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      display: block;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      padding: 4px 0;
+    }
+
+    // Cellule avec libellé de colonne : « Libellé » à gauche, valeur à droite.
+    td[data-label] {
+      align-items: baseline;
+      text-align: left;
+      column-gap: 12px;
+      display: grid;
+      grid-template-columns: minmax(70px, 38%) minmax(0, 1fr);
+    }
+
+    td[data-label]::before {
+      color: var(--mat-sys-on-surface-variant);
+      content: attr(data-label);
+      font: var(--mat-sys-label-medium);
+      grid-column: 1;
+      grid-row: 1 / span 20;
+    }
+
+    // Une cellule qui contient plusieurs blocs (nom puis email, valeur puis aide) garde tout son contenu dans la colonne de droite.
+    td[data-label] > * {
+      grid-column: 2;
+      min-width: 0;
+    }
+
+    // Cellule vide : rien à montrer.
+    td:empty {
+      display: none;
+    }
+
+    // En-tête de ligne ou cellule fusionnée (message d'état vide, totaux) : pleine largeur.
+    th[scope='row'] {
+      color: var(--mat-sys-on-surface);
+      font: var(--mat-sys-title-small);
+    }
+
+    td[colspan] {
+      display: block;
+    }
+
+    .row-actions {
+      border-top: 1px solid var(--app-border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 8px;
+      justify-content: flex-start;
+      margin-top: 4px;
+      padding-top: 6px;
+      text-align: left;
+      white-space: normal;
+    }
+
+    .row-actions:empty {
+      display: none;
+    }
+
+    tfoot tr {
+      background: var(--app-surface-muted);
+    }
+
+    .detail {
+      background: var(--app-surface-muted);
+    }
+  }
+
+  // Un tableau resté en tableau défile dans son cadre plutôt que d'élargir la page.
+  .table.keep-table {
     display: block;
     max-width: 100%;
     overflow-x: auto;
+  }
+
+  // Dans un panneau, les cartes remplacent le cadre du tableau.
+  .panel .table:not(.keep-table),
+  .group .table:not(.keep-table),
+  .link-card .table:not(.keep-table) {
+    margin: 0;
   }
 }
 
