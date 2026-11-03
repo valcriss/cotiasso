@@ -118,6 +118,7 @@ const ACTION_LABELS: Record<string, string> = {
   'entry.reversed': 'Écriture contrepassée',
   'operation.recorded': "Opération enregistrée (argent reçu ou dépensé)",
   'operation.corrected': 'Opération corrigée (catégorie, projet ou description)',
+  'operation.amount-adjusted': 'Montant d’une opération corrigé par une régularisation',
   'operation-category.created': "Catégorie d'opération créée",
   'operation-category.updated': "Catégorie d'opération modifiée",
   'starter-template.applied': 'Catégories et comptes de départ installés',

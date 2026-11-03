@@ -397,6 +397,58 @@ describe("Parcours simplifiés : catégories, saisie guidée et vue d'ensemble (
         expect((await correct(op.transactionId, { label: "Autre" }, reader)).statusCode).toBe(403);
         expect((await call("POST", `/transactions/${op.transactionId}/correct`, undefined, { label: "Autre" })).statusCode).toBe(401);
       });
+
+      const adjust = (transactionId: string, body: object, session: Session | undefined = treasurer) => call("POST", `/transactions/${transactionId}/adjust-amount`, session, body);
+
+      it("corrige un montant par un mouvement de régularisation de l'écart, sans toucher à l'original (ADR 0032)", async () => {
+        const op = await record("Facture saisie trop haute", "Assurance", "49.00");
+        const done = await adjust(op.transactionId, { amount: "40.00", date: "2026-04-05" });
+        expect(done.statusCode, done.body).toBe(201);
+        const result = done.json();
+        expect(result).toMatchObject({ adjustedTransactionId: op.transactionId, difference: "9.00", posted: true });
+        expect(result.transactionId).not.toBe(op.transactionId);
+
+        const original = await prisma.transaction.findUniqueOrThrow({ where: { id: op.transactionId } });
+        expect(original.amount.toString()).toBe("-49");
+        expect((await entryOf(op.entryId)).status).toBe("POSTED");
+        const fix = await prisma.transaction.findUniqueOrThrow({ where: { id: result.transactionId } });
+        expect(fix.amount.toString()).toBe("9");
+        expect(fix.label).toBe("Correction : Facture saisie trop haute");
+        expect(fix.counterpartAccountId).toBe(original.counterpartAccountId);
+        // Le net de la dépense et de la banque vaut le bon montant : 49 − 9 = 40.
+        const fixEntry = await entryOf(result.entryId);
+        expect(fixEntry.status).toBe("POSTED");
+        const audit = await prisma.auditEvent.findFirst({ where: { action: "operation.amount-adjusted", objectId: op.transactionId } });
+        expect(audit?.details).toMatchObject({ adjustmentTransactionId: result.transactionId });
+      });
+
+      it("ajoute une dépense quand le montant était trop bas, et refuse un montant identique, un brouillon, un virement et un droit insuffisant", async () => {
+        const op = await record("Facture trop basse", "Assurance", "40.00");
+        const more = await adjust(op.transactionId, { amount: "45.00", date: "2026-04-05" });
+        expect(more.statusCode, more.body).toBe(201);
+        expect(more.json().difference).toBe("-5.00");
+        expect((await prisma.transaction.findUniqueOrThrow({ where: { id: more.json().transactionId } })).amount.toString()).toBe("-5");
+
+        const same = await adjust(op.transactionId, { amount: "40.00", date: "2026-04-05" });
+        expect(same.statusCode).toBe(409);
+        expect(same.json().message).toContain("déjà celui de l'opération");
+
+        const draft = await call("POST", "/guided-operations", treasurer, { financialAccountId: ids.fBank, direction: "OUT", amount: "6.00", date: "2026-04-03", label: "Brouillon", categoryId: await category("Assurance"), post: false });
+        expect((await adjust(draft.json().transactionId, { amount: "7.00", date: "2026-04-05" })).statusCode).toBe(409);
+
+        expect((await adjust(op.transactionId, { amount: "0", date: "2026-04-05" })).statusCode).toBe(400);
+        expect((await adjust(op.transactionId, { amount: "41.00", date: "2026-04-05" }, reader)).statusCode).toBe(403);
+        expect((await call("POST", `/transactions/${op.transactionId}/adjust-amount`, undefined, { amount: "41.00", date: "2026-04-05" })).statusCode).toBe(401);
+      });
+
+      it("ne laisse aucun mouvement derrière lui quand la date tombe hors de tout exercice", async () => {
+        const op = await record("Facture à régulariser", "Assurance", "30.00");
+        const before = await prisma.transaction.count();
+        const refused = await adjust(op.transactionId, { amount: "20.00", date: "2001-01-01" });
+        expect(refused.statusCode).toBe(409);
+        expect(refused.json().message).toContain("Aucun exercice");
+        expect(await prisma.transaction.count()).toBe(before);
+      });
     });
 
     it("classe et enregistre en un geste un mouvement qui existe déjà (importé ou saisi), puis refuse de le refaire", async () => {

@@ -20,7 +20,7 @@ export interface CorrectDialogData {
 /**
  * « Corriger » une opération déjà enregistrée dans les comptes : catégorie, projet ou description. Le logiciel annule l'opération
  * (une opération inverse est ajoutée, rien n'est effacé) puis en enregistre une nouvelle, d'un seul bloc. Le montant et la date
- * ne se corrigent pas ici : ils sont figés une fois l'opération enregistrée.
+ * ne se corrigent pas ici (voir « Corriger le montant », ADR 0032).
  */
 @Component({
   selector: 'app-correct-dialog',
@@ -65,8 +65,8 @@ export interface CorrectDialogData {
           }
         </mat-form-field>
         <p class="muted">
-          Le montant et la date ne se corrigent pas ici : ils sont définitifs une fois l’opération enregistrée. Si l’erreur porte sur le montant ou
-          la date, signalez-le à la personne qui administre la comptabilité.
+          Le montant et la date ne se corrigent pas ici : ils sont définitifs une fois l’opération enregistrée. Si l’erreur porte sur le
+          montant, utilisez « Corriger le montant… » dans le menu de l’opération : une petite opération de correction sera ajoutée.
         </p>
       </app-form-dialog>
     </form>

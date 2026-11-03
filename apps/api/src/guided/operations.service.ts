@@ -41,6 +41,19 @@ const correctInput = z
     path: ["categoryId"],
   });
 
+const adjustInput = z
+  .object({
+    /** Le montant juste, positif (celui qu'aurait dû porter l'opération). */
+    amount: z
+      .string()
+      .regex(/^\d{1,12}(\.\d{1,2})?$/, "Montant invalide (chiffres positifs, 2 décimales au plus).")
+      .refine((value) => Number(value) > 0, "Le montant doit être supérieur à zéro."),
+    /** Date de la correction (elle ne remplace pas celle de l'opération d'origine). */
+    date: isoDate,
+    post: z.boolean().default(true),
+  })
+  .strict();
+
 const MAX_BULK = 200;
 const bulkInput = z
   .object({
@@ -242,6 +255,79 @@ export class OperationsService {
     }
     const result = await this.bookRow({ ...tx, label }, counterpart, projectId, post, actorId, true, { reverseEntryId: active.entry.id, label: input.label });
     return { ...result, reversedEntryId: active.entry.id };
+  }
+
+  /**
+   * « Corriger le montant » (ADR 0032) : le montant d'un mouvement relié à une écriture est figé en base (ADR 0017). Plutôt que de
+   * relâcher cette garantie, on **ajoute un mouvement de régularisation** de l'écart, dans la même catégorie et le même projet,
+   * enregistré aussitôt dans les comptes. L'original n'est pas touché ; le solde redevient juste ; l'historique reste lisible.
+   */
+  async adjustAmount(transactionId: string, body: unknown, actorId: string, canPost: boolean): Promise<OperationResult & { adjustedTransactionId: string; difference: string }> {
+    const input = parse(adjustInput, body);
+    const post = input.post && canPost;
+    const tx = await this.prisma.transaction.findUnique({
+      where: { id: transactionId },
+      include: {
+        financialAccount: true,
+        counterpartAccount: true,
+        matches: { where: { status: "ACTIVE" }, include: { entry: { select: { status: true } } } },
+        transferOut: true,
+        transferIn: true,
+      },
+    });
+    if (!tx) throw new AccountingNotFoundError("Mouvement");
+    const active = tx.matches[0];
+    if (!active) throw new AccountingConflictError("Ce mouvement n'est pas encore enregistré dans les comptes : classez-le et enregistrez-le directement avec le bon montant.");
+    if (active.entry.status !== "POSTED") {
+      throw new AccountingConflictError("Cette opération est encore en brouillon : modifiez le brouillon directement (« Relire le brouillon »).");
+    }
+    if (tx.transferOut || tx.transferIn) throw new AccountingConflictError("Ce mouvement fait partie d'un virement entre vos comptes : annulez le virement plutôt que de corriger son montant.");
+    if (!tx.counterpartAccount) throw new AccountingConflictError("Ce mouvement n'a pas de catégorie : on ne peut pas y rattacher une correction.");
+    if (tx.financialAccount.archivedOn) throw new AccountingConflictError("Ce compte est archivé : on n'y enregistre plus de correction.");
+    const incoming = tx.amount.gt(0);
+    const gap = tx.amount.abs().minus(input.amount); // > 0 : le montant enregistré est trop élevé
+    if (gap.isZero()) throw new AccountingConflictError("Le montant indiqué est déjà celui de l'opération : rien à corriger.");
+    const delta = incoming ? gap.negated() : gap; // écart signé à ajouter au compte
+    const date = new Date(`${input.date}T00:00:00Z`);
+    const year = await this.prisma.fiscalYear.findFirst({ where: { start: { lte: date }, end: { gte: date } }, select: { status: true } });
+    if (!year) throw new AccountingConflictError("Aucun exercice ne couvre la date de la correction. Vérifiez la date, ou créez l'exercice dans Paramètres › Comptabilité.");
+    if (year.status !== "OPEN") throw new AccountingConflictError("L'exercice de cette date est fermé à la saisie : choisissez une date dans un exercice ouvert.");
+
+    const label = `Correction : ${tx.label}`.slice(0, 200);
+    const created = await this.prisma.transaction.create({
+      data: {
+        financialAccountId: tx.financialAccountId,
+        operationDate: date,
+        amount: delta.toFixed(2),
+        label,
+        reference: null,
+        projectId: tx.projectId,
+        counterpartAccountId: tx.counterpartAccountId,
+        createdBy: actorId,
+      },
+    });
+    try {
+      const result = await this.bookRow(
+        { ...created, financialAccount: { accountId: tx.financialAccount.accountId, journalId: tx.financialAccount.journalId } },
+        tx.counterpartAccount,
+        tx.projectId,
+        post,
+        actorId,
+        false,
+      );
+      await this.audit.record({
+        action: "operation.amount-adjusted",
+        objectType: "Transaction",
+        objectId: tx.id,
+        actorId,
+        details: { adjustmentTransactionId: created.id, entryId: result.entryId, posted: post },
+      });
+      return { ...result, adjustedTransactionId: tx.id, difference: delta.toFixed(2) };
+    } catch (error) {
+      // Le mouvement de correction vient d'être créé et n'est relié à rien : on le retire pour ne rien laisser derrière.
+      await this.prisma.transaction.delete({ where: { id: created.id } }).catch(() => undefined);
+      throw error;
+    }
   }
 
   /**
