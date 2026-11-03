@@ -37,7 +37,7 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
     .figures {
       display: grid;
       gap: 16px;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
       margin-bottom: 20px;
     }
     .figure {
@@ -279,11 +279,14 @@ export class OverviewPage {
     this.auth.permissions();
     return this.auth.can('transactions:manage') && this.auth.can('entries:create');
   });
-  /** L'installation n'est pas terminée et la personne a le droit de la terminer. */
+  /**
+   * L'installation n'est pas terminée et la personne a le droit de la terminer. Même règle que l'entrée « Démarrer » du menu
+   * (`SetupStatus`) : choisir le mode de démarrage n'est pas obligatoire, une carte d'accueil qui ne disparaît jamais serait trompeuse.
+   */
   protected readonly needsStart = computed(() => {
     const view = this.overview();
     this.auth.permissions();
-    return !!view && this.auth.can('settings.accounting:admin') && Object.values(view.setup).some((done) => !done);
+    return !!view && this.auth.can('settings.accounting:admin') && this.setupStatus.incomplete();
   });
 
   constructor() {
