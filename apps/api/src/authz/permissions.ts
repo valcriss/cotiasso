@@ -25,6 +25,8 @@ export const PERMISSIONS = {
   "grants:manage": "Suivre les subventions (demandes, versements, dépenses, clôture)",
   "expenses:submit": "Demander l'accord pour une dépense",
   "expenses:approve": "Accorder ou refuser une demande de dépense",
+  "reimbursements:create": "Demander le remboursement de ses frais et suivre ses demandes",
+  "reimbursements:view": "Voir toutes les demandes de remboursement",
   "documents:view": "Voir les documents",
   "documents:create": "Ajouter des documents et des pièces jointes",
   "documents.restricted:view": "Voir les documents confidentiels",

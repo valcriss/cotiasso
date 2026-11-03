@@ -12,6 +12,7 @@ import { OperationsModule } from "./operations/operations.module.js";
 import { TreasuryModule } from "./treasury/treasury.module.js";
 import { MembersModule } from "./members/members.module.js";
 import { WorkflowsModule } from "./workflows/workflows.module.js";
+import { ReimbursementsModule } from "./reimbursements/reimbursements.module.js";
 import { AccountingModule } from "./accounting/accounting.module.js";
 import { GrantsModule } from "./grants/grants.module.js";
 import { GuidedModule } from "./guided/guided.module.js";
@@ -19,7 +20,7 @@ import { SettingsModule } from "./settings/settings.module.js";
 import { SetupModule } from "./setup/setup.module.js";
 
 @Module({
-  imports: [PrismaModule, AuthzModule, AuthModule, SetupModule, SettingsModule, DocumentsModule, OperationsModule, AccountingModule, TreasuryModule, MembersModule, GrantsModule, GuidedModule, WorkflowsModule],
+  imports: [PrismaModule, AuthzModule, AuthModule, SetupModule, SettingsModule, DocumentsModule, OperationsModule, AccountingModule, TreasuryModule, MembersModule, GrantsModule, GuidedModule, WorkflowsModule, ReimbursementsModule],
   controllers: [HealthController],
   providers: [
     // Refus par défaut : toute route exige une session, sauf si elle est marquée @Public().

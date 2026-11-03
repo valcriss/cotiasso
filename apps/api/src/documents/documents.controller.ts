@@ -37,6 +37,7 @@ import {
   ScopeAccessError,
 } from "./errors.js";
 import { ALLOWED_EXTENSIONS } from "./file-types.js";
+import { readUpload } from "./upload.js";
 import {
   DocumentsService,
   type DocumentDetail,
@@ -63,7 +64,7 @@ export function contentDisposition(filename: string): string {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
-function translate(error: unknown): never {
+export function translate(error: unknown): never {
   if (error instanceof DocumentNotFoundError) throw new NotFoundException(error.message);
   if (error instanceof FileTooLargeError) throw new PayloadTooLargeException(error.message);
   if (error instanceof InvalidFileError) throw new UnsupportedMediaTypeException(error.message);
@@ -304,41 +305,7 @@ export class DocumentsController {
     }
   }
 
-  /**
-   * Lit un envoi multipart : champs de texte et un seul fichier, écrit en flux sur disque (jamais en mémoire).
-   * Le fichier est retiré si la lecture échoue ; sinon c'est le service qui le retire en cas de refus.
-   */
-  private async readUpload(request: FastifyRequest): Promise<{ fields: Record<string, string>; file: IncomingFile | null }> {
-    if (!request.isMultipart()) throw new UnsupportedMediaTypeException("Envoi multipart/form-data attendu.");
-
-    const fields: Record<string, string> = {};
-    let file: IncomingFile | null = null;
-    try {
-      for await (const part of request.parts()) {
-        if (part.type === "file") {
-          if (file) {
-            part.file.resume();
-            throw new BadRequestException("Un seul fichier par envoi.");
-          }
-          const stored = await this.storage.save(part.file);
-          file = { ...stored, originalName: part.filename };
-        } else if (typeof part.value === "string") {
-          fields[part.fieldname] = part.value;
-        }
-      }
-    } catch (error) {
-      if (file) await this.storage.remove(file.storageKey);
-      if (error instanceof FileTooLargeError) throw new PayloadTooLargeException(error.message);
-      const code = (error as { code?: string }).code;
-      if (code === "FST_REQ_FILE_TOO_LARGE") {
-        throw new PayloadTooLargeException("Le fichier dépasse la taille maximale autorisée.");
-      }
-      // Limites du plugin multipart (nombre de fichiers, de champs ou de parties) : un envoi mal formé, pas une surcharge.
-      if (code === "FST_FILES_LIMIT" || code === "FST_FIELDS_LIMIT" || code === "FST_PARTS_LIMIT") {
-        throw new BadRequestException("Envoi invalide : un seul fichier et quelques champs de texte sont autorisés.");
-      }
-      throw error;
-    }
-    return { fields, file };
+  private readUpload(request: FastifyRequest): Promise<{ fields: Record<string, string>; file: IncomingFile | null }> {
+    return readUpload(this.storage, request);
   }
 }

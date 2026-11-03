@@ -32,21 +32,21 @@ enum UserStatus {
 }
 
 model User {
-  id               String            @id @default(uuid()) @db.Uuid
-  member           Member?
-  email            String            @unique
-  displayName      String
-  passwordHash     String
-  status           UserStatus        @default(ACTIVE)
-  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
-  version          Int               @default(1)
-  sessions         Session[]
-  roleAssignments  RoleAssignment[]
-  passwordTokens   PasswordToken[]
-  mfaCredential    MfaCredential?
-  mfaRecoveryCodes MfaRecoveryCode[]
-  managedProjects  Project[]         @relation("ProjectManager")
+  id                    String               @id @default(uuid()) @db.Uuid
+  member                Member?
+  email                 String               @unique
+  displayName           String
+  passwordHash          String
+  status                UserStatus           @default(ACTIVE)
+  createdAt             DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime             @updatedAt @db.Timestamptz(3)
+  version               Int                  @default(1)
+  sessions              Session[]
+  roleAssignments       RoleAssignment[]
+  passwordTokens        PasswordToken[]
+  mfaCredential         MfaCredential?
+  mfaRecoveryCodes      MfaRecoveryCode[]
+  managedProjects       Project[]            @relation("ProjectManager")
   projectParticipations ProjectParticipant[]
 }
 
@@ -260,15 +260,15 @@ enum FiscalYearStatus {
 // Exercice comptable aux dates paramétrables. Pas de chevauchement (contrainte d'exclusion en base) ; jamais supprimé.
 model FiscalYear {
   frozenReports FrozenReportSet[]
-  id        String           @id @default(uuid()) @db.Uuid
-  label     String
-  start     DateTime         @db.Date
-  end       DateTime         @db.Date
-  status    FiscalYearStatus @default(OPEN)
-  createdAt DateTime         @default(now()) @db.Timestamptz(3)
-  createdBy String?          @db.Uuid
-  closedAt  DateTime?        @db.Timestamptz(3)
-  closedBy  String?          @db.Uuid
+  id            String            @id @default(uuid()) @db.Uuid
+  label         String
+  start         DateTime          @db.Date
+  end           DateTime          @db.Date
+  status        FiscalYearStatus  @default(OPEN)
+  createdAt     DateTime          @default(now()) @db.Timestamptz(3)
+  createdBy     String?           @db.Uuid
+  closedAt      DateTime?         @db.Timestamptz(3)
+  closedBy      String?           @db.Uuid
 
   entries      JournalEntry[] @relation("EntryYear")
   openingEntry JournalEntry?  @relation("Carry")
@@ -354,15 +354,15 @@ model JournalEntry {
   createdAt     DateTime    @default(now()) @db.Timestamptz(3)
   createdBy     String?     @db.Uuid
 
-  fiscalYear   FiscalYear         @relation("EntryYear", fields: [fiscalYearId], references: [id], onDelete: Restrict)
-  carriesFrom  FiscalYear?        @relation("Carry", fields: [carriesFromId], references: [id], onDelete: Restrict)
-  journal      Journal            @relation(fields: [journalId], references: [id], onDelete: Restrict)
-  reversalOf   JournalEntry?      @relation("Reversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
-  reversedBy   JournalEntry?      @relation("Reversal")
-  lines        JournalLine[]
-  matches      TreasuryMatch[]
-  recoveryItem RecoveryBatchItem?
-  openingSituation OpeningSituation?
+  fiscalYear         FiscalYear         @relation("EntryYear", fields: [fiscalYearId], references: [id], onDelete: Restrict)
+  carriesFrom        FiscalYear?        @relation("Carry", fields: [carriesFromId], references: [id], onDelete: Restrict)
+  journal            Journal            @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  reversalOf         JournalEntry?      @relation("Reversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedBy         JournalEntry?      @relation("Reversal")
+  lines              JournalLine[]
+  matches            TreasuryMatch[]
+  recoveryItem       RecoveryBatchItem?
+  openingSituation   OpeningSituation?
   settledCommitments Commitment[]
 
   @@unique([journalId, fiscalYearId, number])
@@ -371,13 +371,13 @@ model JournalEntry {
 }
 
 model JournalLine {
-  id        String  @id @default(uuid()) @db.Uuid
-  entryId   String  @db.Uuid
-  position  Int
-  accountId String  @db.Uuid
-  debit     Decimal @default(0) @db.Decimal(14, 2)
-  credit    Decimal @default(0) @db.Decimal(14, 2)
-  label     String?
+  id           String  @id @default(uuid()) @db.Uuid
+  entryId      String  @db.Uuid
+  position     Int
+  accountId    String  @db.Uuid
+  debit        Decimal @default(0) @db.Decimal(14, 2)
+  credit       Decimal @default(0) @db.Decimal(14, 2)
+  label        String?
   // Tiers concerné par la ligne (ADR 0030) : facultatif, jamais obligatoire à la comptabilisation.
   thirdPartyId String? @db.Uuid
 
@@ -426,14 +426,15 @@ model Project {
   createdAt   DateTime      @default(now()) @db.Timestamptz(3)
   createdBy   String?       @db.Uuid
 
-  manager         User?                  @relation("ProjectManager", fields: [managerId], references: [id], onDelete: Restrict)
-  allocations     AnalyticalAllocation[]
-  roleAssignments RoleAssignment[]
-  transactions    Transaction[]
-  participants    ProjectParticipant[]
-  budgets         BudgetVersion[]
-  commitments     Commitment[]
-  grantAllocations GrantProjectAllocation[]
+  manager               User?                    @relation("ProjectManager", fields: [managerId], references: [id], onDelete: Restrict)
+  allocations           AnalyticalAllocation[]
+  roleAssignments       RoleAssignment[]
+  transactions          Transaction[]
+  participants          ProjectParticipant[]
+  budgets               BudgetVersion[]
+  commitments           Commitment[]
+  grantAllocations      GrantProjectAllocation[]
+  reimbursementRequests ReimbursementRequest[]
 }
 
 // Ventilation analytique d'une ligne de charge ou de produit : une ou plusieurs parts de projet dont le total égale
@@ -444,8 +445,8 @@ model AnalyticalAllocation {
   projectId String  @db.Uuid
   amount    Decimal @db.Decimal(14, 2)
 
-  line     JournalLine               @relation(fields: [lineId], references: [id], onDelete: Cascade)
-  project  Project                   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  line     JournalLine                @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  project  Project                    @relation(fields: [projectId], references: [id], onDelete: Restrict)
   fundings FundingExpenseAllocation[]
 
   @@unique([lineId, projectId])
@@ -529,17 +530,18 @@ model Transaction {
   createdAt            DateTime          @default(now()) @db.Timestamptz(3)
   createdBy            String?           @db.Uuid
 
-  financialAccount   FinancialAccount    @relation(fields: [financialAccountId], references: [id], onDelete: Restrict)
-  project            Project?            @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  counterpartAccount Account?            @relation(fields: [counterpartAccountId], references: [id], onDelete: Restrict)
-  reconciliation     Reconciliation?     @relation(fields: [reconciliationId], references: [id], onDelete: Restrict)
-  paymentAllocations PaymentAllocation[]
-  grantPayments      GrantPayment[]
-  importedFrom       ImportLine[]        @relation("ImportResult")
-  matchedBy          ImportLine[]        @relation("ImportMatch")
-  matches            TreasuryMatch[]
-  transferOut        Transfer?           @relation("TransferOut")
-  transferIn         Transfer?           @relation("TransferIn")
+  financialAccount     FinancialAccount      @relation(fields: [financialAccountId], references: [id], onDelete: Restrict)
+  project              Project?              @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  counterpartAccount   Account?              @relation(fields: [counterpartAccountId], references: [id], onDelete: Restrict)
+  reconciliation       Reconciliation?       @relation(fields: [reconciliationId], references: [id], onDelete: Restrict)
+  paymentAllocations   PaymentAllocation[]
+  grantPayments        GrantPayment[]
+  importedFrom         ImportLine[]          @relation("ImportResult")
+  matchedBy            ImportLine[]          @relation("ImportMatch")
+  matches              TreasuryMatch[]
+  transferOut          Transfer?             @relation("TransferOut")
+  transferIn           Transfer?             @relation("TransferIn")
+  reimbursementPayment ReimbursementPayment?
 
   @@index([financialAccountId, operationDate])
 }
@@ -749,32 +751,33 @@ model MemberCategory {
 
 // Membre de l'association : jamais supprimé (l'historique comptable s'y réfère), anonymisable une fois sorti.
 model Member {
-  id           String       @id @default(uuid()) @db.Uuid
-  thirdParty   ThirdParty?
+  id                    String               @id @default(uuid()) @db.Uuid
+  thirdParty            ThirdParty?
   projectParticipations ProjectParticipant[]
-  firstName    String
-  lastName     String
-  email        String?
-  phone        String?
-  addressLine  String?
-  postalCode   String?
-  city         String?
-  categoryId   String?      @db.Uuid
-  status       MemberStatus @default(ACTIVE)
-  joinedOn     DateTime?    @db.Date
-  leftOn       DateTime?    @db.Date
+  firstName             String
+  lastName              String
+  email                 String?
+  phone                 String?
+  addressLine           String?
+  postalCode            String?
+  city                  String?
+  categoryId            String?              @db.Uuid
+  status                MemberStatus         @default(ACTIVE)
+  joinedOn              DateTime?            @db.Date
+  leftOn                DateTime?            @db.Date
   // Compte de connexion lié, facultatif : un membre n'a pas besoin d'un compte.
-  userId       String?      @unique @db.Uuid
-  note         String?
-  anonymizedAt DateTime?    @db.Timestamptz(3)
-  version      Int          @default(1)
-  createdAt    DateTime     @default(now()) @db.Timestamptz(3)
-  createdBy    String?      @db.Uuid
+  userId                String?              @unique @db.Uuid
+  note                  String?
+  anonymizedAt          DateTime?            @db.Timestamptz(3)
+  version               Int                  @default(1)
+  createdAt             DateTime             @default(now()) @db.Timestamptz(3)
+  createdBy             String?              @db.Uuid
 
-  category    MemberCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  user        User?           @relation(fields: [userId], references: [id], onDelete: Restrict)
-  offices     MemberOffice[]
-  memberships Membership[]
+  category              MemberCategory?        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  user                  User?                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  offices               MemberOffice[]
+  reimbursementRequests ReimbursementRequest[]
+  memberships           Membership[]
 
   @@index([lastName, firstName])
   @@index([status])
@@ -786,11 +789,11 @@ model MemberOffice {
   memberId     String    @db.Uuid
   // Fonction du catalogue (ADR 0035) : jamais un intitulé libre.
   officeRoleId String    @db.Uuid
-  startsOn  DateTime  @db.Date
-  endsOn    DateTime? @db.Date
-  note      String?
-  createdAt DateTime  @default(now()) @db.Timestamptz(3)
-  createdBy String?   @db.Uuid
+  startsOn     DateTime  @db.Date
+  endsOn       DateTime? @db.Date
+  note         String?
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  createdBy    String?   @db.Uuid
 
   member     Member     @relation(fields: [memberId], references: [id], onDelete: Restrict)
   officeRole OfficeRole @relation(fields: [officeRoleId], references: [id], onDelete: Restrict)
@@ -1025,17 +1028,17 @@ enum FunderType {
 
 // Financeur (ADR 0024, tranche 4.3a) : qui finance. Jamais supprimé ; archivé, il ne reçoit plus de nouvelle demande.
 model Funder {
-  id          String     @id @default(uuid()) @db.Uuid
+  id          String      @id @default(uuid()) @db.Uuid
   thirdParty  ThirdParty?
   name        String
   type        FunderType
-  contactName String     @default("")
-  email       String     @default("")
-  phone       String     @default("")
-  note        String     @default("")
-  archivedAt  DateTime?  @db.Timestamptz(3)
-  createdAt   DateTime   @default(now()) @db.Timestamptz(3)
-  createdBy   String?    @db.Uuid
+  contactName String      @default("")
+  email       String      @default("")
+  phone       String      @default("")
+  note        String      @default("")
+  archivedAt  DateTime?   @db.Timestamptz(3)
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+  createdBy   String?     @db.Uuid
 
   grants Grant[]
 }
@@ -1079,7 +1082,7 @@ model Grant {
   createdAt       DateTime       @default(now()) @db.Timestamptz(3)
   createdBy       String?        @db.Uuid
 
-  funder      Funder                   @relation(fields: [funderId], references: [id], onDelete: Restrict)
+  funder      Funder                     @relation(fields: [funderId], references: [id], onDelete: Restrict)
   allocations GrantProjectAllocation[]
   schedule    GrantSchedule[]
   payments    GrantPayment[]
@@ -1259,10 +1262,10 @@ model FrozenReportSet {
   createdAt    DateTime         @default(now()) @db.Timestamptz(3)
   createdBy    String?          @db.Uuid
 
-  fiscalYear FiscalYear             @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
-  supersedes FrozenReportSet?       @relation("Supersedes", fields: [supersedesId], references: [id], onDelete: Restrict)
-  supersededBy FrozenReportSet[]    @relation("Supersedes")
-  approval   FrozenReportApproval?
+  fiscalYear   FiscalYear            @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
+  supersedes   FrozenReportSet?      @relation("Supersedes", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy FrozenReportSet[]     @relation("Supersedes")
+  approval     FrozenReportApproval?
 
   @@unique([fiscalYearId, number])
 }
@@ -1328,18 +1331,18 @@ model WorkflowDefinition {
 // Version d'un circuit : brouillon modifiable, puis active (immuable), puis retirée. `document` est le graphe
 // déclaratif validé par l'application (workflows/engine/circuit.ts).
 model WorkflowDefinitionVersion {
-  id            String                @id @default(uuid()) @db.Uuid
-  definitionId  String                @db.Uuid
-  number        Int
-  status        WorkflowVersionStatus @default(DRAFT)
-  document      Json
+  id           String                @id @default(uuid()) @db.Uuid
+  definitionId String                @db.Uuid
+  number       Int
+  status       WorkflowVersionStatus @default(DRAFT)
+  document     Json
   // Contrôle de version optimiste d'un brouillon.
-  revision      Int                   @default(1)
-  createdAt     DateTime              @default(now()) @db.Timestamptz(3)
-  createdBy     String?               @db.Uuid
-  activatedAt   DateTime?             @db.Timestamptz(3)
-  activatedBy   String?               @db.Uuid
-  retiredAt     DateTime?             @db.Timestamptz(3)
+  revision     Int                   @default(1)
+  createdAt    DateTime              @default(now()) @db.Timestamptz(3)
+  createdBy    String?               @db.Uuid
+  activatedAt  DateTime?             @db.Timestamptz(3)
+  activatedBy  String?               @db.Uuid
+  retiredAt    DateTime?             @db.Timestamptz(3)
 
   definition WorkflowDefinition @relation(fields: [definitionId], references: [id], onDelete: Restrict)
   instances  WorkflowInstance[]
@@ -1401,4 +1404,57 @@ model WorkflowReassignment {
   instance WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Restrict)
 
   @@index([instanceId])
+}
+
+// --- Demandes de remboursement (ADR 0035, tranche 2) ---
+
+enum ReimbursementStatus {
+  DRAFT
+  IN_CIRCUIT
+  RETURNED
+  REFUSED
+  CANCELLED
+  PAID
+}
+
+// Remboursement d'une avance personnelle. Le bénéficiaire est toujours le demandeur. Aucune écriture comptable
+// avant le traitement ; le circuit de validation est porté par WorkflowInstance (subjectType « reimbursement »).
+model ReimbursementRequest {
+  id                String              @id @default(uuid()) @db.Uuid
+  // Numéro lisible (« demande n° 12 »), jamais réutilisé.
+  number            Int                 @unique @default(autoincrement())
+  requesterUserId   String              @db.Uuid
+  memberId          String              @db.Uuid
+  amount            Decimal             @db.Decimal(14, 2)
+  expenseDate       DateTime            @db.Date
+  reason            String
+  projectId         String?             @db.Uuid
+  status            ReimbursementStatus @default(DRAFT)
+  // Montant, date et projet au dernier dépôt : une correction qui les change relance le circuit depuis le début.
+  submittedSnapshot Json?
+  version           Int                 @default(1)
+  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @db.Timestamptz(3)
+  submittedAt       DateTime?           @db.Timestamptz(3)
+  closedAt          DateTime?           @db.Timestamptz(3)
+
+  member  Member                @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  project Project?              @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  payment ReimbursementPayment?
+
+  @@index([requesterUserId])
+  @@index([status])
+}
+
+// Remboursement effectif : le mouvement bancaire de sortie, de même montant, qui solde la demande. Ajout seul.
+model ReimbursementPayment {
+  id            String   @id @default(uuid()) @db.Uuid
+  requestId     String   @unique @db.Uuid
+  transactionId String   @unique @db.Uuid
+  entryId       String   @db.Uuid
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  createdBy     String   @db.Uuid
+
+  request     ReimbursementRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  transaction Transaction          @relation(fields: [transactionId], references: [id], onDelete: Restrict)
 }

@@ -131,7 +131,8 @@ export class OperationsService {
     @Inject(EntriesService) private readonly entries: EntriesService,
   ) {}
 
-  async record(body: unknown, actorId: string, canPost: boolean): Promise<OperationResult> {
+  /** `outer` : transaction de l'appelant (ex. remboursement d'une demande) — tout est alors défait avec elle. */
+  async record(body: unknown, actorId: string, canPost: boolean, outer?: Prisma.TransactionClient): Promise<OperationResult> {
     const input = parse(operationInput, body);
     // Le droit de comptabiliser est distinct : sans lui, on prépare un brouillon au lieu de refuser l'opération.
     const post = input.post && canPost;
@@ -166,8 +167,7 @@ export class OperationsService {
     const signed = input.direction === "IN" ? input.amount : `-${input.amount}`;
     let journalCode = "";
     let number: number | null = null;
-    const created = await this.prisma
-      .$transaction(async (db) => {
+    const created = await this.inTx(outer, async (db) => {
         const transaction = await db.transaction.create({
           data: {
             financialAccountId: account.id,
@@ -225,7 +225,7 @@ export class OperationsService {
       objectId: created.transactionId,
       actorId,
       details: { direction: input.direction, entryId: created.entryId, posted: post, ...("splits" in target && { parts: target.splits.length }) },
-    });
+    }, outer);
     return { ...created, posted: post, journalCode, number };
   }
 
@@ -362,7 +362,7 @@ export class OperationsService {
    * projet), prépare l'écriture, la relie et, si permis, la comptabilise — tout ou rien. Les mouvements déjà liés à une
    * écriture, ou membres d'un virement, sont refusés avec leur raison.
    */
-  async book(transactionId: string, body: unknown, actorId: string, canPost: boolean): Promise<OperationResult> {
+  async book(transactionId: string, body: unknown, actorId: string, canPost: boolean, outer?: Prisma.TransactionClient): Promise<OperationResult> {
     const input = parse(bookInput, body);
     const post = input.post && canPost;
     const tx = await this.prisma.transaction.findUnique({
@@ -376,7 +376,7 @@ export class OperationsService {
     const incoming = tx.amount.gt(0);
     if (input.splits) {
       const splits = await this.resolveSplits(input.splits, incoming ? "IN" : "OUT", tx.amount.abs().toFixed(2));
-      return this.bookRow(tx, { splits }, input.projectId ?? tx.projectId ?? null, post, actorId);
+      return this.bookRow(tx, { splits }, input.projectId ?? tx.projectId ?? null, post, actorId, true, undefined, outer);
     }
     const category = await this.prisma.operationCategory.findUnique({ where: { id: input.categoryId! }, include: { account: true } });
     if (!category || !category.active) throw new AccountingNotFoundError("Catégorie");
@@ -385,7 +385,7 @@ export class OperationsService {
         incoming ? "Ce mouvement est de l'argent reçu : choisissez une catégorie d'argent reçu." : "Ce mouvement est de l'argent dépensé : choisissez une catégorie d'argent dépensé.",
       );
     }
-    return this.bookRow(tx, { counterpart: category.account }, input.projectId ?? tx.projectId ?? null, post, actorId);
+    return this.bookRow(tx, { counterpart: category.account }, input.projectId ?? tx.projectId ?? null, post, actorId, true, undefined, outer);
   }
 
   /**
@@ -422,6 +422,10 @@ export class OperationsService {
       );
     }
     return resolved;
+  }
+
+  private inTx<T>(outer: Prisma.TransactionClient | undefined, work: (db: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return outer ? work(outer) : this.prisma.$transaction(work);
   }
 
   private draftFor(
@@ -509,6 +513,7 @@ export class OperationsService {
     auditEach = true,
     /** Correction : l'écriture d'origine est contrepassée dans la même transaction SQL, avant la nouvelle. */
     correction?: { reverseEntryId: string; label: string | undefined },
+    outer?: Prisma.TransactionClient,
   ): Promise<OperationResult> {
     const projectIdWanted = wantedProjectId;
     const year = await this.prisma.fiscalYear.findFirst({ where: { start: { lte: tx.operationDate }, end: { gte: tx.operationDate } }, select: { id: true, status: true } });
@@ -521,8 +526,7 @@ export class OperationsService {
 
     let number: number | null = null;
     let journalCode = "";
-    const entryId = await this.prisma
-      .$transaction(async (db) => {
+    const entryId = await this.inTx(outer, async (db) => {
         if (correction) {
           await this.entries.reverseWithin(db, correction.reverseEntryId, actorId);
           if (correction.label !== undefined) await db.transaction.update({ where: { id: tx.id }, data: { label: correction.label } });
@@ -567,7 +571,7 @@ export class OperationsService {
     if (correction) {
       await this.audit.record({ action: "operation.corrected", objectType: "Transaction", objectId: tx.id, actorId, details: { entryId, reversedEntryId: correction.reverseEntryId, posted: post } });
     } else if (auditEach) {
-      await this.audit.record({ action: "operation.booked", objectType: "Transaction", objectId: tx.id, actorId, details: { entryId, posted: post, ...("splits" in target && { parts: target.splits.length }) } });
+      await this.audit.record({ action: "operation.booked", objectType: "Transaction", objectId: tx.id, actorId, details: { entryId, posted: post, ...("splits" in target && { parts: target.splits.length }) } }, outer);
     }
     return { transactionId: tx.id, entryId, posted: post, journalCode, number };
   }

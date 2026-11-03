@@ -46,7 +46,7 @@ export interface InstanceView {
   round: number;
   versionNumber: number;
   steps: InstanceStep[];
-  decisions: { nodeId: string | null; outcome: ApprovalOutcome; actorUserId: string; message: string | null; round: number; createdAt: string }[];
+  decisions: { nodeId: string | null; outcome: ApprovalOutcome; actorUserId: string; actorName?: string; message: string | null; round: number; createdAt: string }[];
 }
 
 export interface StartResult {
@@ -217,23 +217,38 @@ export class WorkflowEngineService {
   }
 
   /** Demandes qu'une personne peut décider maintenant (étape en cours, personne désignée, pas sa propre demande). */
-  async awaiting(userId: string, subjectType?: string): Promise<{ instanceId: string; subjectType: string; subjectId: string; nodeId: string; label: string }[]> {
+  async awaiting(userId: string, subjectType?: string): Promise<{ instanceId: string; subjectType: string; subjectId: string; nodeId: string; label: string; stepType: "APPROVAL" | "PROCESSING" }[]> {
     const open = await this.prisma.workflowInstance.findMany({
       where: { status: "RUNNING", currentNodeId: { not: null }, ...(subjectType && { subjectType }) },
       include: { definitionVersion: true },
       orderBy: { createdAt: "asc" },
     });
-    const result: { instanceId: string; subjectType: string; subjectId: string; nodeId: string; label: string }[] = [];
+    const result: Awaited<ReturnType<WorkflowEngineService["awaiting"]>> = [];
     for (const instance of open) {
-      const { circuit } = parseCircuit(instance.definitionVersion.document);
-      const node = circuit?.nodes.find((n) => n.id === instance.currentNodeId);
-      if (!circuit || !node) continue;
-      const extra = await this.extraDesignations(this.prisma, instance.id);
-      const people = await this.resolver.eligibleUsers([...node.approvers, ...(extra.get(node.id) ?? [])]);
-      const self = instance.requesterUserId === userId && !(node.type === "PROCESSING" && circuit.allowSelfProcessing);
-      if (people.has(userId) && !self) result.push({ instanceId: instance.id, subjectType: instance.subjectType, subjectId: instance.subjectId, nodeId: node.id, label: node.label });
+      const step = await this.stepFor(instance, userId);
+      if (step) result.push({ instanceId: instance.id, subjectType: instance.subjectType, subjectId: instance.subjectId, ...step });
     }
     return result;
+  }
+
+  /** L'étape que cette personne peut décider maintenant sur cette demande, ou `null`. */
+  async decisionFor(instanceId: string, userId: string): Promise<{ nodeId: string; label: string; stepType: "APPROVAL" | "PROCESSING" } | null> {
+    const instance = await this.prisma.workflowInstance.findUnique({ where: { id: instanceId }, include: { definitionVersion: true } });
+    if (!instance || instance.status !== "RUNNING") return null;
+    return this.stepFor(instance, userId);
+  }
+
+  private async stepFor(
+    instance: { id: string; requesterUserId: string; currentNodeId: string | null; definitionVersion: { document: Prisma.JsonValue } },
+    userId: string,
+  ): Promise<{ nodeId: string; label: string; stepType: "APPROVAL" | "PROCESSING" } | null> {
+    const { circuit } = parseCircuit(instance.definitionVersion.document);
+    const node = circuit?.nodes.find((n) => n.id === instance.currentNodeId);
+    if (!circuit || !node || (node.type !== "APPROVAL" && node.type !== "PROCESSING")) return null;
+    const extra = await this.extraDesignations(this.prisma, instance.id);
+    const people = await this.resolver.eligibleUsers([...node.approvers, ...(extra.get(node.id) ?? [])]);
+    const self = instance.requesterUserId === userId && !(node.type === "PROCESSING" && circuit.allowSelfProcessing);
+    return people.has(userId) && !self ? { nodeId: node.id, label: node.label, stepType: node.type } : null;
   }
 
   // --- interne ---

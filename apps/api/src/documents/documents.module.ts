@@ -10,6 +10,6 @@ import { DocumentsService } from "./documents.service.js";
   imports: [PrismaModule, AuditModule, AuthzModule],
   controllers: [DocumentsController],
   providers: [DocumentStorage, DocumentsService],
-  exports: [DocumentsService],
+  exports: [DocumentsService, DocumentStorage],
 })
 export class DocumentsModule {}
