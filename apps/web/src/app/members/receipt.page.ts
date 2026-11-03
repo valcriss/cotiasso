@@ -5,6 +5,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { formatEuroAmount } from '../accounting/amount';
 import { AdminApiService, type ReceiptInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
+import { BrandingService } from '../branding/branding.service';
 import { PageHeader } from '../ui/page-header';
 import { FrDatePipe } from '../ui/fr-date.pipe';
 
@@ -18,6 +19,13 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
       font-variant-numeric: tabular-nums;
       text-align: right;
       white-space: nowrap;
+    }
+    .logo {
+      display: block;
+      margin-bottom: 8px;
+      max-height: 64px;
+      max-width: 200px;
+      object-fit: contain;
     }
     .notice {
       border-left: 4px solid var(--mat-sys-outline);
@@ -46,6 +54,9 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
     }
     @if (receipt(); as r) {
       <section class="panel" aria-label="Reçu">
+        @if (logoUrl(); as url) {
+          <img class="logo" [src]="url" [alt]="'Logo de ' + r.association.name" />
+        }
         <h3>{{ r.association.name }}</h3>
         @if (r.association.address || r.association.city) {
           <p class="muted">{{ r.association.address }} {{ r.association.postalCode }} {{ r.association.city }}</p>
@@ -91,6 +102,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
 export class ReceiptPage {
   private readonly api = inject(AdminApiService);
   private readonly route = inject(ActivatedRoute);
+  protected readonly logoUrl = inject(BrandingService).logoUrl;
   protected readonly receipt = signal<ReceiptInfo | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly amount = formatEuroAmount;

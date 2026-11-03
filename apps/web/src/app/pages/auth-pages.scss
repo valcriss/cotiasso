@@ -22,6 +22,14 @@
   width: 100%;
 }
 
+.logo {
+  display: block;
+  margin: 8px 0 0;
+  max-height: 72px;
+  max-width: 220px;
+  object-fit: contain;
+}
+
 h1 {
   font: var(--mat-sys-headline-small);
   margin: 8px 0 16px;

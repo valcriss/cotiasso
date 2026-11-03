@@ -4,7 +4,9 @@ import { Test } from "@nestjs/testing";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../../src/app.module.js";
+import { configureApp } from "../../src/app.setup.js";
 import { UsersService } from "../../src/auth/users.service.js";
+import { deflateSync } from "node:zlib";
 import { readEnv } from "../../src/config/env.js";
 import { ENV } from "../../src/config/tokens.js";
 import { PrismaService } from "../../src/prisma/prisma.service.js";
@@ -67,13 +69,15 @@ describe("Paramètres et modules (base vierge)", () => {
 
   beforeAll(async () => {
     db = await createTempDatabase();
+    const env = { ...readEnv(), databaseUrl: db.url, cookieSecure: true };
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(ENV)
-      .useValue({ ...readEnv(), databaseUrl: db.url, cookieSecure: true })
+      .useValue(env)
       .overrideProvider(MODULE_CATALOG)
       .useValue(CATALOG)
       .compile();
     app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
+    await configureApp(app, env);
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
     prisma = app.get(PrismaService);
@@ -99,7 +103,7 @@ describe("Paramètres et modules (base vierge)", () => {
   it("publie la marque blanche avant toute connexion, avec des valeurs par défaut", async () => {
     const response = await call("GET", "/branding");
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ appName: "cotiasso", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55", accentColor: "#005cbb" });
+    expect(response.json()).toEqual({ appName: "cotiasso", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55", accentColor: "#005cbb", logoHash: null, logoShowsName: true });
   });
 
   it("réserve la lecture et l'écriture des paramètres aux permissions prévues", async () => {
@@ -143,6 +147,8 @@ describe("Paramètres et modules (base vierge)", () => {
       sidebarBackground: "#0b2a55",
       sidebarText: "#ffffff",
       accentColor: "#7a1f4d",
+      logoHash: null,
+      logoShowsName: true,
     });
   });
 
@@ -204,6 +210,137 @@ describe("Paramètres et modules (base vierge)", () => {
   it("complète un ancien contenu avec les valeurs par défaut quand le schéma gagne des champs", async () => {
     await prisma.settingsVersion.create({ data: { section: "branding", payload: { appName: "Ancien", sidebarBackground: "#eaf2fd" } } });
     expect(await settings.current("branding")).toEqual({ appName: "Ancien", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55", accentColor: "#005cbb" });
+  });
+
+  describe("logo de l'association", () => {
+    const png = (width: number, height: number) => {
+      const header = Buffer.alloc(33);
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(header, 0);
+      header.writeUInt32BE(13, 8);
+      header.write("IHDR", 12, "latin1");
+      header.writeUInt32BE(width, 16);
+      header.writeUInt32BE(height, 20);
+      return Buffer.concat([header, deflateSync(Buffer.alloc(8))]);
+    };
+    const SVG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#005cbb"/></svg>');
+
+    const upload = (session: Session | undefined, content: Buffer, name = "logo.png") => {
+      const boundary = `----cotiasso${randomUUID()}`;
+      const payload = Buffer.concat([
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\nContent-Type: application/octet-stream\r\n\r\n`),
+        content,
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+      ]);
+      return app.inject({
+        method: "PUT",
+        url: "/branding/logo",
+        remoteAddress: "198.51.100.77",
+        headers: {
+          "content-type": `multipart/form-data; boundary=${boundary}`,
+          ...(session && { cookie: session.cookie, "x-csrf-token": session.csrf }),
+        },
+        payload,
+      });
+    };
+
+    it("n'existe pas tant qu'aucun logo n'a été ajouté", async () => {
+      expect((await call("GET", "/branding/logo")).statusCode).toBe(404);
+      expect((await call("GET", "/branding")).json().logoHash).toBeNull();
+    });
+
+    it("réserve l'ajout et le retrait à settings.association:admin", async () => {
+      expect((await upload(undefined, png(64, 64))).statusCode).toBe(401);
+      const president = await userWith("president");
+      expect((await upload(president, png(64, 64))).statusCode).toBe(403);
+      const removal = await app.inject({ method: "DELETE", url: "/branding/logo", headers: { cookie: president.cookie, "x-csrf-token": president.csrf } });
+      expect(removal.statusCode).toBe(403);
+    });
+
+    it("refuse un fichier qui n'est pas un logo, trop petit, trop grand ou trop lourd, avec un message qui dit quoi faire", async () => {
+      const notImage = await upload(admin, Buffer.from("%PDF-1.7 pas une image"), "logo.png");
+      expect(notImage.statusCode).toBe(400);
+      expect(notImage.json().message).toContain("PNG, JPEG ou SVG");
+      expect((await upload(admin, png(8, 8))).json().message).toContain("trop petite");
+      expect((await upload(admin, png(4000, 3000))).json().message).toContain("trop grande");
+      expect((await upload(admin, Buffer.from('<svg viewBox="0 0 10 10"><script>alert(1)</script></svg>'), "x.svg")).statusCode).toBe(400);
+      const heavy = await upload(admin, Buffer.concat([png(64, 64), Buffer.alloc(1024 * 1024)]));
+      expect(heavy.statusCode).toBe(413);
+      expect((await call("GET", "/branding")).json().logoHash).toBeNull();
+    });
+
+    it("enregistre un PNG, le sert publiquement sans pouvoir l'exécuter, puis le remplace par un SVG et le retire", async () => {
+      const first = await upload(admin, png(64, 48));
+      expect(first.statusCode, first.body).toBe(200);
+      const hash = first.json().logoHash as string;
+      expect((await call("GET", "/branding")).json().logoHash).toBe(hash);
+
+      const served = await call("GET", "/branding/logo");
+      expect(served.statusCode).toBe(200);
+      expect(served.headers["content-type"]).toBe("image/png");
+      expect(served.headers["x-content-type-options"]).toBe("nosniff");
+      expect(String(served.headers["content-security-policy"])).toContain("sandbox");
+      expect(served.headers["etag"]).toBe(`"${hash}"`);
+      expect(served.rawPayload.equals(png(64, 48))).toBe(true);
+
+      const cached = await app.inject({ method: "GET", url: "/branding/logo", headers: { "if-none-match": `"${hash}"` } });
+      expect(cached.statusCode).toBe(304);
+
+      const second = await upload(admin, SVG, "logo.svg");
+      expect(second.statusCode, second.body).toBe(200);
+      expect(second.json().logoHash).not.toBe(hash);
+      expect((await call("GET", "/branding/logo")).headers["content-type"]).toBe("image/svg+xml");
+      // Renvoyer le même fichier ne change rien.
+      const again = await upload(admin, SVG, "logo.svg");
+      expect(again.json().logoHash).toBe(second.json().logoHash);
+      await expect(prisma.settingsVersion.count({ where: { section: "logo" } })).resolves.toBe(2);
+
+      const removal = await app.inject({ method: "DELETE", url: "/branding/logo", headers: { cookie: admin.cookie, "x-csrf-token": admin.csrf } });
+      expect(removal.statusCode).toBe(204);
+      expect((await call("GET", "/branding/logo")).statusCode).toBe(404);
+      expect((await call("GET", "/branding")).json().logoHash).toBeNull();
+
+      // Les images restent en base (ajout seul) et le changement est audité.
+      await expect(prisma.brandLogo.count()).resolves.toBe(2);
+      await expect(prisma.$executeRawUnsafe('DELETE FROM "BrandLogo"')).rejects.toThrow(/ajout seul/);
+      const actions = (await prisma.auditEvent.findMany({ where: { action: { startsWith: "branding.logo" } }, orderBy: { seq: "asc" } })).map((e) => e.action);
+      expect(actions).toEqual(["branding.logo.updated", "branding.logo.updated", "branding.logo.removed"]);
+    });
+
+    it("permet d'afficher le logo seul ou avec le nom, sans perdre ce choix en changeant de logo", async () => {
+      const display = (session: Session | undefined, body: unknown) =>
+        app.inject({
+          method: "PUT",
+          url: "/branding/logo/display",
+          headers: { ...(session && { cookie: session.cookie, "x-csrf-token": session.csrf }) },
+          payload: body as Record<string, unknown>,
+        });
+      const president = await userWith("president");
+      expect((await display(undefined, { showName: false })).statusCode).toBe(401);
+      expect((await display(president, { showName: false })).statusCode).toBe(403);
+
+      const invalid = await display(admin, { showName: "non" });
+      expect(invalid.statusCode).toBe(400);
+      expect(invalid.json().message).toContain("showName");
+
+      expect((await display(admin, { showName: false })).statusCode).toBe(204);
+      expect((await call("GET", "/branding")).json().logoShowsName).toBe(false);
+      // Rien ne change quand le choix est déjà celui-là.
+      expect((await display(admin, { showName: false })).statusCode).toBe(204);
+
+      const added = await upload(admin, SVG, "logo.svg");
+      expect(added.statusCode, added.body).toBe(200);
+      expect((await call("GET", "/branding")).json()).toMatchObject({ logoHash: added.json().logoHash, logoShowsName: false });
+
+      expect((await display(admin, { showName: true })).statusCode).toBe(204);
+      expect((await call("GET", "/branding")).json().logoShowsName).toBe(true);
+      const actions = (await prisma.auditEvent.findMany({ where: { action: "branding.logo.display-changed" } })).length;
+      expect(actions).toBe(2);
+      await app.inject({ method: "DELETE", url: "/branding/logo", headers: { cookie: admin.cookie, "x-csrf-token": admin.csrf } });
+    });
+
+    it("n'est pas modifiable par l'API générique des paramètres", async () => {
+      expect((await call("PUT", "/settings/logo", admin, { sha256: "a".repeat(64) })).statusCode).toBe(404);
+    });
   });
 
   describe("modules", () => {

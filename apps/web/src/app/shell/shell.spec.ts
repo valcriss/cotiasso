@@ -9,6 +9,9 @@ import { ThemeService } from '../theme/theme.service';
 import { SetupStatus } from '../pages/setup-status.service';
 import { Shell } from './shell';
 
+const logoUrl = signal<string | null>(null);
+const brandingValue = signal<{ appName: string; sidebarBackground: string; sidebarText: string; logoShowsName?: boolean }>({ appName: 'Mon Asso', sidebarBackground: '#eaf2fd', sidebarText: '#0b2a55' });
+
 const user: AuthUser = {
   id: '1',
   email: 'marie@asso.fr',
@@ -31,7 +34,7 @@ describe('Shell', () => {
       imports: [Shell],
       providers: [
         provideRouter([]),
-        { provide: BrandingService, useValue: { branding: signal({ appName: 'Mon Asso', sidebarBackground: '#eaf2fd', sidebarText: '#0b2a55' }) } },
+        { provide: BrandingService, useValue: { branding: brandingValue, logoUrl } },
         {
           provide: AuthService,
           useValue: {
@@ -67,6 +70,35 @@ describe('Shell', () => {
     const fixture = TestBed.createComponent(Shell);
     await fixture.whenStable();
     expect((fixture.nativeElement as HTMLElement).querySelector('.brand .name')?.textContent).toContain('Mon Asso');
+  });
+
+  it("affiche le logo de l'association à côté de son nom quand il y en a un, sans texte alternatif redondant", async () => {
+    logoUrl.set('/api/branding/logo?v=abc');
+    const fixture = TestBed.createComponent(Shell);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const image = root.querySelector<HTMLImageElement>('.brand img.logo');
+    expect(image?.getAttribute('src')).toBe('/api/branding/logo?v=abc');
+    expect(image?.getAttribute('alt')).toBe('');
+    expect(root.querySelector('.brand .name')?.textContent).toContain('Mon Asso');
+    logoUrl.set(null);
+    fixture.detectChanges();
+    expect(root.querySelector('.brand img.logo')).toBeNull();
+  });
+
+  it("n'affiche que le logo quand l'association a choisi « logo seul », en gardant son nom comme texte alternatif", async () => {
+    logoUrl.set('/api/branding/logo?v=abc');
+    brandingValue.update((value) => ({ ...value, logoShowsName: false }));
+    const fixture = TestBed.createComponent(Shell);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.brand .name')).toBeNull();
+    expect(root.querySelector('.brand img.logo')?.getAttribute('alt')).toBe('Mon Asso');
+    // Sans logo, le nom s'affiche toujours, même si « logo seul » était demandé.
+    logoUrl.set(null);
+    fixture.detectChanges();
+    expect(root.querySelector('.brand .name')?.textContent).toContain('Mon Asso');
+    brandingValue.update((value) => ({ ...value, logoShowsName: undefined }));
   });
 
   it('affiche la navigation du cadrage et les paramètres', async () => {

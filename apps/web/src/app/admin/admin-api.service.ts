@@ -1431,6 +1431,22 @@ export class AdminApiService {
     return firstValueFrom(this.http.put<{ changed: boolean; value: T }>(`/api/settings/${section}`, value));
   }
 
+  /** Ajoute ou remplace le logo de l'association (PNG, JPEG ou SVG) ; renvoie son empreinte. */
+  uploadLogo(file: File): Promise<{ logoHash: string }> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return firstValueFrom(this.http.put<{ logoHash: string }>('/api/branding/logo', form));
+  }
+
+  /** Affiche le logo seul (faux) ou avec le nom de l'association (vrai). */
+  setLogoDisplay(showName: boolean): Promise<void> {
+    return firstValueFrom(this.http.put<void>('/api/branding/logo/display', { showName }));
+  }
+
+  removeLogo(): Promise<void> {
+    return firstValueFrom(this.http.delete<void>('/api/branding/logo'));
+  }
+
   listModules(): Promise<ModuleInfo[]> {
     return firstValueFrom(this.http.get<ModuleInfo[]>('/api/modules'));
   }

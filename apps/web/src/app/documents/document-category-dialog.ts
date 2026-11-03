@@ -16,7 +16,7 @@ export interface DocumentCategoryDialogData {
   selector: 'app-document-category-dialog',
   imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatSelectModule],
   template: `
-    <form (ngSubmit)="save()" novalidate>
+    <form (submit)="$event.preventDefault(); save()" novalidate>
       <app-form-dialog title="Changer la catégorie"
         [description]="'Choisissez comment classer « ' + data.document.title + ' » pour le retrouver dans Documents.'"
         [dirty]="category.value !== data.document.category" [busy]="busy()" [error]="error()"

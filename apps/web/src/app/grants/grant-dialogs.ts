@@ -242,7 +242,7 @@ export class GrantDialog {
   selector: 'app-allocations-dialog',
   imports: [ReactiveFormsModule, FormDialog, AllocationsFields],
   template: `
-    <form (ngSubmit)="save()" novalidate>
+    <form (submit)="$event.preventDefault(); save()" novalidate>
       <app-form-dialog
         title="Projets financés"
         [description]="
