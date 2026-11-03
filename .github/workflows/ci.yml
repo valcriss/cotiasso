@@ -57,6 +57,9 @@ jobs:
       - name: Script de mise à jour (faux docker, ordre des étapes et arrêt avant toute modification)
         run: bash scripts/update.test.sh
 
+      - name: Script du jeton d'installation (faux docker, jeton le plus récent seul)
+        run: bash scripts/install-token.test.sh
+
       - name: Build
         run: npm run build
 

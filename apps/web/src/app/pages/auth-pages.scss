@@ -117,3 +117,26 @@ p.error {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+.token-help {
+  background: var(--app-surface-variant, var(--mat-sys-surface-container));
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  margin: 0 0 16px;
+  padding: 8px 12px;
+}
+
+.token-help summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.token-help p {
+  margin: 8px 0 0;
+}
+
+.token-help code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
