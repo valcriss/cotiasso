@@ -112,6 +112,15 @@ export class GuidedController {
     return translate(() => this.operations.correct(id, body, userId, true));
   }
 
+  /** Corrige un montant par un mouvement de régularisation de l'écart (ADR 0032). */
+  @RequirePermission("transactions:manage", "entries:create")
+  @Post("transactions/:id/adjust-amount")
+  async adjustAmount(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest) {
+    const userId = request.auth!.user.id;
+    const canPost = (await this.authz.permissionsFor(userId)).has("entries:post");
+    return translate(() => this.operations.adjustAmount(id, body, userId, canPost));
+  }
+
   @RequirePermission("transactions:manage", "entries:create")
   @HttpCode(HttpStatus.OK)
   @Post("financial-accounts/:id/transactions/book")

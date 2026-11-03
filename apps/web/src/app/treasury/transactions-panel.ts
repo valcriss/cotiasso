@@ -15,6 +15,7 @@ import {
   type AccountInfo,
   type FinancialAccountInfo,
   type BulkBookInfo,
+  type AdjustAmountResult,
   type GuidedOperationResult,
   type OperationCategoryInfo,
   type ProjectInfo,
@@ -28,6 +29,7 @@ import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { ThemeService } from '../theme/theme.service';
 import { BookDialog, type BookDialogData } from './book-dialog';
+import { AdjustAmountDialog, type AdjustAmountDialogData } from './adjust-amount-dialog';
 import { CorrectDialog, type CorrectDialogData } from './correct-dialog';
 import { BulkBookResultDialog, type BulkBookResultData } from './bulk-book-result-dialog';
 import { LinkEntryDialog, type LinkEntryDialogData } from './link-entry-dialog';
@@ -399,6 +401,9 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
                         @if (canCorrect(item)) {
                           <button mat-menu-item type="button" [attr.aria-label]="'Corriger ' + item.label" (click)="correct(item)">Corriger…</button>
                         }
+                        @if (canAdjustAmount(item)) {
+                          <button mat-menu-item type="button" [attr.aria-label]="'Corriger le montant de ' + item.label" (click)="adjustAmount(item)">Corriger le montant…</button>
+                        }
                         @if (canCancelOperation() && item.accounting === 'POSTED' && item.entry && !item.transfer && item.reconciliation?.status !== 'VALIDATED') {
                           <button mat-menu-item class="danger" type="button" [attr.aria-label]="'Annuler l’opération ' + item.label" (click)="cancelOperation(item)">Annuler l’opération</button>
                         }
@@ -495,6 +500,22 @@ export class TransactionsPanel {
   /** Corriger une opération enregistrée : même droit que l'annuler, et seulement si rien ne la fige (virement, vérification bancaire). */
   protected canCorrect(item: TransactionInfo): boolean {
     return this.canLink() && this.canCancelOperation() && item.accounting === 'POSTED' && !!item.entry && !item.transfer && item.reconciliation?.status !== 'VALIDATED' && !this.account().archivedOn;
+  }
+
+  /** Corriger le montant : on ajoute une régularisation (ADR 0032), ce qui reste possible même après la vérification bancaire. */
+  protected canAdjustAmount(item: TransactionInfo): boolean {
+    return this.canLink() && item.accounting === 'POSTED' && !!item.entry && !item.transfer && !this.account().archivedOn;
+  }
+
+  protected async adjustAmount(item: TransactionInfo): Promise<void> {
+    const result = await this.dialogs.open<AdjustAmountResult, AdjustAmountDialogData>(AdjustAmountDialog, {
+      size: 'md',
+      data: { transaction: item, accountName: this.account().name },
+    });
+    if (!result) return;
+    this.notifier.success('Correction ajoutée : le montant est juste dans vos comptes. L’opération d’origine n’a pas été modifiée.');
+    await this.search();
+    this.changed.emit();
   }
 
   protected async correct(item: TransactionInfo): Promise<void> {

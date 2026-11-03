@@ -623,6 +623,32 @@ describe('AccountsPage', () => {
         expect(ui.error).toContain('projet archivé');
       });
 
+      it('« Corriger le montant… » annonce la correction avant d’agir, puis ajoute le mouvement d’écart (ADR 0032)', async () => {
+        await openSimple([posted({ amount: '-49.00', label: 'Facture trop haute' })]);
+        await openMenu('Facture trop haute');
+        expect(menuLabels()).toContain('Corriger le montant…');
+        (document.querySelector('.cdk-overlay-container [aria-label="Corriger le montant de Facture trop haute"]') as HTMLElement).click();
+        await settle();
+        expect(ui.title).toBe('Corriger le montant');
+
+        await ui.submit();
+        expect(ui.error).toContain('Indiquez le montant juste');
+        controller.expectNone((r) => r.url.endsWith('/adjust-amount'));
+
+        await ui.type('input[formcontrolname="amount"]', '40,00');
+        expect(ui.text).toContain('Une correction de 9,00 € « argent reçu » sera ajoutée');
+        await ui.submit();
+        const request = controller.expectOne('/api/transactions/t4/adjust-amount');
+        expect(request.request.body).toMatchObject({ amount: '40.00' });
+        request.flush({ transactionId: 't9', entryId: 'e9', posted: true, journalCode: 'BQ-1', number: 9, adjustedTransactionId: 't4', difference: '9.00' });
+        await settle();
+        controller.expectOne(txUrl).flush({ transactions: [posted()], next: null });
+        await settle();
+        controller.expectOne('/api/financial-accounts').flush([account()]);
+        await settle();
+        expect(ui.snackbar).toContain('Correction ajoutée');
+      });
+
       it('ne propose pas « Corriger… » pour un mouvement vérifié avec la banque, un virement, un brouillon ou un mouvement non enregistré', async () => {
         await openSimple([
           posted({ id: 't5', label: 'Vérifiée', reconciliation: { id: 'r1', status: 'VALIDATED', periodEnd: '2026-03-31' } }),

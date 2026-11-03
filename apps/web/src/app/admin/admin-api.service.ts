@@ -378,6 +378,14 @@ export interface CorrectOperationBody {
   label?: string;
 }
 
+export interface AdjustAmountBody {
+  /** Le montant juste, positif. */
+  amount: string;
+  date: string;
+}
+
+export type AdjustAmountResult = GuidedOperationResult & { adjustedTransactionId: string; difference: string };
+
 export interface BulkBookInfo {
   booked: number;
   posted: number;
@@ -2210,6 +2218,10 @@ export class AdminApiService {
   /** Corrige une opération enregistrée : l'écriture est contrepassée puis refaite, d'un seul bloc (tout ou rien). */
   correctOperation(transactionId: string, body: CorrectOperationBody): Promise<GuidedOperationResult & { reversedEntryId: string }> {
     return firstValueFrom(this.http.post<GuidedOperationResult & { reversedEntryId: string }>(`/api/transactions/${transactionId}/correct`, body));
+  }
+
+  adjustOperationAmount(transactionId: string, body: AdjustAmountBody): Promise<AdjustAmountResult> {
+    return firstValueFrom(this.http.post<AdjustAmountResult>(`/api/transactions/${transactionId}/adjust-amount`, body));
   }
 
   recordOperation(body: GuidedOperationBody): Promise<GuidedOperationResult> {
