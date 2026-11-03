@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -45,6 +46,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Audit des dépendances npm
+        run: npm audit
+
       - name: Client Prisma
         run: npm run db:generate
 
@@ -85,14 +89,17 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Démarrage réel de la stack de production
-        # Construit les deux images et démarre base, API et web : un plantage au démarrage (dépendance manquante dans
+        # Construit les trois images et démarre base, API et web : un plantage au démarrage (dépendance manquante dans
         # l'image, migration, configuration) est détecté ici, ce qu'un simple build ne montre pas.
         run: |
           # Clé générée une seule fois, mise à disposition des étapes suivantes.
           KEY="$(openssl rand -base64 32)"
           echo "MFA_ENCRYPTION_KEY=$KEY" >> "$GITHUB_ENV"
           export MFA_ENCRYPTION_KEY="$KEY"
-          docker compose up -d --build --wait --wait-timeout 240
+          for target in api web backup; do
+            docker build --target "$target" --tag "ghcr.io/valcriss/cotiasso-$target:$COTIASSO_VERSION" .
+          done
+          docker compose up -d --wait --wait-timeout 240
 
       - name: Vérification de la santé via le proxy
         run: |

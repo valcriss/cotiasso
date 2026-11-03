@@ -3,8 +3,7 @@
 #
 #   ./scripts/update.sh <nouvelle-version> [--env-file .env.prod] [--yes]
 #
-# Avant de lancer : récupérer le code de la nouvelle version (git pull / git checkout), car l'image est construite
-# depuis ce dossier. Le script s'arrête AVANT toute modification si la sauvegarde ou sa vérification échoue : rien n'est
+# Le script s'arrête AVANT toute modification si la sauvegarde ou sa vérification échoue : rien n'est
 # alors changé. Les migrations de base de données ne sont pas réversibles ; pour revenir en arrière, on restaure la
 # sauvegarde faite ici (la commande exacte est affichée).
 set -euo pipefail
@@ -67,8 +66,8 @@ TMP="$ENV_FILE.tmp"
 mv "$TMP" "$ENV_FILE"
 
 log ""
-log "4/4 Construction et redémarrage (les migrations s'appliquent au démarrage de l'API)…"
-if ! compose up -d --build --wait --wait-timeout 300; then
+log "4/4 Redémarrage avec les images publiées (les migrations s'appliquent au démarrage de l'API)…"
+if ! compose up -d --wait --wait-timeout 300; then
   cat >&2 <<MSG
 
 ERREUR : le démarrage de la version $VERSION a échoué.
@@ -77,7 +76,7 @@ Pour revenir à la version $CURRENT avec les données d'avant la mise à jour (l
   docker compose --env-file $ENV_FILE stop api web
   cp $ENV_FILE.avant-$VERSION $ENV_FILE
   CONFIRM_RESTORE=yes docker compose --env-file $ENV_FILE --profile tools run --rm tools restore $ARCHIVE
-  docker compose --env-file $ENV_FILE up -d --build
+  docker compose --env-file $ENV_FILE up -d
 
 Sauvegarde utilisée : $ARCHIVE
 MSG

@@ -1,0 +1,44 @@
+name: Publication Docker
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Construction des images
+        run: |
+          image_base="ghcr.io/${GITHUB_REPOSITORY,,}"
+          for target in api web backup; do
+            docker build --target "$target" \
+              --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+              --tag "${image_base}-${target}:${GITHUB_REF_NAME}" .
+          done
+
+      - name: Publication sur GitHub Container Registry
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          image_base="ghcr.io/${GITHUB_REPOSITORY,,}"
+          for target in api web backup; do
+            docker push "${image_base}-${target}:${GITHUB_REF_NAME}"
+          done

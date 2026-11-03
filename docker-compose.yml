@@ -1,7 +1,7 @@
 # Exemple de déploiement : une installation = une association.
 #
 #   cp .env.prod.example .env.prod      # puis renseigner POSTGRES_PASSWORD et COTIASSO_VERSION
-#   docker compose --env-file .env.prod up -d --build
+#   docker compose --env-file .env.prod up -d
 #
 # L'application est servie en HTTP sur COTIASSO_HTTP_PORT : placer un reverse proxy (HTTPS, nom de domaine)
 # devant ce port. La base n'est jamais exposée à l'extérieur.
@@ -24,10 +24,7 @@ services:
       retries: 10
 
   api:
-    image: cotiasso-api:${COTIASSO_VERSION:?Renseigner COTIASSO_VERSION dans .env.prod}
-    build:
-      context: .
-      target: api
+    image: ghcr.io/valcriss/cotiasso-api:${COTIASSO_VERSION:?Renseigner COTIASSO_VERSION dans .env.prod}
     restart: unless-stopped
     depends_on:
       db:
@@ -48,10 +45,7 @@ services:
       - backups-data:/backups:ro
 
   web:
-    image: cotiasso-web:${COTIASSO_VERSION}
-    build:
-      context: .
-      target: web
+    image: ghcr.io/valcriss/cotiasso-web:${COTIASSO_VERSION}
     restart: unless-stopped
     depends_on:
       api:
@@ -64,10 +58,7 @@ services:
 
   # Sauvegardes planifiées : base, documents et manifeste dans une archive chiffrée (voir docs/exploitation.md).
   backup:
-    image: cotiasso-backup:${COTIASSO_VERSION}
-    build:
-      context: .
-      target: backup
+    image: ghcr.io/valcriss/cotiasso-backup:${COTIASSO_VERSION}
     restart: unless-stopped
     depends_on:
       db:
@@ -101,7 +92,7 @@ services:
   # Outils ponctuels (restauration, vérification) : docker compose --profile tools run --rm tools <commande>
   tools:
     profiles: ["tools"]
-    image: cotiasso-backup:${COTIASSO_VERSION}
+    image: ghcr.io/valcriss/cotiasso-backup:${COTIASSO_VERSION}
     entrypoint: ["/usr/local/bin/backup.sh"]
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
