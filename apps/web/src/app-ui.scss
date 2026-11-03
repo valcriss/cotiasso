@@ -391,6 +391,20 @@ h4 {
   }
 }
 
+// Aide « à hauteur adaptable » (app.config.ts) : l'espace que Material réservait sous chaque champ n'existe plus, et les champs
+// d'un formulaire de page se collaient. On le rend par une marge, sauf pour les champs qui demandent explicitement un
+// empilement serré (cellules de tableau…), dans les barres de filtres et dans les boîtes de dialogue (qui ont leur propre
+// écart entre champs, voir FormDialog).
+mat-form-field {
+  margin-bottom: 12px;
+}
+
+mat-form-field[subscriptsizing='dynamic'],
+.filters mat-form-field,
+.app-dialog mat-form-field {
+  margin-bottom: 0;
+}
+
 /* Petit écran : chaque champ prend toute la largeur (deux champs de 200 px côte à côte ne tiennent pas dans une boîte de 312 px). */
 @media (max-width: 600px) {
   .row > * {
