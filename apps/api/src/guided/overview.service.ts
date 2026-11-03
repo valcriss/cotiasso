@@ -2,6 +2,8 @@ import { Money } from "@cotiasso/accounting-domain";
 import { Inject, Injectable } from "@nestjs/common";
 import { AuthorizationService } from "../authz/authorization.service.js";
 import type { Permission } from "../authz/permissions.js";
+import { MembershipsService } from "../members/memberships.service.js";
+import { PaymentsService } from "../members/payments.service.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { OpeningSituationService } from "./opening-situation.service.js";
 
@@ -14,9 +16,22 @@ export interface TodoItem {
   detail: string;
   /** Nombre d'éléments concernés, quand il y en a. */
   count?: number;
-  /** Écran qui règle la tâche (chemin web). */
+  /** Écran qui règle la tâche (chemin web) et, au besoin, de quoi l'ouvrir déjà filtré. */
   link: string;
+  query?: Record<string, string>;
   actionLabel: string;
+}
+
+/** Une des dernières opérations, pour que la personne voie d'un coup d'œil ce qui vient d'être enregistré. */
+export interface RecentOperation {
+  id: string;
+  /** AAAA-MM-JJ */
+  date: string;
+  label: string;
+  /** Montant signé : positif = argent reçu, négatif = argent dépensé. */
+  amount: string;
+  accountName: string;
+  situation: "TO_CLASSIFY" | "CLASSIFIED" | "DRAFT" | "BOOKED" | "TRANSFER";
 }
 
 export interface OverviewView {
@@ -34,10 +49,13 @@ export interface OverviewView {
   cash: { total: string; accounts: { id: string; name: string; balance: string }[] } | null;
   /** Argent entré et sorti depuis le début du mois (les virements entre vos comptes ne comptent pas). */
   month: { from: string; to: string; received: string; spent: string } | null;
+  /** Les 5 dernières opérations, absentes sans droit de lecture des comptes. */
+  recent: RecentOperation[] | null;
   todo: TodoItem[];
 }
 
 const day = (date: Date) => date.toISOString().slice(0, 10);
+const frenchDate = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
 /**
  * Vue d'ensemble « À faire » (ADR 0028) : lecture seule, calculée à la demande, filtrée selon les droits de la personne.
@@ -49,6 +67,8 @@ export class OverviewService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AuthorizationService) private readonly authz: AuthorizationService,
     @Inject(OpeningSituationService) private readonly situation: OpeningSituationService,
+    @Inject(MembershipsService) private readonly memberships: MembershipsService,
+    @Inject(PaymentsService) private readonly payments: PaymentsService,
   ) {}
 
   async overview(userId: string, now: Date = new Date()): Promise<OverviewView> {
@@ -117,8 +137,31 @@ export class OverviewService {
       });
     }
 
+    // Fin de période : la marche à suivre apparaît un mois avant, et reste tant que la période n'est pas clôturée.
+    if (can("fiscal-years:close")) {
+      const closing = await this.prisma.fiscalYear.findFirst({
+        where: { status: "OPEN", end: { lte: new Date(now.getTime() + 30 * 24 * 3600 * 1000) } },
+        orderBy: { end: "asc" },
+        select: { label: true, end: true },
+      });
+      if (closing) {
+        const days = Math.ceil((closing.end.getTime() - Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) / 86_400_000);
+        const endText = frenchDate(day(closing.end));
+        todo.push({
+          code: "PERIOD_END",
+          level: days < 0 ? "WARNING" : "INFO",
+          title: days < 0 ? `Votre période est terminée depuis le ${endText}` : days === 0 ? "Votre période se termine aujourd'hui" : `Votre période se termine le ${endText} (dans ${days} jour${days > 1 ? "s" : ""})`,
+          detail:
+            "La marche à suivre : 1) classez et enregistrez tous les mouvements ; 2) comparez chaque compte au relevé de la banque ; 3) fermez la saisie, puis clôturez la période (Paramètres › Comptabilité). Les comptes de l'année sont alors arrêtés et reportés sur la suivante.",
+          link: "/parametres",
+          actionLabel: "Clôturer",
+        });
+      }
+    }
+
     let cash: OverviewView["cash"] = null;
     let month: OverviewView["month"] = null;
+    let recent: OverviewView["recent"] = null;
     if (can("financial-accounts:view")) {
       const accounts = await this.prisma.financialAccount.findMany({ where: { archivedOn: null }, orderBy: { name: "asc" } });
       const sums = await this.prisma.transaction.groupBy({ by: ["financialAccountId"], _sum: { amount: true } });
@@ -144,9 +187,35 @@ export class OverviewService {
       }
       month = { from: day(from), to: day(to), received: received.toString(), spent: spent.toString() };
 
-      const unqualified = await this.prisma.transaction.count({
-        where: { counterpartAccountId: null, transferOut: null, transferIn: null, matches: { none: { status: "ACTIVE" } } },
+      const lastOnes = await this.prisma.transaction.findMany({
+        orderBy: [{ operationDate: "desc" }, { createdAt: "desc" }],
+        take: 5,
+        select: {
+          id: true,
+          operationDate: true,
+          label: true,
+          amount: true,
+          counterpartAccountId: true,
+          financialAccount: { select: { name: true } },
+          matches: { where: { status: "ACTIVE" }, select: { entry: { select: { status: true } } } },
+          transferOut: { select: { id: true } },
+          transferIn: { select: { id: true } },
+        },
       });
+      recent = lastOnes.map((t) => {
+        const entry = t.matches[0]?.entry;
+        const situation: RecentOperation["situation"] = t.transferOut || t.transferIn ? "TRANSFER" : entry ? (entry.status === "POSTED" ? "BOOKED" : "DRAFT") : t.counterpartAccountId ? "CLASSIFIED" : "TO_CLASSIFY";
+        return { id: t.id, date: day(t.operationDate), label: t.label, amount: Money.parse(t.amount.toString()).toString(), accountName: t.financialAccount.name, situation };
+      });
+
+      // Par compte : le lien de la tâche ouvre directement le compte qui en a le plus, déjà sur « À classer ».
+      const perAccount = await this.prisma.transaction.groupBy({
+        by: ["financialAccountId"],
+        where: { counterpartAccountId: null, transferOut: null, transferIn: null, matches: { none: { status: "ACTIVE" } } },
+        _count: { _all: true },
+      });
+      const unqualified = perAccount.reduce((total, row) => total + row._count._all, 0);
+      const busiest = [...perAccount].sort((a, b) => b._count._all - a._count._all)[0];
       if (unqualified > 0)
         todo.push({
           code: "TO_CLASSIFY",
@@ -155,6 +224,7 @@ export class OverviewService {
           detail: "Dites d'où vient ou où va l'argent (cotisation, assurance…) pour qu'il apparaisse dans vos comptes.",
           count: unqualified,
           link: "/comptes",
+          ...(busiest && { query: { compte: busiest.financialAccountId } }),
           actionLabel: "Classer",
         });
       const toAccount = await this.prisma.transaction.count({
@@ -199,7 +269,20 @@ export class OverviewService {
     }
 
     if (can("members:view")) {
-      const pending = await this.prisma.membership.count({ where: { status: "PENDING" } });
+      const campaign = await this.memberships.currentCampaign(day(now));
+      const due = campaign ? await this.payments.reminders(campaign.id) : null;
+      if (due && due.items.length > 0)
+        todo.push({
+          code: "MEMBERSHIPS_LATE",
+          level: "INFO",
+          title: `${due.items.length === 1 ? "1 cotisation reste" : `${due.items.length} cotisations restent`} à payer (${Money.parse(due.totalDue).toString().replace(".", ",")} €)`,
+          detail: `Pour « ${campaign!.name} ». Vous pouvez préparer un message de rappel pour les personnes concernées.`,
+          count: due.items.length,
+          link: "/membres",
+          query: { cotisation: "late" },
+          actionLabel: "Voir",
+        });
+      const pending = due ? 0 : await this.prisma.membership.count({ where: { status: "PENDING" } });
       if (pending > 0)
         todo.push({
           code: "MEMBERSHIPS_PENDING",
@@ -212,7 +295,7 @@ export class OverviewService {
         });
     }
 
-    return { setup, cash, month, todo };
+    return { setup, cash, month, recent, todo };
   }
 
   /** Comptes avec des mouvements dont aucun rapprochement validé ne date de moins de deux mois. */

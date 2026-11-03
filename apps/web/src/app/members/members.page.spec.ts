@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { mockAuth } from '../testing/auth-mock';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { MembersPage } from './members.page';
@@ -131,6 +131,32 @@ describe('MembersPage', () => {
     await create(['members:view'], [member({ membershipStatus: null })]);
     expect(root.querySelector('tbody tr')!.querySelectorAll('td')[4]!.textContent!.trim()).toBe('—');
     expect(root.textContent).toContain('Aucune saison de cotisation n’est en cours.');
+  });
+
+  it("ouvre la liste déjà filtrée sur les cotisations en retard quand le lien de la vue d'ensemble le demande (?cotisation=late)", async () => {
+    await TestBed.configureTestingModule({
+      imports: [MembersPage],
+      providers: [
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ cotisation: 'late' }) } } },
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        mockAuth(['members:view']),
+        NO_MATERIAL_ANIMATIONS,
+      ],
+    }).compileComponents();
+    controller = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(MembersPage);
+    root = fixture.nativeElement as HTMLElement;
+    ui = new DialogTester(settle);
+    await settle();
+    controller.expectOne('/api/member-categories').flush(categories);
+    await settle();
+    const request = controller.expectOne((r) => r.url === '/api/members');
+    expect(request.request.params.get('membershipStatus')).toBe('LATE');
+    request.flush({ members: [member({ membershipStatus: 'DUE' })], next: null, campaign: { id: 'c1', name: 'Saison' } });
+    await settle();
+    expect(root.textContent).toContain('En retard');
   });
 
   it("guide l'utilisateur quand il n'y a aucun membre", async () => {
