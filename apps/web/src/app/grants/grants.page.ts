@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { formatApiAmount } from '../accounting/amount';
 import { LinkedDocuments } from '../documents/linked-documents';
-import { AdminApiService, type FunderInfo, type GrantInfo, type GrantStatus } from '../admin/admin-api.service';
+import { AdminApiService, type FunderInfo, type GrantFinanceInfo, type GrantInfo, type GrantStatus } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
@@ -14,6 +14,7 @@ import { PageHeader } from '../ui/page-header';
 import { FunderDialog } from './funder-dialog';
 import { GrantExpenses } from './grant-expenses';
 import { GrantFinance } from './grant-finance';
+import { GrantProgress, type ProgressAction } from './grant-progress';
 import { GrantReport } from './grant-report';
 import { FUNDER_TYPE_LABELS, GRANT_STATUS_LABELS, RESIDUAL_LABELS } from './grant-labels';
 import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, GrantReasonDialog } from './grant-dialogs';
@@ -25,7 +26,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
  */
 @Component({
   selector: 'app-grants-page',
-  imports: [FrDatePipe, GrantExpenses, GrantFinance, GrantReport, LinkedDocuments, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
+  imports: [FrDatePipe, GrantProgress, GrantExpenses, GrantFinance, GrantReport, LinkedDocuments, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -175,6 +176,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
             <button mat-button type="button" (click)="selected.set(null)">Fermer</button>
           </div>
         </div>
+        <app-grant-progress [grant]="grant" [canManage]="canManage()" [finance]="finance()" (act)="progress(grant, $event)" />
         <p class="muted">{{ explain(grant) }}</p>
         <dl class="facts">
           <dt>Financeur</dt>
@@ -250,7 +252,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
         <app-linked-documents objectType="grant" [objectId]="grant.id" [name]="grant.title" [canDeposit]="documentsAllowed('documents:create', grant) && grant.status !== 'CLOSED'" />
       }
       @if (grant.status === 'GRANTED' || grant.status === 'CLOSED') {
-        <app-grant-finance [grant]="grant" [canManage]="canManage()" (changed)="refresh()" />
+        <app-grant-finance [grant]="grant" [canManage]="canManage()" (changed)="refresh()" (loaded)="finance.set($event)" />
         <app-grant-expenses [grant]="grant" [canManage]="canManage()" (changed)="refresh()" />
         <app-grant-report [grant]="grant" [refreshKey]="reportKey()" />
       }
@@ -385,6 +387,15 @@ export class GrantsPage {
       case 'CANCELLED':
         return 'Cette demande a été abandonnée. Elle reste ici avec son motif.';
     }
+  }
+
+  /** Le bouton de la frise ouvre la même boîte que le bouton habituel de la page : un seul chemin par geste. */
+  protected readonly finance = signal<GrantFinanceInfo | null>(null);
+
+  protected async progress(grant: GrantInfo, action: ProgressAction): Promise<void> {
+    if (action === 'allocate') await this.allocate(grant);
+    else if (action === 'decide') await this.decide(grant);
+    else await this.close(grant);
   }
 
   protected async changeFilter(value: GrantStatus | ''): Promise<void> {
