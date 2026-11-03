@@ -101,6 +101,8 @@ nav {
 .content {
   overflow: auto;
   padding: 28px 32px;
+  /* Les éléments positionnés (texte réservé aux lecteurs d'écran…) restent dans la zone qui défile : sans cela, ils élargissent la page entière. */
+  position: relative;
 }
 
 @media (max-width: 720px) {
