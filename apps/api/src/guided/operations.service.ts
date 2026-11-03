@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { z } from "zod";
 import { AccountingConflictError, AccountingNotFoundError } from "../accounting/errors.js";
 import { parse } from "../accounting/schemas.js";
+import { EntriesService } from "../accounting/entries.service.js";
 import { AuditService } from "../audit/audit.service.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
@@ -24,6 +25,21 @@ const bookInput = z
     post: z.boolean().default(true),
   })
   .strict();
+
+const correctInput = z
+  .object({
+    /** Nouvelle catégorie ; absente = on garde la catégorie actuelle. */
+    categoryId: z.uuid("Catégorie invalide.").optional(),
+    /** Nouveau projet ; `null` = retour au projet par défaut ; absent = on garde le projet actuel. */
+    projectId: z.uuid().nullable().optional(),
+    label: z.string().trim().min(1, "Description obligatoire.").max(200, "Description trop longue (200 caractères).").optional(),
+    post: z.boolean().default(true),
+  })
+  .strict()
+  .refine((value) => value.categoryId !== undefined || value.projectId !== undefined || value.label !== undefined, {
+    message: "Indiquez ce qui change : la catégorie, le projet ou la description.",
+    path: ["categoryId"],
+  });
 
 const MAX_BULK = 200;
 const bulkInput = z
@@ -77,6 +93,7 @@ export class OperationsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(EntriesService) private readonly entries: EntriesService,
   ) {}
 
   async record(body: unknown, actorId: string, canPost: boolean): Promise<OperationResult> {
@@ -170,6 +187,61 @@ export class OperationsService {
       details: { direction: input.direction, entryId: created.entryId, posted: post },
     });
     return { ...created, posted: post, journalCode, number };
+  }
+
+  /**
+   * « Corriger » une opération déjà enregistrée dans les comptes : l'écriture est **contrepassée puis refaite** avec la nouvelle
+   * catégorie, le nouveau projet ou la nouvelle description, dans **une seule transaction SQL** (tout ou rien). Rien n'est effacé :
+   * l'historique garde l'écriture d'origine, son inverse et la nouvelle. Le montant et la date ne se corrigent pas ici : ils sont
+   * figés dès que le mouvement a été relié à une écriture (garantie en base, ADR 0017).
+   */
+  async correct(transactionId: string, body: unknown, actorId: string, canPost: boolean): Promise<OperationResult & { reversedEntryId: string }> {
+    const input = parse(correctInput, body);
+    const post = input.post && canPost;
+    const tx = await this.prisma.transaction.findUnique({
+      where: { id: transactionId },
+      include: {
+        financialAccount: true,
+        counterpartAccount: true,
+        reconciliation: { select: { status: true } },
+        matches: { where: { status: "ACTIVE" }, include: { entry: { select: { id: true, status: true, _count: { select: { lines: true } } } } } },
+        transferOut: true,
+        transferIn: true,
+      },
+    });
+    if (!tx) throw new AccountingNotFoundError("Mouvement");
+    const active = tx.matches[0];
+    if (!active) throw new AccountingConflictError("Ce mouvement n'est pas encore enregistré dans les comptes : classez-le et enregistrez-le directement, il n'y a rien à corriger.");
+    if (active.entry.status !== "POSTED") {
+      throw new AccountingConflictError("Cette opération est encore en brouillon : modifiez le brouillon directement (« Relire le brouillon »), inutile de la corriger.");
+    }
+    if (tx.transferOut || tx.transferIn) throw new AccountingConflictError("Ce mouvement fait partie d'un virement entre vos comptes : annulez le virement plutôt que de le corriger.");
+    if (tx.reconciliation?.status === "VALIDATED") {
+      throw new AccountingConflictError("Ce mouvement a déjà été vérifié avec le relevé de la banque : on ne le corrige plus. Annulez d'abord cette vérification si vous devez le changer.");
+    }
+    if (active.entry._count.lines !== 2) {
+      throw new AccountingConflictError("Cette opération a été saisie avec plusieurs lignes : corrigez-la depuis la Comptabilité (contrepassez l'écriture, puis saisissez la bonne).");
+    }
+
+    let counterpart = tx.counterpartAccount;
+    if (input.categoryId !== undefined) {
+      const category = await this.prisma.operationCategory.findUnique({ where: { id: input.categoryId }, include: { account: true } });
+      if (!category || !category.active) throw new AccountingNotFoundError("Catégorie");
+      if (category.direction !== (tx.amount.gt(0) ? "IN" : "OUT")) {
+        throw new AccountingConflictError(
+          tx.amount.gt(0) ? "Ce mouvement est de l'argent reçu : choisissez une catégorie d'argent reçu." : "Ce mouvement est de l'argent dépensé : choisissez une catégorie d'argent dépensé.",
+        );
+      }
+      counterpart = category.account;
+    }
+    if (!counterpart) throw new AccountingConflictError("Ce mouvement n'a pas de catégorie : choisissez-en une.");
+    const projectId = input.projectId === undefined ? tx.projectId : input.projectId;
+    const label = input.label ?? tx.label;
+    if (counterpart.id === tx.counterpartAccountId && projectId === tx.projectId && label === tx.label) {
+      throw new AccountingConflictError("Rien n'a changé : choisissez une autre catégorie, un autre projet ou une autre description.");
+    }
+    const result = await this.bookRow({ ...tx, label }, counterpart, projectId, post, actorId, true, { reverseEntryId: active.entry.id, label: input.label });
+    return { ...result, reversedEntryId: active.entry.id };
   }
 
   /**
@@ -271,6 +343,8 @@ export class OperationsService {
     post: boolean,
     actorId: string,
     auditEach = true,
+    /** Correction : l'écriture d'origine est contrepassée dans la même transaction SQL, avant la nouvelle. */
+    correction?: { reverseEntryId: string; label: string | undefined },
   ): Promise<OperationResult> {
     const category = { accountId: counterpart.id, account: counterpart };
     const projectIdWanted = wantedProjectId;
@@ -286,6 +360,10 @@ export class OperationsService {
     let journalCode = "";
     const entryId = await this.prisma
       .$transaction(async (db) => {
+        if (correction) {
+          await this.entries.reverseWithin(db, correction.reverseEntryId, actorId);
+          if (correction.label !== undefined) await db.transaction.update({ where: { id: tx.id }, data: { label: correction.label } });
+        }
         await db.transaction.update({ where: { id: tx.id }, data: { counterpartAccountId: category.accountId, projectId } });
         const entry = await db.journalEntry.create({
           data: draftDataFor(
@@ -323,7 +401,11 @@ export class OperationsService {
         return rethrowLink(error);
       });
     if (!journalCode) journalCode = (await this.prisma.journal.findUniqueOrThrow({ where: { id: tx.financialAccount.journalId }, select: { code: true } })).code;
-    if (auditEach) await this.audit.record({ action: "operation.booked", objectType: "Transaction", objectId: tx.id, actorId, details: { entryId, posted: post } });
+    if (correction) {
+      await this.audit.record({ action: "operation.corrected", objectType: "Transaction", objectId: tx.id, actorId, details: { entryId, reversedEntryId: correction.reverseEntryId, posted: post } });
+    } else if (auditEach) {
+      await this.audit.record({ action: "operation.booked", objectType: "Transaction", objectId: tx.id, actorId, details: { entryId, posted: post } });
+    }
     return { transactionId: tx.id, entryId, posted: post, journalCode, number };
   }
 }
