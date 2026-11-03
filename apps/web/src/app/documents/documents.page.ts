@@ -22,6 +22,7 @@ import { FileDropzone } from '../ui/file-dropzone';
 import { PageHeader } from '../ui/page-header';
 import { formatSize, objectTypeLabel } from './format';
 import { UploadDialog, type UploadDialogData } from './upload-dialog';
+import { DocumentCategoryDialog, type DocumentCategoryDialogData } from './document-category-dialog';
 import { Skeleton } from '../ui/skeleton';
 
 @Component({
@@ -112,6 +113,9 @@ import { Skeleton } from '../ui/skeleton';
 
         <div class="actions">
           <a mat-flat-button [href]="downloadUrl(doc.id)">Télécharger la dernière version</a>
+          @if (canCreate() && !doc.archivedAt && options()) {
+            <button mat-stroked-button type="button" [disabled]="busy()" (click)="changeCategory(doc)">Changer la catégorie</button>
+          }
           @if (canCreate()) {
             @if (doc.archivedAt) {
               <button mat-stroked-button type="button" [disabled]="busy()" (click)="setArchived(doc, false)">Réactiver</button>
@@ -285,6 +289,19 @@ export class DocumentsPage {
 
   protected pickFile(file: File): void {
     this.versionFile.set(file);
+  }
+
+  protected async changeCategory(doc: DocumentDetail): Promise<void> {
+    const options = this.options();
+    if (!options) return;
+    const updated = await this.dialogs.open<DocumentDetail, DocumentCategoryDialogData>(DocumentCategoryDialog, {
+      size: 'sm',
+      data: { document: doc, categories: options.categories },
+    });
+    if (!updated) return;
+    if (this.selected()?.id === updated.id) this.selected.set(updated);
+    this.notifier.success('Catégorie mise à jour.');
+    await this.search();
   }
 
   protected async search(): Promise<void> {
