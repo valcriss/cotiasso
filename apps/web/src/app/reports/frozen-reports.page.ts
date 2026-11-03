@@ -15,6 +15,7 @@ import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { ApproveDialog, FreezeDialog, type ApproveDialogData, type FreezeDialogData } from './frozen-report-dialogs';
 import { StatementGroups } from './statements';
+import { NoPeriod } from '../ui/no-period';
 
 /**
  * Rapports figés (ADR 0031) : les comptes de l'exercice tels qu'ils étaient à un moment donné, sans modification possible.
@@ -23,7 +24,7 @@ import { StatementGroups } from './statements';
  */
 @Component({
   selector: 'app-frozen-reports-page',
-  imports: [DatePipe, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, LinkedDocuments, StatementGroups],
+  imports: [NoPeriod, DatePipe, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, LinkedDocuments, StatementGroups],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -71,7 +72,7 @@ import { StatementGroups } from './statements';
     }
 
     @if (years().length === 0 && !loading()) {
-      <p class="muted">Aucun exercice n’est encore créé : créez-le dans Paramètres › Comptabilité.</p>
+      <app-no-period />
     } @else if (!loading() && versions().length === 0) {
       <section class="panel">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">lock</mat-icon><span>Aucun rapport figé pour cet exercice</span></h3>
