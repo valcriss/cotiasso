@@ -139,6 +139,7 @@ export const routes: Routes = [
           { path: 'compte-de-resultat', title: 'Compte de résultat', loadComponent: () => import('./reports/income-statement.page').then((m) => m.IncomeStatementPage) },
           { path: 'bilan', title: 'Bilan', loadComponent: () => import('./reports/balance-sheet.page').then((m) => m.BalanceSheetPage) },
           { path: 'tresorerie', title: 'Trésorerie', loadComponent: () => import('./reports/treasury.page').then((m) => m.TreasuryStatementPage) },
+          { path: 'assemblee', title: 'Dossier de l’assemblée générale', loadComponent: () => import('./reports/assembly.page').then((m) => m.AssemblyPage) },
           { path: 'figes', title: 'Rapports figés', loadComponent: () => import('./reports/frozen-reports.page').then((m) => m.FrozenReportsPage) },
         ],
       },

@@ -22,11 +22,12 @@ describe('Rapports : onglets (#24)', () => {
       'balancePossédé et dû (bilan)',
       'account_balanceMouvements d’argent (trésorerie)',
       'lockComptes arrêtés (rapports figés)',
+      'groupsAssemblée générale (dossier de l’assemblée)',
     ]);
   });
 
   it('en affichage comptable, garde les noms comptables', async () => {
     const tabs = await render('accounting');
-    expect(tabs).toEqual(['trending_upCompte de résultat', 'balanceBilan', 'account_balanceTrésorerie', 'lockRapports figés']);
+    expect(tabs).toEqual(['trending_upCompte de résultat', 'balanceBilan', 'account_balanceTrésorerie', 'lockRapports figés', 'groupsDossier de l’assemblée']);
   });
 });

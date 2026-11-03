@@ -10,6 +10,7 @@ export const REPORT_TABS = [
   { path: 'bilan', label: 'Bilan', simple: 'Possédé et dû', icon: 'balance' },
   { path: 'tresorerie', label: 'Trésorerie', simple: 'Mouvements d’argent', icon: 'account_balance' },
   { path: 'figes', label: 'Rapports figés', simple: 'Comptes arrêtés', icon: 'lock' },
+  { path: 'assemblee', label: 'Dossier de l’assemblée', simple: 'Assemblée générale', icon: 'groups' },
 ] as const;
 
 @Component({
