@@ -37,7 +37,7 @@ import { Skeleton } from '../ui/skeleton';
     .figures {
       display: grid;
       gap: 12px 24px;
-      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
       margin: 12px 0 0;
     }
     .figure dt {
