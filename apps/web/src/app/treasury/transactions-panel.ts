@@ -1,4 +1,6 @@
-import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { debounceTime } from 'rxjs';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -28,7 +30,28 @@ import { BulkBookResultDialog, type BulkBookResultData } from './bulk-book-resul
 import { LinkEntryDialog, type LinkEntryDialogData } from './link-entry-dialog';
 import { QualifyDialog, type QualifyDialogData } from './qualify-dialog';
 import { TransactionDialog, type TransactionDialogData, type TransactionDialogResult } from './transaction-dialog';
+import { todayLocalIso } from '../ui/dates';
 import { FrDatePipe } from '../ui/fr-date.pipe';
+
+type PeriodKey = 'month' | 'last-month' | 'year' | 'all';
+const PERIOD_SHORTCUTS: { key: PeriodKey; label: string }[] = [
+  { key: 'month', label: 'Ce mois-ci' },
+  { key: 'last-month', label: 'Le mois dernier' },
+  { key: 'year', label: 'Cette année' },
+  { key: 'all', label: 'Tout' },
+];
+
+const two = (value: number) => String(value).padStart(2, '0');
+
+/** Bornes `AAAA-MM-JJ` d'un raccourci de période, calculées sur la date locale (aucune conversion UTC). */
+export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date()): { from: string; to: string } {
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  if (key === 'year') return { from: `${year}-01-01`, to: `${year}-12-31` };
+  const first = key === 'month' ? new Date(year, month, 1) : new Date(year, month - 1, 1);
+  const last = new Date(first.getFullYear(), first.getMonth() + 1, 0);
+  return { from: todayLocalIso(first), to: `${last.getFullYear()}-${two(last.getMonth() + 1)}-${two(last.getDate())}` };
+}
 
 /** Transactions d'un compte : liste filtrable, saisie (boîte de dialogue) et accès à l'import d'un relevé. */
 @Component({
@@ -36,6 +59,22 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
   imports: [FrDatePipe, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
+    .periods {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 12px;
+    }
+    .periods .active {
+      background: var(--mat-sys-secondary-container);
+    }
+    .todo-count {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 12px;
+    }
     .amount {
       font-variant-numeric: tabular-nums;
       text-align: right;
@@ -120,11 +159,32 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
           </mat-select>
         </mat-form-field>
         <div class="actions">
-          <button mat-flat-button type="submit">
-            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_alt</mat-icon> Filtrer
-          </button>
+          @if (simple()) {
+            @if (hasFilter()) {
+              <button mat-stroked-button type="button" (click)="clearFilters()">
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_alt_off</mat-icon> Effacer les filtres
+              </button>
+            }
+          } @else {
+            <button mat-flat-button type="submit">
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_alt</mat-icon> Filtrer
+            </button>
+          }
         </div>
       </form>
+      <div class="periods" role="group" aria-label="Raccourcis de période">
+        @for (shortcut of periodShortcuts; track shortcut.key) {
+          <button mat-stroked-button type="button" [attr.aria-pressed]="activePeriod() === shortcut.key" [class.active]="activePeriod() === shortcut.key" (click)="applyPeriod(shortcut.key)">
+            {{ shortcut.label }}
+          </button>
+        }
+      </div>
+      @if (simple() && !loading() && toClassifyOnly() && transactions().length > 0) {
+        <p class="todo-count" role="status">
+          <strong>{{ transactions().length }}{{ next() ? ' ou plus' : '' }} mouvement(s) à classer.</strong>
+          <button mat-button type="button" (click)="showAll()">Voir tous les mouvements</button>
+        </p>
+      }
 
       @if (loading()) {
         <p class="muted">Chargement…</p>
@@ -310,6 +370,20 @@ export class TransactionsPanel {
   });
 
   protected readonly filters = this.fb.group({ from: [''], to: [''], q: [''], qualified: [''], accounting: [''] });
+  private readonly destroyRef = inject(DestroyRef);
+  /** Le formulaire n'est pas un signal : ces deux-là suivent ses valeurs pour l'affichage (puces de période, compteur). */
+  private readonly filterValues = signal(this.filters.getRawValue());
+  protected readonly hasFilter = computed(() => Object.values(this.filterValues()).some((value) => value !== ''));
+  protected readonly toClassifyOnly = computed(() => this.filterValues().qualified === 'false');
+  protected readonly periodShortcuts = PERIOD_SHORTCUTS;
+  protected readonly activePeriod = computed(() => {
+    const { from, to } = this.filterValues();
+    if (!from && !to) return 'all';
+    return PERIOD_SHORTCUTS.find((shortcut) => shortcut.key !== 'all' && periodRange(shortcut.key).from === from && periodRange(shortcut.key).to === to)?.key ?? null;
+  });
+  /** Une réponse tardive d'une requête abandonnée (filtre changé entre-temps) ne doit pas remplacer la liste à jour. */
+  private requestSeq = 0;
+  private lastAccountId: string | null = null;
 
   /** Identifiant seul : recharger les soldes du compte ne doit pas relancer la liste ni perdre les filtres. */
   private readonly accountId = computed(() => this.account().id);
@@ -319,8 +393,10 @@ export class TransactionsPanel {
       this.accountId();
       this.reloadKey();
       // La requête lit d'autres signaux (compte, filtres) : hors suivi, seul le changement de compte relance l'effet.
-      untracked(() => void this.search());
+      untracked(() => void this.openAccount());
     });
+    // Filtrage immédiat : plus besoin de penser à cliquer sur « Filtrer ».
+    this.filters.valueChanges.pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef)).subscribe(() => void this.search());
     // En affichage simple, les catégories remplacent les numéros de compte : on les charge une fois, quand elles servent.
     effect(() => {
       if (this.simple() && !this.categoriesRequested) untracked(() => void this.loadCategories());
@@ -530,18 +606,56 @@ export class TransactionsPanel {
     }
   }
 
+  /**
+   * Ouverture d'un compte. En affichage simple, on commence par ce qui reste à faire (« À classer ») ; s'il n'y a rien à classer,
+   * on montre tout plutôt qu'une liste vide. Un rechargement du même compte garde les filtres de la personne.
+   */
+  private async openAccount(): Promise<void> {
+    const accountId = this.accountId();
+    if (accountId === this.lastAccountId) {
+      await this.search();
+      return;
+    }
+    this.lastAccountId = accountId;
+    this.filters.reset({ from: '', to: '', q: '', qualified: this.simple() ? 'false' : '', accounting: '' }, { emitEvent: false });
+    await this.search();
+    if (this.simple() && !this.error() && this.transactions().length === 0) {
+      this.filters.patchValue({ qualified: '' }, { emitEvent: false });
+      await this.search();
+    }
+  }
+
   protected async search(): Promise<void> {
+    const seq = ++this.requestSeq;
+    this.filterValues.set(this.filters.getRawValue());
     this.loading.set(true);
     this.error.set(null);
     try {
       const page = await this.api.listTransactions(this.account().id, this.query());
+      if (seq !== this.requestSeq) return;
       this.transactions.set(page.transactions);
       this.next.set(page.next);
     } catch (failure) {
+      if (seq !== this.requestSeq) return;
       this.error.set(describeHttpError(failure, 'Impossible de charger les transactions.').message);
     } finally {
-      this.loading.set(false);
+      if (seq === this.requestSeq) this.loading.set(false);
     }
+  }
+
+  protected async applyPeriod(key: PeriodKey): Promise<void> {
+    this.filters.patchValue(key === 'all' ? { from: '', to: '' } : periodRange(key), { emitEvent: false });
+    await this.search();
+  }
+
+  protected async clearFilters(): Promise<void> {
+    this.filters.reset({ from: '', to: '', q: '', qualified: '', accounting: '' }, { emitEvent: false });
+    await this.search();
+  }
+
+  protected async showAll(): Promise<void> {
+    this.filters.patchValue({ qualified: '' }, { emitEvent: false });
+    await this.search();
   }
 
   protected async more(): Promise<void> {

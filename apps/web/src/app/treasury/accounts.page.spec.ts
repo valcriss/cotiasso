@@ -528,6 +528,59 @@ describe('AccountsPage', () => {
       expect(text).not.toContain('Rapprocher');
     });
 
+    describe('filtres de la liste (#25)', () => {
+      const txUrl = (r: { url: string }) => r.url === '/api/financial-accounts/f1/transactions';
+
+      it('s’ouvre sur « À classer » avec un compteur, et permet de tout voir', async () => {
+        await create(SIMPLE, [account()], 'simple');
+        await click('Ouvrir Compte courant');
+        const first = controller.expectOne(txUrl);
+        expect(first.request.params.get('qualified')).toBe('false');
+        first.flush({ transactions: [transaction({ id: 't1', label: 'Inconnu' }), transaction({ id: 't2', label: 'Autre' })], next: null });
+        controller.expectOne('/api/operation-categories').flush(cats);
+        await settle();
+        expect(root.querySelector('.todo-count')!.textContent).toContain('2 mouvement(s) à classer');
+
+        await click('Voir tous les mouvements');
+        const all = controller.expectOne(txUrl);
+        expect(all.request.params.has('qualified')).toBe(false);
+        all.flush({ transactions: [transaction({ id: 't1' })], next: null });
+        await settle();
+        expect(root.querySelector('.todo-count')).toBeNull();
+      });
+
+      it('montre tout plutôt qu’une liste vide quand il n’y a rien à classer', async () => {
+        await create(SIMPLE, [account()], 'simple');
+        await click('Ouvrir Compte courant');
+        controller.expectOne(txUrl).flush({ transactions: [], next: null });
+        controller.expectOne('/api/operation-categories').flush(cats);
+        await settle();
+        const fallback = controller.expectOne(txUrl);
+        expect(fallback.request.params.has('qualified')).toBe(false);
+        fallback.flush({ transactions: [transaction({ id: 't9', label: 'Déjà classé', counterpartAccountId: 'a616', counterpartAccountNumber: '616' })], next: null });
+        await settle();
+        expect(root.textContent).toContain('Déjà classé');
+        expect(root.querySelector('.todo-count')).toBeNull();
+      });
+
+      it('applique un raccourci de période sans bouton « Filtrer »', async () => {
+        await openSimple([transaction({ id: 't1' })]);
+        expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.trim() === 'Filtrer')).toBe(false);
+        await click('Ce mois-ci');
+        const request = controller.expectOne(txUrl);
+        expect(request.request.params.get('from')).toMatch(/^\d{4}-\d{2}-01$/);
+        expect(request.request.params.get('to')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        request.flush({ transactions: [], next: null });
+        await settle();
+        expect(root.querySelector('.periods .active')!.textContent).toContain('Ce mois-ci');
+        await click('Effacer les filtres');
+        const cleared = controller.expectOne(txUrl);
+        expect(cleared.request.params.keys()).toEqual([]);
+        cleared.flush({ transactions: [], next: null });
+        await settle();
+      });
+    });
+
     it('donne une seule situation lisible par mouvement, la catégorie en mots courants et masque les gestes de comptable', async () => {
       await openSimple([
         transaction({ id: 't1', label: 'Inconnu' }),
