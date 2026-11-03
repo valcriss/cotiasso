@@ -35,6 +35,7 @@ import { QualifyDialog, type QualifyDialogData } from './qualify-dialog';
 import { TransactionDialog, type TransactionDialogData, type TransactionDialogResult } from './transaction-dialog';
 import { todayLocalIso } from '../ui/dates';
 import { FrDatePipe } from '../ui/fr-date.pipe';
+import { HelpHint } from '../ui/help-hint';
 
 const HINT_KEY = 'cotiasso.transactions.situations-hint-dismissed';
 function readHintFlag(): boolean {
@@ -76,7 +77,7 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
 /** Transactions d'un compte : liste filtrable, saisie (boîte de dialogue) et accès à l'import d'un relevé. */
 @Component({
   selector: 'app-transactions-panel',
-  imports: [FrDatePipe, MatMenuModule, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [HelpHint, FrDatePipe, MatMenuModule, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .periods {
@@ -280,8 +281,8 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
               <th scope="col">Date</th>
               <th scope="col">{{ simple() ? 'Description' : 'Libellé' }}</th>
               <th scope="col">Projet</th>
-              <th scope="col">{{ simple() ? 'Catégorie' : 'Contrepartie' }}</th>
-              <th scope="col">{{ simple() ? 'Situation' : 'Comptabilisation' }}</th>
+              <th scope="col">{{ simple() ? 'Catégorie' : 'Contrepartie' }}@if (simple()) { <app-help-hint term="categorie" /> }</th>
+              <th scope="col">{{ simple() ? 'Situation' : 'Comptabilisation' }}@if (simple()) { <app-help-hint term="enregistre" /> }</th>
               <th scope="col" class="amount">Montant</th>
               <th scope="col"><span class="sr-only">Actions</span></th>
             </tr>
@@ -335,6 +336,10 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
                     <span class="status" [class.ok]="simpleStatus(item).ok">
                       <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ simpleStatus(item).icon }}</mat-icon> {{ simpleStatus(item).label }}
                     </span>
+                    @if (item.accounting === 'IN_PROGRESS') {
+                      <app-help-hint term="brouillon" />
+                      <div class="muted">{{ canCancelOperation() ? 'À relire puis enregistrer : rien n’est encore compté dans les rapports.' : 'En attente de validation par une personne autorisée : rien n’est encore compté dans les rapports.' }}</div>
+                    }
                     @if (item.transfer; as transfer) {
                       <div class="muted">Virement {{ transfer.direction === 'OUT' ? 'vers' : 'depuis' }} {{ transfer.otherAccountName }}</div>
                     }

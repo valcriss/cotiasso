@@ -256,15 +256,19 @@ export class OverviewService {
 
     if (can("entries:view")) {
       const drafts = await this.prisma.journalEntry.count({ where: { status: "DRAFT" } });
+      // Qui peut enregistrer définitivement a une tâche de validation ; les autres, un simple brouillon à relire.
+      const toValidate = can("entries:post");
       if (drafts > 0)
         todo.push({
           code: "DRAFTS",
           level: "WARNING",
-          title: drafts === 1 ? "1 brouillon à relire" : `${drafts} brouillons à relire`,
-          detail: "Un brouillon peut encore être modifié mais ne compte pas dans vos états. Relisez-le puis enregistrez-le définitivement.",
+          title: toValidate ? (drafts === 1 ? "1 opération à valider" : `${drafts} opérations à valider`) : drafts === 1 ? "1 brouillon à relire" : `${drafts} brouillons à relire`,
+          detail: toValidate
+            ? "Elles ont été préparées sans pouvoir être enregistrées définitivement (ou laissées en brouillon). Relisez-les puis enregistrez-les : tant qu'elles sont en brouillon, elles ne comptent pas dans vos rapports."
+            : "Un brouillon peut encore être modifié mais ne compte pas dans vos états. Relisez-le puis enregistrez-le définitivement.",
           count: drafts,
           link: "/comptabilite",
-          actionLabel: "Relire",
+          actionLabel: toValidate ? "Valider" : "Relire",
         });
     }
 

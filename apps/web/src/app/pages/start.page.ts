@@ -6,6 +6,7 @@ import { AdminApiService, type FinancialAccountInfo, type FiscalYearInfo, type O
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
+import { HelpHint } from '../ui/help-hint';
 import { PageHeader } from '../ui/page-header';
 import { SetupStatus } from './setup-status.service';
 import { OpeningSituationDialog, type OpeningSituationDialogData } from './opening-situation-dialog';
@@ -26,7 +27,7 @@ interface Step {
  */
 @Component({
   selector: 'app-start-page',
-  imports: [MatButtonModule, MatIconModule, RouterLink, PageHeader],
+  imports: [HelpHint, MatButtonModule, MatIconModule, RouterLink, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     ol.steps {
@@ -87,7 +88,7 @@ interface Step {
           <li [class.locked]="step.locked">
             <mat-icon class="mark" fontSet="material-icons-outlined" aria-hidden="true">{{ step.done ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
             <div class="text">
-              <h3>{{ index + 1 }}. {{ step.title }} @if (step.done) { <span class="chip">Fait</span> }</h3>
+              <h3>{{ index + 1 }}. {{ step.title }}@if (step.key === 'year') { <app-help-hint term="periode" /> } @if (step.done) { <span class="chip">Fait</span> }</h3>
               <p class="muted">{{ step.why }}</p>
               @if (step.key === 'mode') {
                 <div class="actions">

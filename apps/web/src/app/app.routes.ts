@@ -45,6 +45,11 @@ export const routes: Routes = [
         title: overview!.label,
         loadComponent: () => import('./pages/overview.page').then((m) => m.OverviewPage),
       },
+      {
+        path: 'aide',
+        title: 'Aide et lexique',
+        loadComponent: () => import('./pages/help.page').then((m) => m.HelpPage),
+      },
       ...others.filter((item) => item.path !== 'documents' && item.path !== 'comptabilite' && item.path !== 'projets' && item.path !== 'comptes' && item.path !== 'rapports' && item.path !== 'membres' && item.path !== 'subventions').map((item) => ({
         path: item.path,
         title: item.label,

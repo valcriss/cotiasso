@@ -30,7 +30,7 @@ export interface BookDialogData {
       <app-form-dialog
         title="Classer et enregistrer ce mouvement"
         [description]="incoming ? 'De l’argent est arrivé sur le compte. Dites d’où il vient : le logiciel s’occupe de la comptabilité.' : 'De l’argent est sorti du compte. Dites à quoi il a servi : le logiciel s’occupe de la comptabilité.'"
-        [submitLabel]="data.canPost ? 'Classer et enregistrer' : 'Classer en brouillon'"
+        [submitLabel]="data.canPost ? 'Classer et enregistrer' : 'Classer et envoyer pour validation'"
         [dirty]="form.dirty"
         [busy]="busy()"
         [error]="error()"
@@ -64,7 +64,7 @@ export interface BookDialogData {
         @if (selected(); as category) {
           <p class="muted">
             Ce que verra l’expert-comptable : {{ incoming ? 'le compte ' + data.account.accountNumber + ' est débité et le compte ' + category.account.number + ' (' + category.account.label + ') crédité' : 'le compte ' + category.account.number + ' (' + category.account.label + ') est débité et le compte ' + data.account.accountNumber + ' crédité' }}.
-            {{ data.canPost ? 'L’opération est enregistrée définitivement ; vous pourrez toujours l’annuler.' : 'Elle sera mise en brouillon pour qu’une personne habilitée la relise.' }}
+            {{ data.canPost ? 'L’opération est enregistrée définitivement ; vous pourrez toujours l’annuler.' : 'Elle sera envoyée pour validation, en brouillon : une personne autorisée la relira puis l’enregistrera ; rien n’est compté dans les rapports avant.' }}
           </p>
         }
       </app-form-dialog>

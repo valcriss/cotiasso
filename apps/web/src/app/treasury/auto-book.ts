@@ -43,6 +43,6 @@ export class AutoBook {
     if (!outcome.ok) {
       return `Rattaché, mais pas encore enregistré dans les comptes : ${outcome.message} Vous pourrez le faire depuis la liste des mouvements du compte (« Classer et enregistrer »).`;
     }
-    return outcome.posted ? 'Rattaché et enregistré dans les comptes.' : 'Rattaché et mis en brouillon dans les comptes (à relire).';
+    return outcome.posted ? 'Rattaché et enregistré dans les comptes.' : 'Rattaché, et envoyé pour validation dans les comptes (brouillon à relire).';
   }
 }
