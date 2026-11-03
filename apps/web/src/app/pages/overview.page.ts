@@ -9,6 +9,7 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { HealthService } from '../health.service';
 import { OperationLauncher } from '../treasury/operation-launcher';
+import { SetupStatus } from './setup-status.service';
 import { PageHeader } from '../ui/page-header';
 
 const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button_unchecked', WARNING: 'warning', INFO: 'info' };
@@ -204,6 +205,7 @@ export class OverviewPage {
   private readonly api = inject(AdminApiService);
   private readonly auth = inject(AuthService);
   private readonly launcher = inject(OperationLauncher);
+  private readonly setupStatus = inject(SetupStatus);
 
   protected readonly status$ = inject(HealthService).check();
   protected readonly overview = signal<OverviewInfo | null>(null);
@@ -238,7 +240,9 @@ export class OverviewPage {
 
   private async load(): Promise<void> {
     try {
-      this.overview.set(await this.api.overview());
+      const overview = await this.api.overview();
+      this.overview.set(overview);
+      this.setupStatus.set(overview.setup);
       this.error.set(null);
     } catch (failure) {
       this.error.set(describeHttpError(failure, "La vue d'ensemble n'a pas pu être chargée. Rechargez la page dans un instant.").message);

@@ -6,6 +6,7 @@ import { AuthService, type AuthUser } from '../auth/auth.service';
 import { BrandingService } from '../branding/branding.service';
 import { NAVIGATION } from '../navigation';
 import { ThemeService } from '../theme/theme.service';
+import { SetupStatus } from '../pages/setup-status.service';
 import { Shell } from './shell';
 
 const user: AuthUser = {
@@ -130,5 +131,41 @@ describe('Shell', () => {
     await fixture.whenStable();
     expect(logout).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledWith('/connexion');
+  });
+
+  describe('entrée « Démarrer »', () => {
+    const complete = { fiscalYear: true, accounts: true, financialAccount: true, categories: true, startMode: 'HISTORY' as const, openingSituation: 'NONE' as const };
+    const labels = (fixture: { nativeElement: unknown }) => Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent!.trim());
+
+    it("apparaît, juste après la vue d'ensemble, tant qu'une étape manque, pour qui peut la faire", async () => {
+      permissions.set(new Set(['settings.accounting:admin', 'projects:view']));
+      TestBed.inject(SetupStatus).set({ ...complete, financialAccount: false });
+      const fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      const items = labels(fixture);
+      expect(items[0]).toContain("Vue d'ensemble");
+      expect(items[1]).toContain('Démarrer');
+    });
+
+    it("disparaît quand toutes les étapes sont faites, et reste absente sans le droit d'administrer la comptabilité", async () => {
+      permissions.set(new Set(['settings.accounting:admin']));
+      TestBed.inject(SetupStatus).set(complete);
+      let fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      expect(labels(fixture).join('|')).not.toContain('Démarrer');
+      TestBed.inject(SetupStatus).set({ ...complete, fiscalYear: false });
+      permissions.set(new Set(['projects:view']));
+      fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      expect(labels(fixture).join('|')).not.toContain('Démarrer');
+    });
+
+    it('compte la situation de départ comme étape quand on repart d’une situation d’ouverture', () => {
+      const status = TestBed.inject(SetupStatus);
+      status.set({ ...complete, startMode: 'OPENING', openingSituation: 'DRAFT' });
+      expect(status.incomplete()).toBe(true);
+      status.set({ ...complete, startMode: 'OPENING', openingSituation: 'POSTED' });
+      expect(status.incomplete()).toBe(false);
+    });
   });
 });
