@@ -37,7 +37,10 @@ function matchesPassword(control: AbstractControl): ValidationErrors | null {
               Sur l’ordinateur ou le serveur où l’application est installée, ouvrez un terminal dans le dossier de l’application et tapez cette
               commande, puis copiez le texte affiché dans la case « Jeton d’installation » :
             </p>
-            <p class="command"><code>./scripts/install-token.sh --env-file .env.prod</code></p>
+            <p class="command">
+              <code>{{ tokenCommand }}</code>
+              <button mat-stroked-button type="button" (click)="copyCommand()">{{ copied() ? 'Copié ✓' : 'Copier la commande' }}</button>
+            </p>
             <p>
               Aucun jeton n’apparaît ? Patientez une minute que l’application démarre, ou redémarrez-la avec <code>docker compose restart api</code>,
               puis recommencez. Le jeton ne sert qu’une fois. Le guide d’installation (<code>docs/exploitation.md</code>, « Première installation »)
@@ -122,6 +125,19 @@ export class SetupPage {
   private readonly router = inject(Router);
 
   protected readonly minLength = MIN_PASSWORD_LENGTH;
+  protected readonly tokenCommand = './scripts/install-token.sh --env-file .env.prod';
+  protected readonly copied = signal(false);
+
+  /** Copie la commande ; si le navigateur refuse (page non sécurisée), elle reste sélectionnable d'un clic. */
+  protected async copyCommand(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.tokenCommand);
+      this.copied.set(true);
+      setTimeout(() => this.copied.set(false), 3000);
+    } catch {
+      this.copied.set(false);
+    }
+  }
   protected readonly form = inject(FormBuilder).nonNullable.group({
     token: ['', [Validators.required]],
     displayName: ['', [Validators.required]],

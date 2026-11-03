@@ -92,6 +92,15 @@ describe('AccountingPage', () => {
     expect(root.textContent).toContain('616 — Primes d’assurance');
   });
 
+  it('propose de retrouver l’assistant « Démarrer » (réglages de départ) à qui peut administrer la comptabilité (#10)', async () => {
+    await create(['settings.accounting:admin', 'entries:view']);
+    const link = Array.from(root.querySelectorAll<HTMLAnchorElement>('a')).find((a) => a.textContent!.includes('Réglages de départ'))!;
+    expect(link.getAttribute('href')).toBe('/demarrage');
+    TestBed.resetTestingModule();
+    await create(['entries:view']);
+    expect(Array.from(root.querySelectorAll('a')).some((a) => a.textContent!.includes('Réglages de départ'))).toBe(false);
+  });
+
   it('propose les créations dans la barre d’action et explique chaque partie', async () => {
     await create(['entries:view', 'settings.accounting:admin']);
     const buttons = Array.from(root.querySelectorAll('app-action-bar button')).map((b) => b.textContent!.trim());
