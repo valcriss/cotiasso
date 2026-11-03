@@ -3,14 +3,23 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
-import { AdminApiService, type OverviewInfo, type TodoItemInfo } from '../admin/admin-api.service';
+import { AdminApiService, type OverviewInfo, type RecentOperationInfo, type TodoItemInfo } from '../admin/admin-api.service';
 import { formatApiAmount } from '../accounting/amount';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { HealthService } from '../health.service';
 import { OperationLauncher } from '../treasury/operation-launcher';
 import { SetupStatus } from './setup-status.service';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 import { PageHeader } from '../ui/page-header';
+
+const SITUATIONS: Record<RecentOperationInfo['situation'], string> = {
+  TO_CLASSIFY: 'à classer',
+  CLASSIFIED: 'classée, pas encore enregistrée dans les comptes',
+  DRAFT: 'en brouillon',
+  BOOKED: 'enregistrée dans les comptes',
+  TRANSFER: 'déplacement entre vos comptes',
+};
 
 const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button_unchecked', WARNING: 'warning', INFO: 'info' };
 
@@ -20,7 +29,7 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
  */
 @Component({
   selector: 'app-overview-page',
-  imports: [AsyncPipe, MatButtonModule, MatIconModule, RouterLink, PageHeader],
+  imports: [FrDatePipe, AsyncPipe, MatButtonModule, MatIconModule, RouterLink, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .figures {
@@ -48,6 +57,39 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
     }
     .figure .out {
       color: var(--mat-sys-on-surface);
+    }
+    ul.recent {
+      display: flex;
+      flex-direction: column;
+      list-style: none;
+      margin: 0 0 8px;
+      padding: 0;
+    }
+    ul.recent li {
+      align-items: center;
+      border-top: 1px solid var(--app-border);
+      display: flex;
+      gap: 16px;
+      padding: 10px 0;
+    }
+    ul.recent li:first-child {
+      border-top: 0;
+    }
+    ul.recent .date {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    ul.recent .text {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+    }
+    ul.recent .amount {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    ul.recent .amount.in {
+      color: var(--app-success, var(--mat-sys-primary));
     }
     ul.todo {
       display: flex;
@@ -154,6 +196,25 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
         </div>
       }
 
+      @if (view.recent && view.recent.length > 0) {
+        <section class="panel" aria-label="Dernières opérations">
+          <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">history</mat-icon><span>Dernières opérations</span></h3>
+          <ul class="recent">
+            @for (operation of view.recent; track operation.id) {
+              <li>
+                <span class="date">{{ operation.date | frDate }}</span>
+                <span class="text">
+                  <strong>{{ operation.label }}</strong>
+                  <span class="muted">{{ operation.accountName }} · {{ situation(operation) }}</span>
+                </span>
+                <span class="amount" [class.in]="!operation.amount.startsWith('-')">{{ amount(operation.amount) }} €</span>
+              </li>
+            }
+          </ul>
+          <a mat-button routerLink="/comptes">Voir tous les mouvements</a>
+        </section>
+      }
+
       <section class="panel" aria-label="À faire">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">checklist</mat-icon><span>À faire</span></h3>
         @if (view.todo.length === 0) {
@@ -170,7 +231,7 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
                   <strong>{{ item.title }}</strong>
                   <span class="muted">{{ item.detail }}</span>
                 </span>
-                <a mat-stroked-button [routerLink]="item.link" [attr.aria-label]="item.actionLabel + ' : ' + item.title">{{ item.actionLabel }}</a>
+                <a mat-stroked-button [routerLink]="item.link" [queryParams]="item.query" [attr.aria-label]="item.actionLabel + ' : ' + item.title">{{ item.actionLabel }}</a>
               </li>
             }
           </ul>
@@ -229,6 +290,11 @@ export class OverviewPage {
 
   protected amount(value: string): string {
     return formatApiAmount(value);
+  }
+
+  /** Où en est l'opération, en mots courants. */
+  protected situation(operation: RecentOperationInfo): string {
+    return SITUATIONS[operation.situation];
   }
 
   protected icon(item: TodoItemInfo): string {

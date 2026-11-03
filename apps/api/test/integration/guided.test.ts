@@ -7,6 +7,7 @@ import { AppModule } from "../../src/app.module.js";
 import { UsersService } from "../../src/auth/users.service.js";
 import { readEnv } from "../../src/config/env.js";
 import { ENV } from "../../src/config/tokens.js";
+import { OverviewService } from "../../src/guided/overview.service.js";
 import { PrismaService } from "../../src/prisma/prisma.service.js";
 import { SetupService } from "../../src/setup/setup.service.js";
 import { createTempDatabase, type TempDatabase } from "./support/temp-database.js";
@@ -270,6 +271,51 @@ describe("Parcours simplifiés : catégories, saisie guidée et vue d'ensemble (
       expect(overview.cash.total).toBe("109.50");
       expect(overview.todo.map((t: { code: string }) => t.code)).toContain("DRAFTS");
       expect(overview.todo.find((t: { code: string }) => t.code === "TO_VERIFY")).toMatchObject({ level: "INFO" });
+    });
+
+    it("la vue d'ensemble montre les dernières opérations, ouvre « à classer » sur le bon compte et annonce la fin de période (#27)", async () => {
+      const loose = await call("POST", `/financial-accounts/${ids.fBank}/transactions`, treasurer, { operationDate: "2026-03-25", amount: "-12.00", label: "Ticket sans catégorie" });
+      expect(loose.statusCode, loose.body).toBe(201);
+      const overview = (await call("GET", "/overview", treasurer)).json();
+
+      expect(overview.recent.length).toBeGreaterThan(1);
+      expect(overview.recent.length).toBeLessThanOrEqual(5);
+      expect(overview.recent[0]).toMatchObject({ label: "Ticket sans catégorie", amount: "-12.00", accountName: "Banque", situation: "TO_CLASSIFY", date: "2026-03-25" });
+      const dates = overview.recent.map((r: { date: string }) => r.date);
+      expect([...dates].sort().reverse()).toEqual(dates);
+      expect(overview.recent.map((r: { situation: string }) => r.situation)).toEqual(expect.arrayContaining(["BOOKED"]));
+
+      const toClassify = overview.todo.find((t: { code: string }) => t.code === "TO_CLASSIFY");
+      expect(toClassify).toMatchObject({ link: "/comptes", query: { compte: ids.fBank } });
+      // Sans droit de lire les comptes, ni dernières opérations ni montants.
+      expect((await call("GET", "/overview", reader)).json().recent).toBeNull();
+
+      // Fin de période : la marche à suivre apparaît un mois avant, puis passe en avertissement quand la période est dépassée.
+      const me = (await call("GET", "/auth/me", treasurer)).json().user.id as string;
+      const svc = app.get(OverviewService);
+      const code = (view: { todo: { code: string; detail: string }[] }) => view.todo.find((t) => t.code === "PERIOD_END");
+      expect(code(await svc.overview(me, new Date("2026-06-01T10:00:00Z")))).toBeUndefined();
+      const soon = code(await svc.overview(me, new Date("2026-12-10T10:00:00Z")));
+      expect(soon).toMatchObject({ level: "INFO", title: "Votre période se termine le 31/12/2026 (dans 21 jours)", link: "/parametres" });
+      expect(soon!.detail).toContain("clôturez la période");
+      expect(code(await svc.overview(me, new Date("2026-12-31T10:00:00Z")))).toMatchObject({ title: "Votre période se termine aujourd'hui" });
+      expect(code(await svc.overview(me, new Date("2027-01-05T10:00:00Z")))).toMatchObject({ level: "WARNING", title: "Votre période est terminée depuis le 31/12/2026" });
+      // Réservé à qui peut clôturer.
+      expect((await svc.overview((await call("GET", "/auth/me", reader)).json().user.id as string, new Date("2026-12-10T10:00:00Z"))).todo.some((t) => t.code === "PERIOD_END")).toBe(false);
+    });
+
+    it("la vue d'ensemble annonce les cotisations qui restent à payer de la saison en cours (#27)", async () => {
+      const shift = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+      const campaign = await call("POST", "/campaigns", treasurer, { name: "Saison en cours", startsOn: shift(-30), endsOn: shift(300), effectiveMode: "PAYMENT" });
+      expect(campaign.statusCode, campaign.body).toBe(201);
+      const tariffId = (await call("POST", `/campaigns/${campaign.json().id}/tariffs`, treasurer, { label: "Plein tarif", amount: "30.00" })).json().tariffs[0].id as string;
+      for (const firstName of ["Alice", "Bob"]) {
+        const memberId = (await call("POST", "/members", treasurer, { firstName, lastName: "Test" })).json().id as string;
+        expect((await call("POST", `/campaigns/${campaign.json().id}/memberships`, treasurer, { memberId, tariffId })).statusCode).toBe(201);
+      }
+      const late = (await call("GET", "/overview", treasurer)).json().todo.find((t: { code: string }) => t.code === "MEMBERSHIPS_LATE");
+      expect(late).toMatchObject({ level: "INFO", count: 2, title: "2 cotisations restent à payer (60,00 €)", link: "/membres", query: { cotisation: "late" } });
+      expect((await call("GET", "/overview", reader)).json().todo.some((t: { code: string }) => t.code === "MEMBERSHIPS_LATE")).toBe(false);
     });
 
     it("classe et enregistre en un geste un mouvement qui existe déjà (importé ou saisi), puis refuse de le refaire", async () => {

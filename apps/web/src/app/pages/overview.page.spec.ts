@@ -57,6 +57,42 @@ describe('OverviewPage', () => {
     expect(text).not.toContain('Commençons par préparer');
   });
 
+  it('montre les dernières opérations avec leur situation en mots courants, et rien sans droit de lecture (#27)', async () => {
+    const recent = [
+      { id: 't1', date: '2026-11-02', label: 'Cotisation Dupont', amount: '30.00', accountName: 'Compte courant', situation: 'BOOKED' },
+      { id: 't2', date: '2026-11-01', label: 'Prélèvement MAIF', amount: '-52.00', accountName: 'Compte courant', situation: 'TO_CLASSIFY' },
+      { id: 't3', date: '2026-10-30', label: 'Vente gâteaux', amount: '80.00', accountName: 'Caisse', situation: 'DRAFT' },
+    ];
+    await create(['financial-accounts:view'], view({ recent }));
+    const panel = root.querySelector('[aria-label="Dernières opérations"]')!;
+    const rows = Array.from(panel.querySelectorAll('li')).map((li) => li.textContent!.replace(/\s+/g, ' ').trim());
+    expect(rows).toEqual([
+      '02/11/2026Cotisation DupontCompte courant · enregistrée dans les comptes30,00 €',
+      '01/11/2026Prélèvement MAIFCompte courant · à classer-52,00 €',
+      '30/10/2026Vente gâteauxCaisse · en brouillon80,00 €',
+    ]);
+    expect(panel.querySelector('a')!.getAttribute('href')).toBe('/comptes');
+  });
+
+  it('n’affiche pas de dernières opérations sans droit de lecture des comptes ni quand il n’y en a pas', async () => {
+    await create([], view({ cash: null, month: null, recent: null }));
+    expect(root.querySelector('[aria-label="Dernières opérations"]')).toBeNull();
+    TestBed.resetTestingModule();
+    await create(['financial-accounts:view'], view({ recent: [] }));
+    expect(root.querySelector('[aria-label="Dernières opérations"]')).toBeNull();
+  });
+
+  it('ouvre l’écran concerné déjà filtré quand la tâche le demande (compte à classer, cotisations en retard)', async () => {
+    await create(['financial-accounts:view', 'members:view'], view({
+      todo: [
+        { code: 'TO_CLASSIFY', level: 'TODO', title: '3 mouvements à classer', detail: 'x', count: 3, link: '/comptes', query: { compte: 'f1' }, actionLabel: 'Classer' },
+        { code: 'MEMBERSHIPS_LATE', level: 'INFO', title: '2 cotisations restent à payer (60,00 €)', detail: 'y', count: 2, link: '/membres', query: { cotisation: 'late' }, actionLabel: 'Voir' },
+      ],
+    }));
+    const hrefs = Array.from(root.querySelectorAll('ul.todo a')).map((a) => a.getAttribute('href'));
+    expect(hrefs).toEqual(['/comptes?compte=f1', '/membres?cotisation=late']);
+  });
+
   it('liste ce qu’il reste à faire, chaque tâche renvoyant à l’écran qui la règle', async () => {
     await create(
       ['financial-accounts:view', 'entries:view'],

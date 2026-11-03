@@ -5,6 +5,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { ActivatedRoute } from '@angular/router';
 import { AdminApiService, type MemberCategoryInfo, type MemberInfo, type MemberOfficeInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
@@ -247,6 +248,7 @@ export class MembersPage {
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly dialogs = inject(Dialogs);
+  private readonly route = inject(ActivatedRoute);
   private readonly notifier = inject(Notifier);
 
   protected readonly members = signal<MemberInfo[]>([]);
@@ -455,6 +457,8 @@ export class MembersPage {
 
   private async init(): Promise<void> {
     this.categories.set(await this.api.listMemberCategories().catch(() => []));
+    // Un lien de la vue d'ensemble ouvre la liste déjà filtrée sur les cotisations en retard.
+    if (this.route.snapshot.queryParamMap.get('cotisation') === 'late') this.filters.patchValue({ membershipStatus: 'LATE' });
     await this.search();
   }
 }

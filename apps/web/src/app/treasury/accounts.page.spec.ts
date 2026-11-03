@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { mockAuth } from '../testing/auth-mock';
 import { ThemeService } from '../theme/theme.service';
@@ -157,6 +157,39 @@ describe('AccountsPage', () => {
     TestBed.resetTestingModule();
     await create(['financial-accounts:view'], [lower('0.00')], 'simple');
     expect(root.textContent).toContain('Vos enregistrements correspondent au relevé du 31/03/2026');
+  });
+
+  it("ouvre directement le compte demandé par un lien de la vue d'ensemble (?compte=)", async () => {
+    await TestBed.configureTestingModule({
+      imports: [AccountsPage],
+      providers: [
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ compte: 'f2' }) } } },
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        mockAuth(['financial-accounts:view']),
+        NO_MATERIAL_ANIMATIONS,
+      ],
+    }).compileComponents();
+    controller = TestBed.inject(HttpTestingController);
+    TestBed.inject(ThemeService).setViewMode('simple');
+    fixture = TestBed.createComponent(AccountsPage);
+    root = fixture.nativeElement as HTMLElement;
+    ui = new DialogTester(settle);
+    await settle();
+    controller.expectOne('/api/financial-accounts').flush([account(), account({ id: 'f2', name: 'Caisse', journalCode: 'CA-1' })]);
+    await settle();
+    // Le compte demandé est ouvert : c'est lui dont on charge les mouvements (déjà sur « À classer »).
+    const first = controller.expectOne((r) => r.url === '/api/financial-accounts/f2/transactions');
+    expect(first.request.params.get('qualified')).toBe('false');
+    first.flush({ transactions: [], next: null });
+    await settle();
+    // Les autres chargements de la page (plan de comptes, projets, catégories) arrivent à la suite.
+    for (let i = 0; i < 3; i++) {
+      controller.match(() => true).forEach((r) => r.flush(r.request.url.includes('transactions') ? { transactions: [], next: null } : []));
+      await settle();
+    }
+    expect(root.querySelector('app-transactions-panel')!.textContent).toContain('Mouvements de Caisse');
   });
 
   it("indique « rapproché » seulement pour un rapprochement validé, et propose d'en commencer un", async () => {
