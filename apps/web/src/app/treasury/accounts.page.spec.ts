@@ -139,11 +139,24 @@ describe('AccountsPage', () => {
     const text = root.textContent!;
     expect(text).toContain('Vérifié avec la banque');
     expect(text).toContain('Pas encore vérifié');
+    expect(text).toContain('Solde d’après vos enregistrements');
     expect(text).not.toContain('Solde comptable (écritures)');
     expect(text).not.toContain('BQ-1');
     const buttons = Array.from(root.querySelectorAll('app-page-header button')).map((b) => b.textContent!.trim());
     expect(buttons.join('|')).toContain('J’ai reçu de l’argent');
     expect(buttons.join('|')).toContain('J’ai dépensé de l’argent');
+  });
+
+  it('dit l’écart avec le relevé en phrase, avec son sens (#14)', async () => {
+    const lower = (gap: string) => account({ balances: { ...account().balances, lastStatement: { periodEnd: '2026-03-31', closingBalance: '950.00', gap } } });
+    await create(['financial-accounts:view'], [lower('-19.50')], 'simple');
+    expect(root.textContent).toContain('Au 31/03/2026, votre banque indique 19,50 € de moins que vos enregistrements');
+    TestBed.resetTestingModule();
+    await create(['financial-accounts:view'], [lower('120.00')], 'simple');
+    expect(root.textContent).toContain('votre banque indique 120,00 € de plus que vos enregistrements : il manque sans doute des mouvements');
+    TestBed.resetTestingModule();
+    await create(['financial-accounts:view'], [lower('0.00')], 'simple');
+    expect(root.textContent).toContain('Vos enregistrements correspondent au relevé du 31/03/2026');
   });
 
   it("indique « rapproché » seulement pour un rapprochement validé, et propose d'en commencer un", async () => {

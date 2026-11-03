@@ -129,6 +129,7 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
             <section class="figure" aria-label="Argent disponible">
               <span class="muted">Argent disponible</span>
               <span class="big">{{ amount(cash.total) }} €</span>
+              <span class="muted">D’après vos enregistrements, pas forcément le solde de la banque</span>
               @if (cash.accounts.length > 1) {
                 <ul class="accounts-detail">
                   @for (account of cash.accounts; track account.id) {
