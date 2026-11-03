@@ -265,6 +265,59 @@ export class EntriesService {
     return posted;
   }
 
+  /**
+   * Contrepasse une écriture **dans la transaction SQL de l'appelant** (même date que l'originale) : pour qui compose plusieurs
+   * gestes en un seul tout-ou-rien (ex. corriger une opération). Refuse ce que `reverse` refuse.
+   */
+  async reverseWithin(tx: Prisma.TransactionClient, entryId: string, actorId: string): Promise<string> {
+    const original = await this.load(entryId);
+    if (original.status !== "POSTED") {
+      throw new AccountingConflictError(original.status === "REVERSED" ? "Cette écriture est déjà contrepassée." : "Seule une écriture comptabilisée se contrepasse.");
+    }
+    if (original.kind === "REVERSAL") throw new AccountingConflictError("Une contrepassation ne se contrepasse pas : saisissez une nouvelle écriture.");
+    const date = day(original.date);
+    return this.reverseInTransaction(tx, original, { date, fiscalYearId: await this.fiscalYearFor(date) }, actorId);
+  }
+
+  /**
+   * Cœur de la contrepassation, à exécuter **dans la transaction SQL de l'appelant** : la correction d'une opération (guidée)
+   * contrepasse puis réenregistre d'un bloc. Une seule source pour les deux : ne pas réécrire l'inversion des lignes ailleurs.
+   */
+  async reverseInTransaction(
+    tx: Prisma.TransactionClient,
+    original: LoadedEntry,
+    options: { date: string; fiscalYearId: string; label?: string | undefined },
+    actorId: string,
+  ): Promise<string> {
+    const created = await tx.journalEntry.create({
+      data: {
+        fiscalYearId: options.fiscalYearId,
+        journalId: original.journalId,
+        date: asDate(options.date),
+        label: options.label ?? `Contrepassation : ${original.label}`,
+        reference: original.reference,
+        kind: "REVERSAL",
+        reversalOfId: original.id,
+        createdBy: actorId,
+        lines: {
+          create: original.lines.map((l) => ({
+            position: l.position,
+            accountId: l.accountId,
+            debit: l.credit,
+            credit: l.debit,
+            label: l.label,
+            thirdPartyId: l.thirdPartyId,
+            allocations: { create: l.allocations.map((a) => ({ projectId: a.projectId, amount: a.amount })) },
+          })),
+        },
+      },
+      select: { id: true },
+    });
+    await tx.journalEntry.update({ where: { id: created.id }, data: { status: "POSTED", postedBy: actorId } });
+    await tx.journalEntry.update({ where: { id: original.id }, data: { status: "REVERSED" } });
+    return created.id;
+  }
+
   /** Contrepasse une écriture comptabilisée : nouvelle écriture inversée, reliée à l'originale, comptabilisée d'un bloc. */
   async reverse(id: string, body: unknown, actorId: string): Promise<EntryView> {
     const input = parse(entryReverseInput, body);
@@ -281,35 +334,7 @@ export class EntriesService {
 
     let reversalId: string;
     try {
-      reversalId = await this.prisma.$transaction(async (tx) => {
-        const created = await tx.journalEntry.create({
-          data: {
-            fiscalYearId,
-            journalId: original.journalId,
-            date: asDate(date),
-            label: input.label ?? `Contrepassation : ${original.label}`,
-            reference: original.reference,
-            kind: "REVERSAL",
-            reversalOfId: original.id,
-            createdBy: actorId,
-            lines: {
-              create: original.lines.map((l) => ({
-                position: l.position,
-                accountId: l.accountId,
-                debit: l.credit,
-                credit: l.debit,
-                label: l.label,
-                thirdPartyId: l.thirdPartyId,
-                allocations: { create: l.allocations.map((a) => ({ projectId: a.projectId, amount: a.amount })) },
-              })),
-            },
-          },
-          select: { id: true },
-        });
-        await tx.journalEntry.update({ where: { id: created.id }, data: { status: "POSTED", postedBy: actorId } });
-        await tx.journalEntry.update({ where: { id: original.id }, data: { status: "REVERSED" } });
-        return created.id;
-      });
+      reversalId = await this.prisma.$transaction((tx) => this.reverseInTransaction(tx, original, { date, fiscalYearId, label: input.label }, actorId));
     } catch (error) {
       const refusal = databaseRefusal(error);
       if (refusal) throw new EntryPostingRefusedError([{ code: "REFUSED", message: refusal }]);

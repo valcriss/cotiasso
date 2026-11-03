@@ -570,6 +570,78 @@ describe('AccountsPage', () => {
       expect(rows[1]!.textContent).not.toContain('Pièce jointe');
     });
 
+    describe('corriger une opération enregistrée (#17)', () => {
+      const txUrl = (r: { url: string }) => r.url === '/api/financial-accounts/f1/transactions';
+      const posted = (over: object = {}) =>
+        transaction({ id: 't4', amount: '40.00', label: 'Facture mal classée', accounting: 'POSTED', counterpartAccountId: 'a616', counterpartAccountNumber: '616', entry: entryRef({ id: 'e4', status: 'POSTED', number: 4 }), financialLock: 'ENTRY', deletable: false, ...over });
+      const openMenu = async (label: string) => {
+        (root.querySelector(`button[aria-label="Autres actions pour ${label}"]`) as HTMLElement).click();
+        await settle();
+      };
+      const menuLabels = () => Array.from(document.querySelectorAll('.cdk-overlay-container [role="menuitem"]')).map((b) => b.textContent!.trim());
+
+      it('propose « Corriger… » pour une opération enregistrée, change la catégorie et recharge la liste', async () => {
+        await openSimple([posted()]);
+        await openMenu('Facture mal classée');
+        expect(menuLabels()).toContain('Corriger…');
+        (document.querySelector('.cdk-overlay-container [aria-label="Corriger Facture mal classée"]') as HTMLElement).click();
+        await settle();
+        expect(ui.title).toBe('Corriger cette opération');
+        expect(ui.text).toContain('une opération inverse est ajoutée, rien n’est effacé');
+        expect(ui.text).toContain('Le montant et la date ne se corrigent pas ici');
+
+        // Rien n'a changé : refusé avant tout envoi.
+        await ui.submit();
+        expect(ui.error).toContain('Rien n’a changé');
+        controller.expectNone((r) => r.url.endsWith('/correct'));
+
+        await ui.choose('mat-select[formcontrolname="categoryId"]', 'Dons');
+        await ui.type('input[formcontrolname="label"]', 'Facture de l’imprimeur');
+        await ui.submit();
+        const request = controller.expectOne('/api/transactions/t4/correct');
+        expect(request.request.method).toBe('POST');
+        expect(request.request.body).toEqual({ categoryId: 'c-in', label: 'Facture de l’imprimeur' });
+        request.flush({ transactionId: 't4', entryId: 'e5', posted: true, journalCode: 'BQ-1', number: 5, reversedEntryId: 'e4' });
+        await settle();
+        controller.expectOne(txUrl).flush({ transactions: [posted({ label: 'Facture de l’imprimeur' })], next: null });
+        await settle();
+        controller.expectOne('/api/financial-accounts').flush([account()]);
+        await settle();
+        expect(ui.snackbar).toContain('Opération corrigée');
+      });
+
+      it('explique le refus du serveur et garde la boîte ouverte', async () => {
+        await openSimple([posted()]);
+        await openMenu('Facture mal classée');
+        (document.querySelector('.cdk-overlay-container [aria-label="Corriger Facture mal classée"]') as HTMLElement).click();
+        await settle();
+        await ui.choose('mat-select[formcontrolname="categoryId"]', 'Dons');
+        await ui.submit();
+        controller.expectOne('/api/transactions/t4/correct').flush({ message: 'Un projet archivé ne reçoit plus de transaction' }, { status: 409, statusText: 'Conflict' });
+        await settle();
+        expect(ui.isOpen).toBe(true);
+        expect(ui.error).toContain('projet archivé');
+      });
+
+      it('ne propose pas « Corriger… » pour un mouvement vérifié avec la banque, un virement, un brouillon ou un mouvement non enregistré', async () => {
+        await openSimple([
+          posted({ id: 't5', label: 'Vérifiée', reconciliation: { id: 'r1', status: 'VALIDATED', periodEnd: '2026-03-31' } }),
+          posted({ id: 't6', label: 'Virement', transfer: { id: 'v1', direction: 'OUT', otherAccountId: 'f2', otherAccountName: 'Caisse' } }),
+          transaction({ id: 't7', label: 'Brouillon', accounting: 'IN_PROGRESS', counterpartAccountId: 'a616', counterpartAccountNumber: '616', entry: entryRef(), financialLock: 'ENTRY', deletable: false }),
+          transaction({ id: 't8', label: 'À classer' }),
+        ]);
+        for (const label of ['Vérifiée', 'Virement', 'Brouillon', 'À classer']) {
+          const trigger = root.querySelector(`button[aria-label="Autres actions pour ${label}"]`) as HTMLElement | null;
+          if (!trigger) continue;
+          trigger.click();
+          await settle();
+          expect(menuLabels(), label).not.toContain('Corriger…');
+          document.querySelector<HTMLElement>('.cdk-overlay-backdrop')?.click();
+          await settle();
+        }
+      });
+    });
+
     describe('actions de ligne et bandeau (#26)', () => {
       const rowButtons = (index: number) => Array.from(root.querySelectorAll('tbody tr')[index]!.querySelectorAll('button, a')).map((b) => b.textContent!.trim());
       const menuItems = () => Array.from(document.querySelectorAll('.cdk-overlay-container [role="menuitem"]')).map((b) => b.textContent!.trim());

@@ -103,6 +103,15 @@ export class GuidedController {
     return translate(() => this.operations.book(id, body, userId, canPost));
   }
 
+  /** Corrige une opération enregistrée (catégorie, projet, description) : contrepassation et nouvelle écriture d'un bloc. */
+  @RequirePermission("transactions:manage", "entries:create", "entries:post")
+  @HttpCode(HttpStatus.OK)
+  @Post("transactions/:id/correct")
+  async correct(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<OperationResult & { reversedEntryId: string }> {
+    const userId = request.auth!.user.id;
+    return translate(() => this.operations.correct(id, body, userId, true));
+  }
+
   @RequirePermission("transactions:manage", "entries:create")
   @HttpCode(HttpStatus.OK)
   @Post("financial-accounts/:id/transactions/book")
