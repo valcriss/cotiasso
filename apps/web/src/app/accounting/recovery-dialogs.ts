@@ -14,6 +14,7 @@ import {
 } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { DateField } from '../ui/date-field';
 
 const INVALID = 'Vérifiez les champs signalés en rouge, puis validez de nouveau.';
 
@@ -168,7 +169,7 @@ export interface PrepareDialogData {
 /** Prépare un brouillon par transaction qualifiée d'un compte, sur une période. Renvoie le compte rendu. */
 @Component({
   selector: 'app-prepare-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -188,14 +189,8 @@ export interface PrepareDialogData {
           </mat-select>
         </mat-form-field>
         <div class="row">
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Du (facultatif)</mat-label>
-            <input matInput type="date" formControlName="from" />
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Au (facultatif)</mat-label>
-            <input matInput type="date" formControlName="to" />
-          </mat-form-field>
+          <app-date-field class="grow" label="Du (facultatif)" formControlName="from" />
+          <app-date-field class="grow" label="Au (facultatif)" formControlName="to" />
         </div>
       </app-form-dialog>
     </form>

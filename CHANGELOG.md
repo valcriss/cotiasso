@@ -15,6 +15,12 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 ### Nouveautés
 
+- Justificatifs d'un mouvement : dans la liste des transactions, un menu ⋮ en fin de ligne regroupe « Modifier » et « Justificatifs » ; on y voit les pièces reliées au mouvement et on peut en déposer une (glisser-déposer), reliée automatiquement.
+- Fractionner un montant : dans « Classer et enregistrer » et dans « J'ai reçu / dépensé de l'argent », le bouton « Fractionner entre plusieurs catégories » permet de répartir un montant (par exemple 10 € de cotisations et 10 € de dons). On ne peut valider que lorsque tout le montant est réparti ; l'écriture comptable comporte alors une ligne par catégorie.
+- Dépôt de fichiers : l'import d'un relevé OFX et le dépôt de documents proposent une zone où glisser le fichier (ou cliquer pour le choisir) ; un format non accepté est refusé tout de suite avec une phrase claire.
+- Comptes : les tuiles sont plus grandes et s'ouvrent d'un clic sur les transactions ; Rapprocher, Solde de relevé et Archiver sont regroupés dans un menu avec icônes.
+- Dates : tous les champs de date proposent un calendrier (icône à droite) et se saisissent en jj/mm/aaaa.
+- Situation de départ : une association qui démarre sans argent ni dette peut indiquer « Je pars de zéro, rien à enregistrer » au lieu de recevoir un message d'erreur ; l'étape est alors validée sans écriture comptable.
 - Rapports figés : à la fermeture et à la clôture d'un exercice (ou à la demande), le compte de résultat, le bilan et l'état de trésorerie sont enregistrés pour ne plus changer ; une correction crée une nouvelle version numérotée avec son motif. Les comptes définitifs peuvent être marqués « approuvés par l'assemblée générale » avec le procès-verbal.
 - Tiers : on peut indiquer « Qui ? » (un adhérent, un financeur, un fournisseur…) sur les lignes des comptes de tiers, et l'onglet « Tiers » de la Comptabilité montre ce que chacun vous doit et ce que vous lui devez. Les sommes par personne sont reportées à la clôture de l'exercice.
 - Démarrage : l'assistant « Démarrer » demande d'abord comment vous commencez. « Situation de départ » (recommandé sans relevés anciens) reprend en une seule écriture l'argent de vos comptes, ce qu'on vous doit et ce que vous devez ; le fonds de l'association est calculé, à confirmer et expliquer. « Historique » garde la reprise existante. Le modèle de départ gagne quatre comptes de tiers (401, 411, 441, 467), à faire relire.

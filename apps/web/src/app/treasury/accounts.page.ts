@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
 import { RouterLink } from '@angular/router';
 import {
   AdminApiService,
@@ -26,13 +27,13 @@ import { TransactionsPanel } from './transactions-panel';
 /** Comptes : banques et caisses avec leurs soldes (ouverture, calculé, comptable, relevé) et leurs transactions. */
 @Component({
   selector: 'app-accounts-page',
-  imports: [MatButtonModule, MatIconModule, RouterLink, PageHeader, TransactionsPanel],
+  imports: [MatButtonModule, MatIconModule, MatMenuModule, RouterLink, PageHeader, TransactionsPanel],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .accounts {
       display: grid;
-      gap: 16px;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
       list-style: none;
       margin: 0 0 20px;
       padding: 0;
@@ -42,13 +43,79 @@ import { TransactionsPanel } from './transactions-panel';
       border: 1px solid var(--app-border);
       border-radius: var(--app-radius);
       box-shadow: var(--app-shadow-sm);
+      cursor: pointer;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      padding: 24px 28px;
+      gap: 14px;
+      min-height: 200px;
+      padding: 28px 32px;
+      position: relative;
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .account-card:hover {
+      box-shadow: var(--app-shadow-md);
     }
     .account-card.current {
       border-color: var(--mat-sys-primary);
+      box-shadow: 0 0 0 1px var(--mat-sys-primary), var(--app-shadow-sm);
+    }
+    .account-card.archived {
+      cursor: default;
+    }
+    .head {
+      align-items: flex-start;
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+    }
+    /* Toute la tuile ouvre les transactions : le bouton du titre s'étend sur la carte, le menu et le détail restent au-dessus. */
+    .open {
+      align-items: center;
+      background: none;
+      border: 0;
+      color: inherit;
+      cursor: inherit;
+      display: inline-flex;
+      font: var(--mat-sys-title-medium);
+      gap: 10px;
+      padding: 0;
+      text-align: left;
+    }
+    .open::after {
+      content: '';
+      inset: 0;
+      position: absolute;
+    }
+    .open:focus-visible {
+      outline: none;
+    }
+    .open:focus-visible::after {
+      border-radius: var(--app-radius);
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: 2px;
+    }
+    .head-tools {
+      align-items: center;
+      display: flex;
+      gap: 8px;
+      position: relative;
+      z-index: 1;
+    }
+    .more-link {
+      align-items: center;
+      color: var(--mat-sys-primary);
+      display: inline-flex;
+      font: var(--mat-sys-label-large);
+      gap: 8px;
+      margin-top: auto;
+    }
+    .more-link mat-icon {
+      font-size: 22px;
+      height: 22px;
+      width: 22px;
+    }
+    .danger-item {
+      color: var(--mat-sys-error);
     }
     .account-card.archived {
       opacity: 0.7;
@@ -68,7 +135,7 @@ import { TransactionsPanel } from './transactions-panel';
       text-align: right;
     }
     .big {
-      font: var(--mat-sys-headline-small);
+      font: var(--mat-sys-headline-medium);
     }
   `,
   template: `
@@ -119,13 +186,40 @@ import { TransactionsPanel } from './transactions-panel';
         @for (account of accounts(); track account.id) {
           <li class="account-card" [class.current]="account.id === selectedId()" [class.archived]="account.archivedOn">
             <div class="head">
-              <strong>
+              <button type="button" class="open" [attr.aria-label]="'Ouvrir ' + account.name" [attr.aria-expanded]="account.id === selectedId()" (click)="select(account.id)">
                 <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ account.type === 'BANK' ? 'account_balance' : 'payments' }}</mat-icon>
                 {{ account.name }}
-              </strong>
-              @if (account.archivedOn) {
-                <span class="chip">Archivé</span>
-              }
+              </button>
+              <div class="head-tools">
+                @if (account.archivedOn) {
+                  <span class="chip">Archivé</span>
+                }
+                @if (hasActions(account)) {
+                  <button mat-icon-button type="button" [matMenuTriggerFor]="actions" [attr.aria-label]="'Actions de ' + account.name">
+                    <mat-icon fontSet="material-icons-outlined" aria-hidden="true">more_vert</mat-icon>
+                  </button>
+                  <mat-menu #actions="matMenu" xPosition="before">
+                    @if (!account.archivedOn) {
+                      <a mat-menu-item [routerLink]="['/comptes', account.id, 'rapprochement']">
+                        <mat-icon fontSet="material-icons-outlined" aria-hidden="true">fact_check</mat-icon>
+                        <span>Rapprocher</span>
+                      </a>
+                    }
+                    @if (canStatement() && !account.archivedOn) {
+                      <button mat-menu-item type="button" (click)="statement(account)">
+                        <mat-icon fontSet="material-icons-outlined" aria-hidden="true">receipt_long</mat-icon>
+                        <span>Solde de relevé</span>
+                      </button>
+                    }
+                    @if (canAdmin() && !account.archivedOn) {
+                      <button mat-menu-item type="button" class="danger-item" [disabled]="busy()" (click)="archive(account)">
+                        <mat-icon fontSet="material-icons-outlined" class="danger-item" aria-hidden="true">archive</mat-icon>
+                        <span>Archiver</span>
+                      </button>
+                    }
+                  </mat-menu>
+                }
+              </div>
             </div>
             @if (!simple()) {
               <div class="muted">{{ account.journalCode }} · compte {{ account.accountNumber }}@if (account.reference) { · {{ account.reference }} }</div>
@@ -144,19 +238,6 @@ import { TransactionsPanel } from './transactions-panel';
                   }
                 </dd>
               </dl>
-              <details>
-                <summary>Détails du solde</summary>
-                <dl class="balances">
-                  <dt>Au départ ({{ account.openedOn }})</dt>
-                  <dd>{{ amount(account.balances.opening) }}</dd>
-                  @if (account.balances.lastStatement; as statement) {
-                    <dt>Solde du relevé au {{ statement.periodEnd }}</dt>
-                    <dd>{{ amount(statement.closingBalance) }}</dd>
-                    <dt>Écart entre le relevé et vos comptes</dt>
-                    <dd [class.danger-text]="statement.gap !== '0.00'">{{ amount(statement.gap) }}</dd>
-                  }
-                </dl>
-              </details>
             } @else {
               <dl class="balances">
                 <dt>Ouverture ({{ account.openedOn }})</dt>
@@ -179,20 +260,10 @@ import { TransactionsPanel } from './transactions-panel';
                 }
               </dl>
             }
-            <div class="actions">
-              <button mat-stroked-button type="button" [attr.aria-label]="'Ouvrir ' + account.name" (click)="select(account.id)">
-                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">list</mat-icon> Transactions
-              </button>
-              @if (!account.archivedOn) {
-                <a mat-button [routerLink]="['/comptes', account.id, 'rapprochement']" [attr.aria-label]="'Rapprocher ' + account.name">Rapprocher</a>
-              }
-              @if (canStatement() && !account.archivedOn) {
-                <button mat-button type="button" [attr.aria-label]="'Relevé de ' + account.name" (click)="statement(account)">Solde de relevé</button>
-              }
-              @if (canAdmin() && !account.archivedOn) {
-                <button mat-button type="button" [attr.aria-label]="'Archiver ' + account.name" [disabled]="busy()" (click)="archive(account)">Archiver</button>
-              }
-            </div>
+            <span class="more-link" aria-hidden="true">
+              <mat-icon fontSet="material-icons-outlined">{{ account.id === selectedId() ? 'expand_less' : 'arrow_forward' }}</mat-icon>
+              {{ account.id === selectedId() ? 'Masquer les transactions' : 'Voir les transactions' }}
+            </span>
           </li>
         }
       </ul>
@@ -253,8 +324,14 @@ export class AccountsPage {
     void this.init();
   }
 
+  /** Une tuile a un menu d'actions tant qu'au moins une action est possible. */
+  protected hasActions(account: FinancialAccountInfo): boolean {
+    return !account.archivedOn;
+  }
+
+  /** Un clic sur la tuile ouvre les transactions du compte ; un second clic les masque. */
   protected select(id: string): void {
-    this.selectedId.set(id);
+    this.selectedId.update((current) => (current === id ? null : id));
   }
 
   protected async record(direction: 'IN' | 'OUT'): Promise<void> {

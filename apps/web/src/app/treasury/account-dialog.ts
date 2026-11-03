@@ -8,6 +8,7 @@ import { AdminApiService, type AccountInfo, type FinancialAccountInfo } from '..
 import { centsToApi, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { DateField } from '../ui/date-field';
 
 export interface AccountDialogData {
   /** Comptes de trésorerie (classe 5) encore libres, parmi lesquels choisir. */
@@ -17,7 +18,7 @@ export interface AccountDialogData {
 /** Création d'un compte bancaire ou d'une caisse, en boîte de dialogue. Renvoie le compte créé. */
 @Component({
   selector: 'app-financial-account-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -64,14 +65,7 @@ export interface AccountDialogData {
           }
         </mat-form-field>
         <div class="row">
-          <mat-form-field appearance="outline">
-            <mat-label>Suivi à partir du</mat-label>
-            <input matInput type="date" formControlName="openedOn" required />
-            <mat-hint>Date de départ de vos enregistrements</mat-hint>
-            @if (form.controls.openedOn.hasError('required')) {
-              <mat-error>Indiquez la date de départ.</mat-error>
-            }
-          </mat-form-field>
+          <app-date-field label="Suivi à partir du" formControlName="openedOn" hint="Date de départ de vos enregistrements" errorText="Indiquez la date de départ." required />
           <mat-form-field appearance="outline">
             <mat-label>Solde à cette date (€)</mat-label>
             <input matInput inputmode="decimal" formControlName="openingBalance" placeholder="1 250,00" />

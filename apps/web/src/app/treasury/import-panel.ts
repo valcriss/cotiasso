@@ -1,5 +1,6 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { ThemeService } from '../theme/theme.service';
+import { FileDropzone } from '../ui/file-dropzone';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -33,7 +34,7 @@ const LINK = 'LINK:';
  */
 @Component({
   selector: 'app-import-panel',
-  imports: [FormsModule, MatButtonModule, MatCheckboxModule, MatIconModule],
+  imports: [FileDropzone, FormsModule, MatButtonModule, MatCheckboxModule, MatIconModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -71,10 +72,7 @@ const LINK = 'LINK:';
           Le fichier est d'abord analysé : aucune transaction n'est créée avant votre confirmation. Formats pris en charge :
           OFX 1.x et 2.x, comptes bancaires en euro.
         </p>
-        <div class="actions">
-          <label class="muted" for="ofx-file">Fichier de relevé (.ofx)</label>
-          <input id="ofx-file" type="file" accept=".ofx,.qfx,.xml,.txt" [disabled]="busy()" (change)="pick($event)" />
-        </div>
+        <app-file-dropzone inputId="ofx-file" label="Fichier de relevé bancaire" accept=".ofx,.qfx,.xml,.txt" formats="OFX, QFX" [disabled]="busy()" (picked)="pick($event)" />
       } @else {
         @let b = batch()!;
         <p class="muted">
@@ -230,11 +228,7 @@ export class ImportPanel {
     this.decisions.update((current) => ({ ...current, [line.id]: value }));
   }
 
-  protected async pick(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = '';
-    if (!file) return;
+  protected async pick(file: File): Promise<void> {
     this.error.set(null);
     this.busy.set(true);
     try {

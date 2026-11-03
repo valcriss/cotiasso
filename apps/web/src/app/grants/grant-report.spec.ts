@@ -93,7 +93,7 @@ describe('GrantReport', () => {
     expect(request.request.params.get('to')).toBe('2026-12-31');
     request.flush(report());
     await settle();
-    expect(root.querySelector<HTMLInputElement>('input[aria-label="Début de la période"]')!.value).toBe('2026-01-01');
+    expect(root.querySelectorAll<HTMLInputElement>('app-date-field input')[0]!.value).toBe('01/01/2026');
   });
 
   it('explique à quoi sert le compte rendu et montre les chiffres clés', async () => {
@@ -131,9 +131,9 @@ describe('GrantReport', () => {
     expect(link().getAttribute('href')).toBe('/api/grants/g1/report/csv?from=2026-01-01&to=2026-12-31');
     expect(text()).toContain('Imprimer');
 
-    const to = root.querySelector<HTMLInputElement>('input[aria-label="Fin de la période"]')!;
+    const to = root.querySelectorAll<HTMLInputElement>('app-date-field input')[1]!;
     to.value = '2026-06-30';
-    to.dispatchEvent(new Event('change'));
+    to.dispatchEvent(new Event('input'));
     await settle();
     const request = controller.expectOne((r) => r.url === '/api/grants/g1/report' && r.params.get('to') === '2026-06-30');
     expect(request.request.params.get('from')).toBe('2026-01-01');

@@ -12,6 +12,7 @@ class Host {}
 const bank = { id: 'f1', name: 'Compte courant', type: 'BANK', currency: 'EUR', reference: null, accountId: 'a512', accountNumber: '512', journalId: 'j1', journalCode: 'BQ-1', openedOn: '2026-01-01', archivedOn: null, balances: {} };
 const categories = [
   { id: 'c-in', direction: 'IN', label: 'Cotisations des adhérents', hint: 'Argent reçu pour une adhésion.', active: true, account: { id: 'a756', number: '756', label: 'Cotisations' } },
+  { id: 'c-don', direction: 'IN', label: 'Dons', hint: 'Argent donné sans contrepartie.', active: true, account: { id: 'a754', number: '754', label: 'Dons et libéralités' } },
   { id: 'c-out', direction: 'OUT', label: 'Assurance', hint: "Prime d'assurance de l'association.", active: true, account: { id: 'a616', number: '616', label: "Primes d'assurance" } },
 ];
 
@@ -60,7 +61,7 @@ describe("Saisie guidée « J'ai reçu / J'ai dépensé de l'argent »", () => {
     expect(ui.snackbar).toContain('Ajoutez d');
 
     // Une catégorie de l'autre sens ne suffit pas.
-    expect(await (await open('IN', [bank], [categories[1]!])).result).toBeUndefined();
+    expect(await (await open('IN', [bank], [categories[2]!])).result).toBeUndefined();
     expect(ui.snackbar).toContain('pas encore de catégorie');
   });
 
@@ -95,6 +96,94 @@ describe("Saisie guidée « J'ai reçu / J'ai dépensé de l'argent »", () => {
     await settle();
     expect(ui.snackbar).toContain('Opération enregistrée');
     expect(ui.snackbar).toContain('BQ-1 n° 7');
+  });
+
+  describe('fractionner le montant sur plusieurs catégories', () => {
+    const MANAGE = ['transactions:manage', 'entries:create', 'entries:post'];
+    const part = (n: number) => ({ category: `mat-select[aria-label="Catégorie de la part ${n}"]`, amount: `input[aria-label="Montant de la part ${n}"]` });
+
+    it('ne propose de fractionner qu’une fois le montant connu', async () => {
+      await start(MANAGE);
+      await open('IN');
+      expect(ui.button('Fractionner').disabled).toBe(true);
+      expect(ui.text).toContain('Indiquez d’abord le montant');
+      await ui.type('input[formcontrolname="amount"]', '20');
+      expect(ui.button('Fractionner').disabled).toBe(false);
+    });
+
+    it('répartit 20 € en 10 € de cotisations et 10 € de dons : le reste se calcule, l’aperçu montre chaque ligne, un seul envoi', async () => {
+      await start(MANAGE);
+      const { result } = await open('IN');
+      await ui.type('input[formcontrolname="amount"]', '20');
+      await ui.type('input[formcontrolname="label"]', 'Cotisation et don de Marie');
+      await ui.click('Fractionner');
+      expect(ui.dialog!.querySelector('mat-select[formcontrolname="categoryId"]')).toBeNull();
+
+      await ui.choose(part(1).category, 'Cotisations');
+      await ui.type(part(1).amount, '10');
+      // La dernière ligne reprend ce qui reste, sans que la personne ait à calculer.
+      expect(ui.field<HTMLInputElement>(part(2).amount).value).toBe('10,00');
+      await ui.choose(part(2).category, 'Dons');
+      expect(ui.text).toContain('Tout le montant (20,00 €) est réparti');
+      expect(ui.text).toContain('756 · Cotisations');
+      expect(ui.text).toContain('754 · Dons et libéralités');
+
+      await ui.submit();
+      const request = controller.expectOne('/api/guided-operations');
+      expect(request.request.body).toMatchObject({ direction: 'IN', amount: '20.00', splits: [{ categoryId: 'c-in', amount: '10.00' }, { categoryId: 'c-don', amount: '10.00' }] });
+      expect(request.request.body).not.toHaveProperty('categoryId');
+      request.flush({ transactionId: 't1', entryId: 'e1', posted: true, journalCode: 'BQ-1', number: 3 }, { status: 201, statusText: 'Created' });
+      expect(await result).toMatchObject({ posted: true });
+    });
+
+    it('n’envoie rien tant que tout le montant n’est pas réparti, et dit ce qu’il reste', async () => {
+      await start(MANAGE);
+      await open('IN');
+      await ui.type('input[formcontrolname="amount"]', '20');
+      await ui.type('input[formcontrolname="label"]', 'Mixte');
+      await ui.click('Fractionner');
+      await ui.choose(part(1).category, 'Cotisations');
+      await ui.type(part(1).amount, '10');
+      await ui.choose(part(2).category, 'Dons');
+      await ui.type(part(2).amount, '4,50');
+      expect(ui.text).toContain('Reste à répartir : 5,50 €');
+      await ui.submit();
+      expect(ui.error).toContain('Le total des parts doit être égal au montant');
+      controller.expectNone('/api/guided-operations');
+
+      await ui.type(part(2).amount, '12');
+      expect(ui.text).toContain('Trop réparti de 2,00 €');
+    });
+
+    it('permet de revenir à une seule catégorie, et de suivre un changement du montant', async () => {
+      await start(MANAGE);
+      await open('IN');
+      await ui.type('input[formcontrolname="amount"]', '20');
+      await ui.type('input[formcontrolname="label"]', 'Retour');
+      await ui.click('Fractionner');
+      await ui.choose(part(1).category, 'Cotisations');
+      await ui.type(part(1).amount, '10');
+      // Le montant total change : la dernière ligne non saisie reprend le nouveau reste.
+      await ui.type('input[formcontrolname="amount"]', '30');
+      expect(ui.field<HTMLInputElement>(part(2).amount).value).toBe('20,00');
+
+      await ui.click('Une seule catégorie');
+      expect(ui.dialog!.querySelector('mat-select[formcontrolname="categoryId"]')).not.toBeNull();
+      await ui.choose('mat-select[formcontrolname="categoryId"]', 'Cotisations');
+      await ui.submit();
+      const request = controller.expectOne('/api/guided-operations');
+      expect(request.request.body).toMatchObject({ amount: '30.00', categoryId: 'c-in' });
+      expect(request.request.body).not.toHaveProperty('splits');
+    });
+
+    it('ne laisse pas choisir deux fois la même catégorie', async () => {
+      await start(MANAGE);
+      await open('IN');
+      await ui.type('input[formcontrolname="amount"]', '20');
+      await ui.click('Fractionner');
+      await ui.choose(part(1).category, 'Cotisations');
+      expect(await ui.options(part(2).category)).toEqual(['Dons']);
+    });
   });
 
   it('garde la boîte ouverte et la saisie quand le serveur refuse, avec le motif', async () => {

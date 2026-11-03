@@ -4,6 +4,8 @@ import { formatApiAmount } from '../accounting/amount';
 import { AdminApiService, type GrantInfo, type GrantReportInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { ExportLink } from '../reports/export-link';
+import { FormsModule } from '@angular/forms';
+import { DateField } from '../ui/date-field';
 
 /**
  * Compte rendu pour le financeur : dépenses affectées regroupées par poste, versements reçus et reliquat, sur une période.
@@ -12,7 +14,7 @@ import { ExportLink } from '../reports/export-link';
  */
 @Component({
   selector: 'app-grant-report',
-  imports: [ExportLink, MatIconModule],
+  imports: [DateField, ExportLink, FormsModule, MatIconModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -26,20 +28,6 @@ import { ExportLink } from '../reports/export-link';
       gap: 12px;
       align-items: end;
       margin: 8px 0 16px;
-    }
-    .periods label {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-size: 0.9em;
-    }
-    .periods input {
-      font: inherit;
-      padding: 8px;
-      border: 1px solid var(--app-border);
-      border-radius: 4px;
-      background: var(--app-surface);
-      color: inherit;
     }
     .figures {
       display: flex;
@@ -81,14 +69,8 @@ import { ExportLink } from '../reports/export-link';
         période du compte rendu, puis imprimez-le ou exportez-le.
       </p>
       <div class="periods">
-        <label>
-          Du
-          <input type="date" [value]="from()" (change)="setFrom($any($event.target).value)" aria-label="Début de la période" />
-        </label>
-        <label>
-          Au
-          <input type="date" [value]="to()" (change)="setTo($any($event.target).value)" aria-label="Fin de la période" />
-        </label>
+        <app-date-field label="Du" [ngModel]="from()" (ngModelChange)="setFrom($event)" />
+        <app-date-field label="Au" [ngModel]="to()" (ngModelChange)="setTo($event)" />
       </div>
       @if (error(); as message) {
         <p class="alert" role="alert">{{ message }}</p>

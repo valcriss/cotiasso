@@ -32,7 +32,8 @@ html {
   --app-radius: 4px;
   --app-success-bg: light-dark(#e2f3e7, #16301f);
   --app-success-text: light-dark(#14532d, #b9e7c8);
-  --app-success: light-dark(#1b7a3d, #6fcf8f);
+  --app-success: light-dark(#047857, #6fcf8f);
+  --app-warning: light-dark(#f59e0b, #fbbf24);
 
   // Densité (réglage de l'utilisateur, voir ThemeService) : espacements des panneaux, tableaux et formulaires.
   --app-panel-pad: 28px;
@@ -54,6 +55,17 @@ html {
   --mat-form-field-outlined-outline-width: 1px;
   --mat-form-field-outlined-focus-outline-width: 2px;
   --mat-form-field-outlined-container-shape: 10px;
+  // Boîtes de dialogue : fond blanc (surface), angles peu arrondis.
+  --mat-dialog-container-shape: 8px;
+  --mat-dialog-container-color: var(--app-surface);
+  // Calendrier, menus et listes déroulantes : fond blanc (surface) plutôt que le gris teinté de Material.
+  --mat-datepicker-calendar-container-background-color: var(--app-surface);
+  --mat-datepicker-calendar-container-shape: 8px;
+  --mat-menu-container-color: var(--app-surface);
+  --mat-select-panel-background-color: var(--app-surface);
+  --mat-datepicker-calendar-container-elevation-shadow: var(--app-shadow-md);
+  --mat-menu-container-elevation-shadow: var(--app-shadow-md);
+  --mat-select-container-elevation-shadow: var(--app-shadow-md);
   --mat-form-field-focus-select-arrow-color: var(--mat-sys-primary);
 }
 
@@ -97,6 +109,13 @@ html,
 body {
   height: 100%;
   margin: 0;
+}
+
+// Fenêtres flottantes (calendrier, menus, listes) : un filet les distingue du fond de la page.
+.mat-datepicker-content,
+.mat-mdc-menu-panel,
+.mat-mdc-select-panel {
+  border: 1px solid var(--app-border);
 }
 
 body {

@@ -279,6 +279,12 @@ h4 {
   padding: 2px 4px 2px 10px;
 }
 
+// Pastille d'information sans bouton de retrait : texte centré, marges symétriques (la marge basse ne sert qu'aux pastilles retirables).
+.chip:not(:has(.chip-remove)) {
+  margin: 0;
+  padding: 2px 10px;
+}
+
 .chip-remove {
   align-items: center;
   background: none;
@@ -316,6 +322,10 @@ h4 {
 
   &.ok {
     color: var(--app-success);
+  }
+
+  &.warn {
+    color: var(--app-warning);
   }
 
   &.off {
@@ -424,13 +434,28 @@ h4 {
 
 .filters {
   align-items: flex-start;
+  display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px 16px;
 
-  mat-form-field {
-    flex: 1 1 160px;
+  mat-form-field,
+  app-date-field {
+    flex: 1 1 180px;
+    min-width: 0;
   }
+}
+
+// Le bouton d'une barre de filtres a la hauteur des champs qui l'entourent (suit la densité choisie).
+.filters .actions button {
+  --mat-button-filled-container-height: var(--mat-form-field-container-height, 40px);
+  --mat-button-outlined-container-height: var(--mat-form-field-container-height, 40px);
+  --mat-button-text-container-height: var(--mat-form-field-container-height, 40px);
+}
+
+// Champ de date : l'icône du calendrier ne colle pas au bord droit du champ.
+app-date-field .mat-mdc-form-field-icon-suffix {
+  padding-right: 8px;
 }
 
 .more {
@@ -551,8 +576,25 @@ details pre {
   box-shadow: var(--app-shadow-md);
 }
 
+// Pas d'ascenseur tant que la fenêtre peut afficher la boîte en entier : le contenu ne défile que si la fenêtre est trop basse.
+.app-dialog.cdk-overlay-pane {
+  max-height: calc(100dvh - 32px);
+}
+
+// Material plafonne la zone de contenu à 65 % de la hauteur de la fenêtre ; ici c'est la boîte entière (surface) qui défile,
+// et seulement si la fenêtre est trop basse pour l'afficher.
 .app-dialog .mat-mdc-dialog-content {
+  max-height: none !important;
+  overflow: visible !important;
   padding-top: 8px;
+}
+
+.app-dialog .row {
+  gap: 16px;
+
+  > * {
+    flex: 1 1 200px;
+  }
 }
 
 @media (max-width: 600px) {
@@ -593,4 +635,13 @@ details pre {
     background: #fff !important;
     color: #000 !important;
   }
+}
+
+// Documents liés affichés dans une boîte de dialogue : le panneau n'a pas besoin de sa propre carte.
+.app-dialog .panel {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  margin: 0;
+  padding: 0;
 }

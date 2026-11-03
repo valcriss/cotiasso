@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type DocumentOptions, type DocumentUploadResult } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
+import { FileDropzone } from '../ui/file-dropzone';
 import { FormDialog } from '../ui/form-dialog';
 import { titleFromFilename } from './format';
 
@@ -20,7 +21,7 @@ export interface UploadDialogData {
 /** Dépôt d'un document, en boîte de dialogue. Renvoie le résultat du dépôt (document et doublons éventuels). */
 @Component({
   selector: 'app-upload-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [FileDropzone, ReactiveFormsModule, FormDialog, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   styles: `
     .file-input {
       margin: 0 0 16px;
@@ -43,8 +44,7 @@ export interface UploadDialogData {
       >
         <div class="file-input">
           <label for="upload-file">Fichier</label>
-          <input id="upload-file" type="file" [attr.accept]="accept()" (change)="pickFile($event)" />
-          <div class="muted">Formats acceptés : {{ extensions() }}.</div>
+          <app-file-dropzone inputId="upload-file" label="Fichier à déposer" [accept]="accept()" [formats]="extensions()" [fileName]="file()?.name ?? ''" (picked)="pickFile($event)" />
         </div>
         <mat-form-field appearance="outline">
           <mat-label>Titre</mat-label>
@@ -90,8 +90,7 @@ export class UploadDialog {
     restricted: false,
   });
 
-  protected pickFile(event: Event): void {
-    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+  protected pickFile(file: File): void {
     this.file.set(file);
     if (file && !this.form.controls.title.value) this.form.controls.title.setValue(titleFromFilename(file.name));
   }

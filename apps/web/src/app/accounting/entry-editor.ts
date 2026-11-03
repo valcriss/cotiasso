@@ -21,6 +21,7 @@ import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from './amount';
 import { ThirdPartyDialog } from './third-party-dialog';
+import { DateField } from '../ui/date-field';
 
 /** Valeur du sélecteur de projet pour une ligne déjà ventilée entre plusieurs projets : la ventilation est conservée. */
 export const MULTI_PROJECT = '__multi';
@@ -37,7 +38,7 @@ export const ENTRY_STATUS_LABELS = {
  */
 @Component({
   selector: 'app-entry-editor',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .hint-panel {
@@ -137,10 +138,7 @@ export const ENTRY_STATUS_LABELS = {
                 }
               </mat-select>
             </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Date</mat-label>
-              <input matInput type="date" formControlName="date" required />
-            </mat-form-field>
+            <app-date-field label="Date" formControlName="date" required />
             <mat-form-field appearance="outline" class="grow">
               <mat-label>Libellé</mat-label>
               <input matInput formControlName="label" required />
@@ -349,10 +347,7 @@ export const ENTRY_STATUS_LABELS = {
 
         @if (canReverse()) {
           <form class="row" [formGroup]="reverseForm" (ngSubmit)="reverse()" novalidate>
-            <mat-form-field appearance="outline">
-              <mat-label>Date de la contrepassation</mat-label>
-              <input matInput type="date" formControlName="date" />
-            </mat-form-field>
+            <app-date-field label="Date de la contrepassation" formControlName="date" />
             <button mat-stroked-button class="danger" type="submit" [disabled]="busy()">Contrepasser</button>
           </form>
         }

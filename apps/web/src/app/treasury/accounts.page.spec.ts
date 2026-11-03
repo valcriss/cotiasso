@@ -1,3 +1,4 @@
+import { OverlayContainer } from '@angular/cdk/overlay';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
@@ -54,6 +55,7 @@ const transaction = (overrides: Record<string, unknown> = {}) => ({
   counterpartAccountId: null,
   counterpartAccountNumber: null,
   qualified: false,
+  split: false,
   accounting: 'NONE',
   entry: null,
   transfer: null,
@@ -98,6 +100,22 @@ describe('AccountsPage', () => {
     ) as HTMLElement | undefined;
     expect(button, label).toBeTruthy();
     button!.click();
+    await settle();
+  };
+  /** Menu ⋮ d'une ligne de la liste des transactions : l'ouvre puis choisit une action (le menu vit dans la couche de superposition). */
+  const rowAction = async (rowLabel: string, item: string) => {
+    await click(`Plus d’actions pour ${rowLabel}`);
+    const entry = Array.from(TestBed.inject(OverlayContainer).getContainerElement().querySelectorAll<HTMLElement>('.mat-mdc-menu-item')).find((i) => i.textContent!.includes(item));
+    expect(entry, item).toBeTruthy();
+    entry!.click();
+    await settle();
+  };
+  /** Ouvre le menu d'actions d'un compte puis choisit une action (le menu vit dans la couche de superposition). */
+  const menuAction = async (accountName: string, label: string) => {
+    await click(`Actions de ${accountName}`);
+    const item = Array.from(TestBed.inject(OverlayContainer).getContainerElement().querySelectorAll<HTMLElement>('.mat-mdc-menu-item')).find((i) => i.textContent!.includes(label));
+    expect(item, label).toBeTruthy();
+    item!.click();
     await settle();
   };
   const openTransactions = async (list: object[] = [transaction()]) => {
@@ -146,11 +164,22 @@ describe('AccountsPage', () => {
     expect(buttons.join('|')).toContain('J’ai dépensé de l’argent');
   });
 
+  it('masque les transactions quand on reclique sur la tuile du compte', async () => {
+    await create(['financial-accounts:view']);
+    await openTransactions();
+    expect(root.querySelector('app-transactions-panel')).not.toBeNull();
+    expect(root.textContent).toContain('Masquer les transactions');
+    await click('Ouvrir Compte courant');
+    expect(root.querySelector('app-transactions-panel')).toBeNull();
+    expect(root.textContent).toContain('Voir les transactions');
+  });
+
   it("indique « rapproché » seulement pour un rapprochement validé, et propose d'en commencer un", async () => {
     const validated = account({ balances: { ...account().balances, reconciled: { periodEnd: '2026-03-31', closingBalance: '950.00' } } });
     await create(['financial-accounts:view', 'imports:post'], [validated]);
     expect(root.textContent).toContain('Rapproché au 2026-03-31');
-    const link = Array.from(root.querySelectorAll<HTMLAnchorElement>('a')).find((a) => a.textContent!.includes('Rapprocher'));
+    await click('Actions de Compte courant');
+    const link = Array.from(TestBed.inject(OverlayContainer).getContainerElement().querySelectorAll<HTMLAnchorElement>('a.mat-mdc-menu-item')).find((a) => a.textContent!.includes('Rapprocher'));
     expect(link?.getAttribute('href')).toBe('/comptes/f1/rapprochement');
   });
 
@@ -214,7 +243,7 @@ describe('AccountsPage', () => {
 
   it('enregistre un solde de relevé, avec le signe saisi', async () => {
     await create(['financial-accounts:view', 'imports:post']);
-    await click('Relevé de Compte courant');
+    await menuAction('Compte courant', 'Solde de relevé');
     expect(ui.title).toBe('Solde du relevé — Compte courant');
     await ui.type('input[formcontrolname="periodStart"]', '2026-04-01');
     await ui.type('input[formcontrolname="periodEnd"]', '2026-04-30');
@@ -231,13 +260,13 @@ describe('AccountsPage', () => {
 
   it("demande confirmation avant d'archiver, en expliquant les conséquences", async () => {
     await create(['financial-accounts:view', 'settings.accounting:admin']);
-    await click('Archiver Compte courant');
+    await menuAction('Compte courant', 'Archiver');
     expect(ui.title).toBe('Archiver « Compte courant » ?');
     expect(ui.text).toContain('ne peut pas être réactivé');
     await ui.click('Annuler');
     controller.expectNone('/api/financial-accounts/f1');
 
-    await click('Archiver Compte courant');
+    await menuAction('Compte courant', 'Archiver');
     await ui.click('Archiver');
     const patch = controller.expectOne('/api/financial-accounts/f1');
     expect(patch.request.method).toBe('PATCH');
@@ -316,7 +345,7 @@ describe('AccountsPage', () => {
   it("une transaction identifiée par la banque garde son montant et sa date : seule la qualification est envoyée", async () => {
     await create(['financial-accounts:view', 'transactions:manage']);
     await openTransactions([transaction({ origin: 'IMPORT', externalId: 'FIT-1', bankIdentified: true, financialLock: 'BANK', deletable: false })]);
-    await click('Modifier Frais');
+    await rowAction('Frais', 'Modifier');
     expect(ui.title).toBe('Modifier la transaction');
     expect(ui.text).toContain('vient de votre relevé bancaire');
     expect(ui.field<HTMLInputElement>('input[formcontrolname="amount"]').disabled).toBe(true);
@@ -336,7 +365,7 @@ describe('AccountsPage', () => {
   it("supprime une saisie manuelle après confirmation", async () => {
     await create(['financial-accounts:view', 'transactions:manage']);
     await openTransactions([transaction()]);
-    await click('Modifier Frais');
+    await rowAction('Frais', 'Modifier');
     await ui.click('Supprimer cette transaction');
     expect(ui.title).toBe('Supprimer cette transaction ?');
     await ui.click('Supprimer');
@@ -448,7 +477,7 @@ describe('AccountsPage', () => {
   it("une transaction liée à une écriture explique pourquoi son montant ne change plus", async () => {
     await create(FULL);
     await openTransactions([transaction({ accounting: 'POSTED', entry: entryRef({ status: 'POSTED', number: 2 }), financialLock: 'ENTRY', deletable: false })]);
-    await click('Modifier Frais');
+    await rowAction('Frais', 'Modifier');
     expect(ui.text).toContain('contrepassez');
     expect(ui.field<HTMLInputElement>('input[formcontrolname="amount"]').disabled).toBe(true);
     expect(ui.dialog!.textContent).not.toContain('Supprimer cette transaction');
@@ -480,9 +509,60 @@ describe('AccountsPage', () => {
     expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Annuler l’opération'))).toBe(false);
   });
 
+  describe('justificatifs d’un mouvement (menu de la ligne)', () => {
+    const docOptions = { categories: [{ key: 'facture', label: 'Facture' }], allowedExtensions: ['pdf'], maxMb: 25, objectTypes: ['transaction'] };
+    const facture = {
+      id: 'd1', title: 'Facture cartes de visite', category: 'facture', restricted: false, archivedAt: null,
+      createdAt: '2026-05-01T10:00:00.000Z', updatedAt: '2026-05-02T10:00:00.000Z', versionCount: 1, linkCount: 1,
+      latest: { number: 1, originalName: 'facture.pdf', mimeType: 'application/pdf', size: 2048, uploadedAt: '2026-05-01T10:00:00.000Z' },
+    };
+    it('ouvre les justificatifs du mouvement depuis le menu ⋮ et les liste', async () => {
+      await create(['financial-accounts:view', 'documents:view']);
+      await openTransactions();
+      await rowAction('Frais', 'Justificatifs');
+      expect(ui.title).toBe('Justificatifs de ce mouvement');
+      controller.expectOne((r) => r.url === '/api/documents' && r.params.get('objectType') === 'transaction' && r.params.get('objectId') === 't1').flush({ items: [facture], total: 1, pageSize: 50 });
+      controller.expectOne('/api/documents/options').flush(docOptions);
+      await settle();
+      expect(ui.text).toContain('Frais');
+      expect(ui.text).toContain('Facture cartes de visite');
+      expect(ui.text).toContain('Télécharger');
+      // Sans le droit de déposer, pas de bouton de dépôt.
+      expect(ui.text).not.toContain('Déposer un document');
+    });
+
+    it('propose de déposer un justificatif seulement avec le droit de déposer, relié au mouvement', async () => {
+      await create(['financial-accounts:view', 'documents:view', 'documents:create']);
+      await openTransactions();
+      await rowAction('Frais', 'Justificatifs');
+      controller.expectOne((r) => r.url === '/api/documents' && r.params.get('objectType') === 'transaction').flush({ items: [], total: 0, pageSize: 50 });
+      controller.expectOne('/api/documents/options').flush(docOptions);
+      await settle();
+      expect(ui.text).toContain("Aucun document pour l'instant");
+      expect(ui.text).toContain('Déposer un document');
+    });
+
+    it('n’affiche pas le menu sans aucun droit utile, et ne propose que ce qui est permis', async () => {
+      await create(['financial-accounts:view']);
+      await openTransactions();
+      expect(root.querySelector('button[aria-label^="Plus d’actions pour"]')).toBeNull();
+    });
+
+    it('range « Modifier » dans le menu ⋮ avec « Justificatifs », selon les droits', async () => {
+      await create(['financial-accounts:view', 'transactions:manage', 'documents:view']);
+      await openTransactions();
+      expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.trim() === 'Modifier')).toBe(false);
+      await click('Plus d’actions pour Frais');
+      const items = Array.from(TestBed.inject(OverlayContainer).getContainerElement().querySelectorAll('.mat-mdc-menu-item')).map((i) => i.textContent!.trim());
+      expect(items.join('|')).toContain('Modifier');
+      expect(items.join('|')).toContain('Justificatifs');
+    });
+  });
+
   describe('affichage simple : classer et enregistrer (ADR 0028)', () => {
     const cats = [
       { id: 'c-out', direction: 'OUT', label: 'Assurance', hint: "Prime d'assurance de l'association.", active: true, account: { id: 'a616', number: '616', label: "Primes d'assurance" } },
+      { id: 'c-out2', direction: 'OUT', label: 'Communication et publicité', hint: 'Affiches, tracts, site internet.', active: true, account: { id: 'a623', number: '623', label: 'Publicité' } },
       { id: 'c-in', direction: 'IN', label: 'Dons', hint: 'Argent donné sans contrepartie.', active: true, account: { id: 'a754', number: '754', label: 'Dons et libéralités' } },
     ];
     const SIMPLE = ['financial-accounts:view', 'transactions:manage', 'entries:create', 'entries:view', 'entries:post'];
@@ -522,7 +602,7 @@ describe('AccountsPage', () => {
       await openSimple([transaction({ id: 't1', label: 'Prime annuelle', amount: '-120.00' })]);
       await click('Classer et enregistrer Prime annuelle');
       expect(ui.title).toBe('Classer et enregistrer ce mouvement');
-      expect(await ui.options('mat-select[formcontrolname="categoryId"]')).toEqual(['Assurance']);
+      expect(await ui.options('mat-select[formcontrolname="categoryId"]')).toEqual(['Assurance', 'Communication et publicité']);
 
       await ui.submit();
       expect(ui.error).toContain('Choisissez une catégorie');
@@ -539,6 +619,45 @@ describe('AccountsPage', () => {
       controller.expectOne('/api/financial-accounts').flush([account()]);
       await settle();
       expect(ui.snackbar).toContain('enregistré dans les comptes');
+    });
+
+    it('fractionne le montant d’un mouvement sur plusieurs catégories, seulement une fois tout réparti', async () => {
+      await openSimple([transaction({ id: 't1', label: 'Facture mixte', amount: '-60.00' })]);
+      await click('Classer et enregistrer Facture mixte');
+      await ui.click('Fractionner');
+      const part = (n: number) => ({ category: `mat-select[aria-label="Catégorie de la part ${n}"]`, amount: `input[aria-label="Montant de la part ${n}"]` });
+      await ui.choose(part(1).category, 'Assurance');
+      await ui.type(part(1).amount, '40');
+      expect(ui.field<HTMLInputElement>(part(2).amount).value).toBe('20,00');
+      await ui.choose(part(2).category, 'Communication');
+      expect(ui.text).toContain('Tout le montant (60,00 €) est réparti');
+      expect(ui.text).toContain('une seule écriture');
+
+      await ui.type(part(2).amount, '15');
+      await ui.submit();
+      expect(ui.error).toContain('Le total des parts doit être égal au montant du mouvement');
+      controller.expectNone('/api/transactions/t1/book');
+
+      await ui.type(part(2).amount, '20');
+      await ui.submit();
+      const request = controller.expectOne('/api/transactions/t1/book');
+      expect(request.request.body).toEqual({ splits: [{ categoryId: 'c-out', amount: '40.00' }, { categoryId: 'c-out2', amount: '20.00' }], post: true });
+      request.flush({ transactionId: 't1', entryId: 'e1', posted: true, journalCode: 'BQ-1', number: 3 }, { status: 201, statusText: 'Created' });
+      await settle();
+      controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: [], next: null });
+      await settle();
+      controller.expectOne('/api/financial-accounts').flush([account()]);
+      await settle();
+      expect(ui.snackbar).toContain('enregistré dans les comptes');
+    });
+
+    it('montre « Plusieurs catégories » pour un mouvement fractionné et ne le dit pas à classer', async () => {
+      await openSimple([
+        transaction({ id: 't1', label: 'Facture mixte', amount: '-60.00', split: true, qualified: true, accounting: 'POSTED', entry: entryRef({ id: 'e1', status: 'POSTED', number: 3 }), financialLock: 'ENTRY', deletable: false }),
+      ]);
+      const row = root.querySelector('tbody tr')!;
+      expect(row.textContent).toContain('Plusieurs catégories');
+      expect(row.textContent).not.toContain('À classer');
     });
 
     const classed = (id: string, label: string) => transaction({ id, label, counterpartAccountId: 'a616', counterpartAccountNumber: '616' });
@@ -609,7 +728,7 @@ describe('AccountsPage', () => {
       await settle();
       await click('Classer la sélection');
       expect(ui.title).toBe('Classer 1 mouvement(s)');
-      expect(await ui.options('mat-select[formcontrolname="counterpartAccountId"]')).toEqual(['Ne pas changer', 'Dépensé — Assurance', 'Reçu — Dons']);
+      expect(await ui.options('mat-select[formcontrolname="counterpartAccountId"]')).toEqual(['Ne pas changer', 'Dépensé — Assurance', 'Dépensé — Communication et publicité', 'Reçu — Dons']);
     });
   });
 

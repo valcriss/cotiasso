@@ -9,6 +9,8 @@ import { Notifier } from '../ui/notifier.service';
 import { formatSize } from './format';
 import { UploadDialog } from './upload-dialog';
 
+export type LinkedObjectType = 'project' | 'grant' | 'frozen-report' | 'transaction';
+
 /**
  * Documents liés à un projet ou à une subvention, depuis sa fiche (ADR 0024, tranche 4.5) : liste, téléchargement et dépôt. Le
  * serveur ne renvoie que les documents que la personne a le droit de voir ; elle peut aussi les consulter sans accéder à la page
@@ -52,7 +54,7 @@ import { UploadDialog } from './upload-dialog';
       } @else if (documents().length === 0) {
         <p class="muted">
           @if (canDeposit()) {
-            Aucun document pour l'instant. Cliquez sur « Déposer un document » pour ajouter un devis, une facture ou une convention.
+            Aucun document pour l'instant. Cliquez sur « Déposer un document » pour ajouter une facture, un ticket ou un devis.
           } @else {
             Aucun document n'est disponible ici.
           }
@@ -96,8 +98,8 @@ export class LinkedDocuments {
   private readonly dialogs = inject(Dialogs);
   private readonly notifier = inject(Notifier);
 
-  /** `project`, `grant` ou `frozen-report` : le type d'objet auquel les documents sont liés. */
-  readonly objectType = input.required<'project' | 'grant' | 'frozen-report'>();
+  /** `project`, `grant`, `transaction` ou `frozen-report` : le type d'objet auquel les documents sont liés. */
+  readonly objectType = input.required<LinkedObjectType>();
   readonly objectId = input.required<string>();
   /** Nom de l'objet, pour l'accessibilité. */
   readonly name = input('');
@@ -120,9 +122,16 @@ export class LinkedDocuments {
   }
 
   protected intro(): string {
-    return this.objectType() === 'frozen-report'
-      ? "Le procès-verbal de l'assemblée générale et les pièces de ces rapports."
-      : `Les devis, factures et conventions ${this.objectType() === 'grant' ? 'de cette subvention' : 'de ce projet'}.`;
+    switch (this.objectType()) {
+      case 'frozen-report':
+        return "Le procès-verbal de l'assemblée générale et les pièces de ces rapports.";
+      case 'transaction':
+        return 'Les factures, tickets et autres pièces qui justifient ce mouvement.';
+      case 'grant':
+        return 'Les devis, factures et conventions de cette subvention.';
+      default:
+        return 'Les devis, factures et conventions de ce projet.';
+    }
   }
 
   protected category(key: string): string {
@@ -146,7 +155,7 @@ export class LinkedDocuments {
     await this.load(this.objectType(), this.objectId());
   }
 
-  private async load(type: 'project' | 'grant' | 'frozen-report', id: string): Promise<void> {
+  private async load(type: LinkedObjectType, id: string): Promise<void> {
     this.error.set(null);
     try {
       const [page, options] = await Promise.all([

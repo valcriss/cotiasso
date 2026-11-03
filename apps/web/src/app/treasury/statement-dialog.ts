@@ -7,6 +7,7 @@ import { AdminApiService, type FinancialAccountInfo } from '../admin/admin-api.s
 import { centsToApi, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { DateField } from '../ui/date-field';
 
 export interface StatementDialogData {
   account: FinancialAccountInfo;
@@ -15,7 +16,7 @@ export interface StatementDialogData {
 /** Enregistrement du solde indiqué par un relevé bancaire. Renvoie `true` une fois enregistré. */
 @Component({
   selector: 'app-statement-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -28,20 +29,8 @@ export interface StatementDialogData {
         submitLabel="Enregistrer le solde"
       >
         <div class="row">
-          <mat-form-field appearance="outline">
-            <mat-label>Début de la période</mat-label>
-            <input matInput type="date" formControlName="periodStart" required />
-            @if (form.controls.periodStart.hasError('required')) {
-              <mat-error>Indiquez le premier jour du relevé.</mat-error>
-            }
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Fin de la période</mat-label>
-            <input matInput type="date" formControlName="periodEnd" required />
-            @if (form.controls.periodEnd.hasError('required')) {
-              <mat-error>Indiquez le dernier jour du relevé.</mat-error>
-            }
-          </mat-form-field>
+          <app-date-field label="Début de la période" formControlName="periodStart" errorText="Indiquez le premier jour du relevé." required />
+          <app-date-field label="Fin de la période" formControlName="periodEnd" errorText="Indiquez le dernier jour du relevé." required />
         </div>
         <mat-form-field appearance="outline">
           <mat-label>Solde de fin (€)</mat-label>

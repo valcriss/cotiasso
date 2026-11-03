@@ -10,6 +10,7 @@ import { AdminApiService, type FinancialAccountInfo, type TransferInfo } from '.
 import { centsToApi, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { DateField } from '../ui/date-field';
 
 export interface TransferDialogData {
   /** Comptes actifs entre lesquels on peut virer. */
@@ -21,7 +22,7 @@ export interface TransferDialogData {
 /** Virement interne entre deux comptes de l'association (banque vers livret, caisse vers banque…). Renvoie le virement créé. */
 @Component({
   selector: 'app-transfer-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -56,10 +57,7 @@ export interface TransferDialogData {
             <mat-label>Montant (€)</mat-label>
             <input matInput inputmode="decimal" formControlName="amount" placeholder="300,00" required />
           </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Date</mat-label>
-            <input matInput type="date" formControlName="date" required />
-          </mat-form-field>
+          <app-date-field label="Date" formControlName="date" required />
         </div>
         <mat-form-field appearance="outline">
           <mat-label>Libellé (facultatif)</mat-label>

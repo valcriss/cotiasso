@@ -162,11 +162,11 @@ describe('DocumentsPage', () => {
     expect(ui.text).not.toContain('Document restreint (visible');
   });
 
-  it('affiche le refus du serveur, par exemple un type de fichier non autorisé', async () => {
+  it('affiche le refus du serveur, par exemple un contenu qui ne correspond pas à l’extension', async () => {
     await create(['documents:view', 'documents:create']);
     buttonWith('Déposer un document')!.click();
     await settle();
-    await pick(new File(['<html>'], 'page.html'));
+    await pick(new File(['<html>'], 'faux.pdf'));
     await ui.submit();
     controller
       .expectOne('/api/documents')

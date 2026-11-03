@@ -8,6 +8,7 @@ import { AdminApiService, type FinancialAccountInfo, type FiscalYearInfo } from 
 import { centsToApi, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { DateField } from '../ui/date-field';
 
 /** Dernier jour d'une période de 12 mois qui commence à `start` (AAAA-MM-JJ), en dates UTC : aucun décalage d'heure. */
 export function endOfTwelveMonths(start: string): string {
@@ -27,7 +28,7 @@ export function yearLabel(start: string, end: string): string {
 /** Période de la comptabilité (exercice), en langage courant. Renvoie l'exercice créé. */
 @Component({
   selector: 'app-start-year-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -40,21 +41,8 @@ export function yearLabel(start: string, end: string): string {
         [details]="details()"
       >
         <div class="row">
-          <mat-form-field appearance="outline">
-            <mat-label>Premier jour</mat-label>
-            <input matInput type="date" formControlName="start" required />
-            @if (form.controls.start.hasError('required')) {
-              <mat-error>Indiquez le premier jour de la période.</mat-error>
-            }
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Dernier jour</mat-label>
-            <input matInput type="date" formControlName="end" required />
-            <mat-hint>Rempli pour 12 mois ; modifiez-le si votre période est plus courte ou plus longue.</mat-hint>
-            @if (form.controls.end.hasError('required')) {
-              <mat-error>Indiquez le dernier jour de la période.</mat-error>
-            }
-          </mat-form-field>
+          <app-date-field label="Premier jour" formControlName="start" errorText="Indiquez le premier jour de la période." required />
+          <app-date-field label="Dernier jour" formControlName="end" hint="Rempli pour 12 mois ; modifiez-le si votre période est plus courte ou plus longue." errorText="Indiquez le dernier jour de la période." required />
         </div>
       </app-form-dialog>
     </form>
@@ -121,7 +109,7 @@ export interface StartAccountDialogData {
  */
 @Component({
   selector: 'app-start-account-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -148,11 +136,7 @@ export interface StartAccountDialogData {
           }
         </mat-form-field>
         <div class="row">
-          <mat-form-field appearance="outline">
-            <mat-label>Date de départ</mat-label>
-            <input matInput type="date" formControlName="openedOn" required />
-            <mat-hint>Le jour où commence votre suivi dans l’application.</mat-hint>
-          </mat-form-field>
+          <app-date-field label="Date de départ" formControlName="openedOn" hint="Le jour où commence votre suivi dans l’application." required />
           <mat-form-field appearance="outline">
             <mat-label>Combien y a-t-il dessus ce jour-là ? (€)</mat-label>
             <input matInput inputmode="decimal" formControlName="openingBalance" placeholder="0,00" autocomplete="off" />

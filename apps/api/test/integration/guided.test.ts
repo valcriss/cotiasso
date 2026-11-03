@@ -387,6 +387,112 @@ describe("Parcours simplifiés : catégories, saisie guidée et vue d'ensemble (
       expect((await call("POST", "/starter-template", accountant)).statusCode).toBe(403);
     });
 
+    describe("fractionner un montant sur plusieurs catégories", () => {
+      const listed = async (id: string) =>
+        (await call("GET", `/financial-accounts/${ids.fBank}/transactions`, treasurer)).json().transactions.find((t: { id: string }) => t.id === id);
+
+      it("enregistre en une action 20 € reçus : 10 € de cotisations et 10 € de dons, en une seule écriture à trois lignes", async () => {
+        const response = await call("POST", "/guided-operations", treasurer, {
+          financialAccountId: ids.fBank,
+          direction: "IN",
+          amount: "20.00",
+          date: "2026-04-02",
+          label: "Cotisation et don de Marie",
+          splits: [
+            { categoryId: await category("Cotisations des adhérents"), amount: "10.00" },
+            { categoryId: await category("Dons"), amount: "10.00" },
+          ],
+        });
+        expect(response.statusCode, response.body).toBe(201);
+        const entry = (await call("GET", `/entries/${response.json().entryId}`, treasurer)).json();
+        expect(entry.status).toBe("POSTED");
+        expect(entry.lines).toMatchObject([
+          { accountNumber: "512", debit: "20.00", credit: "0.00" },
+          { accountNumber: "756", debit: "0.00", credit: "10.00", allocations: [{ amount: "10.00" }] },
+          { accountNumber: "754", debit: "0.00", credit: "10.00", allocations: [{ amount: "10.00" }] },
+        ]);
+
+        const tx = await listed(response.json().transactionId);
+        expect(tx).toMatchObject({ amount: "20.00", accounting: "POSTED", split: true, qualified: true, counterpartAccountId: null });
+        const classed = (await call("GET", `/financial-accounts/${ids.fBank}/transactions?qualified=true`, treasurer)).json().transactions;
+        const unclassed = (await call("GET", `/financial-accounts/${ids.fBank}/transactions?qualified=false`, treasurer)).json().transactions;
+        expect(classed.map((t: { id: string }) => t.id)).toContain(tx.id);
+        expect(unclassed.map((t: { id: string }) => t.id)).not.toContain(tx.id);
+      });
+
+      it("fractionne un mouvement qui existe déjà, puis l'annulation le remet à classer", async () => {
+        const tx = await call("POST", `/financial-accounts/${ids.fBank}/transactions`, treasurer, { operationDate: "2026-04-03", amount: "-60.00", label: "Facture mixte" });
+        expect(tx.statusCode, tx.body).toBe(201);
+        const booked = await call("POST", `/transactions/${tx.json().id}/book`, treasurer, {
+          splits: [
+            { categoryId: await category("Assurance"), amount: "40.00" },
+            { categoryId: await category("Communication et publicité"), amount: "20.00" },
+          ],
+        });
+        expect(booked.statusCode, booked.body).toBe(201);
+        const entry = (await call("GET", `/entries/${booked.json().entryId}`, treasurer)).json();
+        expect(entry.lines).toMatchObject([
+          { accountNumber: "512", debit: "0.00", credit: "60.00" },
+          { accountNumber: "616", debit: "40.00", credit: "0.00" },
+          { accountNumber: "623", debit: "20.00", credit: "0.00" },
+        ]);
+        expect(await listed(tx.json().id)).toMatchObject({ split: true, accounting: "POSTED" });
+
+        const reversed = await call("POST", `/entries/${booked.json().entryId}/reverse`, treasurer, { date: "2026-04-03" });
+        expect(reversed.statusCode, reversed.body).toBe(201);
+        expect(await listed(tx.json().id)).toMatchObject({ split: false, qualified: false, accounting: "NONE" });
+      });
+
+      it("refuse une répartition dont le total n'est pas exact, en disant ce qu'il reste, sans rien laisser derrière", async () => {
+        const tx = await call("POST", `/financial-accounts/${ids.fBank}/transactions`, treasurer, { operationDate: "2026-04-04", amount: "20.00", label: "À répartir" });
+        const before = await prisma.journalEntry.count();
+        const dons = await category("Dons");
+        const cotisations = await category("Cotisations des adhérents");
+        const short = await call("POST", `/transactions/${tx.json().id}/book`, treasurer, { splits: [{ categoryId: dons, amount: "10.00" }, { categoryId: cotisations, amount: "9.99" }] });
+        expect(short.statusCode).toBe(409);
+        expect(short.json().message).toContain("19.99");
+        expect(short.json().message).toContain("20.00");
+        expect(short.json().message).toContain("0.01");
+        const over = await call("POST", `/transactions/${tx.json().id}/book`, treasurer, { splits: [{ categoryId: dons, amount: "10.00" }, { categoryId: cotisations, amount: "10.01" }] });
+        expect(over.statusCode).toBe(409);
+        expect(await prisma.journalEntry.count()).toBe(before);
+        expect(await prisma.treasuryMatch.count({ where: { transactionId: tx.json().id } })).toBe(0);
+        expect((await listed(tx.json().id))).toMatchObject({ accounting: "NONE", split: false });
+      });
+
+      it("refuse une catégorie du mauvais sens, un doublon, une seule part, ou une catégorie en plus des parts", async () => {
+        const tx = await call("POST", `/financial-accounts/${ids.fBank}/transactions`, treasurer, { operationDate: "2026-04-05", amount: "20.00", label: "Contrôles" });
+        const dons = await category("Dons");
+        const assurance = await category("Assurance");
+        const book = (payload: object) => call("POST", `/transactions/${tx.json().id}/book`, treasurer, payload);
+        const wrongWay = await book({ splits: [{ categoryId: dons, amount: "10.00" }, { categoryId: assurance, amount: "10.00" }] });
+        expect(wrongWay.statusCode).toBe(409);
+        expect(wrongWay.json().message).toContain("Assurance");
+        const duplicate = await book({ splits: [{ categoryId: dons, amount: "10.00" }, { categoryId: dons, amount: "10.00" }] });
+        expect(duplicate.statusCode).toBe(409);
+        expect(duplicate.json().message).toContain("qu'une fois");
+        expect((await book({ splits: [{ categoryId: dons, amount: "20.00" }] })).statusCode).toBe(400);
+        expect((await book({ categoryId: dons, splits: [{ categoryId: dons, amount: "10.00" }, { categoryId: await category("Cotisations des adhérents"), amount: "10.00" }] })).statusCode).toBe(400);
+        expect((await book({})).statusCode).toBe(400);
+        expect((await book({ splits: [{ categoryId: dons, amount: "0.00" }, { categoryId: await category("Cotisations des adhérents"), amount: "20.00" }] })).statusCode).toBe(400);
+        expect(await prisma.treasuryMatch.count({ where: { transactionId: tx.json().id } })).toBe(0);
+      });
+
+      it("sans le droit de comptabiliser, prépare un brouillon à plusieurs lignes", async () => {
+        const tx = await call("POST", `/financial-accounts/${ids.fBank}/transactions`, treasurer, { operationDate: "2026-04-06", amount: "20.00", label: "Brouillon fractionné" });
+        const draft = await call("POST", `/transactions/${tx.json().id}/book`, treasurer, {
+          post: false,
+          splits: [
+            { categoryId: await category("Dons"), amount: "5.50" },
+            { categoryId: await category("Cotisations des adhérents"), amount: "14.50" },
+          ],
+        });
+        expect(draft.statusCode, draft.body).toBe(201);
+        expect(draft.json()).toMatchObject({ posted: false });
+        expect(await listed(tx.json().id)).toMatchObject({ accounting: "IN_PROGRESS", split: true });
+      });
+    });
+
     it("l'opération s'annule par contrepassation, comme toute écriture comptabilisée", async () => {
       const response = await call("POST", "/guided-operations", treasurer, {
         financialAccountId: ids.fBank,

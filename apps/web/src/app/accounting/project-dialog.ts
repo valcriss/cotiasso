@@ -8,6 +8,7 @@ import { AdminApiService, type ProjectInfo, type ProjectStatus } from '../admin/
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
 import { PROJECT_STATUS_LABELS } from './project-labels';
+import { DateField } from '../ui/date-field';
 
 export interface ProjectDialogData {
   /** Projet à modifier, ou `null` pour en créer un. */
@@ -17,7 +18,7 @@ export interface ProjectDialogData {
 /** Création et modification d'un projet, en boîte de dialogue. Renvoie le projet enregistré. */
 @Component({
   selector: 'app-project-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -67,14 +68,8 @@ export interface ProjectDialogData {
           <textarea matInput rows="2" formControlName="description" placeholder="À quoi sert ce projet ?"></textarea>
         </mat-form-field>
         <div class="row">
-          <mat-form-field appearance="outline">
-            <mat-label>Début (facultatif)</mat-label>
-            <input matInput type="date" formControlName="startDate" />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Fin (facultatif)</mat-label>
-            <input matInput type="date" formControlName="endDate" />
-          </mat-form-field>
+          <app-date-field label="Début (facultatif)" formControlName="startDate" />
+          <app-date-field label="Fin (facultatif)" formControlName="endDate" />
         </div>
       </app-form-dialog>
     </form>

@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import type { FiscalYearInfo } from '../admin/admin-api.service';
+import { DateField } from '../ui/date-field';
 
 export interface PeriodFilter {
   fiscalYearId: string;
@@ -22,7 +23,7 @@ export function defaultYear(years: readonly FiscalYearInfo[]): FiscalYearInfo | 
 /** Filtres communs aux états : exercice et période. Les filtres propres à un état se placent dans le contenu projeté. */
 @Component({
   selector: 'app-report-filters',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   template: `
     <form class="panel filters" [formGroup]="form" (ngSubmit)="apply()">
@@ -34,14 +35,8 @@ export function defaultYear(years: readonly FiscalYearInfo[]): FiscalYearInfo | 
           }
         </mat-select>
       </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label>Du</mat-label>
-        <input matInput type="date" formControlName="from" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label>Au</mat-label>
-        <input matInput type="date" formControlName="to" />
-      </mat-form-field>
+      <app-date-field label="Du" formControlName="from" />
+      <app-date-field label="Au" formControlName="to" />
       <ng-content />
       <div class="actions">
         <button mat-flat-button type="submit" [disabled]="!form.getRawValue().fiscalYearId">

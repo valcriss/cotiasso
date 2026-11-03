@@ -191,7 +191,7 @@ export class StartPage {
               key: 'situation' as const,
               title: 'Votre situation de départ',
               why: 'L’argent que vous avez au départ, ce qu’on vous doit et ce que vous devez. Le logiciel calcule le reste, que vous confirmez : c’est le point de départ de vos comptes.',
-              done: setup.openingSituation === 'POSTED',
+              done: setup.openingSituation === 'POSTED' || setup.openingSituation === 'SKIPPED',
               locked: !setup.financialAccount,
             },
           ]
@@ -239,8 +239,10 @@ export class StartPage {
       }
       // La liste des tiers demande entries:view ; sans ce droit, on propose seulement d'écrire un nom.
       const thirdParties = await this.api.listThirdParties().catch(() => []);
-      const result = await this.dialogs.open<{ posted: boolean }, OpeningSituationDialogData>(OpeningSituationDialog, { size: 'lg', data: { situation, thirdParties } });
-      if (result) {
+      const result = await this.dialogs.open<{ posted?: boolean; skipped?: boolean }, OpeningSituationDialogData>(OpeningSituationDialog, { size: 'lg', data: { situation, thirdParties } });
+      if (result?.skipped) {
+        this.notifier.success('C’est noté : vous partez de zéro, il n’y a rien à reprendre.');
+      } else if (result) {
         this.notifier.success(result.posted ? 'Situation de départ enregistrée dans les comptes.' : 'Situation de départ préparée : elle reste à valider.');
       }
     } else if (key === 'year') {

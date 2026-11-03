@@ -4,6 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterLink } from '@angular/router';
@@ -27,18 +28,25 @@ import { BookDialog, type BookDialogData } from './book-dialog';
 import { BulkBookResultDialog, type BulkBookResultData } from './bulk-book-result-dialog';
 import { LinkEntryDialog, type LinkEntryDialogData } from './link-entry-dialog';
 import { QualifyDialog, type QualifyDialogData } from './qualify-dialog';
+import { TransactionDocumentsDialog, type TransactionDocumentsDialogData } from './transaction-documents-dialog';
 import { TransactionDialog, type TransactionDialogData, type TransactionDialogResult } from './transaction-dialog';
+import { DateField } from '../ui/date-field';
 
 /** Transactions d'un compte : liste filtrable, saisie (boîte de dialogue) et accès à l'import d'un relevé. */
 @Component({
   selector: 'app-transactions-panel',
-  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
       font-variant-numeric: tabular-nums;
       text-align: right;
       white-space: nowrap;
+    }
+    /* Pastille après le libellé : un espace pour ne pas coller au texte. */
+    td .chip {
+      margin-left: 10px;
+      vertical-align: middle;
     }
     .negative {
       color: var(--mat-sys-error);
@@ -89,14 +97,8 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
       }
 
       <form class="filters" [formGroup]="filters" (ngSubmit)="search()">
-        <mat-form-field appearance="outline">
-          <mat-label>Du</mat-label>
-          <input matInput type="date" formControlName="from" />
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Au</mat-label>
-          <input matInput type="date" formControlName="to" />
-        </mat-form-field>
+        <app-date-field label="Du" formControlName="from" />
+        <app-date-field label="Au" formControlName="to" />
         <mat-form-field appearance="outline">
           <mat-label>Libellé ou référence</mat-label>
           <input matInput formControlName="q" />
@@ -183,10 +185,10 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
                   }
                 </td>
                 <td>{{ item.projectCode ?? '—' }}</td>
-                <td>{{ simple() ? categoryOf(item) : (item.counterpartAccountNumber ?? 'À qualifier') }}</td>
+                <td>{{ simple() ? categoryOf(item) : (item.counterpartAccountNumber ?? (item.split ? 'Plusieurs comptes' : 'À qualifier')) }}</td>
                 <td>
                   @if (simple()) {
-                    <span class="status" [class.ok]="simpleStatus(item).ok">
+                    <span class="status" [class.ok]="simpleStatus(item).tone === 'ok'" [class.warn]="simpleStatus(item).tone === 'warn'">
                       <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ simpleStatus(item).icon }}</mat-icon> {{ simpleStatus(item).label }}
                     </span>
                     @if (item.transfer; as transfer) {
@@ -241,8 +243,24 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
                   @if (canManage() && item.financialLock === 'TRANSFER' && item.transfer) {
                     <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler le virement ' + item.label" [disabled]="busy()" (click)="cancelTransfer(item)">Annuler le virement</button>
                   }
-                  @if (canManage()) {
-                    <button mat-button type="button" [attr.aria-label]="'Modifier ' + item.label" (click)="open(item)">Modifier</button>
+                  @if (canManage() || canViewDocuments()) {
+                    <button mat-icon-button type="button" [matMenuTriggerFor]="rowMenu" [attr.aria-label]="'Plus d’actions pour ' + item.label">
+                      <mat-icon fontSet="material-icons-outlined" aria-hidden="true">more_vert</mat-icon>
+                    </button>
+                    <mat-menu #rowMenu="matMenu" xPosition="before">
+                      @if (canManage()) {
+                        <button mat-menu-item type="button" (click)="open(item)">
+                          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">edit</mat-icon>
+                          <span>Modifier</span>
+                        </button>
+                      }
+                      @if (canViewDocuments()) {
+                        <button mat-menu-item type="button" (click)="documents(item)">
+                          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">attach_file</mat-icon>
+                          <span>Justificatifs</span>
+                        </button>
+                      }
+                    </mat-menu>
                   }
                 </div></td>
               </tr>
@@ -303,6 +321,11 @@ export class TransactionsPanel {
     this.auth.permissions();
     return this.auth.can('entries:view');
   });
+  /** Voir (et, avec `documents:create`, déposer) les justificatifs d'un mouvement. */
+  protected readonly canViewDocuments = computed(() => {
+    this.auth.permissions();
+    return this.auth.can('documents:view');
+  });
   protected readonly canImport = computed(() => {
     this.auth.permissions();
     return this.auth.can('imports:post');
@@ -337,19 +360,19 @@ export class TransactionsPanel {
 
   /** Catégorie d'un mouvement, en mots courants ; le numéro de compte sert de repli si aucune catégorie n'y renvoie. */
   protected categoryOf(item: TransactionInfo): string {
-    if (!item.counterpartAccountId) return 'À classer';
+    if (!item.counterpartAccountId) return item.split ? 'Plusieurs catégories' : 'À classer';
     const category = this.categories().find((c) => c.account.id === item.counterpartAccountId);
     return category?.label ?? `Autre (compte ${item.counterpartAccountNumber ?? '?'})`;
   }
 
   /** Une seule situation lisible par mouvement (affichage simple) : à classer → classé → enregistré → vérifié. */
-  protected simpleStatus(item: TransactionInfo): { label: string; icon: string; ok: boolean } {
-    if (item.reconciliation?.status === 'VALIDATED') return { label: 'Vérifié avec la banque', icon: 'verified', ok: true };
-    if (item.accounting === 'POSTED') return { label: 'Enregistré dans les comptes', icon: 'check_circle', ok: true };
-    if (item.accounting === 'IN_PROGRESS') return { label: 'En brouillon', icon: 'edit_note', ok: false };
-    if (item.transfer) return { label: 'Virement entre vos comptes', icon: 'sync_alt', ok: false };
-    if (item.counterpartAccountId) return { label: 'Classé', icon: 'sell', ok: false };
-    return { label: 'À classer', icon: 'radio_button_unchecked', ok: false };
+  protected simpleStatus(item: TransactionInfo): { label: string; icon: string; tone: 'ok' | 'warn' | 'neutral' } {
+    if (item.reconciliation?.status === 'VALIDATED') return { label: 'Vérifié avec la banque', icon: 'verified', tone: 'ok' };
+    if (item.accounting === 'POSTED') return { label: 'Enregistré dans les comptes', icon: 'check_circle', tone: 'ok' };
+    if (item.accounting === 'IN_PROGRESS') return { label: 'En brouillon', icon: 'edit_note', tone: 'neutral' };
+    if (item.transfer) return { label: 'Virement entre vos comptes', icon: 'sync_alt', tone: 'neutral' };
+    if (item.counterpartAccountId) return { label: 'Classé', icon: 'sell', tone: 'ok' };
+    return { label: 'À classer', icon: 'error_outline', tone: 'warn' };
   }
 
   /** Mouvements classés, pas encore enregistrés dans les comptes (parmi ceux affichés). */
@@ -402,7 +425,7 @@ export class TransactionsPanel {
         transaction: item,
         account: this.account(),
         categories: this.categories(),
-        projects: this.projects().filter((p) => !p.permanent && p.status !== 'ARCHIVED'),
+        projects: this.projects().filter((p) => p.status !== 'ARCHIVED'),
         canPost: this.auth.can('entries:post'),
       },
     });
@@ -452,6 +475,15 @@ export class TransactionsPanel {
   }
 
   /** Prépare le brouillon d'écriture de la transaction, puis l'ouvre pour qu'on le relise. */
+  /** Justificatifs d'un mouvement : les pièces reliées, et le dépôt d'une nouvelle pièce. */
+  protected async documents(item: TransactionInfo): Promise<void> {
+    await this.dialogs.open<void, TransactionDocumentsDialogData>(TransactionDocumentsDialog, {
+      size: 'md',
+      dismissible: true,
+      data: { transaction: item, canDeposit: this.auth.can('documents:create') },
+    });
+  }
+
   protected async prepare(item: TransactionInfo): Promise<void> {
     await this.run(async () => {
       const { entryId } = await this.api.prepareTransactionEntry(item.id);

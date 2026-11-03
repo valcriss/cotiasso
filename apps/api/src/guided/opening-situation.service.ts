@@ -159,8 +159,36 @@ export class OpeningSituationService {
     if (mode === "HISTORY" && (await this.existing())) {
       throw new AccountingConflictError("Une situation d'ouverture est enregistrée. Supprimez son brouillon ou annulez son écriture avant de choisir de reprendre l'historique.");
     }
-    await this.settings.update("start", { mode }, actorId);
+    await this.settings.update("start", { ...(await this.settings.current("start")), mode }, actorId);
     return { mode };
+  }
+
+  /** Vrai quand la personne a indiqué qu'elle part de zéro (aucune écriture d'ouverture à passer). */
+  async skipped(): Promise<boolean> {
+    return ((await this.settings.current("start")) as { openingSkipped: boolean }).openingSkipped;
+  }
+
+  /**
+   * « Je pars de zéro » : l'association n'a ni argent au départ, ni somme à recevoir ou à payer. Il n'y a alors rien à
+   * écrire (une écriture vide n'aurait aucun sens) ; on retient seulement que l'étape est faite, pour ne plus la réclamer.
+   */
+  async skip(actorId: string): Promise<{ skipped: true }> {
+    if ((await this.mode()) !== "OPENING") {
+      throw new AccountingConflictError("Cette étape ne concerne que le démarrage par une situation de départ : choisissez d'abord ce mode de démarrage.");
+    }
+    if (await this.existing()) {
+      throw new AccountingConflictError("Une situation de départ est déjà enregistrée : il n'y a plus rien à passer. Supprimez son brouillon ou annulez son écriture si vous voulez repartir de zéro.");
+    }
+    const funded = await this.prisma.financialAccount.findMany({ where: { archivedOn: null }, orderBy: { name: "asc" } });
+    const withMoney = funded.filter((a) => !a.openingBalance.isZero());
+    if (withMoney.length > 0) {
+      throw new AccountingConflictError(
+        `${withMoney.map((a) => `« ${a.name} »`).join(", ")} a un solde de départ : ce n'est pas un départ de zéro. Enregistrez votre situation de départ pour reprendre cet argent.`,
+      );
+    }
+    const { changed } = await this.settings.update("start", { ...(await this.settings.current("start")), openingSkipped: true }, actorId);
+    if (changed) await this.audit.record({ action: "opening-situation.skipped", objectType: "Settings", objectId: "start", actorId, details: {} });
+    return { skipped: true };
   }
 
   async record(body: unknown, actorId: string, canPost: boolean): Promise<OpeningSituationResult> {

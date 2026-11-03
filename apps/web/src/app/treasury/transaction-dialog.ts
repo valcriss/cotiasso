@@ -17,6 +17,7 @@ import { centsToApi, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { FormDialog } from '../ui/form-dialog';
+import { DateField } from '../ui/date-field';
 
 export interface TransactionDialogData {
   account: FinancialAccountInfo;
@@ -40,7 +41,7 @@ export type TransactionDialogResult = { kind: 'saved'; transaction: TransactionI
 /** Saisie et modification d'une transaction (un mouvement sur le compte), en boîte de dialogue. */
 @Component({
   selector: 'app-transaction-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -67,13 +68,7 @@ export type TransactionDialogResult = { kind: 'saved'; transaction: TransactionI
               <mat-error>Indiquez le montant, par exemple 12,50.</mat-error>
             }
           </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Date</mat-label>
-            <input matInput type="date" formControlName="operationDate" required />
-            @if (form.controls.operationDate.hasError('required')) {
-              <mat-error>Indiquez la date de l'opération.</mat-error>
-            }
-          </mat-form-field>
+          <app-date-field label="Date" formControlName="operationDate" errorText="Indiquez la date de l'opération." required />
         </div>
         <mat-form-field appearance="outline">
           <mat-label>Libellé</mat-label>

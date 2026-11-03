@@ -303,7 +303,7 @@ export interface OverviewInfo {
     financialAccount: boolean;
     categories: boolean;
     startMode: 'HISTORY' | 'OPENING' | null;
-    openingSituation: 'NONE' | 'DRAFT' | 'POSTED';
+    openingSituation: 'NONE' | 'DRAFT' | 'POSTED' | 'SKIPPED';
   };
   cash: { total: string; accounts: { id: string; name: string; balance: string }[] } | null;
   month: { from: string; to: string; received: string; spent: string } | null;
@@ -343,17 +343,25 @@ export interface OpeningSituationResultInfo {
   lines: number;
 }
 
-export interface GuidedOperationBody {
+/** Une part d'un montant fractionné : une catégorie et son montant (chaîne décimale positive). */
+export interface CategorySplitBody {
+  categoryId: string;
+  amount: string;
+}
+
+/** Une catégorie, ou une répartition en parts (jamais les deux). */
+export type CategoryChoiceBody = { categoryId: string; splits?: undefined } | { splits: CategorySplitBody[]; categoryId?: undefined };
+
+export type GuidedOperationBody = {
   financialAccountId: string;
   direction: 'IN' | 'OUT';
   amount: string;
   date: string;
   label: string;
-  categoryId: string;
   projectId?: string | null;
   reference?: string | null;
   post?: boolean;
-}
+} & CategoryChoiceBody;
 
 export interface BulkBookInfo {
   booked: number;
@@ -401,6 +409,8 @@ export interface TransactionInfo {
   counterpartAccountId: string | null;
   counterpartAccountNumber: string | null;
   qualified: boolean;
+  /** Répartie sur plusieurs catégories : pas de catégorie unique, ses parts sont dans l'écriture liée. */
+  split: boolean;
   /** Comptabilisation : « à comptabiliser », « en cours » (écriture en brouillon) ou « comptabilisée ». */
   accounting: 'NONE' | 'IN_PROGRESS' | 'POSTED';
   entry: { id: string; status: 'DRAFT' | 'POSTED'; journalCode: string; number: number | null } | null;
@@ -2097,6 +2107,11 @@ export class AdminApiService {
     return firstValueFrom(this.http.post<OpeningSituationResultInfo>('/api/opening-situation', body));
   }
 
+  /** « Je pars de zéro » : rien à reprendre, l'étape est validée sans écriture. */
+  skipOpeningSituation(): Promise<{ skipped: true }> {
+    return firstValueFrom(this.http.put<{ skipped: true }>('/api/opening-situation/skip', {}));
+  }
+
   overview(): Promise<OverviewInfo> {
     return firstValueFrom(this.http.get<OverviewInfo>('/api/overview'));
   }
@@ -2117,7 +2132,7 @@ export class AdminApiService {
     return firstValueFrom(this.http.post<{ accountsCreated: number; categoriesCreated: number }>('/api/starter-template', {}));
   }
 
-  bookTransaction(id: string, body: { categoryId: string; projectId?: string | null; post?: boolean }): Promise<GuidedOperationResult> {
+  bookTransaction(id: string, body: CategoryChoiceBody & { projectId?: string | null; post?: boolean }): Promise<GuidedOperationResult> {
     return firstValueFrom(this.http.post<GuidedOperationResult>(`/api/transactions/${id}/book`, body));
   }
 

@@ -118,6 +118,7 @@ const ACTION_LABELS: Record<string, string> = {
   'operation-category.updated': "Catégorie d'opération modifiée",
   'starter-template.applied': 'Catégories et comptes de départ installés',
   'opening-situation.recorded': 'Situation de départ enregistrée',
+  'opening-situation.skipped': 'Départ de zéro indiqué (aucune situation à reprendre)',
   'frozen-report.created': 'Rapports figés',
   'frozen-report.approved': 'Comptes approuvés par l’assemblée générale',
   'frozen-report.failed': 'Figement automatique des rapports en échec',

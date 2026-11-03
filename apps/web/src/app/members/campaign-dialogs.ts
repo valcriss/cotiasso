@@ -8,6 +8,7 @@ import { AdminApiService, type CampaignInfo, type MemberCategoryInfo, type Membe
 import { centsToApi, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { DateField } from '../ui/date-field';
 
 const INVALID = 'Vérifiez les champs signalés en rouge, puis validez de nouveau.';
 
@@ -25,7 +26,7 @@ export interface CampaignDialogData {
 /** Création et modification d'une campagne d'adhésion. Renvoie la campagne enregistrée. */
 @Component({
   selector: 'app-campaign-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -46,14 +47,8 @@ export interface CampaignDialogData {
           <p class="muted">Des adhésions existent déjà : seules le nom peut changer, les dates et le mode sont figés.</p>
         } @else {
           <div class="row">
-            <mat-form-field appearance="outline" class="grow">
-              <mat-label>Début</mat-label>
-              <input matInput type="date" formControlName="startsOn" required />
-            </mat-form-field>
-            <mat-form-field appearance="outline" class="grow">
-              <mat-label>Fin (incluse)</mat-label>
-              <input matInput type="date" formControlName="endsOn" required />
-            </mat-form-field>
+            <app-date-field class="grow" label="Début" formControlName="startsOn" required />
+            <app-date-field class="grow" label="Fin (incluse)" formControlName="endsOn" required />
           </div>
           <mat-form-field appearance="outline">
             <mat-label>Quand une adhésion devient-elle effective ?</mat-label>

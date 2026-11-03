@@ -6,11 +6,12 @@ import { MatInputModule } from '@angular/material/input';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
 import { AdminApiService, type FiscalYearInfo } from './admin-api.service';
+import { DateField } from '../ui/date-field';
 
 /** Création d'un exercice comptable, en boîte de dialogue. Renvoie l'exercice créé. */
 @Component({
   selector: 'app-fiscal-year-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -30,20 +31,8 @@ import { AdminApiService, type FiscalYearInfo } from './admin-api.service';
           }
         </mat-form-field>
         <div class="row">
-          <mat-form-field appearance="outline">
-            <mat-label>Premier jour</mat-label>
-            <input matInput type="date" formControlName="start" required />
-            @if (form.controls.start.hasError('required')) {
-              <mat-error>Indiquez le premier jour de l'exercice.</mat-error>
-            }
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Dernier jour</mat-label>
-            <input matInput type="date" formControlName="end" required />
-            @if (form.controls.end.hasError('required')) {
-              <mat-error>Indiquez le dernier jour de l'exercice.</mat-error>
-            }
-          </mat-form-field>
+          <app-date-field label="Premier jour" formControlName="start" errorText="Indiquez le premier jour de l'exercice." required />
+          <app-date-field label="Dernier jour" formControlName="end" errorText="Indiquez le dernier jour de l'exercice." required />
         </div>
       </app-form-dialog>
     </form>

@@ -69,11 +69,21 @@ export interface DraftSource {
   financialAccount: { accountId: string; journalId: string };
 }
 
+/** Une part de contrepartie d'un brouillon : un compte et la fraction du montant de la transaction qui lui revient. */
+export interface DraftSplit {
+  accountId: string;
+  accountNumber: string;
+  /** Montant positif à deux décimales. */
+  amount: string;
+}
+
+type DraftBase = Omit<DraftSource, "counterpartAccountId" | "counterpartAccount">;
+
 /**
- * Brouillon d'écriture d'une transaction : ligne de trésorerie + ligne de contrepartie (+ projet proposé pour les classes
- * 6 et 7, ADR 0013). Partagé par la préparation unitaire (ADR 0017) et par les lots de reprise (ADR 0019).
+ * Brouillon d'écriture : ligne de trésorerie + une ligne par part de contrepartie (+ projet proposé pour les classes 6 et 7,
+ * ADR 0013). Le total des parts doit égaler le montant de la transaction : la base le refuse sinon (écriture déséquilibrée).
  */
-export function draftDataFor(tx: DraftSource, fiscalYearId: string, actorId: string, journalId?: string): Prisma.JournalEntryUncheckedCreateInput {
+function buildDraft(tx: DraftBase, parts: DraftSplit[], fiscalYearId: string, actorId: string, journalId?: string): Prisma.JournalEntryUncheckedCreateInput {
   const absolute = tx.amount.abs().toFixed(2);
   const incoming = tx.amount.gt(0);
   return {
@@ -86,16 +96,29 @@ export function draftDataFor(tx: DraftSource, fiscalYearId: string, actorId: str
     lines: {
       create: [
         { position: 1, accountId: tx.financialAccount.accountId, debit: incoming ? absolute : "0", credit: incoming ? "0" : absolute },
-        {
-          position: 2,
-          accountId: tx.counterpartAccountId,
-          debit: incoming ? "0" : absolute,
-          credit: incoming ? absolute : "0",
-          ...(tx.projectId && /^[67]/.test(tx.counterpartAccount.number) && { allocations: { create: [{ projectId: tx.projectId, amount: absolute }] } }),
-        },
+        ...parts.map((part, index) => ({
+          position: index + 2,
+          accountId: part.accountId,
+          debit: incoming ? "0" : part.amount,
+          credit: incoming ? part.amount : "0",
+          ...(tx.projectId && /^[67]/.test(part.accountNumber) && { allocations: { create: [{ projectId: tx.projectId, amount: part.amount }] } }),
+        })),
       ],
     },
   };
+}
+
+/**
+ * Brouillon d'écriture d'une transaction qualifiée : ligne de trésorerie + ligne de contrepartie. Partagé par la préparation
+ * unitaire (ADR 0017) et par les lots de reprise (ADR 0019).
+ */
+export function draftDataFor(tx: DraftSource, fiscalYearId: string, actorId: string, journalId?: string): Prisma.JournalEntryUncheckedCreateInput {
+  return buildDraft(tx, [{ accountId: tx.counterpartAccountId, accountNumber: tx.counterpartAccount.number, amount: tx.amount.abs().toFixed(2) }], fiscalYearId, actorId, journalId);
+}
+
+/** Brouillon d'une transaction répartie sur plusieurs comptes (« fractionner », ADR 0028) : une ligne de contrepartie par part. */
+export function draftDataForSplits(tx: DraftBase, splits: DraftSplit[], fiscalYearId: string, actorId: string, journalId?: string): Prisma.JournalEntryUncheckedCreateInput {
+  return buildDraft(tx, splits, fiscalYearId, actorId, journalId);
 }
 
 /**

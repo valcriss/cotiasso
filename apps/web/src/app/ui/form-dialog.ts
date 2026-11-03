@@ -34,7 +34,7 @@ let nextId = 0;
     .fields {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 20px;
     }
     .alert ul {
       margin: 4px 0 0;

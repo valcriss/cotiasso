@@ -18,13 +18,14 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
+import { FileDropzone } from '../ui/file-dropzone';
 import { PageHeader } from '../ui/page-header';
 import { formatSize, objectTypeLabel } from './format';
 import { UploadDialog, type UploadDialogData } from './upload-dialog';
 
 @Component({
   selector: 'app-documents-page',
-  imports: [PageHeader, DatePipe, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [FileDropzone, PageHeader, DatePipe, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .file-input {
@@ -137,7 +138,7 @@ import { UploadDialog, type UploadDialogData } from './upload-dialog';
         @if (canCreate() && !doc.archivedAt) {
           <div class="file-input">
             <label for="version-file">Ajouter une version</label>
-            <input id="version-file" type="file" [attr.accept]="accept()" (change)="pickFile($event)" />
+            <app-file-dropzone inputId="version-file" label="Nouvelle version du fichier" [accept]="accept()" [fileName]="versionFile()?.name ?? ''" (picked)="pickFile($event)" />
             <button mat-stroked-button type="button" [disabled]="busy() || !versionFile()" (click)="addVersion(doc)">
               Déposer cette version
             </button>
@@ -281,8 +282,8 @@ export class DocumentsPage {
     await this.search();
   }
 
-  protected pickFile(event: Event): void {
-    this.versionFile.set((event.target as HTMLInputElement).files?.[0] ?? null);
+  protected pickFile(file: File): void {
+    this.versionFile.set(file);
   }
 
   protected async search(): Promise<void> {

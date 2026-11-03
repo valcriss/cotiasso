@@ -8,6 +8,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type MemberCategoryInfo, type MemberInfo, type MemberOfficeInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { DateField } from '../ui/date-field';
 
 const INVALID = 'Vérifiez les champs signalés en rouge, puis validez de nouveau.';
 const blank = (value: string) => (value.trim() === '' ? null : value.trim());
@@ -21,7 +22,7 @@ export interface MemberDialogData {
 /** Création et modification d'une fiche membre. Renvoie la fiche enregistrée. */
 @Component({
   selector: 'app-member-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -84,10 +85,7 @@ export interface MemberDialogData {
               }
             </mat-select>
           </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Date d'entrée (facultatif)</mat-label>
-            <input matInput type="date" formControlName="joinedOn" />
-          </mat-form-field>
+          <app-date-field label="Date d'entrée (facultatif)" formControlName="joinedOn" />
         </div>
         <mat-form-field appearance="outline">
           <mat-label>Note (facultatif)</mat-label>
@@ -162,7 +160,7 @@ export interface OfficeDialogData {
 /** Ajout d'une fonction ou d'un mandat (Président, Trésorier…). Renvoie la fonction créée. */
 @Component({
   selector: 'app-office-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -186,18 +184,8 @@ export interface OfficeDialogData {
           }
         </mat-form-field>
         <div class="row">
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Depuis le</mat-label>
-            <input matInput type="date" formControlName="startsOn" required />
-            @if (form.controls.startsOn.hasError('required')) {
-              <mat-error>Indiquez la date de début.</mat-error>
-            }
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Jusqu'au (facultatif)</mat-label>
-            <input matInput type="date" formControlName="endsOn" />
-            <mat-hint>Laissez vide si la fonction continue.</mat-hint>
-          </mat-form-field>
+          <app-date-field class="grow" label="Depuis le" formControlName="startsOn" errorText="Indiquez la date de début." required />
+          <app-date-field class="grow" label="Jusqu'au (facultatif)" formControlName="endsOn" hint="Laissez vide si la fonction continue." />
         </div>
       </app-form-dialog>
     </form>

@@ -173,6 +173,28 @@ describe("Situation d'ouverture : l'autre mode de démarrage (ADR 0029, base vie
       expect(overview.setup).toMatchObject({ startMode: "OPENING", openingSituation: "NONE" });
       expect(overview.todo.map((t: { code: string }) => t.code)).toContain("OPENING_SITUATION");
     });
+
+    it("« je pars de zéro » : refusé s'il y a de l'argent au départ, sinon l'étape est validée sans écriture", async () => {
+      expect((await call("PUT", "/opening-situation/skip", boardMember)).statusCode).toBe(403);
+      const refused = await call("PUT", "/opening-situation/skip", treasurer);
+      expect(refused.statusCode).toBe(409);
+      expect(refused.json().message).toContain("« Banque »");
+      expect((await call("GET", "/overview", treasurer)).json().setup.openingSituation).toBe("NONE");
+
+      for (const [id, balance] of [[ids.fBank, "0"], [ids.fCash, "0"]] as const) {
+        expect((await call("PATCH", `/financial-accounts/${id}`, treasurer, { openingBalance: balance })).statusCode).toBe(200);
+      }
+      const skipped = await call("PUT", "/opening-situation/skip", treasurer);
+      expect(skipped.statusCode, skipped.body).toBe(200);
+      expect(skipped.json()).toEqual({ skipped: true });
+      const overview = (await call("GET", "/overview", treasurer)).json();
+      expect(overview.setup.openingSituation).toBe("SKIPPED");
+      expect(overview.todo.map((t: { code: string }) => t.code)).not.toContain("OPENING_SITUATION");
+      expect(await prisma.openingSituation.count()).toBe(0);
+
+      expect((await call("PATCH", `/financial-accounts/${ids.fBank}`, treasurer, { openingBalance: "1000.00" })).statusCode).toBe(200);
+      expect((await call("PATCH", `/financial-accounts/${ids.fCash}`, treasurer, { openingBalance: "50.00" })).statusCode).toBe(200);
+    });
   });
 
   describe("enregistrer la situation", () => {

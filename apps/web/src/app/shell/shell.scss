@@ -1,6 +1,8 @@
 .shell {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
+  // Une seule ligne, aussi haute que la fenêtre : c'est la zone de contenu qui défile, jamais la page entière.
+  grid-template-rows: minmax(0, 1fr);
   height: 100%;
 
   &.collapsed {
@@ -101,6 +103,9 @@ nav {
 .content {
   overflow: auto;
   padding: 28px 32px;
+  // Les éléments positionnés en absolu (textes réservés aux lecteurs d'écran…) restent dans la zone qui défile : sans cela,
+  // ils prolongent la page et créent un second ascenseur avec du vide sous le contenu.
+  position: relative;
 }
 
 @media (max-width: 720px) {

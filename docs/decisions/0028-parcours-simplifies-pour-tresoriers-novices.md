@@ -45,3 +45,15 @@ L'audit a relevé que l'application exposait le **modèle comptable** (journaux,
 - **Test d'usage avec de vrais trésoriers novices** : le **protocole est écrit** ([test-usage-tresoriers.md](../test-usage-tresoriers.md) : 9 tâches sans explication orale, grille d'observation, critères de succès), il reste à le **dérouler** avec 2 ou 3 personnes. Seul moyen de valider l'audit, qui reposait sur la lecture du code.
 - **Plan de comptes de départ à valider** par un expert-comptable : la **fiche de relecture est prête** ([revue-modele-demarrage.md](../revue-modele-demarrage.md) : les 23 comptes, les 17 catégories, ce que le logiciel en fait, 6 questions ouvertes, synchronisée avec le code par un test) ; sans validation consignée ici, le modèle reste une proposition.
 - **Vocabulaire** : les derniers mots comptables côté serveur (messages de contrôle d'un rapprochement, motifs de refus des déclencheurs) sont à relire avec de vrais trésoriers novices, comme le reste.
+
+## Complément (2 novembre 2026) : fractionner un montant sur plusieurs catégories
+
+**Besoin** : un mouvement de 20 € qui est pour moitié une cotisation et pour moitié un don. L'affichage Simple n'offrait qu'une catégorie par mouvement ; seul l'affichage Comptable permettait de découper l'écriture à la main.
+
+**Décision** (validée avec l'utilisateur) : « Classer et enregistrer » et « J'ai reçu / dépensé de l'argent » proposent, sous la liste des catégories, **« Fractionner entre plusieurs catégories »** : des lignes (catégorie, montant) et un compteur « Reste à répartir », la dernière ligne non saisie reprenant le reste. On ne valide que si **tout le montant est réparti** (au centime). Règles de la première version : 2 à 10 parts, une catégorie une seule fois, toutes du sens du mouvement, **un seul projet** pour l'ensemble.
+
+**Conséquences**
+- Aucune règle comptable nouvelle : l'écriture est la même qu'une saisie à la main (banque + une ligne par part), l'invariant avec la transaction ne porte que sur la ligne de banque.
+- **Pas d'état intermédiaire « Classé » pour un mouvement fractionné** : le fractionnement se fait à l'enregistrement, en une fois (tout ou rien). Le mouvement n'a alors pas de catégorie unique (`counterpartAccountId` nul) ; la liste affiche « Plusieurs catégories » et il compte comme classé dans les filtres. Annuler l'opération le remet à classer.
+- Le rattachement d'une part à un membre (« Règlements ») reste un mécanisme distinct : le logiciel ne vérifie pas que les montants rattachés ne dépassent pas la part « cotisations » (information, jamais un blocage).
+- Pas de projet par part, pas de fractionnement dans l'enregistrement en masse ni dans la qualification en masse : à décider si le besoin se confirme.

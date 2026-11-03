@@ -276,6 +276,16 @@ describe("Documents (base vierge, stockage temporaire)", () => {
     expect(second.document.title).toBe("Second dépôt");
   });
 
+  it("relie un justificatif à une transaction dès le dépôt et le retrouve depuis ce mouvement", async () => {
+    const transactionId = randomUUID();
+    const { document } = (
+      await create({ title: "Facture cartes de visite", category: "facture", links: JSON.stringify([{ objectType: "transaction", objectId: transactionId }]) }, { name: "facture.pdf", content: PDF("cartes") })
+    ).json();
+    const found = (await request("GET", `/documents?objectType=transaction&objectId=${transactionId}`, reader)).json();
+    expect(found.items.map((d: { id: string }) => d.id)).toEqual([document.id]);
+    expect((await request("GET", `/documents?objectType=transaction&objectId=${randomUUID()}`, reader)).json().total).toBe(0);
+  });
+
   it("relie un document à plusieurs objets, sans doublon, et le retrouve par objet", async () => {
     const projectId = randomUUID();
     const { document } = (

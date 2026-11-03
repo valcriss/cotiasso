@@ -6,6 +6,7 @@ import { MatInputModule } from '@angular/material/input';
 import { AdminApiService, type FrozenReportSummaryInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { DateField } from '../ui/date-field';
 
 export interface FreezeDialogData {
   yearId: string;
@@ -98,7 +99,7 @@ export interface ApproveDialogData {
 /** Approbation des comptes par l'assemblée générale : la date et une note ; le procès-verbal se dépose ensuite comme document. */
 @Component({
   selector: 'app-approve-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -110,13 +111,7 @@ export interface ApproveDialogData {
         [error]="error()"
         [details]="details()"
       >
-        <mat-form-field appearance="outline">
-          <mat-label>Date de l’assemblée générale</mat-label>
-          <input matInput type="date" formControlName="meetingDate" required />
-          @if (form.controls.meetingDate.touched && form.controls.meetingDate.hasError('required')) {
-            <mat-error>Indiquez la date de l’assemblée.</mat-error>
-          }
-        </mat-form-field>
+        <app-date-field label="Date de l’assemblée générale" formControlName="meetingDate" errorText="Indiquez la date de l’assemblée." required />
         <mat-form-field appearance="outline">
           <mat-label>Note (facultatif)</mat-label>
           <input matInput formControlName="note" autocomplete="off" />

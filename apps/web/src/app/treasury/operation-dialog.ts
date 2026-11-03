@@ -9,6 +9,8 @@ import { AdminApiService, type FinancialAccountInfo, type GuidedOperationResult,
 import { centsToApi, formatCents, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { CategoryField, evaluateSplit, type SplitRow } from './category-field';
+import { DateField } from '../ui/date-field';
 
 export interface OperationDialogData {
   direction: 'IN' | 'OUT';
@@ -28,7 +30,7 @@ export interface OperationDialogData {
  */
 @Component({
   selector: 'app-operation-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [CategoryField, DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -66,23 +68,17 @@ export interface OperationDialogData {
               <mat-error>Écrivez un montant avec des chiffres, par exemple 25,00.</mat-error>
             }
           </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Date</mat-label>
-            <input matInput type="date" formControlName="date" required />
-          </mat-form-field>
+          <app-date-field label="Date" formControlName="date" required />
         </div>
-        <mat-form-field appearance="outline">
-          <mat-label>{{ incoming ? 'D’où vient cet argent ?' : 'À quoi a servi cet argent ?' }}</mat-label>
-          <mat-select formControlName="categoryId" required>
-            @for (category of choices; track category.id) {
-              <mat-option [value]="category.id">{{ category.label }}</mat-option>
-            }
-          </mat-select>
-          <mat-hint>{{ selectedCategory()?.hint || 'Choisissez la catégorie qui ressemble le plus à cette opération.' }}</mat-hint>
-          @if (form.controls.categoryId.hasError('required')) {
-            <mat-error>Choisissez une catégorie.</mat-error>
-          }
-        </mat-form-field>
+        <app-category-field
+          [label]="incoming ? 'D’où vient cet argent ?' : 'À quoi a servi cet argent ?'"
+          [hint]="selectedCategory()?.hint ?? ''"
+          [incoming]="incoming"
+          [choices]="choices"
+          [control]="form.controls.categoryId"
+          [totalCents]="amountCents()"
+          [(splits)]="splits"
+        />
         <mat-form-field appearance="outline">
           <mat-label>Description</mat-label>
           <input matInput formControlName="label" [placeholder]="incoming ? 'Cotisation de Marie Dupont' : 'Facture de l’assureur'" autocomplete="off" required />
@@ -92,14 +88,20 @@ export interface OperationDialogData {
           }
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Pour quelle activité ? (facultatif)</mat-label>
+          <mat-label>{{ incoming ? 'Reçu dans le cadre de quelle activité ? (facultatif)' : 'Pour quelle activité ? (facultatif)' }}</mat-label>
           <mat-select formControlName="projectId">
-            <mat-option value="">Fonctionnement général (par défaut)</mat-option>
+            <mat-option [value]="null">Aucune activité en particulier</mat-option>
             @for (project of projects; track project.id) {
               <mat-option [value]="project.id">{{ project.name }}</mat-option>
             }
           </mat-select>
-          <mat-hint>Un projet regroupe les opérations d’une activité (festival, ateliers…) pour savoir ce qu’elle coûte.</mat-hint>
+          <mat-hint>
+            {{
+              incoming
+                ? 'Si cet argent a été reçu pendant ou à l’occasion d’une activité (festival, atelier…), choisissez-la. Sinon, laissez vide : il sera rattaché au fonctionnement général.'
+                : 'Si cette dépense concerne une activité (festival, atelier…), choisissez-la pour savoir ce qu’elle coûte. Sinon, laissez vide : elle sera rattachée au fonctionnement général.'
+            }}
+          </mat-hint>
         </mat-form-field>
 
         @if (preview(); as lines) {
@@ -172,7 +174,7 @@ export class OperationDialog {
 
   protected readonly incoming = this.data.direction === 'IN';
   protected readonly choices = this.data.categories.filter((c) => c.direction === this.data.direction && c.active);
-  protected readonly projects = this.data.projects.filter((p) => p.status !== 'ARCHIVED' && !p.permanent);
+  protected readonly projects = this.data.projects.filter((p) => p.status !== 'ARCHIVED');
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly details = signal<string[]>([]);
@@ -183,22 +185,36 @@ export class OperationDialog {
     date: [new Date().toISOString().slice(0, 10)],
     categoryId: ['', [Validators.required]],
     label: ['', [Validators.required]],
-    projectId: [''],
+    projectId: this.fb.control<string | null>(null),
   });
   private readonly values = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() });
   protected readonly amountCents = computed(() => parseAmountToCents(this.values().amount));
   protected readonly selectedCategory = computed(() => this.choices.find((c) => c.id === this.values().categoryId));
 
-  /** Aperçu des deux lignes d'écriture, dès que le compte, la catégorie et un montant valide sont choisis. */
+  /** Répartition en cours (« Fractionner »), ou `null` pour une seule catégorie. */
+  protected readonly splits = signal<SplitRow[] | null>(null);
+
+  /** Aperçu des lignes d'écriture : la banque, puis une ligne par catégorie (une seule, ou une par part répartie). */
   protected readonly preview = computed(() => {
     const account = this.data.accounts.find((a) => a.id === this.values().accountId);
-    const category = this.selectedCategory();
     const cents = this.amountCents();
-    if (!account || !category || cents === null || cents <= 0) return null;
+    if (!account || cents === null || cents <= 0) return null;
     const amount = formatCents(cents);
     const bank = { account: `${account.accountNumber} · ${account.name}`, debit: this.incoming ? amount : '', credit: this.incoming ? '' : amount };
-    const other = { account: `${category.account.number} · ${category.account.label}`, debit: this.incoming ? '' : amount, credit: this.incoming ? amount : '' };
-    return [bank, other];
+    const line = (category: { account: { number: string; label: string } }, value: string) => ({
+      account: `${category.account.number} · ${category.account.label}`,
+      debit: this.incoming ? '' : value,
+      credit: this.incoming ? value : '',
+    });
+    const rows = this.splits();
+    if (rows) {
+      const parts = rows
+        .map((row) => ({ category: this.choices.find((c) => c.id === row.categoryId), cents: parseAmountToCents(row.amount) }))
+        .filter((part): part is { category: OperationCategoryInfo; cents: number } => !!part.category && part.cents !== null && part.cents > 0);
+      return parts.length > 0 ? [bank, ...parts.map((part) => line(part.category, formatCents(part.cents)))] : null;
+    }
+    const category = this.selectedCategory();
+    return category ? [bank, line(category, amount)] : null;
   });
 
   protected async save(): Promise<void> {
@@ -207,6 +223,17 @@ export class OperationDialog {
     this.form.markAllAsTouched();
     if (this.form.invalid || cents === null || cents <= 0 || !raw.date) {
       this.error.set('Vérifiez les champs signalés : le compte, un montant supérieur à zéro (par exemple 25,00), la date, la catégorie et une description sont nécessaires.');
+      this.details.set([]);
+      return;
+    }
+    const rows = this.splits();
+    const state = rows ? evaluateSplit(rows, cents) : null;
+    if (state && !state.valid) {
+      this.error.set(
+        state.remaining !== 0
+          ? 'Le total des parts doit être égal au montant de l’opération. Complétez ou corrigez les montants, puis enregistrez de nouveau.'
+          : 'Chaque part a besoin d’une catégorie différente et d’un montant supérieur à zéro. Corrigez les lignes, puis enregistrez de nouveau.',
+      );
       this.details.set([]);
       return;
     }
@@ -221,7 +248,7 @@ export class OperationDialog {
           amount: centsToApi(cents),
           date: raw.date,
           label: raw.label.trim(),
-          categoryId: raw.categoryId,
+          ...(state ? { splits: state.parts } : { categoryId: raw.categoryId }),
           ...(raw.projectId && { projectId: raw.projectId }),
           post: this.data.canPost,
         }),

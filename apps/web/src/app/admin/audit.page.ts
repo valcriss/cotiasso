@@ -11,6 +11,7 @@ import { ActionBar } from '../ui/action-bar';
 import { AdminApiService, type AuditEntry, type AuditFilters, type IntegrityReport } from './admin-api.service';
 import { ExportLink } from '../reports/export-link';
 import { actionLabel } from './audit-labels';
+import { DateField } from '../ui/date-field';
 
 /** Début de journée locale (from) ou fin de journée locale (to) au format ISO, pour des bornes inclusives. */
 export function dayBound(value: string, end: boolean): string | undefined {
@@ -21,7 +22,7 @@ export function dayBound(value: string, end: boolean): string | undefined {
 
 @Component({
   selector: 'app-audit-page',
-  imports: [ActionBar, DatePipe, ExportLink, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ActionBar, DatePipe, ExportLink, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: './admin-pages.scss',
   template: `
     <app-action-bar
@@ -69,14 +70,8 @@ export function dayBound(value: string, end: boolean): string | undefined {
           }
         </mat-select>
       </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label>Du</mat-label>
-        <input matInput type="date" formControlName="from" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label>Au</mat-label>
-        <input matInput type="date" formControlName="to" />
-      </mat-form-field>
+      <app-date-field label="Du" formControlName="from" />
+      <app-date-field label="Au" formControlName="to" />
       <div class="actions">
         <button mat-flat-button type="submit" [disabled]="loading()">Filtrer</button>
         <button mat-button type="button" (click)="reset()">Réinitialiser</button>

@@ -88,8 +88,10 @@ export interface TransactionView {
   projectCode: string | null;
   counterpartAccountId: string | null;
   counterpartAccountNumber: string | null;
-  /** Qualifiée = nature (compte de contrepartie) choisie ; ne préjuge pas de la comptabilisation ni du rapprochement. */
+  /** Qualifiée = nature (compte de contrepartie) choisie, ou répartie sur plusieurs comptes ; ne préjuge pas de la comptabilisation ni du rapprochement. */
   qualified: boolean;
+  /** Répartie sur plusieurs catégories (« fractionnée ») : pas de contrepartie unique, ses parts sont dans les lignes de l'écriture liée. */
+  split: boolean;
   /**
    * Comptabilisation (dimension distincte du rapprochement) : « à comptabiliser » (NONE), « en cours » tant que l'écriture
    * liée est un brouillon (IN_PROGRESS), « comptabilisée » (POSTED).
@@ -112,17 +114,27 @@ export const transactionInclude = {
   project: { select: { code: true } },
   counterpartAccount: { select: { number: true } },
   reconciliation: { select: { id: true, status: true, periodEnd: true } },
-  matches: { select: { status: true, entry: { select: { id: true, status: true, number: true, journal: { select: { code: true } } } } } },
+  matches: { select: { status: true, entry: { select: { id: true, status: true, number: true, journal: { select: { code: true } }, _count: { select: { lines: true } } } } } },
   transferOut: { select: { id: true, inTransaction: { select: { financialAccount: { select: { id: true, name: true } } } } } },
   transferIn: { select: { id: true, outTransaction: { select: { financialAccount: { select: { id: true, name: true } } } } } },
 } satisfies Prisma.TransactionInclude;
 const include = transactionInclude;
 type Loaded = Prisma.TransactionGetPayload<{ include: typeof transactionInclude }>;
 
+/** Liaison active à une écriture non contrepassée qui a au moins deux parts de contrepartie (trois lignes ou plus). */
+const SPLIT_MATCH = { status: "ACTIVE", entry: { status: { not: "REVERSED" }, lines: { some: { position: { gte: 3 } } } } } satisfies Prisma.TreasuryMatchWhereInput;
+
 const day = (date: Date) => date.toISOString().slice(0, 10);
 const asDate = (value: string | null | undefined) => (value ? new Date(`${value}T00:00:00Z`) : null);
 
 export const transactionView = (t: Loaded): TransactionView => view(t);
+
+/** Fractionnée : pas de contrepartie unique, et une écriture liée à plus d'une ligne de contrepartie (banque + au moins deux parts). */
+function qualificationOf(t: Loaded): Pick<TransactionView, "qualified" | "split"> {
+  const active = t.matches.find((m) => m.status === "ACTIVE" && m.entry.status !== "REVERSED");
+  const split = t.counterpartAccountId === null && !t.transferOut && !t.transferIn && !!active && active.entry._count.lines > 2;
+  return { qualified: t.counterpartAccountId !== null || split, split };
+}
 
 function accountingOf(t: Loaded): Pick<TransactionView, "accounting" | "entry" | "financialLock" | "transfer" | "deletable" | "reconciliation"> {
   const active = t.matches.find((m) => m.status === "ACTIVE");
@@ -157,8 +169,8 @@ const view = (t: Loaded): TransactionView => ({
   projectCode: t.project?.code ?? null,
   counterpartAccountId: t.counterpartAccountId,
   counterpartAccountNumber: t.counterpartAccount?.number ?? null,
-  qualified: t.counterpartAccountId !== null,
   ...accountingOf(t),
+  ...qualificationOf(t),
   version: t.version,
 });
 
@@ -200,7 +212,9 @@ export class TransactionsService {
         ...(q.accounting === "NONE" && { matches: { none: { status: "ACTIVE" } } }),
         ...(q.accounting === "IN_PROGRESS" && { matches: { some: { status: "ACTIVE", entry: { status: "DRAFT" } } } }),
         ...(q.accounting === "POSTED" && { matches: { some: { status: "ACTIVE", entry: { status: "POSTED" } } } }),
-        ...(q.qualified && { counterpartAccountId: q.qualified === "true" ? { not: null } : null }),
+        // « Classée » compte aussi un mouvement fractionné (pas de contrepartie unique, mais une écriture à plusieurs parts).
+        ...(q.qualified === "true" && { NOT: { counterpartAccountId: null, NOT: { matches: { some: SPLIT_MATCH } } } }),
+        ...(q.qualified === "false" && { counterpartAccountId: null, NOT: { matches: { some: SPLIT_MATCH } } }),
         ...(q.q && {
           OR: [
             { label: { contains: q.q, mode: "insensitive" } },

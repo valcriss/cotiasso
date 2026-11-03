@@ -97,7 +97,7 @@ describe('AuditPage', () => {
 
   it('envoie les critères du filtre et repart du début', async () => {
     await create({ items: [entry(5)], nextCursor: null });
-    const dates = root.querySelectorAll<HTMLInputElement>('input[type="date"]');
+    const dates = root.querySelectorAll<HTMLInputElement>('app-date-field input');
     dates[0]!.value = '2026-11-01';
     dates[0]!.dispatchEvent(new Event('input'));
     root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
@@ -118,7 +118,7 @@ describe('AuditPage', () => {
     expect(link().textContent).toContain('Exporter (CSV)');
 
     // Saisir un critère sans lancer la recherche ne change pas l'export : il reprend ce qui est affiché.
-    const dates = root.querySelectorAll<HTMLInputElement>('input[type="date"]');
+    const dates = root.querySelectorAll<HTMLInputElement>('app-date-field input');
     dates[0]!.value = '2026-11-01';
     dates[0]!.dispatchEvent(new Event('input'));
     await settle();

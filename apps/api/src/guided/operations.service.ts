@@ -6,7 +6,8 @@ import { AuditService } from "../audit/audit.service.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { triggerMessage } from "../treasury/db-refusal.js";
-import { draftDataFor, rethrowLink } from "../treasury/transaction-links.service.js";
+import { Money } from "@cotiasso/accounting-domain";
+import { type DraftSplit, draftDataFor, draftDataForSplits, rethrowLink } from "../treasury/transaction-links.service.js";
 
 const isoDate = z
   .string()
@@ -16,14 +17,32 @@ const isoDate = z
     return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
   }, "Date inexistante.");
 
+const amountString = z
+  .string()
+  .regex(/^\d{1,12}(\.\d{1,2})?$/, "Montant invalide (chiffres positifs, 2 décimales au plus).")
+  .refine((value) => Number(value) > 0, "Le montant doit être supérieur à zéro.");
+
+export const MAX_SPLITS = 10;
+/** Répartition d'un montant sur plusieurs catégories (« fractionner ») : au moins deux parts, dont le total égale le montant. */
+const splitsInput = z
+  .array(z.object({ categoryId: z.uuid("Catégorie invalide."), amount: amountString }).strict())
+  .min(2, "Un montant fractionné a au moins deux parts.")
+  .max(MAX_SPLITS, `${MAX_SPLITS} parts au plus.`);
+
+/** Une seule catégorie, ou une répartition en parts : jamais les deux, jamais aucune. */
+const oneOrSplit = (value: { categoryId?: string | undefined; splits?: unknown }) => (value.categoryId === undefined) !== (value.splits === undefined);
+const oneOrSplitMessage = { message: "Choisissez une catégorie, ou répartissez le montant sur plusieurs catégories.", path: ["categoryId"] };
+
 const bookInput = z
   .object({
-    categoryId: z.uuid("Catégorie invalide."),
+    categoryId: z.uuid("Catégorie invalide.").optional(),
+    splits: splitsInput.optional(),
     projectId: z.uuid().nullish(),
     /** Comptabiliser tout de suite (par défaut). Faux = l'écriture reste un brouillon à relire. */
     post: z.boolean().default(true),
   })
-  .strict();
+  .strict()
+  .refine(oneOrSplit, oneOrSplitMessage);
 
 const MAX_BULK = 200;
 const bulkInput = z
@@ -45,19 +64,22 @@ const operationInput = z
   .object({
     financialAccountId: z.uuid("Compte invalide."),
     direction: z.enum(["IN", "OUT"]),
-    amount: z
-      .string()
-      .regex(/^\d{1,12}(\.\d{1,2})?$/, "Montant invalide (chiffres positifs, 2 décimales au plus).")
-      .refine((value) => Number(value) > 0, "Le montant doit être supérieur à zéro."),
+    amount: amountString,
     date: isoDate,
     label: z.string().trim().min(1, "Libellé obligatoire.").max(200, "Libellé trop long (200 caractères)."),
-    categoryId: z.uuid("Catégorie invalide."),
+    categoryId: z.uuid("Catégorie invalide.").optional(),
+    splits: splitsInput.optional(),
     projectId: z.uuid().nullish(),
     reference: z.string().trim().max(100).nullish(),
     /** Comptabiliser tout de suite (par défaut). Faux = l'écriture reste un brouillon à relire. */
     post: z.boolean().default(true),
   })
-  .strict();
+  .strict()
+  .refine(oneOrSplit, oneOrSplitMessage);
+
+/** Ce que reçoit la contrepartie : une catégorie, ou plusieurs parts. */
+type Target = { counterpart: { id: string; number: string; label: string } } | { splits: DraftSplit[] };
+const accountNumbers = (target: Target) => ("splits" in target ? target.splits.map((part) => part.accountNumber) : [target.counterpart.number]);
 
 export interface OperationResult {
   transactionId: string;
@@ -87,10 +109,16 @@ export class OperationsService {
     const account = await this.prisma.financialAccount.findUnique({ where: { id: input.financialAccountId }, include: { account: true } });
     if (!account) throw new AccountingNotFoundError("Compte");
     if (account.archivedOn) throw new AccountingConflictError("Ce compte est archivé : on n'y enregistre plus d'opération.");
-    const category = await this.prisma.operationCategory.findUnique({ where: { id: input.categoryId }, include: { account: true } });
-    if (!category || !category.active) throw new AccountingNotFoundError("Catégorie");
-    if (category.direction !== input.direction) {
-      throw new AccountingConflictError("Cette catégorie ne correspond pas au sens de l'opération (argent reçu ou dépensé).");
+    let target: Target;
+    if (input.splits) {
+      target = { splits: await this.resolveSplits(input.splits, input.direction, input.amount) };
+    } else {
+      const category = await this.prisma.operationCategory.findUnique({ where: { id: input.categoryId! }, include: { account: true } });
+      if (!category || !category.active) throw new AccountingNotFoundError("Catégorie");
+      if (category.direction !== input.direction) {
+        throw new AccountingConflictError("Cette catégorie ne correspond pas au sens de l'opération (argent reçu ou dépensé).");
+      }
+      target = { counterpart: category.account };
     }
     const date = new Date(`${input.date}T00:00:00Z`);
     const year = await this.prisma.fiscalYear.findFirst({ where: { start: { lte: date }, end: { gte: date } }, select: { id: true, status: true } });
@@ -101,7 +129,7 @@ export class OperationsService {
 
     // Une dépense ou une recette appartient à un projet ; sans choix, c'est le projet permanent « Fonctionnement ».
     let projectId = input.projectId ?? null;
-    if (!projectId && /^[67]/.test(category.account.number)) {
+    if (!projectId && accountNumbers(target).some((number) => /^[67]/.test(number))) {
       projectId = (await this.prisma.project.findFirst({ where: { permanent: true }, select: { id: true } }))?.id ?? null;
     }
 
@@ -118,13 +146,13 @@ export class OperationsService {
             label: input.label,
             reference: input.reference ?? null,
             projectId,
-            counterpartAccountId: category.accountId,
+            // Un mouvement fractionné n'a pas de catégorie unique : ses parts sont dans les lignes de l'écriture.
+            counterpartAccountId: "splits" in target ? null : target.counterpart.id,
             createdBy: actorId,
           },
-          include: { counterpartAccount: { select: { number: true } } },
         });
         const entry = await db.journalEntry.create({
-          data: draftDataFor(
+          data: this.draftFor(
             {
               id: transaction.id,
               label: transaction.label,
@@ -132,10 +160,9 @@ export class OperationsService {
               amount: transaction.amount,
               operationDate: transaction.operationDate,
               projectId,
-              counterpartAccountId: category.accountId,
-              counterpartAccount: category.account,
               financialAccount: { accountId: account.accountId, journalId: account.journalId },
             },
+            target,
             year.id,
             actorId,
           ),
@@ -167,7 +194,7 @@ export class OperationsService {
       objectType: "Transaction",
       objectId: created.transactionId,
       actorId,
-      details: { direction: input.direction, entryId: created.entryId, posted: post },
+      details: { direction: input.direction, entryId: created.entryId, posted: post, ...("splits" in target && { parts: target.splits.length }) },
     });
     return { ...created, posted: post, journalCode, number };
   }
@@ -188,15 +215,66 @@ export class OperationsService {
     if (tx.matches.length > 0) throw new AccountingConflictError("Ce mouvement est déjà enregistré dans les comptes (ou en brouillon).");
     if (tx.transferOut || tx.transferIn) throw new AccountingConflictError("Ce mouvement fait partie d'un virement entre vos comptes : il s'enregistre avec le virement.");
     if (tx.financialAccount.archivedOn) throw new AccountingConflictError("Ce compte est archivé.");
-    const category = await this.prisma.operationCategory.findUnique({ where: { id: input.categoryId }, include: { account: true } });
-    if (!category || !category.active) throw new AccountingNotFoundError("Catégorie");
     const incoming = tx.amount.gt(0);
+    if (input.splits) {
+      const splits = await this.resolveSplits(input.splits, incoming ? "IN" : "OUT", tx.amount.abs().toFixed(2));
+      return this.bookRow(tx, { splits }, input.projectId ?? tx.projectId ?? null, post, actorId);
+    }
+    const category = await this.prisma.operationCategory.findUnique({ where: { id: input.categoryId! }, include: { account: true } });
+    if (!category || !category.active) throw new AccountingNotFoundError("Catégorie");
     if (category.direction !== (incoming ? "IN" : "OUT")) {
       throw new AccountingConflictError(
         incoming ? "Ce mouvement est de l'argent reçu : choisissez une catégorie d'argent reçu." : "Ce mouvement est de l'argent dépensé : choisissez une catégorie d'argent dépensé.",
       );
     }
-    return this.bookRow(tx, category.account, input.projectId ?? tx.projectId ?? null, post, actorId);
+    return this.bookRow(tx, { counterpart: category.account }, input.projectId ?? tx.projectId ?? null, post, actorId);
+  }
+
+  /**
+   * Valide une répartition : catégories existantes, actives, du bon sens et distinctes, montants en centimes dont le total
+   * égale **exactement** le montant à répartir. Rend les parts prêtes à devenir des lignes d'écriture.
+   */
+  private async resolveSplits(parts: { categoryId: string; amount: string }[], direction: "IN" | "OUT", total: string): Promise<DraftSplit[]> {
+    const ids = parts.map((part) => part.categoryId);
+    if (new Set(ids).size !== ids.length) {
+      throw new AccountingConflictError("Une catégorie ne peut apparaître qu'une fois : regroupez ses montants sur une seule ligne.");
+    }
+    const categories = await this.prisma.operationCategory.findMany({ where: { id: { in: ids } }, include: { account: true } });
+    const byId = new Map(categories.map((category) => [category.id, category]));
+    let sum = Money.zero();
+    const resolved: DraftSplit[] = [];
+    for (const part of parts) {
+      const category = byId.get(part.categoryId);
+      if (!category || !category.active) throw new AccountingNotFoundError("Catégorie");
+      if (category.direction !== direction) {
+        throw new AccountingConflictError(
+          direction === "IN"
+            ? `« ${category.label} » est une catégorie d'argent dépensé : choisissez des catégories d'argent reçu.`
+            : `« ${category.label} » est une catégorie d'argent reçu : choisissez des catégories d'argent dépensé.`,
+        );
+      }
+      const amount = Money.parse(part.amount);
+      sum = sum.add(amount);
+      resolved.push({ accountId: category.accountId, accountNumber: category.account.number, amount: amount.toString() });
+    }
+    const expected = Money.parse(total);
+    if (!sum.equals(expected)) {
+      throw new AccountingConflictError(
+        `Le total des parts (${sum.toString()} €) doit être égal au montant du mouvement (${expected.toString()} €) : il reste ${expected.subtract(sum).toString()} € à répartir.`,
+      );
+    }
+    return resolved;
+  }
+
+  private draftFor(
+    tx: { id: string; label: string; reference: string | null; amount: Prisma.Decimal; operationDate: Date; projectId: string | null; financialAccount: { accountId: string; journalId: string } },
+    target: Target,
+    fiscalYearId: string,
+    actorId: string,
+  ): Prisma.JournalEntryUncheckedCreateInput {
+    return "splits" in target
+      ? draftDataForSplits(tx, target.splits, fiscalYearId, actorId)
+      : draftDataFor({ ...tx, counterpartAccountId: target.counterpart.id, counterpartAccount: target.counterpart }, fiscalYearId, actorId);
   }
 
   /**
@@ -242,7 +320,7 @@ export class OperationsService {
         continue;
       }
       try {
-        const result = await this.bookRow(tx, tx.counterpartAccount, tx.projectId, post, actorId, false);
+        const result = await this.bookRow(tx, { counterpart: tx.counterpartAccount }, tx.projectId, post, actorId, false);
         booked++;
         if (result.posted) posted++;
       } catch (error) {
@@ -266,19 +344,18 @@ export class OperationsService {
       financialAccountId: string;
       financialAccount: { accountId: string; journalId: string };
     },
-    counterpart: { id: string; number: string; label: string },
+    target: Target,
     wantedProjectId: string | null,
     post: boolean,
     actorId: string,
     auditEach = true,
   ): Promise<OperationResult> {
-    const category = { accountId: counterpart.id, account: counterpart };
     const projectIdWanted = wantedProjectId;
     const year = await this.prisma.fiscalYear.findFirst({ where: { start: { lte: tx.operationDate }, end: { gte: tx.operationDate } }, select: { id: true, status: true } });
     if (!year) throw new AccountingConflictError("Aucun exercice ne couvre la date de ce mouvement. Créez l'exercice dans Paramètres › Comptabilité.");
     if (year.status !== "OPEN") throw new AccountingConflictError("L'exercice de ce mouvement est fermé à la saisie.");
     let projectId = projectIdWanted;
-    if (!projectId && /^[67]/.test(category.account.number)) {
+    if (!projectId && accountNumbers(target).some((number) => /^[67]/.test(number))) {
       projectId = (await this.prisma.project.findFirst({ where: { permanent: true }, select: { id: true } }))?.id ?? null;
     }
 
@@ -286,9 +363,10 @@ export class OperationsService {
     let journalCode = "";
     const entryId = await this.prisma
       .$transaction(async (db) => {
-        await db.transaction.update({ where: { id: tx.id }, data: { counterpartAccountId: category.accountId, projectId } });
+        // Un mouvement fractionné n'a pas de catégorie unique : on efface l'éventuelle ancienne, les parts sont dans l'écriture.
+        await db.transaction.update({ where: { id: tx.id }, data: { counterpartAccountId: "splits" in target ? null : target.counterpart.id, projectId } });
         const entry = await db.journalEntry.create({
-          data: draftDataFor(
+          data: this.draftFor(
             {
               id: tx.id,
               label: tx.label,
@@ -296,10 +374,9 @@ export class OperationsService {
               amount: tx.amount,
               operationDate: tx.operationDate,
               projectId,
-              counterpartAccountId: category.accountId,
-              counterpartAccount: category.account,
               financialAccount: { accountId: tx.financialAccount.accountId, journalId: tx.financialAccount.journalId },
             },
+            target,
             year.id,
             actorId,
           ),
@@ -323,7 +400,7 @@ export class OperationsService {
         return rethrowLink(error);
       });
     if (!journalCode) journalCode = (await this.prisma.journal.findUniqueOrThrow({ where: { id: tx.financialAccount.journalId }, select: { code: true } })).code;
-    if (auditEach) await this.audit.record({ action: "operation.booked", objectType: "Transaction", objectId: tx.id, actorId, details: { entryId, posted: post } });
+    if (auditEach) await this.audit.record({ action: "operation.booked", objectType: "Transaction", objectId: tx.id, actorId, details: { entryId, posted: post, ...("splits" in target && { parts: target.splits.length }) } });
     return { transactionId: tx.id, entryId, posted: post, journalCode, number };
   }
 }

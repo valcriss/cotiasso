@@ -125,6 +125,13 @@ export class GuidedController {
     return translate(() => this.situation.view(date));
   }
 
+  /** « Je pars de zéro » : rien à reprendre, l'étape est faite sans écriture. */
+  @RequirePermission("settings.accounting:admin")
+  @Put("opening-situation/skip")
+  skipOpeningSituation(@Req() request: AuthenticatedRequest): Promise<{ skipped: true }> {
+    return translate(() => this.situation.skip(request.auth!.user.id));
+  }
+
   @RequirePermission("settings.accounting:admin", "entries:create")
   @Post("opening-situation")
   async recordOpeningSituation(@Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<OpeningSituationResult> {

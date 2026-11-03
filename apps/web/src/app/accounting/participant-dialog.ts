@@ -7,6 +7,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type MemberInfo, type ParticipantInfo, type ProjectInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { DateField } from '../ui/date-field';
 
 export interface ParticipantDialogData {
   project: ProjectInfo;
@@ -17,7 +18,7 @@ export interface ParticipantDialogData {
 /** Ajout et modification d'un participant de projet. Être participant ne donne aucun droit d'accès : c'est une information. */
 @Component({
   selector: 'app-participant-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -52,15 +53,8 @@ export interface ParticipantDialogData {
           }
         </mat-form-field>
         <div class="row">
-          <mat-form-field appearance="outline">
-            <mat-label>Depuis le (facultatif)</mat-label>
-            <input matInput type="date" formControlName="startDate" />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Jusqu'au (facultatif)</mat-label>
-            <input matInput type="date" formControlName="endDate" />
-            <mat-hint>Renseignez-la quand la personne quitte le projet.</mat-hint>
-          </mat-form-field>
+          <app-date-field label="Depuis le (facultatif)" formControlName="startDate" />
+          <app-date-field label="Jusqu'au (facultatif)" formControlName="endDate" hint="Renseignez-la quand la personne quitte le projet." />
         </div>
         <mat-form-field appearance="outline">
           <mat-label>Note (facultatif)</mat-label>

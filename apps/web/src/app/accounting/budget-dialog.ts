@@ -20,6 +20,7 @@ import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
 import { centsToApi, formatCents, parseAmountToCents } from './amount';
 import { BUDGET_KIND_LABELS } from './project-labels';
+import { DateField } from '../ui/date-field';
 
 export type BudgetDialogData =
   | { mode: 'create'; project: ProjectInfo; versions: BudgetSummaryInfo[] }
@@ -31,7 +32,7 @@ export type BudgetDialogData =
  */
 @Component({
   selector: 'app-budget-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styles: `
     .line {
       border: 1px solid var(--app-border);
@@ -113,20 +114,8 @@ export type BudgetDialogData =
                 </mat-form-field>
               </div>
               <div class="row">
-                <mat-form-field appearance="outline">
-                  <mat-label>Du</mat-label>
-                  <input matInput type="date" formControlName="periodStart" required />
-                  @if (line.controls.periodStart.hasError('required')) {
-                    <mat-error>Indiquez le début de la période.</mat-error>
-                  }
-                </mat-form-field>
-                <mat-form-field appearance="outline">
-                  <mat-label>Au</mat-label>
-                  <input matInput type="date" formControlName="periodEnd" required />
-                  @if (line.controls.periodEnd.hasError('required')) {
-                    <mat-error>Indiquez la fin de la période.</mat-error>
-                  }
-                </mat-form-field>
+                <app-date-field label="Du" formControlName="periodStart" errorText="Indiquez le début de la période." required />
+                <app-date-field label="Au" formControlName="periodEnd" errorText="Indiquez la fin de la période." required />
                 <mat-form-field appearance="outline">
                   <mat-label>Montant (€)</mat-label>
                   <input matInput inputmode="decimal" formControlName="amount" placeholder="500,00" autocomplete="off" required />

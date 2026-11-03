@@ -8,7 +8,7 @@ import { StartPage } from './start.page';
 import { endOfTwelveMonths, yearLabel } from './start-dialogs';
 
 const setup = (
-  done: Partial<Record<'fiscalYear' | 'categories' | 'financialAccount', boolean>> & { startMode?: 'HISTORY' | 'OPENING' | null; openingSituation?: 'NONE' | 'DRAFT' | 'POSTED' } = {},
+  done: Partial<Record<'fiscalYear' | 'categories' | 'financialAccount', boolean>> & { startMode?: 'HISTORY' | 'OPENING' | null; openingSituation?: 'NONE' | 'DRAFT' | 'POSTED' | 'SKIPPED' } = {},
 ) => ({
   setup: { fiscalYear: false, accounts: false, financialAccount: false, categories: false, startMode: 'HISTORY', openingSituation: 'NONE', ...done },
   cash: null,
@@ -88,7 +88,7 @@ describe('StartPage', () => {
     expect(ui.title).toBe('La période de votre comptabilité');
     expect(ui.text).toContain('exercice');
     await ui.type('input[formcontrolname="start"]', '2026-09-01');
-    expect(ui.field<HTMLInputElement>('input[formcontrolname="end"]').value).toBe('2027-08-31');
+    expect(ui.field<HTMLInputElement>('input[formcontrolname="end"]').value).toBe('31/08/2027');
     await ui.submit();
     const request = controller.expectOne('/api/fiscal-years');
     expect(request.request.body).toEqual({ label: 'Exercice 2026-2027', start: '2026-09-01', end: '2027-08-31' });
@@ -194,7 +194,7 @@ describe('StartPage', () => {
     it('propose la date de départ du premier exercice aux nouveaux comptes quand on repart d’une situation', async () => {
       await create(setup({ startMode: 'OPENING', fiscalYear: true, categories: true }), [], [{ id: 'y1', label: 'Exercice 2026', start: '2026-01-01', end: '2026-12-31', status: 'OPEN' }]);
       await click('Ajouter mon compte');
-      expect(ui.field<HTMLInputElement>('input[formcontrolname="openedOn"]').value).toBe('2026-01-01');
+      expect(ui.field<HTMLInputElement>('input[formcontrolname="openedOn"]').value).toBe('01/01/2026');
     });
   });
 
@@ -237,6 +237,22 @@ describe('StartPage', () => {
       expect(ui.text).toContain('1 050,00 €');
       expect(ui.text).toContain('Ce que verra l’expert-comptable');
       expect(ui.text).toContain('Les deux totaux sont égaux');
+    });
+
+    it('propose de partir de zéro quand il n’y a rien à reprendre, sans message d’erreur ni écriture', async () => {
+      await open(situation({ accounts: [{ id: 'f1', name: 'Banque', openedOn: '2026-01-01', openingBalance: '0.00' }] }));
+      expect(ui.text).toContain('votre association part de zéro');
+      expect(ui.dialog!.querySelector('[role="alert"]')).toBeNull();
+      expect(ui.text).toContain('Je pars de zéro, rien à enregistrer');
+
+      await ui.submit();
+      const request = controller.expectOne('/api/opening-situation/skip');
+      expect(request.request.method).toBe('PUT');
+      request.flush({ skipped: true });
+      await settle();
+      await loads(setup({ startMode: 'OPENING', fiscalYear: true, categories: true, financialAccount: true, openingSituation: 'SKIPPED' }));
+      expect(ui.snackbar).toContain('vous partez de zéro');
+      expect(root.textContent).toContain('Tout est prêt');
     });
 
     it('recalcule le fonds quand on ajoute ce qu’on nous doit et ce qu’on doit, puis envoie ce que la personne a lu', async () => {

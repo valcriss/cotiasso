@@ -28,7 +28,8 @@ export interface OverviewView {
     categories: boolean;
     /** Mode de démarrage choisi (vide tant que non choisi) et état de la situation d'ouverture (ADR 0029). */
     startMode: "HISTORY" | "OPENING" | null;
-    openingSituation: "NONE" | "DRAFT" | "POSTED";
+    /** `SKIPPED` : la personne part de zéro, il n'y a rien à reprendre. */
+    openingSituation: "NONE" | "DRAFT" | "POSTED" | "SKIPPED";
   };
   /** Argent disponible sur les comptes de banque et de caisse (somme du solde de chaque compte), absent sans droit de lecture. */
   cash: { total: string; accounts: { id: string; name: string; balance: string }[] } | null;
@@ -61,14 +62,14 @@ export class OverviewService {
       this.prisma.financialAccount.count({ where: { archivedOn: null } }),
       this.prisma.operationCategory.count({ where: { active: true } }),
     ]);
-    const [startMode, situation] = await Promise.all([this.situation.mode(), this.situation.existing()]);
+    const [startMode, situation, skipped] = await Promise.all([this.situation.mode(), this.situation.existing(), this.situation.skipped()]);
     const setup = {
       fiscalYear: fiscalYears > 0,
       accounts: planAccounts > 0,
       financialAccount: financialAccounts > 0,
       categories: categories > 0,
       startMode,
-      openingSituation: (situation ? situation.status : "NONE") as "NONE" | "DRAFT" | "POSTED",
+      openingSituation: (situation ? situation.status : skipped ? "SKIPPED" : "NONE") as OverviewView["setup"]["openingSituation"],
     };
 
     const todo: TodoItem[] = [];
@@ -103,7 +104,7 @@ export class OverviewService {
       });
     }
 
-    if (setup.financialAccount && startMode === "OPENING" && setup.openingSituation !== "POSTED" && can("settings.accounting:admin")) {
+    if (setup.financialAccount && startMode === "OPENING" && setup.openingSituation !== "POSTED" && setup.openingSituation !== "SKIPPED" && can("settings.accounting:admin")) {
       todo.push({
         code: "OPENING_SITUATION",
         level: "TODO",

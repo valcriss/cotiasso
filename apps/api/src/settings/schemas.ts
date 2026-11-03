@@ -44,7 +44,13 @@ export const brandingSchema = z
 export const accountingSchema = z.strictObject({ projectRequired: z.boolean() });
 
 /** Mode de démarrage (ADR 0029) : reprendre l'historique ou partir d'une situation d'ouverture ; vide tant que non choisi. */
-const startSchema = z.object({ mode: z.enum(["HISTORY", "OPENING"]).nullable() }).strict();
+const startSchema = z
+  .object({
+    mode: z.enum(["HISTORY", "OPENING"]).nullable(),
+    /** Vrai quand la personne a indiqué qu'elle part de zéro : rien à reprendre, donc aucune écriture d'ouverture. */
+    openingSkipped: z.boolean().default(false),
+  })
+  .strict();
 
 export type Identity = z.infer<typeof identitySchema>;
 /** Adhésion effective (ADR 0004, 0023) : mode proposé aux nouvelles campagnes, figé sur chaque campagne à sa création. */
@@ -70,7 +76,7 @@ export const SETTINGS_SECTIONS = {
   },
   start: {
     schema: startSchema,
-    defaults: { mode: null } satisfies StartSettings,
+    defaults: { mode: null, openingSkipped: false } satisfies StartSettings,
   },
   branding: {
     schema: brandingSchema,

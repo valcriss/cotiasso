@@ -13,6 +13,7 @@ import { FormDialog } from '../ui/form-dialog';
 import { allocationRows, allocationTotalCents, readAllocations, type AllocationRow } from './allocation-rows';
 import { AllocationsFields } from './allocations-fields';
 import { RESIDUAL_LABELS } from './grant-labels';
+import { DateField } from '../ui/date-field';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const amountValidator = (control: { value: string }) => {
@@ -40,7 +41,7 @@ export interface GrantDialogData {
 /** Demander une subvention, ou modifier ce qui peut l'être selon son état. */
 @Component({
   selector: 'app-grant-dialog',
-  imports: [ReactiveFormsModule, FormDialog, AllocationsFields, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, AllocationsFields, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -87,18 +88,9 @@ export interface GrantDialogData {
           </mat-form-field>
         </div>
         <div class="row">
-          <mat-form-field appearance="outline">
-            <mat-label>Date de la demande (facultatif)</mat-label>
-            <input matInput type="date" formControlName="requestedOn" />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Période financée : du (facultatif)</mat-label>
-            <input matInput type="date" formControlName="periodStart" />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>au (facultatif)</mat-label>
-            <input matInput type="date" formControlName="periodEnd" />
-          </mat-form-field>
+          <app-date-field label="Date de la demande (facultatif)" formControlName="requestedOn" />
+          <app-date-field label="Période financée : du (facultatif)" formControlName="periodStart" />
+          <app-date-field label="au (facultatif)" formControlName="periodEnd" />
         </div>
         <mat-form-field appearance="outline">
           <mat-label>Conditions et obligations (facultatif)</mat-label>
@@ -286,7 +278,7 @@ export class AllocationsDialog {
 /** Enregistrer l'accord : montant accordé, date, et répartition qui doit le totaliser exactement. */
 @Component({
   selector: 'app-grant-decision-dialog',
-  imports: [ReactiveFormsModule, FormDialog, AllocationsFields, MatFormFieldModule, MatInputModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, AllocationsFields, MatFormFieldModule, MatInputModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -308,13 +300,7 @@ export class AllocationsDialog {
               <mat-error>Saisissez un montant positif, par exemple 900 ou 1200,50.</mat-error>
             }
           </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Date de la décision</mat-label>
-            <input matInput type="date" formControlName="decidedOn" required />
-            @if (form.controls.decidedOn.hasError('required')) {
-              <mat-error>Indiquez la date de la décision.</mat-error>
-            }
-          </mat-form-field>
+          <app-date-field label="Date de la décision" formControlName="decidedOn" errorText="Indiquez la date de la décision." required />
         </div>
         <h3>Répartition entre les projets</h3>
         @if (unavailable()) {
@@ -401,7 +387,7 @@ export interface GrantReasonDialogData {
 /** Refuser une demande (décision du financeur) ou l'annuler (demande abandonnée), toujours avec un motif. */
 @Component({
   selector: 'app-grant-reason-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -418,10 +404,7 @@ export interface GrantReasonDialogData {
         [details]="details()"
       >
         @if (data.mode === 'refuse') {
-          <mat-form-field appearance="outline">
-            <mat-label>Date de la décision</mat-label>
-            <input matInput type="date" formControlName="decidedOn" required />
-          </mat-form-field>
+          <app-date-field label="Date de la décision" formControlName="decidedOn" required />
         }
         <mat-form-field appearance="outline">
           <mat-label>Pourquoi ?</mat-label>
@@ -475,7 +458,7 @@ export class GrantReasonDialog {
 /** Clôturer une subvention accordée en choisissant le sort du reliquat. Aucune écriture comptable n'est créée. */
 @Component({
   selector: 'app-grant-close-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -494,13 +477,7 @@ export class GrantReasonDialog {
             affectées dépassent ce qui a été reçu.
           </p>
         }
-        <mat-form-field appearance="outline">
-          <mat-label>Date de clôture</mat-label>
-          <input matInput type="date" formControlName="closedOn" required />
-          @if (form.controls.closedOn.hasError('required')) {
-            <mat-error>Indiquez la date de clôture.</mat-error>
-          }
-        </mat-form-field>
+        <app-date-field label="Date de clôture" formControlName="closedOn" errorText="Indiquez la date de clôture." required />
         <mat-form-field appearance="outline">
           <mat-label>Sort du reliquat</mat-label>
           <mat-select formControlName="residual">

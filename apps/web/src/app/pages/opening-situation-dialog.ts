@@ -72,7 +72,7 @@ export interface OpeningSituationDialogData {
       <app-form-dialog
         title="Votre situation de départ"
         [description]="'Une photo de votre association au ' + dateLabel() + ' : l’argent que vous avez, ce qu’on vous doit et ce que vous devez. C’est le point de départ de vos comptes ; vous n’avez pas à reprendre l’historique avant cette date.'"
-        submitLabel="Enregistrer dans les comptes"
+        [submitLabel]="nothingToCarry() ? 'Je pars de zéro, rien à enregistrer' : 'Enregistrer dans les comptes'"
         [dirty]="form.dirty"
         [busy]="busy()"
         [error]="error()"
@@ -189,6 +189,13 @@ export interface OpeningSituationDialogData {
           </button>
         </section>
 
+        @if (nothingToCarry()) {
+          <p class="muted" role="status">
+            Vous n’avez indiqué ni argent au départ, ni somme à recevoir, ni somme à payer : votre association part de zéro. C’est tout à fait
+            normal pour une association qui démarre. Il n’y a rien à enregistrer ; vous pourrez saisir vos premières opérations ensuite.
+          </p>
+        }
+
         <section class="block equity" aria-label="Fonds de l'association">
           <h4>4. Ce qui reste : le fonds de l’association</h4>
           <p>
@@ -234,7 +241,7 @@ export interface OpeningSituationDialogData {
 })
 export class OpeningSituationDialog {
   private readonly api = inject(AdminApiService);
-  private readonly reference = inject<MatDialogRef<OpeningSituationDialog, OpeningSituationResultInfo>>(MatDialogRef);
+  private readonly reference = inject<MatDialogRef<OpeningSituationDialog, OpeningSituationResultInfo | { skipped: true }>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<OpeningSituationDialogData>(MAT_DIALOG_DATA);
   protected readonly formatCents = formatCents;
@@ -265,6 +272,10 @@ export class OpeningSituationDialog {
   protected readonly receivableCents = computed(() => (this.tick(), this.sum(this.receivables)));
   protected readonly payableCents = computed(() => (this.tick(), this.sum(this.payables)));
   protected readonly equityCents = computed(() => this.cash() + this.receivableCents() - this.payableCents());
+  /** Aucun solde de départ et aucune ligne saisie : l'association part de zéro, il n'y a rien à écrire. */
+  protected readonly nothingToCarry = computed(
+    () => (this.tick(), this.data.situation.accounts.every((a) => this.signedCents(a.openingBalance) === 0) && this.receivables.length === 0 && this.payables.length === 0),
+  );
   protected readonly debit = computed(() => this.positiveCash() + this.receivableCents() + Math.max(0, -this.equityCents()));
   protected readonly credit = computed(() => this.negativeCash() + this.payableCents() + Math.max(0, this.equityCents()));
   protected readonly dateLabel = computed(() => (this.data.situation.date ?? '').split('-').reverse().join('/'));
@@ -321,6 +332,20 @@ export class OpeningSituationDialog {
   protected async save(): Promise<void> {
     this.form.markAllAsTouched();
     this.details.set([]);
+    if (this.nothingToCarry()) {
+      this.busy.set(true);
+      try {
+        await this.api.skipOpeningSituation();
+        this.reference.close({ skipped: true });
+      } catch (failure) {
+        const described = describeHttpError(failure, "Votre choix n'a pas pu être enregistré. Réessayez dans un instant.");
+        this.error.set(described.message);
+        this.details.set(described.details);
+      } finally {
+        this.busy.set(false);
+      }
+      return;
+    }
     if (this.data.situation.misaligned.length > 0 || !this.data.situation.date) {
       this.error.set('Alignez d’abord la date de départ des comptes (voir le message en haut), puis réessayez.');
       return;

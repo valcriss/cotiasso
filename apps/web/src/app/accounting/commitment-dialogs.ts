@@ -8,6 +8,7 @@ import { AdminApiService, type AccountInfo, type CommitmentInfo, type EntryCandi
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from './amount';
+import { DateField } from '../ui/date-field';
 
 export interface CommitmentDialogData {
   project: ProjectInfo;
@@ -18,7 +19,7 @@ export interface CommitmentDialogData {
 /** Enregistrer ou modifier un engagement : une dépense promise (devis, bon de commande) pas encore payée. */
 @Component({
   selector: 'app-commitment-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -44,14 +45,7 @@ export interface CommitmentDialogData {
               <mat-error>Saisissez un montant positif, par exemple 300 ou 120,50.</mat-error>
             }
           </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Date de l'engagement</mat-label>
-            <input matInput type="date" formControlName="committedOn" required />
-            <mat-hint>Le jour du devis accepté ou de la commande.</mat-hint>
-            @if (form.controls.committedOn.hasError('required')) {
-              <mat-error>Indiquez la date de l'engagement.</mat-error>
-            }
-          </mat-form-field>
+          <app-date-field label="Date de l'engagement" formControlName="committedOn" hint="Le jour du devis accepté ou de la commande." errorText="Indiquez la date de l'engagement." required />
         </div>
         @if (accounts().length > 0) {
           <mat-form-field appearance="outline">

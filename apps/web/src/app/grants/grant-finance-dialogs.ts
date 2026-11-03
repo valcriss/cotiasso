@@ -19,6 +19,7 @@ import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from '..
 import { FormDialog } from '../ui/form-dialog';
 import { AutoBook } from '../treasury/auto-book';
 import type { OperationCategoryInfo } from '../admin/admin-api.service';
+import { DateField } from '../ui/date-field';
 
 const positive = (control: { value: string }) => {
   const cents = parseAmountToCents(control.value);
@@ -37,7 +38,7 @@ export interface ScheduleDialogData {
 /** Ajouter ou modifier une échéance : un versement attendu du financeur (date, montant, condition). Un plan, pas une écriture. */
 @Component({
   selector: 'app-schedule-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -49,13 +50,7 @@ export interface ScheduleDialogData {
         [details]="details()"
       >
         <div class="row">
-          <mat-form-field appearance="outline">
-            <mat-label>Date prévue</mat-label>
-            <input matInput type="date" formControlName="dueOn" required />
-            @if (form.controls.dueOn.hasError('required')) {
-              <mat-error>Indiquez la date à laquelle vous attendez ce versement.</mat-error>
-            }
-          </mat-form-field>
+          <app-date-field label="Date prévue" formControlName="dueOn" errorText="Indiquez la date à laquelle vous attendez ce versement." required />
           <mat-form-field appearance="outline">
             <mat-label>Montant attendu (€)</mat-label>
             <input matInput inputmode="decimal" formControlName="amount" placeholder="300,00" autocomplete="off" required />
