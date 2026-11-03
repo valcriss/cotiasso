@@ -782,7 +782,8 @@ details pre {
   .actions,
   .detail-actions {
     > .mat-mdc-button-base,
-    > a.mat-mdc-button-base {
+    > a.mat-mdc-button-base,
+    > app-export-link > .mat-mdc-button-base {
       --mat-button-filled-container-height: auto;
       --mat-button-outlined-container-height: auto;
       --mat-button-text-container-height: auto;
@@ -798,8 +799,8 @@ details pre {
       }
     }
 
-    // Seul le premier bouton plein (l'action principale) prend toute la ligne ; les autres se partagent les deux colonnes.
-    > .mat-mdc-unelevated-button:first-child {
+    // Avec trois boutons ou plus, seul le premier bouton plein (l'action principale) prend toute la ligne ; les autres se partagent les deux colonnes.
+    > .mat-mdc-unelevated-button:first-child:not(:nth-last-child(2)) {
       grid-column: 1 / -1;
     }
   }
