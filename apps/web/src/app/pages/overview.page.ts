@@ -11,6 +11,7 @@ import { HealthService } from '../health.service';
 import { OperationLauncher } from '../treasury/operation-launcher';
 import { SetupStatus } from './setup-status.service';
 import { FrDatePipe } from '../ui/fr-date.pipe';
+import { HelpHint } from '../ui/help-hint';
 import { PageHeader } from '../ui/page-header';
 
 const SITUATIONS: Record<RecentOperationInfo['situation'], string> = {
@@ -29,7 +30,7 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
  */
 @Component({
   selector: 'app-overview-page',
-  imports: [FrDatePipe, AsyncPipe, MatButtonModule, MatIconModule, RouterLink, PageHeader],
+  imports: [HelpHint, FrDatePipe, AsyncPipe, MatButtonModule, MatIconModule, RouterLink, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .figures {
@@ -169,7 +170,7 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
         <div class="figures">
           @if (view.cash; as cash) {
             <section class="figure" aria-label="Argent disponible">
-              <span class="muted">Argent disponible</span>
+              <span class="muted">Argent disponible <app-help-hint term="solde" /></span>
               <span class="big">{{ amount(cash.total) }} €</span>
               <span class="muted">D’après vos enregistrements, pas forcément le solde de la banque</span>
               @if (cash.accounts.length > 1) {

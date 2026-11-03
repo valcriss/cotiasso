@@ -48,6 +48,18 @@
         </a>
       }
 
+      <a
+        class="item"
+        [routerLink]="help.path"
+        routerLinkActive="active"
+        [matTooltip]="collapsed() ? help.label : ''"
+        matTooltipPosition="right"
+      >
+        <mat-icon fontSet="material-icons-outlined">{{ help.icon }}</mat-icon>
+        @if (!collapsed()) {
+          <span>{{ help.label }}</span>
+        }
+      </a>
       <button
         type="button"
         class="item appearance"
