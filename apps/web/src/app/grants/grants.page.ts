@@ -18,6 +18,7 @@ import { GrantReport } from './grant-report';
 import { FUNDER_TYPE_LABELS, GRANT_STATUS_LABELS, RESIDUAL_LABELS } from './grant-labels';
 import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, GrantReasonDialog } from './grant-dialogs';
 import { FrDatePipe } from '../ui/fr-date.pipe';
+import { Skeleton } from '../ui/skeleton';
 
 /**
  * Subventions : les dossiers déposés auprès des financeurs, de la demande à la clôture. C'est un suivi de gestion : rien
@@ -25,7 +26,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
  */
 @Component({
   selector: 'app-grants-page',
-  imports: [FrDatePipe, GrantExpenses, GrantFinance, GrantReport, LinkedDocuments, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
+  imports: [Skeleton, FrDatePipe, GrantExpenses, GrantFinance, GrantReport, LinkedDocuments, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -91,7 +92,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
         </div>
       </div>
       @if (loading()) {
-        <p class="muted">Chargement…</p>
+        <app-skeleton variant="cards" />
       } @else if (grants().length === 0) {
         <p class="muted">
           @if (filter()) {

@@ -9,11 +9,12 @@ import { formatApiAmount } from './amount';
 import { ActionBar } from '../ui/action-bar';
 import { ExportLink } from '../reports/export-link';
 import { ReportFilters, type PeriodFilter } from './report-filters';
+import { Skeleton } from '../ui/skeleton';
 
 /** Balance : débit, crédit et soldes de chaque compte mouvementé, avec la vérification de l'équilibre. */
 @Component({
   selector: 'app-trial-balance-page',
-  imports: [ActionBar, ExportLink, FormsModule, MatFormFieldModule, MatIconModule, MatInputModule, ReportFilters],
+  imports: [Skeleton, ActionBar, ExportLink, FormsModule, MatFormFieldModule, MatIconModule, MatInputModule, ReportFilters],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -43,7 +44,7 @@ import { ReportFilters, type PeriodFilter } from './report-filters';
     </app-report-filters>
 
     @if (loading()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="table" />
     } @else if (result(); as balance) {
       @if (balance.rows.length === 0) {
         <p class="muted">Aucun mouvement comptabilisé pour ces critères.</p>

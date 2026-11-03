@@ -9,11 +9,12 @@ import { NoPeriod } from '../ui/no-period';
 import { ExportLink } from './export-link';
 import { StatementPageBase } from './statement-page';
 import { StatementGroups } from './statements';
+import { Skeleton } from '../ui/skeleton';
 
 /** Compte de résultat : ce que l'association a gagné et dépensé sur l'exercice, avec l'exercice précédent en regard. */
 @Component({
   selector: 'app-income-statement-page',
-  imports: [NoPeriod, MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink, StatementGroups],
+  imports: [Skeleton, NoPeriod, MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink, StatementGroups],
   styleUrl: '../admin/admin-pages.scss',
   template: `
     <app-action-bar
@@ -41,7 +42,7 @@ import { StatementGroups } from './statements';
       <p class="alert" role="alert">{{ message }}</p>
     }
     @if (loading()) {
-      <p class="muted">Calcul en cours…</p>
+      <app-skeleton variant="table" />
     } @else if (years().length === 0) {
       <app-no-period />
     } @else if (data(); as statement) {

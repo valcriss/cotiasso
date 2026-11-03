@@ -14,11 +14,12 @@ import { ActionBar } from '../ui/action-bar';
 import { ExportLink } from '../reports/export-link';
 import { ReportFilters, type PeriodFilter } from './report-filters';
 import { FrDatePipe } from '../ui/fr-date.pipe';
+import { Skeleton } from '../ui/skeleton';
 
 /** Livre-journal : les écritures comptabilisées dans l'ordre de leur numérotation, avec leurs lignes. */
 @Component({
   selector: 'app-journal-book-page',
-  imports: [FrDatePipe, ActionBar, ExportLink, FormsModule, MatFormFieldModule, MatSelectModule, ReportFilters],
+  imports: [Skeleton, FrDatePipe, ActionBar, ExportLink, FormsModule, MatFormFieldModule, MatSelectModule, ReportFilters],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -64,7 +65,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
     </app-report-filters>
 
     @if (loading()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="table" />
     } @else if (loaded() && entries().length === 0) {
       <p class="muted">Aucune écriture comptabilisée pour ces critères.</p>
     }

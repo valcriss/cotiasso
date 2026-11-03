@@ -25,11 +25,12 @@ import { TransactionsPanel } from './transactions-panel';
 import { formatDate } from '../ui/dates';
 import { FrDatePipe } from '../ui/fr-date.pipe';
 import { HelpHint } from '../ui/help-hint';
+import { Skeleton } from '../ui/skeleton';
 
 /** Comptes : banques et caisses avec leurs soldes (ouverture, calculé, comptable, relevé) et leurs transactions. */
 @Component({
   selector: 'app-accounts-page',
-  imports: [HelpHint, FrDatePipe, MatButtonModule, MatIconModule, RouterLink, PageHeader, TransactionsPanel],
+  imports: [Skeleton, HelpHint, FrDatePipe, MatButtonModule, MatIconModule, RouterLink, PageHeader, TransactionsPanel],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .accounts {
@@ -118,7 +119,7 @@ import { HelpHint } from '../ui/help-hint';
     }
 
     @if (loading()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="cards" />
     } @else if (accounts().length === 0) {
       <section class="panel">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">savings</mat-icon><span>Commençons par votre compte bancaire</span></h3>

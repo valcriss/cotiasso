@@ -36,6 +36,7 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
 import { todayLocalIso } from '../ui/dates';
 import { FrDatePipe } from '../ui/fr-date.pipe';
 import { HelpHint } from '../ui/help-hint';
+import { Skeleton } from '../ui/skeleton';
 
 const HINT_KEY = 'cotiasso.transactions.situations-hint-dismissed';
 function readHintFlag(): boolean {
@@ -77,7 +78,7 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
 /** Transactions d'un compte : liste filtrable, saisie (boîte de dialogue) et accès à l'import d'un relevé. */
 @Component({
   selector: 'app-transactions-panel',
-  imports: [HelpHint, FrDatePipe, MatMenuModule, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [Skeleton, HelpHint, FrDatePipe, MatMenuModule, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .periods {
@@ -246,7 +247,7 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
       }
 
       @if (loading()) {
-        <p class="muted">Chargement…</p>
+        <app-skeleton variant="table" />
       } @else if (transactions().length === 0) {
         <p class="muted">
           {{ simple() ? 'Aucun mouvement pour ces critères.' : 'Aucune transaction pour ces critères.' }}

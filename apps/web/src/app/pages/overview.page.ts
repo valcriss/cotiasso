@@ -13,6 +13,7 @@ import { SetupStatus } from './setup-status.service';
 import { FrDatePipe } from '../ui/fr-date.pipe';
 import { HelpHint } from '../ui/help-hint';
 import { PageHeader } from '../ui/page-header';
+import { Skeleton } from '../ui/skeleton';
 
 const SITUATIONS: Record<RecentOperationInfo['situation'], string> = {
   TO_CLASSIFY: 'à classer',
@@ -30,7 +31,7 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
  */
 @Component({
   selector: 'app-overview-page',
-  imports: [HelpHint, FrDatePipe, AsyncPipe, MatButtonModule, MatIconModule, RouterLink, PageHeader],
+  imports: [Skeleton, HelpHint, FrDatePipe, AsyncPipe, MatButtonModule, MatIconModule, RouterLink, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .figures {
@@ -239,7 +240,7 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
         }
       </section>
     } @else if (!error()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="cards" />
     }
 
     <p class="health muted">
