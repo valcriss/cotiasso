@@ -236,6 +236,13 @@ export const routes: Routes = [
             loadComponent: () => import('./admin/users.page').then((m) => m.UsersPage),
           },
           {
+            path: 'circuits',
+            title: 'Circuits de validation',
+            canActivate: [permissionGuard],
+            data: { permission: 'workflows:view' },
+            loadComponent: () => import('./workflows/circuits.page').then((m) => m.CircuitsPage),
+          },
+          {
             path: 'journal',
             title: "Journal d'audit",
             canActivate: [permissionGuard],
