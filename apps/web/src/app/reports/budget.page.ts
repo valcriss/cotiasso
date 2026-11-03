@@ -8,12 +8,19 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { centsToApi, formatEuroAmount, formatEuroCents, parseAmountToCents } from '../accounting/amount';
 import { defaultYear } from '../accounting/report-filters';
-import { AdminApiService, type ComparedRowInfo, type FiscalYearInfo, type IncomeStatementInfo } from '../admin/admin-api.service';
+import { AdminApiService, type FiscalYearInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { FrDatePipe } from '../ui/fr-date.pipe';
 import { PageHeader } from '../ui/page-header';
 
+interface BudgetRow {
+  code: string;
+  label: string;
+  amount: string;
+}
+
 interface BudgetState {
+  groups: { direction: 'IN' | 'OUT'; rows: BudgetRow[] }[];
   estimates: Record<string, string>;
   history: { id: string; date: string; actor: string; code: string; label: string; previous: string; amount: string }[];
 }
@@ -63,10 +70,13 @@ interface BudgetState {
     @if (loading()) {
       <p role="status">Chargement du budget…</p>
     } @else if (year(); as period) {
-      @if (statement()) {
+      @if (budgetGroups()) {
         <section class="panel">
           <h2>Du {{ period.start | frDate }} au {{ period.end | frDate }}</h2>
-          <p>Chaque estimation est enregistrée quand vous quittez son champ. Les montants réels viennent des comptes de cet exercice.</p>
+          <p>Retrouvez les catégories de vos recettes et dépenses. Chaque estimation est enregistrée quand vous quittez son champ.</p>
+          @if (hasSharedAmounts()) {
+            <p class="muted">Quand plusieurs catégories utilisent le même compte, leur montant réel est affiché sur une ligne commune.</p>
+          }
           @if (hasPreviousCategories()) {
             <p role="status">Certaines estimations ont été saisies dans d’anciennes catégories. Retrouvez-les dans l’historique et reportez-les dans les rubriques actuelles pour les inclure dans les totaux.</p>
           }
@@ -193,19 +203,23 @@ export class BudgetPage {
   private readonly auth = inject(AuthService);
   readonly years = signal<FiscalYearInfo[]>([]);
   readonly year = signal<FiscalYearInfo | undefined>(undefined);
-  readonly statement = signal<IncomeStatementInfo | null>(null);
+  readonly budgetGroups = signal<BudgetState['groups'] | null>(null);
   readonly loading = signal(true);
   readonly error = signal('');
   readonly feedback = signal('');
   readonly estimates = signal<Record<string, string>>({});
   readonly formatAmount = formatEuroAmount;
   readonly groups = computed(() => {
-    const sections = this.statement()?.sections ?? [];
+    const groups = this.budgetGroups() ?? [];
     return [
-      { title: 'Recettes', direction: 1, rows: sections.filter((section) => section.code.endsWith('_PRODUCTS')).flatMap((section) => section.rows) },
-      { title: 'Dépenses', direction: -1, rows: sections.filter((section) => !section.code.endsWith('_PRODUCTS')).flatMap((section) => section.rows) },
+      { title: 'Recettes', direction: 1, rows: groups.find((group) => group.direction === 'IN')?.rows ?? [] },
+      { title: 'Dépenses', direction: -1, rows: groups.find((group) => group.direction === 'OUT')?.rows ?? [] },
     ];
   });
+
+  readonly hasSharedAmounts = computed(() =>
+    this.groups().some(({ rows }) => rows.some(({ label }) => label.startsWith('Montant commun · '))),
+  );
 
   readonly hasPreviousCategories = computed(() => {
     const codes = new Set(this.groups().flatMap((group) => group.rows.map((row) => row.code)));
@@ -230,7 +244,7 @@ export class BudgetPage {
     return ((actual.startsWith('-') ? -real : real) - planned) * direction;
   }
 
-  totals(rows: ComparedRowInfo[], direction: number) {
+  totals(rows: BudgetRow[], direction: number) {
     const estimates = this.estimates();
     let estimated = 0;
     let actual = 0;
@@ -278,20 +292,19 @@ export class BudgetPage {
 
   async select(id: string): Promise<void> {
     this.year.set(this.years().find((year) => year.id === id));
-    this.statement.set(null);
+    this.budgetGroups.set(null);
     this.error.set('');
     this.feedback.set('');
     this.estimates.set({});
     this.history.set([]);
     this.loading.set(true);
     try {
-      const statement = await this.api.incomeStatement(id);
       await this.pending;
       const budget = await firstValueFrom(this.http.get<BudgetState>('/api/annual-budgets/' + id));
       this.saved = budget.estimates;
       this.estimates.set(budget.estimates);
       this.history.set(budget.history);
-      this.statement.set(statement);
+      this.budgetGroups.set(budget.groups);
     } catch {
       this.error.set('Le budget n’a pas pu être chargé. Vérifiez votre connexion et rechargez la page.');
     } finally {
@@ -304,7 +317,7 @@ export class BudgetPage {
     return group ? group.title + ' · ' + label : label;
   }
 
-  save(row: ComparedRowInfo): void {
+  save(row: BudgetRow): void {
     const year = this.year();
     if (!year || !this.canEdit()) return;
     const cents = parseAmountToCents(this.estimates()[row.code]);

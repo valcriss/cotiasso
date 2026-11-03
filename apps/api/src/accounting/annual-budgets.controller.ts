@@ -1,9 +1,11 @@
 import { BadRequestException, ConflictException, Body, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Put, Req } from "@nestjs/common";
 import { z } from "zod";
+import { Money } from "@cotiasso/accounting-domain";
 import { AuditService } from "../audit/audit.service.js";
 import type { AuthenticatedRequest } from "../auth/auth.guard.js";
 import { RequirePermission } from "../authz/decorators.js";
 import { PrismaService } from "../prisma/prisma.service.js";
+import { ReportsService } from "./reports.service.js";
 
 const action = "annual-budget.estimate.changed";
 const objectType = "AnnualBudget";
@@ -18,6 +20,7 @@ export class AnnualBudgetsController {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(ReportsService) private readonly reports: ReportsService,
   ) {}
 
   @RequirePermission("entries:view")
@@ -45,7 +48,37 @@ export class AnnualBudgetsController {
       if (previous === amount) return [];
       return [{ id: event.id, date: event.occurredAt, actor: names.get(event.actorId ?? "") ?? "Utilisateur inconnu", code, label, previous, amount }];
     });
-    return { estimates, history: history.reverse() };
+    const [categories, balance] = await Promise.all([
+      this.prisma.operationCategory.findMany({
+        where: { OR: [{ active: true }, { id: { in: Object.keys(estimates).filter((code) => z.uuid().safeParse(code).success) } }] },
+        orderBy: [{ position: "asc" }, { label: "asc" }, { id: "asc" }],
+        select: { id: true, label: true, direction: true, account: { select: { id: true, number: true } } },
+      }),
+      this.reports.trialBalance({ fiscalYearId: yearId }),
+    ]);
+    const groups = (["IN", "OUT"] as const).map((direction) => {
+      const prefix = direction === "IN" ? "7" : "6";
+      const relevant = categories.filter((category) => category.direction === direction && category.account.number.startsWith(prefix));
+      const accounts = balance.rows.filter((account) => account.number.startsWith(prefix));
+      const rows = relevant.map(({ id, label }) => ({ code: id, label, amount: "0.00" }));
+      for (const account of accounts) {
+        const debit = Money.parse(account.debitBalance);
+        const credit = Money.parse(account.creditBalance);
+        const amount = (direction === "IN" ? credit.subtract(debit) : debit.subtract(credit)).toString();
+        const matches = relevant.filter((category) => category.account.id === account.accountId);
+        if (matches.length === 1) {
+          rows[relevant.indexOf(matches[0]!)]!.amount = amount;
+        } else {
+          rows.push({
+            code: account.accountId,
+            label: matches.length ? `Montant commun · ${matches.map(({ label }) => label).join(" / ")}` : `Sans catégorie · ${account.label}`,
+            amount,
+          });
+        }
+      }
+      return { direction, rows };
+    });
+    return { estimates, history: history.reverse(), groups };
   }
 
   @RequirePermission("entries:view", "entries:create")

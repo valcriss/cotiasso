@@ -70,6 +70,22 @@ describe("États de lecture : grand livre, balance, livre-journal (base vierge)"
   const get = (url: string, session = treasurer) => call("GET", url, session);
   const q = (path: string, extra = "") => `/reports/${path}?fiscalYearId=${ids.fy2026}${extra}`;
 
+  it("présente les catégories simples et ne compte qu’une fois le réalisé d’un compte partagé", async () => {
+    const first = await prisma.operationCategory.create({
+      data: { label: "Billetterie", direction: "IN", accountId: ids.sales! },
+    });
+    const second = await prisma.operationCategory.create({
+      data: { label: "Ateliers", direction: "IN", accountId: ids.sales! },
+    });
+    const response = await get(`/annual-budgets/${ids.fy2026}`);
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json().groups[0].rows).toEqual(expect.arrayContaining([
+      { code: first.id, label: "Billetterie", amount: "0.00" },
+      { code: second.id, label: "Ateliers", amount: "0.00" },
+      { code: ids.sales, label: "Montant commun · Ateliers / Billetterie", amount: "300.00" },
+    ]));
+  });
+
   it("refuse d'écraser une prévision budgétaire modifiée entre-temps", async () => {
     const url = `/annual-budgets/${ids.fy2027}`;
     const estimate = { code: "PRO_COTIS", label: "Cotisations", expected: "0.00" };
