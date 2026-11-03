@@ -2,7 +2,9 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { startWith } from 'rxjs';
@@ -10,9 +12,11 @@ import { AdminApiService, type FunderInfo, type GrantFinanceInfo, type GrantInfo
 import { describeHttpError } from '../auth/error-messages';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from '../accounting/amount';
 import { todayLocalIso } from '../ui/dates';
+import { Dialogs } from '../ui/dialogs.service';
 import { FormDialog } from '../ui/form-dialog';
 import { allocationRows, allocationTotalCents, readAllocations, type AllocationRow } from './allocation-rows';
 import { AllocationsFields } from './allocations-fields';
+import { FunderDialog } from './funder-dialog';
 import { RESIDUAL_LABELS } from './grant-labels';
 
 const today = todayLocalIso;
@@ -41,7 +45,7 @@ export interface GrantDialogData {
 /** Demander une subvention, ou modifier ce qui peut l'être selon son état. */
 @Component({
   selector: 'app-grant-dialog',
-  imports: [ReactiveFormsModule, FormDialog, AllocationsFields, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [ReactiveFormsModule, FormDialog, AllocationsFields, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -63,9 +67,16 @@ export interface GrantDialogData {
             }
           </mat-select>
           @if (form.controls.funderId.hasError('required')) {
-            <mat-error>Choisissez le financeur. S'il n'est pas dans la liste, ajoutez-le d'abord.</mat-error>
+            <mat-error>Choisissez le financeur. S'il n'est pas dans la liste, ajoutez-le avec « Nouveau financeur ».</mat-error>
           }
         </mat-form-field>
+        @if (!frozenNote) {
+          <div>
+            <button mat-button type="button" (click)="newFunder()">
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Nouveau financeur
+            </button>
+          </div>
+        }
         <mat-form-field appearance="outline">
           <mat-label>Objet de la subvention</mat-label>
           <input matInput formControlName="title" placeholder="Aide au fonctionnement 2026" required />
@@ -126,6 +137,7 @@ export interface GrantDialogData {
 })
 export class GrantDialog {
   private readonly api = inject(AdminApiService);
+  private readonly dialogs = inject(Dialogs);
   private readonly reference = inject<MatDialogRef<GrantDialog, GrantInfo>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly grant = inject<GrantDialogData>(MAT_DIALOG_DATA).grant;
@@ -161,6 +173,15 @@ export class GrantDialog {
     conditions: [this.grant?.conditions ?? ''],
     note: [this.grant?.note ?? ''],
   });
+
+  /** Ajoute le financeur sans quitter la demande : la boîte du financeur s'ouvre par-dessus, puis il est choisi d'office. */
+  protected async newFunder(): Promise<void> {
+    const created = await this.dialogs.open<FunderInfo>(FunderDialog, { size: 'md', data: { funder: null } });
+    if (!created) return;
+    this.funders.update((list) => [...list.filter((f) => f.id !== created.id), created].sort((a, b) => a.name.localeCompare(b.name, 'fr')));
+    this.form.patchValue({ funderId: created.id });
+    this.form.controls.funderId.markAsDirty();
+  }
 
   constructor() {
     void this.api
