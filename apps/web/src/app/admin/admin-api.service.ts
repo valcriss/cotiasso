@@ -491,6 +491,8 @@ export interface MemberInfo {
   anonymized: boolean;
   currentOffices: string[];
   version: number;
+  /** Cotisation de la saison en cours, seulement dans la liste (`null` : aucune saison en cours). */
+  membershipStatus?: MemberCotisationState | null;
 }
 
 export interface MemberOfficeInfo {
@@ -515,10 +517,14 @@ export interface MemberBody {
   note: string | null;
 }
 
+export type MemberCotisationState = 'UP_TO_DATE' | 'PARTIAL' | 'DUE' | 'EXEMPT' | 'NONE';
+
 export interface MemberFilters {
   q?: string;
   status?: 'ACTIVE' | 'FORMER';
   categoryId?: string;
+  /** Cotisation de la saison en cours : à jour (exonérés compris), en retard (due ou partielle), ou pas inscrit. */
+  membershipStatus?: 'UP_TO_DATE' | 'LATE' | 'NONE';
   after?: string;
 }
 
@@ -1556,10 +1562,10 @@ export class AdminApiService {
     return firstValueFrom(this.http.patch<FinancialAccountInfo>(`/api/financial-accounts/${id}`, { archived: true }));
   }
 
-  listMembers(filters: MemberFilters = {}): Promise<{ members: MemberInfo[]; next: string | null }> {
+  listMembers(filters: MemberFilters = {}): Promise<{ members: MemberInfo[]; next: string | null; campaign?: { id: string; name: string } | null }> {
     let params = new HttpParams();
     for (const [key, value] of Object.entries(filters)) if (value) params = params.set(key, value);
-    return firstValueFrom(this.http.get<{ members: MemberInfo[]; next: string | null }>('/api/members', { params }));
+    return firstValueFrom(this.http.get<{ members: MemberInfo[]; next: string | null; campaign?: { id: string; name: string } | null }>('/api/members', { params }));
   }
 
   getMember(id: string): Promise<{ member: MemberInfo; offices: MemberOfficeInfo[] }> {

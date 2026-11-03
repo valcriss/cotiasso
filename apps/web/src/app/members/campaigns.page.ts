@@ -4,6 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { formatApiAmount } from '../accounting/amount';
 import { AdminApiService, type CampaignInfo, type MemberCategoryInfo, type MemberInfo, type MembershipInfo, type ReminderInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
+import { BrandingService } from '../branding/branding.service';
 import { describeHttpError } from '../auth/error-messages';
 import { ActionBar } from '../ui/action-bar';
 import { Dialogs } from '../ui/dialogs.service';
@@ -147,6 +148,24 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
                 <strong>{{ due.items.length }}</strong> cotisation(s) restent à payer, pour un total de <strong>{{ amount(due.totalDue) }} €</strong>.
                 <a mat-button [href]="'/api/campaigns/' + campaign.id + '/reminders/csv'" download>Exporter la liste (CSV)</a>
               </p>
+              @if (emails(due).length > 0) {
+                <p class="actions">
+                  <button mat-stroked-button type="button" (click)="copyEmails(due)">
+                    <mat-icon fontSet="material-icons-outlined" aria-hidden="true">content_copy</mat-icon> Copier les {{ emails(due).length }} adresse(s) email
+                  </button>
+                  @if (mailto(due); as link) {
+                    <a mat-stroked-button [href]="link">
+                      <mat-icon fontSet="material-icons-outlined" aria-hidden="true">mail</mat-icon> Écrire un rappel dans ma messagerie
+                    </a>
+                  } @else {
+                    <span class="muted">Trop d’adresses pour un seul message : copiez-les et collez-les dans votre messagerie.</span>
+                  }
+                </p>
+                <p class="muted">
+                  Le message est préparé dans votre messagerie, avec les adresses en copie cachée (les membres ne voient pas les adresses des autres) ;
+                  relisez-le avant de l’envoyer. {{ due.items.length - emails(due).length }} personne(s) n’ont pas d’adresse email : utilisez la liste ci-dessous ou l’export.
+                </p>
+              }
               <ul>
                 @for (item of due.items; track item.membership.id) {
                   <li>{{ item.membership.memberName }} — {{ amount(item.membership.balance) }} €@if (item.email) { · {{ item.email }} }@if (item.phone) { · {{ item.phone }} }</li>
@@ -257,6 +276,42 @@ export class CampaignsPage {
     this.selectedId.set(id);
     this.reminders.set(null);
     await this.run(async () => this.memberships.set(await this.api.listMemberships(id)), 'Impossible de charger les adhésions.');
+  }
+
+  private readonly branding = inject(BrandingService);
+
+  /** Adresses des personnes à relancer (une fois chacune), sans les membres qui n'en ont pas. */
+  protected emails(due: ReminderInfo): string[] {
+    return [...new Set(due.items.flatMap((item) => (item.email ? [item.email] : [])))];
+  }
+
+  /**
+   * Lien « nouveau message » prérempli : destinataires en copie cachée, texte courtois sans montant individuel. Au-delà d'environ
+   * 1 800 caractères, les messageries tronquent le lien : on propose alors la copie des adresses seule (`null`).
+   */
+  protected mailto(due: ReminderInfo): string | null {
+    const subject = `Rappel de cotisation — ${due.campaignName}`;
+    const body = [
+      'Bonjour,',
+      '',
+      `Sauf erreur de notre part, votre cotisation « ${due.campaignName} » n’a pas encore été réglée. Si vous l’avez déjà payée, merci d’ignorer ce message.`,
+      '',
+      'Merci d’avance,',
+      this.branding.branding().appName,
+    ].join('\n');
+    const link = `mailto:?bcc=${encodeURIComponent(this.emails(due).join(','))}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    return link.length <= 1800 ? link : null;
+  }
+
+  protected async copyEmails(due: ReminderInfo): Promise<void> {
+    const text = this.emails(due).join('; ');
+    try {
+      await navigator.clipboard.writeText(text);
+      this.notifier.success(`${this.emails(due).length} adresse(s) copiée(s) : collez-les dans le champ « Cci » de votre message.`);
+    } catch {
+      // Presse-papiers refusé (page non sécurisée, droit refusé) : on montre le texte pour qu'il se copie à la main.
+      this.notifier.notice(`La copie automatique n’a pas fonctionné. Adresses : ${text}`);
+    }
   }
 
   protected async toggleReminders(campaign: CampaignInfo): Promise<void> {

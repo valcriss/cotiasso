@@ -61,6 +61,9 @@ export interface CampaignView {
   locked: boolean;
 }
 
+/** Situation d'un membre pour la saison en cours. */
+export type MembershipState = "UP_TO_DATE" | "PARTIAL" | "DUE" | "EXEMPT" | "NONE";
+
 export interface MembershipView {
   id: string;
   campaignId: string;
@@ -307,6 +310,35 @@ export class MembershipsService {
       .catch(rethrow);
     await this.audit.record({ action: "membership.cancelled", objectType: "Membership", objectId: id, actorId, justification: reason });
     return (await this.present([await this.loadMembership(id)]))[0]!;
+  }
+
+  /** Saison de cotisation en cours à `today` (AAAA-MM-JJ) : les saisons ne se chevauchent pas, donc au plus une. */
+  async currentCampaign(today: string): Promise<{ id: string; name: string } | null> {
+    const date = new Date(`${today}T00:00:00Z`);
+    return this.prisma.campaign.findFirst({ where: { startsOn: { lte: date }, endsOn: { gte: date } }, select: { id: true, name: true } });
+  }
+
+  /**
+   * Où en est la cotisation de chaque membre pour une saison : à jour, partielle, due, exonérée, ou pas inscrite. Même source
+   * que les colonnes « payé / reste dû » (`paidFor`) : aucun second calcul. Une adhésion annulée vaut « pas inscrit ».
+   */
+  async statesFor(campaignId: string, memberIds?: string[]): Promise<Map<string, MembershipState>> {
+    const rows = await this.prisma.membership.findMany({
+      where: { campaignId, status: { not: "CANCELLED" }, ...(memberIds && { memberId: { in: memberIds } }) },
+      select: { id: true, memberId: true, expectedAmount: true },
+    });
+    const paid = await this.paidFor(rows.map((r) => r.id));
+    const states = new Map<string, MembershipState>();
+    for (const row of rows) {
+      const expected = Money.parse(dec(row.expectedAmount));
+      const net = paid.get(row.id) ?? Money.zero();
+      const balance = expected.subtract(net);
+      states.set(
+        row.memberId,
+        expected.compare(Money.zero()) === 0 ? "EXEMPT" : balance.compare(Money.zero()) <= 0 ? "UP_TO_DATE" : net.compare(Money.zero()) > 0 ? "PARTIAL" : "DUE",
+      );
+    }
+    return states;
   }
 
   /** Règlements nets (paiements − remboursements, hors affectations annulées) de chaque adhésion. */

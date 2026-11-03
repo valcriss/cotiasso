@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
@@ -258,6 +259,54 @@ describe('CampaignsPage', () => {
     expect(text).toContain('marie@asso.fr');
     const link = Array.from(root.querySelectorAll<HTMLAnchorElement>('a')).find((a) => a.textContent!.includes('Exporter la liste'))!;
     expect(link.getAttribute('href')).toBe('/api/campaigns/c1/reminders/csv');
+  });
+
+  it("prépare la relance : copie des adresses et message en copie cachée, sans montant individuel (#20)", async () => {
+    await create(['members:view']);
+    await openFirst([membership()]);
+    await click('Cotisations restant dues');
+    controller.expectOne('/api/campaigns/c1/reminders').flush({
+      campaignName: 'Adhésions 2025-2026',
+      totalDue: '60.00',
+      items: [
+        { membership: membership(), email: 'marie@asso.fr', phone: null },
+        { membership: membership({ id: 'ms2', memberName: 'Paul Test' }), email: 'paul@asso.fr', phone: null },
+        { membership: membership({ id: 'ms3', memberName: 'Sans Mail' }), email: null, phone: '0600000000' },
+        { membership: membership({ id: 'ms4', memberName: 'Double' }), email: 'marie@asso.fr', phone: null },
+      ],
+    });
+    await settle();
+    const text = root.querySelector('[aria-label="Cotisations restant dues"]')!.textContent!;
+    expect(text).toContain('Copier les 2 adresse(s) email');
+    expect(text).toContain('2 personne(s) n’ont pas d’adresse email');
+    const link = Array.from(root.querySelectorAll<HTMLAnchorElement>('a')).find((a) => a.textContent!.includes('Écrire un rappel'))!;
+    const url = new URL(`mailto:x@x${link.getAttribute('href')!.slice('mailto:'.length)}`);
+    expect(url.searchParams.get('bcc')).toBe('marie@asso.fr,paul@asso.fr');
+    expect(url.searchParams.get('subject')).toBe('Rappel de cotisation — Adhésions 2025-2026');
+    expect(url.searchParams.get('body')).toContain('Si vous l’avez déjà payée, merci d’ignorer ce message.');
+    expect(url.searchParams.get('body')).not.toMatch(/€|\d+,\d{2}/);
+
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    await click('Copier les 2 adresse(s)');
+    expect(writeText).toHaveBeenCalledWith('marie@asso.fr; paul@asso.fr');
+    expect(ui.snackbar).toContain('2 adresse(s) copiée(s)');
+  });
+
+  it("propose seulement la copie quand il y a trop d'adresses pour un lien de message", async () => {
+    await create(['members:view']);
+    await openFirst([membership()]);
+    await click('Cotisations restant dues');
+    controller.expectOne('/api/campaigns/c1/reminders').flush({
+      campaignName: 'Adhésions 2025-2026',
+      totalDue: '999.00',
+      items: Array.from({ length: 80 }, (_, i) => ({ membership: membership({ id: `x${i}`, memberName: `M${i}` }), email: `membre-numero-${i}@association-exemple.fr`, phone: null })),
+    });
+    await settle();
+    const text = root.querySelector('[aria-label="Cotisations restant dues"]')!.textContent!;
+    expect(text).toContain('Copier les 80 adresse(s)');
+    expect(text).toContain('Trop d’adresses pour un seul message');
+    expect(Array.from(root.querySelectorAll('a')).some((a) => a.textContent!.includes('Écrire un rappel'))).toBe(false);
   });
 
   it("dit quand toutes les cotisations sont réglées", async () => {

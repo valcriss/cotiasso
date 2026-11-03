@@ -6,6 +6,7 @@ import { AuditService } from "../audit/audit.service.js";
 import type { MemberStatus, Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { triggerMessage } from "../treasury/db-refusal.js";
+import { MembershipsService, type MembershipState } from "./memberships.service.js";
 
 const isoDate = z
   .string()
@@ -46,6 +47,8 @@ const listQuery = z
     q: z.string().trim().max(100).optional(),
     status: z.enum(["ACTIVE", "FORMER"]).optional(),
     categoryId: z.uuid().optional(),
+    /** Cotisation de la saison en cours : à jour (payée ou exonérée), en retard (due ou partielle), ou membre pas inscrit. */
+    membershipStatus: z.enum(["UP_TO_DATE", "LATE", "PARTIAL", "DUE", "NONE"]).optional(),
     after: z.uuid().optional(),
     limit: z.coerce.number().int().min(1).max(200).default(50),
   })
@@ -106,6 +109,8 @@ export interface MemberView {
   /** Fonctions en cours (Président, Trésorier…). */
   currentOffices: string[];
   version: number;
+  /** Cotisation de la saison en cours, seulement dans la liste (`null` : aucune saison en cours). */
+  membershipStatus?: MembershipState | null;
 }
 
 const day = (date: Date) => date.toISOString().slice(0, 10);
@@ -163,12 +168,27 @@ export class MembersService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(MembershipsService) private readonly memberships: MembershipsService,
   ) {}
 
-  async list(query: unknown): Promise<{ members: MemberView[]; next: string | null }> {
+  async list(query: unknown): Promise<{ members: MemberView[]; next: string | null; campaign: { id: string; name: string } | null }> {
     const q = parse(listQuery, query);
+    // Saison en cours : sans elle, personne n'a de situation de cotisation et le filtre ne retient rien (sauf « pas inscrit »).
+    const campaign = await this.memberships.currentCampaign(day(new Date()));
+    let byCotisation: Prisma.MemberWhereInput = {};
+    if (q.membershipStatus) {
+      const states = campaign ? await this.memberships.statesFor(campaign.id) : new Map<string, MembershipState>();
+      const enrolled = [...states.keys()];
+      if (q.membershipStatus === "NONE") byCotisation = { id: { notIn: enrolled } };
+      else {
+        // « À jour » compte aussi les cotisations exonérées : le membre n'a rien à payer.
+        const wanted = [...states.entries()].filter(([, s]) => (q.membershipStatus === "UP_TO_DATE" ? s === "UP_TO_DATE" || s === "EXEMPT" : q.membershipStatus === "LATE" ? s === "DUE" || s === "PARTIAL" : s === q.membershipStatus)).map(([id]) => id);
+        byCotisation = { id: { in: wanted } };
+      }
+    }
     const rows = await this.prisma.member.findMany({
       where: {
+        ...byCotisation,
         ...(q.status && { status: q.status }),
         ...(q.categoryId && { categoryId: q.categoryId }),
         ...(q.q && {
@@ -185,7 +205,12 @@ export class MembersService {
       ...(q.after && { cursor: { id: q.after }, skip: 1 }),
     });
     const page = rows.slice(0, q.limit);
-    return { members: page.map((m) => view(m)), next: rows.length > q.limit ? page[page.length - 1]!.id : null };
+    const states = campaign ? await this.memberships.statesFor(campaign.id, page.map((m) => m.id)) : null;
+    return {
+      members: page.map((m) => ({ ...view(m), membershipStatus: states ? (states.get(m.id) ?? "NONE") : null })),
+      next: rows.length > q.limit ? page[page.length - 1]!.id : null,
+      campaign,
+    };
   }
 
   async get(id: string): Promise<{ member: MemberView; offices: OfficeView[] }> {
