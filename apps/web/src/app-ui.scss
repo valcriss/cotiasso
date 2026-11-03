@@ -496,7 +496,8 @@ details pre {
 // Petits écrans : un tableau devient une liste de cartes (une carte par ligne, « colonne : valeur »), sans défilement horizontal.
 // Les libellés viennent de l'en-tête (`data-label`, posé par ui/table-labels.ts). `.table.keep-table` garde le tableau classique.
 @media (max-width: 720px) {
-  .table:not(.keep-table) {
+  .table:not(.keep-table),
+  table.stack-table {
     background: transparent;
     border: 0;
     box-shadow: none;

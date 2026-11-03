@@ -75,11 +75,11 @@ export function watchTableLabels(root: Document = document): () => void {
   };
   const queue = (node: Node | null) => {
     const element = node instanceof Element ? node : (node?.parentElement ?? null);
-    const table = element?.closest('table.table') ?? null;
+    const table = element?.closest('table.table, table.stack-table') ?? null;
     if (table) {
       pending.add(table as HTMLTableElement);
     } else if (element) {
-      element.querySelectorAll('table.table').forEach((found) => pending.add(found as HTMLTableElement));
+      element.querySelectorAll('table.table, table.stack-table').forEach((found) => pending.add(found as HTMLTableElement));
     }
     if (pending.size > 0 && !scheduled) {
       scheduled = true;
