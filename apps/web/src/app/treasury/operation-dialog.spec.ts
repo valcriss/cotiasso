@@ -167,6 +167,117 @@ describe("Saisie guidée « J'ai reçu / J'ai dépensé de l'argent »", () => {
     });
   });
 
+  describe('rattachement d’une cotisation ou d’une subvention (#4)', () => {
+    const FULL = ['transactions:manage', 'entries:create', 'entries:post', 'members:view', 'members:manage', 'grants:view', 'grants:manage'];
+    const membershipCategory = { id: 'c-memb', direction: 'IN', label: 'Cotisations des adhérents', hint: '', active: true, usage: 'MEMBERSHIP', account: { id: 'a756', number: '756', label: 'Cotisations' } };
+    const grantCategory = { id: 'c-grant', direction: 'IN', label: 'Subvention', hint: '', active: true, usage: 'GRANT', account: { id: 'a74', number: '74', label: 'Subventions' } };
+    const member = { id: 'm1', firstName: 'Marie', lastName: 'Dupont', email: 'marie@asso.fr' };
+    const membership = (over: object = {}) => ({ id: 'ms1', campaignId: 'c1', campaignName: 'Saison 2026-2027', memberId: 'm1', memberName: 'Marie Dupont', status: 'PENDING', expectedAmount: '25.00', paid: '0.00', balance: '25.00', ...over });
+    const result = { transactionId: 't1', entryId: 'e1', posted: true, journalCode: 'BQ-1', number: 3 };
+    const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+    /** Cherche « dup » et choisit Marie Dupont : charge ses cotisations. */
+    const pickMember = async (memberships: object[]) => {
+      // La liste ne s'ouvre que dans un champ qui a le focus, comme pour une vraie saisie.
+      document.querySelector<HTMLInputElement>('app-operation-link input')!.focus();
+      await ui.type('app-operation-link input', 'dup');
+      await wait(300);
+      const search = controller.expectOne((r) => r.url === '/api/members');
+      expect(search.request.params.get('q')).toBe('dup');
+      expect(search.request.params.get('status')).toBe('ACTIVE');
+      search.flush({ members: [member], next: null });
+      await settle();
+      const option = Array.from(document.querySelectorAll<HTMLElement>('.cdk-overlay-container .mat-mdc-option')).find((o) => o.textContent!.includes('Dupont'))!;
+      option.click();
+      await settle();
+      controller.expectOne('/api/members/m1/memberships').flush(memberships);
+      await settle();
+    };
+
+    it('propose le membre pour une cotisation, préremplit la description et le reste dû, puis enregistre et rattache', async () => {
+      await start(FULL);
+      const { result: done } = await open('IN', [bank], [membershipCategory, ...categories]);
+      await ui.choose('mat-select[formcontrolname="categoryId"]', 'Cotisations des adhérents');
+      expect(ui.text).toContain('De quel membre ?');
+      await pickMember([membership(), membership({ id: 'ms0', campaignName: 'Saison 2025-2026', balance: '0.00', status: 'EFFECTIVE' }), membership({ id: 'ms9', status: 'CANCELLED' })]);
+
+      // Une seule cotisation à payer : choisie d'office ; description et montant proposés.
+      expect(ui.field<HTMLInputElement>('input[formcontrolname="label"]').value).toBe('Cotisation de Marie Dupont');
+      expect(ui.field<HTMLInputElement>('input[formcontrolname="amount"]').value).toBe('25,00');
+      // Seules les cotisations encore à payer sont proposées (ni la soldée, ni l'annulée).
+      expect(await ui.options('app-operation-link mat-select')).toEqual(['Saison 2026-2027 — reste 25,00 €', 'Ne pas rattacher à une cotisation']);
+
+      await ui.submit();
+      const operation = controller.expectOne('/api/guided-operations');
+      expect(operation.request.body).toMatchObject({ amount: '25.00', categoryId: 'c-memb', label: 'Cotisation de Marie Dupont' });
+      operation.flush(result, { status: 201, statusText: 'Created' });
+      await settle();
+      const allocation = controller.expectOne('/api/memberships/ms1/allocations');
+      expect(allocation.request.body).toEqual({ transactionId: 't1', amount: '25.00', kind: 'PAYMENT' });
+      allocation.flush({ allocation: {}, membership: membership({ status: 'EFFECTIVE', paid: '25.00', balance: '0.00' }) });
+      expect(await done).toMatchObject({ posted: true, attachment: { ok: true, summary: 'Cotisation de Marie Dupont (Saison 2026-2027) rattachée.' } });
+      await settle();
+      expect(ui.snackbar).toContain('Cotisation de Marie Dupont (Saison 2026-2027) rattachée.');
+    });
+
+    it('garde l’opération enregistrée quand le rattachement est refusé, et dit quoi faire', async () => {
+      await start(FULL);
+      const { result: done } = await open('IN', [bank], [membershipCategory]);
+      await ui.choose('mat-select[formcontrolname="categoryId"]', 'Cotisations des adhérents');
+      await pickMember([membership()]);
+      await ui.submit();
+      controller.expectOne('/api/guided-operations').flush(result, { status: 201, statusText: 'Created' });
+      await settle();
+      controller.expectOne('/api/memberships/ms1/allocations').flush({ message: 'Cette cotisation est annulée.' }, { status: 409, statusText: 'Conflict' });
+      const outcome = await done;
+      expect(outcome).toMatchObject({ transactionId: 't1', attachment: { ok: false } });
+      await settle();
+      expect(ui.snackbar).toContain('Opération enregistrée');
+      expect(ui.snackbar).toContain('le rattachement n\'a pas pu se faire');
+      expect(ui.snackbar).toContain('Règlements');
+    });
+
+    it('enregistre sans rattacher quand on ne choisit aucun membre, et n’affiche rien sans le droit', async () => {
+      await start(FULL);
+      const { result: done } = await open('IN', [bank], [membershipCategory]);
+      await ui.choose('mat-select[formcontrolname="categoryId"]', 'Cotisations des adhérents');
+      await ui.type('input[formcontrolname="amount"]', '10');
+      await ui.type('input[formcontrolname="label"]', 'Don anonyme de cotisation');
+      await ui.submit();
+      controller.expectOne('/api/guided-operations').flush(result, { status: 201, statusText: 'Created' });
+      expect((await done)!.attachment).toBeUndefined();
+      controller.expectNone((r) => r.url.includes('/allocations'));
+    });
+
+    it('ne propose pas le rattachement sans le droit de gérer les membres', async () => {
+      await start(['transactions:manage', 'entries:create', 'entries:post']);
+      await open('IN', [bank], [membershipCategory]);
+      await ui.choose('mat-select[formcontrolname="categoryId"]', 'Cotisations des adhérents');
+      expect(ui.text).not.toContain('De quel membre ?');
+    });
+
+    it('rattache un versement à une subvention accordée et à son échéance', async () => {
+      await start(FULL);
+      const { result: done } = await open('IN', [bank], [grantCategory]);
+      await ui.choose('mat-select[formcontrolname="categoryId"]', 'Subvention');
+      controller.expectOne((r) => r.url === '/api/grants').flush([{ id: 'g1', title: 'Aide 2026', funder: { id: 'f1', name: 'Mairie', type: 'LOCAL_AUTHORITY', archived: false } }]);
+      await settle();
+      await ui.choose('app-operation-link mat-select', 'Mairie — Aide 2026');
+      controller.expectOne('/api/grants/g1/finance').flush({ schedule: [{ id: 's1', dueOn: '2026-05-01', amount: '300.00', received: '100.00', state: 'PARTIAL', overdue: false }, { id: 's2', dueOn: '2026-01-01', amount: '50.00', received: '50.00', state: 'RECEIVED', overdue: false }] });
+      await settle();
+      expect(ui.field<HTMLInputElement>('input[formcontrolname="label"]').value).toBe('Versement de Mairie');
+      await ui.choose('app-operation-link mat-form-field:nth-of-type(2) mat-select', '01/05/2026');
+      expect(ui.field<HTMLInputElement>('input[formcontrolname="amount"]').value).toBe('200,00');
+      await ui.submit();
+      controller.expectOne('/api/guided-operations').flush(result, { status: 201, statusText: 'Created' });
+      await settle();
+      const payment = controller.expectOne('/api/grants/g1/payments');
+      expect(payment.request.body).toEqual({ transactionId: 't1', amount: '200.00', scheduleId: 's1' });
+      payment.flush({});
+      expect(await done).toMatchObject({ attachment: { ok: true } });
+    });
+  });
+
   it('garde la boîte ouverte et la saisie quand le serveur refuse, avec le motif', async () => {
     await start(['transactions:manage', 'entries:create', 'entries:post']);
     const { result } = await open('IN');

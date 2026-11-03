@@ -4,7 +4,7 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
-import { OperationDialog, type OperationDialogData } from './operation-dialog';
+import { OperationDialog, type OperationDialogData, type OperationDialogResult } from './operation-dialog';
 
 /**
  * Ouvre « J'ai reçu / J'ai dépensé de l'argent » depuis n'importe quelle page : charge ce qu'il faut, explique ce qui
@@ -18,7 +18,7 @@ export class OperationLauncher {
   private readonly notifier = inject(Notifier);
 
   /** Renvoie le résultat si une opération a été enregistrée, sinon `undefined` (abandon ou impossibilité, déjà expliquée). */
-  async open(direction: 'IN' | 'OUT', accountId: string | null = null): Promise<GuidedOperationResult | undefined> {
+  async open(direction: 'IN' | 'OUT', accountId: string | null = null): Promise<OperationDialogResult | undefined> {
     let accounts, categories, projects: ProjectInfo[], fiscalYears: FiscalYearInfo[];
     try {
       [accounts, categories, projects, fiscalYears] = await Promise.all([
@@ -43,16 +43,20 @@ export class OperationLauncher {
       );
       return undefined;
     }
-    const result = await this.dialogs.open<GuidedOperationResult, OperationDialogData>(OperationDialog, {
+    const result = await this.dialogs.open<OperationDialogResult, OperationDialogData>(OperationDialog, {
       size: 'md',
       data: { direction, accounts: active, categories, projects, fiscalYears, accountId, canPost: this.auth.can('entries:post') },
     });
     if (result) {
-      this.notifier.success(
-        result.posted
-          ? `Opération enregistrée${result.number ? ` (écriture ${result.journalCode} n° ${result.number})` : ''}.`
-          : 'Opération mise en brouillon : elle sera prise en compte une fois relue et enregistrée.',
-      );
+      const done = result.posted
+        ? `Opération enregistrée${result.number ? ` (écriture ${result.journalCode} n° ${result.number})` : ''}.`
+        : 'Opération mise en brouillon : elle sera prise en compte une fois relue et enregistrée.';
+      const { attachment } = result;
+      if (attachment?.ok) this.notifier.success(`${done} ${attachment.summary}`);
+      else if (attachment) {
+        // L'argent est bien enregistré : seul le rattachement est à refaire, depuis l'écran qui le suit.
+        this.notifier.notice(`${done} Mais le rattachement n'a pas pu se faire : ${attachment.message} Vous pourrez le refaire depuis « Membres et cotisations » (Règlements) ou « Subventions ».`);
+      } else this.notifier.success(done);
     }
     return result;
   }
