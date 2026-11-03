@@ -64,7 +64,7 @@ const PERIOD_SHORTCUTS: { key: PeriodKey; label: string }[] = [
   { key: 'month', label: 'Ce mois-ci' },
   { key: 'last-month', label: 'Le mois dernier' },
   { key: 'year', label: 'Cette année' },
-  { key: 'all', label: 'Tout' },
+  { key: 'all', label: 'Toutes les dates' },
 ];
 
 const two = (value: number) => String(value).padStart(2, '0');
@@ -85,14 +85,26 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
   imports: [DateField, Skeleton, HelpHint, FrDatePipe, MatMenuModule, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
-    .periods {
+    .filter-bar, .filter-summary {
       display: flex;
+      align-items: center;
       flex-wrap: wrap;
-      gap: 8px;
-      margin: 0 0 12px;
+      gap: 8px 12px;
     }
-    .periods .active {
-      background: var(--mat-sys-secondary-container);
+    .filter-bar { align-items: flex-start; }
+    .filter-bar > button {
+      --mat-button-outlined-container-height: var(--mat-form-field-container-height, 56px);
+    }
+    .movement-search { flex: 1 1 260px; min-width: 0; }
+    .filter-bar .active { background: var(--mat-sys-secondary-container); }
+    .filter-summary { margin: 8px 0; }
+    .advanced-filters { margin-block-start: 12px; }
+    @media (max-width: 600px) {
+      .filter-bar { align-items: flex-start; }
+    .filter-bar > button {
+      --mat-button-outlined-container-height: var(--mat-form-field-container-height, 56px);
+    }
+    .movement-search { flex-basis: 100%; }
     }
     .suggestion {
       display: flex;
@@ -127,22 +139,23 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
       margin: 0 0 12px;
       padding: 8px 12px;
     }
-    .todo-count {
-      align-items: center;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin: 0 0 12px;
-    }
     .amount {
       font-variant-numeric: tabular-nums;
       text-align: right;
       white-space: nowrap;
     }
-    /* Pastille après le libellé : un espace pour ne pas coller au texte. */
-    td .chip {
-      margin-left: 10px;
-      vertical-align: middle;
+    .movement-description {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .movement-description > span:first-child {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .movement-description > .chip {
+      flex-shrink: 0;
     }
     .negative {
       color: var(--mat-sys-error);
@@ -197,64 +210,77 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
         <p class="alert" role="alert">{{ message }}</p>
       }
 
-      <form class="filters" [formGroup]="filters" (ngSubmit)="search()">
-        <app-date-field label="Du" formControlName="from" />
-        <app-date-field label="Au" formControlName="to" />
-        <mat-form-field appearance="outline">
-          <mat-label>{{ simple() ? 'Description ou numéro de la banque' : 'Libellé ou référence' }}</mat-label>
-          <input matInput formControlName="q" />
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>{{ simple() ? 'Classement' : 'Qualification' }}</mat-label>
-          <mat-select formControlName="qualified">
-            <mat-option value="">Toutes</mat-option>
-            <mat-option value="true">{{ simple() ? 'Classés' : 'Qualifiées' }}</mat-option>
-            <mat-option value="false">{{ simple() ? 'À classer' : 'À qualifier' }}</mat-option>
-          </mat-select>
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>{{ simple() ? 'Situation' : 'Comptabilisation' }}</mat-label>
-          <mat-select formControlName="accounting">
-            <mat-option value="">Toutes</mat-option>
-            <mat-option value="NONE">{{ simple() ? 'Pas encore enregistrés dans les comptes' : 'À comptabiliser' }}</mat-option>
-            <mat-option value="IN_PROGRESS">{{ simple() ? 'En brouillon' : 'En cours' }}</mat-option>
-            <mat-option value="POSTED">{{ simple() ? 'Enregistrés dans les comptes' : 'Comptabilisées' }}</mat-option>
-          </mat-select>
-        </mat-form-field>
-        <div class="actions">
-          @if (simple()) {
-            @if (hasFilter()) {
-              <button mat-stroked-button type="button" (click)="clearFilters()">
-                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_alt_off</mat-icon> Effacer les filtres
-              </button>
+      <form [formGroup]="filters" (ngSubmit)="search()">
+        <div class="filter-bar">
+          <mat-form-field class="movement-search" appearance="outline" subscriptSizing="dynamic">
+            <mat-label>{{ simple() ? 'Rechercher un mouvement' : 'Rechercher une transaction' }}</mat-label>
+            <input matInput formControlName="q" />
+            <mat-hint>Par description ou référence bancaire</mat-hint>
+          </mat-form-field>
+          <button mat-stroked-button type="button" [matMenuTriggerFor]="periodMenu">Période · {{ periodLabel() }}</button>
+          <mat-menu #periodMenu="matMenu">
+            @for (shortcut of periodShortcuts; track shortcut.key) {
+              <button mat-menu-item type="button" (click)="applyPeriod(shortcut.key)">{{ shortcut.label }}</button>
             }
-          } @else {
-            <button mat-flat-button type="submit">
-              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_alt</mat-icon> Filtrer
-            </button>
+            <button mat-menu-item type="button" (click)="customPeriod.set(true)">Dates personnalisées…</button>
+          </mat-menu>
+          @if (simple()) {
+            <button mat-stroked-button type="button" [class.active]="toClassifyOnly()" [attr.aria-pressed]="toClassifyOnly()" (click)="setClassification('false')">À classer</button>
+            <button mat-stroked-button type="button" [class.active]="allClassifications()" [attr.aria-pressed]="allClassifications()" (click)="setClassification('')">Voir tous les mouvements</button>
+          }
+          <button mat-stroked-button type="button" [attr.aria-expanded]="moreFilters()" (click)="moreFilters.set(!moreFilters())">
+            {{ moreFilters() ? 'Moins de filtres' : 'Plus de filtres' }}{{ advancedFilterCount() ? ' (' + advancedFilterCount() + ')' : '' }}
+          </button>
+        </div>
+        @if (customPeriod() || activePeriod() === null) {
+          <div class="filters">
+            <app-date-field label="Du" formControlName="from" />
+            <app-date-field label="Au" formControlName="to" />
+          </div>
+        }
+        @if (moreFilters()) {
+          <div class="filters advanced-filters">
+            <mat-form-field appearance="outline">
+              <mat-label>{{ simple() ? 'Classement' : 'Qualification' }}</mat-label>
+              <mat-select formControlName="qualified">
+                <mat-option value="">Toutes</mat-option>
+                <mat-option value="true">{{ simple() ? 'Classés' : 'Qualifiées' }}</mat-option>
+                <mat-option value="false">{{ simple() ? 'À classer' : 'À qualifier' }}</mat-option>
+              </mat-select>
+              @if (simple()) { <mat-hint>Une catégorie a-t-elle été choisie ?</mat-hint> }
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>{{ simple() ? 'Situation' : 'Comptabilisation' }}</mat-label>
+              <mat-select formControlName="accounting">
+                <mat-option value="">Toutes</mat-option>
+                <mat-option value="NONE">{{ simple() ? 'Pas encore enregistrés dans les comptes' : 'À comptabiliser' }}</mat-option>
+                <mat-option value="IN_PROGRESS">{{ simple() ? 'En brouillon' : 'En cours' }}</mat-option>
+                <mat-option value="POSTED">{{ simple() ? 'Enregistrés dans les comptes' : 'Comptabilisées' }}</mat-option>
+              </mat-select>
+              @if (simple()) { <mat-hint>Le mouvement est-il enregistré dans les comptes ?</mat-hint> }
+            </mat-form-field>
+          </div>
+        }
+      </form>
+      @if (!loading() && !error()) {
+        <div class="filter-summary">
+          <span role="status" class="result-count">
+            {{ transactions().length }}{{ next() ? ' ou plus' : '' }}
+            {{ simple() ? (transactions().length === 1 ? 'mouvement' : 'mouvements') : (transactions().length === 1 ? 'transaction' : 'transactions') }}
+            {{ simple() && toClassifyOnly() ? 'à classer' : '' }} · {{ periodLabel() }}
+          </span>
+          @if (hasFilter()) {
+            <button mat-button type="button" (click)="clearFilters()">Effacer les filtres</button>
           }
         </div>
-      </form>
-      <div class="periods" role="group" aria-label="Raccourcis de période">
-        @for (shortcut of periodShortcuts; track shortcut.key) {
-          <button mat-stroked-button type="button" [attr.aria-pressed]="activePeriod() === shortcut.key" [class.active]="activePeriod() === shortcut.key" (click)="applyPeriod(shortcut.key)">
-            {{ shortcut.label }}
-          </button>
-        }
-      </div>
-      @if (simple() && !loading() && toClassifyOnly() && transactions().length > 0) {
-        <p class="todo-count" role="status">
-          <strong>{{ transactions().length }}{{ next() ? ' ou plus' : '' }} mouvement(s) à classer.</strong>
-          <button mat-button type="button" (click)="showAll()">Voir tous les mouvements</button>
-        </p>
       }
 
       @if (loading()) {
         <app-skeleton variant="table" />
       } @else if (transactions().length === 0) {
         <p class="muted">
-          {{ simple() ? 'Aucun mouvement pour ces critères.' : 'Aucune transaction pour ces critères.' }}
-          @if (canManage() && !account().archivedOn) {
+          {{ simple() ? 'Aucun mouvement ne correspond à ces filtres.' : 'Aucune transaction pour ces critères.' }}
+          @if (!hasFilter() && canManage() && !account().archivedOn) {
             Ajoutez un mouvement à la main ou importez le relevé de votre banque.
           }
         </p>
@@ -305,13 +331,17 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
                 }
                 <td class="date">{{ item.operationDate | frDate }}</td>
                 <td>
-                  {{ item.label }}
-                  @if (item.hasDocument) {
-                    <mat-icon class="clip" fontSet="material-icons-outlined" aria-hidden="true">attach_file</mat-icon><span class="sr-only">Pièce jointe</span>
-                  }
-                  @if (item.bankIdentified) {
-                    <span class="chip">{{ item.origin === 'IMPORT' ? (simple() ? 'Venue de la banque' : 'Importée') : (simple() ? 'Reliée à la banque' : 'Rapprochée du relevé') }}</span>
-                  }
+                  <div class="movement-description">
+                    <span>
+                      {{ item.label }}
+                      @if (item.hasDocument) {
+                        <mat-icon class="clip" fontSet="material-icons-outlined" aria-hidden="true">attach_file</mat-icon><span class="sr-only">Pièce jointe</span>
+                      }
+                    </span>
+                    @if (item.bankIdentified) {
+                      <span class="chip">{{ item.origin === 'IMPORT' ? (simple() ? 'Venue de la banque' : 'Importée') : (simple() ? 'Reliée à la banque' : 'Rapprochée du relevé') }}</span>
+                    }
+                  </div>
                   @if (item.reference) {
                     <div class="muted">{{ simple() ? 'N° banque' : 'Réf.' }} {{ item.reference }}</div>
                   }
@@ -515,6 +545,13 @@ export class TransactionsPanel {
   private readonly filterValues = signal(this.filters.getRawValue());
   protected readonly hasFilter = computed(() => Object.values(this.filterValues()).some((value) => value !== ''));
   protected readonly toClassifyOnly = computed(() => this.filterValues().qualified === 'false');
+  protected readonly allClassifications = computed(() => this.filterValues().qualified === '');
+  protected readonly moreFilters = signal(false);
+  protected readonly customPeriod = signal(false);
+  protected readonly advancedFilterCount = computed(() => {
+    const { qualified, accounting } = this.filterValues();
+    return Number(!!accounting) + Number(!!qualified && !(this.simple() && qualified === 'false'));
+  });
   protected readonly periodShortcuts = PERIOD_SHORTCUTS;
   /** Corriger une opération enregistrée : même droit que l'annuler, et seulement si rien ne la fige (virement, vérification bancaire). */
   protected canCorrect(item: TransactionInfo): boolean {
@@ -555,6 +592,9 @@ export class TransactionsPanel {
     if (!from && !to) return 'all';
     return PERIOD_SHORTCUTS.find((shortcut) => shortcut.key !== 'all' && periodRange(shortcut.key).from === from && periodRange(shortcut.key).to === to)?.key ?? null;
   });
+  protected readonly periodLabel = computed(() =>
+    this.customPeriod() ? 'Dates personnalisées' : (this.periodShortcuts.find((shortcut) => shortcut.key === this.activePeriod())?.label ?? 'Dates personnalisées'),
+  );
   /** Une réponse tardive d'une requête abandonnée (filtre changé entre-temps) ne doit pas remplacer la liste à jour. */
   private requestSeq = 0;
   private lastAccountId: string | null = null;
@@ -827,6 +867,7 @@ export class TransactionsPanel {
   }
 
   protected async applyPeriod(key: PeriodKey): Promise<void> {
+    this.customPeriod.set(false);
     this.filters.patchValue(key === 'all' ? { from: '', to: '' } : periodRange(key), { emitEvent: false });
     await this.search();
   }
@@ -896,12 +937,13 @@ export class TransactionsPanel {
   }
 
   protected async clearFilters(): Promise<void> {
+    this.customPeriod.set(false);
     this.filters.reset({ from: '', to: '', q: '', qualified: '', accounting: '' }, { emitEvent: false });
     await this.search();
   }
 
-  protected async showAll(): Promise<void> {
-    this.filters.patchValue({ qualified: '' }, { emitEvent: false });
+  protected async setClassification(qualified: '' | 'false'): Promise<void> {
+    this.filters.patchValue({ qualified }, { emitEvent: false });
     await this.search();
   }
 

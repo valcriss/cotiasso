@@ -879,14 +879,14 @@ describe('AccountsPage', () => {
         first.flush({ transactions: [transaction({ id: 't1', label: 'Inconnu' }), transaction({ id: 't2', label: 'Autre' })], next: null });
         controller.expectOne('/api/operation-categories').flush(cats);
         await settle();
-        expect(root.querySelector('.todo-count')!.textContent).toContain('2 mouvement(s) à classer');
+        expect(root.querySelector('.result-count')!.textContent).toMatch(/2\s+mouvements à classer/);
 
         await click('Voir tous les mouvements');
         const all = controller.expectOne(txUrl);
         expect(all.request.params.has('qualified')).toBe(false);
         all.flush({ transactions: [transaction({ id: 't1' })], next: null });
         await settle();
-        expect(root.querySelector('.todo-count')).toBeNull();
+        expect(root.querySelector('.result-count')!.textContent).not.toContain('à classer');
       });
 
       it('montre tout plutôt qu’une liste vide quand il n’y a rien à classer', async () => {
@@ -900,19 +900,24 @@ describe('AccountsPage', () => {
         fallback.flush({ transactions: [transaction({ id: 't9', label: 'Déjà classé', counterpartAccountId: 'a616', counterpartAccountNumber: '616' })], next: null });
         await settle();
         expect(root.textContent).toContain('Déjà classé');
-        expect(root.querySelector('.todo-count')).toBeNull();
+        expect(root.querySelector('.result-count')!.textContent).not.toContain('à classer');
       });
 
       it('applique un raccourci de période sans bouton « Filtrer »', async () => {
         await openSimple([transaction({ id: 't1' })]);
         expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.trim() === 'Filtrer')).toBe(false);
-        await click('Ce mois-ci');
+        await click('Période · Toutes les dates');
+        const menu = TestBed.inject(OverlayContainer).getContainerElement();
+        const shortcut = Array.from(menu.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Ce mois-ci');
+        expect(shortcut).toBeDefined();
+        shortcut!.click();
+        await settle();
         const request = controller.expectOne(txUrl);
         expect(request.request.params.get('from')).toMatch(/^\d{4}-\d{2}-01$/);
         expect(request.request.params.get('to')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
         request.flush({ transactions: [], next: null });
         await settle();
-        expect(root.querySelector('.periods .active')!.textContent).toContain('Ce mois-ci');
+        expect(root.querySelector('.result-count')!.textContent).toContain('Ce mois-ci');
         await click('Effacer les filtres');
         const cleared = controller.expectOne(txUrl);
         expect(cleared.request.params.keys()).toEqual([]);
