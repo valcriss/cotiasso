@@ -62,6 +62,18 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
         </mat-select>
       </mat-form-field>
       <mat-form-field appearance="outline">
+        <mat-label>Cotisation{{ campaign() ? ' — ' + campaign()!.name : '' }}</mat-label>
+        <mat-select formControlName="membershipStatus">
+          <mat-option value="">Toutes</mat-option>
+          <mat-option value="UP_TO_DATE">À jour</mat-option>
+          <mat-option value="LATE">En retard (rien payé ou payé en partie)</mat-option>
+          <mat-option value="NONE">Pas inscrits à la saison</mat-option>
+        </mat-select>
+        @if (!campaign() && !loading()) {
+          <mat-hint>Aucune saison de cotisation n’est en cours.</mat-hint>
+        }
+      </mat-form-field>
+      <mat-form-field appearance="outline">
         <mat-label>Catégorie</mat-label>
         <mat-select formControlName="categoryId">
           <mat-option value="">Toutes</mat-option>
@@ -172,6 +184,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
             <th scope="col">Catégorie</th>
             <th scope="col">Fonctions</th>
             <th scope="col">État</th>
+            <th scope="col">Cotisation</th>
             <th scope="col"><span class="sr-only">Ouvrir</span></th>
           </tr>
         </thead>
@@ -187,6 +200,13 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
               <td>{{ member.categoryName ?? '—' }}</td>
               <td>{{ member.currentOffices.join(', ') || '—' }}</td>
               <td>{{ member.status === 'ACTIVE' ? 'Membre' : 'Ancien membre' }}</td>
+              <td>
+                @if (cotisation(member); as c) {
+                  <span class="status" [class.ok]="c.ok"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ c.icon }}</mat-icon> {{ c.label }}</span>
+                } @else {
+                  <span class="muted">—</span>
+                }
+              </td>
               <td class="row-actions">
                 <button mat-button type="button" [attr.aria-label]="'Ouvrir la fiche de ' + member.firstName + ' ' + member.lastName" (click)="open(member.id)">Ouvrir</button>
               </td>
@@ -237,7 +257,9 @@ export class MembersPage {
   protected readonly loadingMore = signal(false);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly filters = this.fb.group({ q: [''], status: [''], categoryId: [''] });
+  protected readonly filters = this.fb.group({ q: [''], status: [''], categoryId: [''], membershipStatus: [''] });
+  /** Saison de cotisation en cours (aucune : pas de situation de cotisation à montrer). */
+  protected readonly campaign = signal<{ id: string; name: string } | null>(null);
   protected readonly canManage = computed(() => {
     this.auth.permissions();
     return this.auth.can('members:manage');
@@ -248,8 +270,26 @@ export class MembersPage {
   }
 
   protected hasFilter(): boolean {
-    const { q, status, categoryId } = this.filters.getRawValue();
-    return !!(q || status || categoryId);
+    const { q, status, categoryId, membershipStatus } = this.filters.getRawValue();
+    return !!(q || status || categoryId || membershipStatus);
+  }
+
+  /** Où en est la cotisation du membre pour la saison en cours, en un mot ; `null` s'il n'y a pas de saison en cours. */
+  protected cotisation(member: MemberInfo): { label: string; icon: string; ok: boolean } | null {
+    switch (member.membershipStatus) {
+      case 'UP_TO_DATE':
+        return { label: 'À jour', icon: 'check_circle', ok: true };
+      case 'EXEMPT':
+        return { label: 'À jour (exonéré)', icon: 'check_circle', ok: true };
+      case 'PARTIAL':
+        return { label: 'Payée en partie', icon: 'warning', ok: false };
+      case 'DUE':
+        return { label: 'En retard', icon: 'warning', ok: false };
+      case 'NONE':
+        return { label: 'Pas inscrit', icon: 'radio_button_unchecked', ok: false };
+      default:
+        return null;
+    }
   }
 
   protected address(member: MemberInfo): string {
@@ -264,6 +304,7 @@ export class MembersPage {
       const page = await this.api.listMembers(this.query());
       this.members.set(page.members);
       this.next.set(page.next);
+      this.campaign.set(page.campaign ?? null);
     } catch (failure) {
       this.error.set(describeHttpError(failure, 'Impossible de charger les membres.').message);
     } finally {
@@ -391,8 +432,13 @@ export class MembersPage {
   }
 
   private query() {
-    const { q, status, categoryId } = this.filters.getRawValue();
-    return { ...(q && { q }), ...(status && { status: status as 'ACTIVE' | 'FORMER' }), ...(categoryId && { categoryId }) };
+    const { q, status, categoryId, membershipStatus } = this.filters.getRawValue();
+    return {
+      ...(q && { q }),
+      ...(status && { status: status as 'ACTIVE' | 'FORMER' }),
+      ...(categoryId && { categoryId }),
+      ...(membershipStatus && { membershipStatus: membershipStatus as 'UP_TO_DATE' | 'LATE' | 'NONE' }),
+    };
   }
 
   private async run(action: () => Promise<void>, fallback: string): Promise<void> {
