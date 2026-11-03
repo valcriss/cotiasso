@@ -90,6 +90,9 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
+    ul.recent .amount:not(.in) {
+      color: var(--mat-sys-error);
+    }
     ul.recent .amount.in {
       color: var(--app-success, var(--mat-sys-primary));
     }
