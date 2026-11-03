@@ -3,13 +3,25 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
-import { AdminApiService, type OverviewInfo, type TodoItemInfo } from '../admin/admin-api.service';
+import { AdminApiService, type OverviewInfo, type RecentOperationInfo, type TodoItemInfo } from '../admin/admin-api.service';
 import { formatApiAmount } from '../accounting/amount';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { HealthService } from '../health.service';
 import { OperationLauncher } from '../treasury/operation-launcher';
+import { SetupStatus } from './setup-status.service';
+import { FrDatePipe } from '../ui/fr-date.pipe';
+import { HelpHint } from '../ui/help-hint';
 import { PageHeader } from '../ui/page-header';
+import { Skeleton } from '../ui/skeleton';
+
+const SITUATIONS: Record<RecentOperationInfo['situation'], string> = {
+  TO_CLASSIFY: 'à classer',
+  CLASSIFIED: 'classée, pas encore enregistrée dans les comptes',
+  DRAFT: 'en brouillon',
+  BOOKED: 'enregistrée dans les comptes',
+  TRANSFER: 'déplacement entre vos comptes',
+};
 
 const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button_unchecked', WARNING: 'warning', INFO: 'info' };
 
@@ -19,13 +31,13 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
  */
 @Component({
   selector: 'app-overview-page',
-  imports: [AsyncPipe, MatButtonModule, MatIconModule, RouterLink, PageHeader],
+  imports: [Skeleton, HelpHint, FrDatePipe, AsyncPipe, MatButtonModule, MatIconModule, RouterLink, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .figures {
       display: grid;
       gap: 16px;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
       margin-bottom: 20px;
     }
     .figure {
@@ -47,6 +59,39 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
     }
     .figure .out {
       color: var(--mat-sys-on-surface);
+    }
+    ul.recent {
+      display: flex;
+      flex-direction: column;
+      list-style: none;
+      margin: 0 0 8px;
+      padding: 0;
+    }
+    ul.recent li {
+      align-items: center;
+      border-top: 1px solid var(--app-border);
+      display: flex;
+      gap: 16px;
+      padding: 10px 0;
+    }
+    ul.recent li:first-child {
+      border-top: 0;
+    }
+    ul.recent .date {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    ul.recent .text {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+    }
+    ul.recent .amount {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    ul.recent .amount.in {
+      color: var(--app-success, var(--mat-sys-primary));
     }
     ul.todo {
       display: flex;
@@ -126,8 +171,9 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
         <div class="figures">
           @if (view.cash; as cash) {
             <section class="figure" aria-label="Argent disponible">
-              <span class="muted">Argent disponible</span>
+              <span class="muted">Argent disponible <app-help-hint term="solde" /></span>
               <span class="big">{{ amount(cash.total) }} €</span>
+              <span class="muted">D’après vos enregistrements, pas forcément le solde de la banque</span>
               @if (cash.accounts.length > 1) {
                 <ul class="accounts-detail">
                   @for (account of cash.accounts; track account.id) {
@@ -152,6 +198,25 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
         </div>
       }
 
+      @if (view.recent && view.recent.length > 0) {
+        <section class="panel" aria-label="Dernières opérations">
+          <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">history</mat-icon><span>Dernières opérations</span></h3>
+          <ul class="recent">
+            @for (operation of view.recent; track operation.id) {
+              <li>
+                <span class="date">{{ operation.date | frDate }}</span>
+                <span class="text">
+                  <strong>{{ operation.label }}</strong>
+                  <span class="muted">{{ operation.accountName }} · {{ situation(operation) }}</span>
+                </span>
+                <span class="amount" [class.in]="!operation.amount.startsWith('-')">{{ amount(operation.amount) }} €</span>
+              </li>
+            }
+          </ul>
+          <a mat-button routerLink="/comptes">Voir tous les mouvements</a>
+        </section>
+      }
+
       <section class="panel" aria-label="À faire">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">checklist</mat-icon><span>À faire</span></h3>
         @if (view.todo.length === 0) {
@@ -168,14 +233,14 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
                   <strong>{{ item.title }}</strong>
                   <span class="muted">{{ item.detail }}</span>
                 </span>
-                <a mat-stroked-button [routerLink]="item.link" [attr.aria-label]="item.actionLabel + ' : ' + item.title">{{ item.actionLabel }}</a>
+                <a mat-stroked-button [routerLink]="item.link" [queryParams]="item.query" [attr.aria-label]="item.actionLabel + ' : ' + item.title">{{ item.actionLabel }}</a>
               </li>
             }
           </ul>
         }
       </section>
     } @else if (!error()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="cards" />
     }
 
     <p class="health muted">
@@ -204,6 +269,7 @@ export class OverviewPage {
   private readonly api = inject(AdminApiService);
   private readonly auth = inject(AuthService);
   private readonly launcher = inject(OperationLauncher);
+  private readonly setupStatus = inject(SetupStatus);
 
   protected readonly status$ = inject(HealthService).check();
   protected readonly overview = signal<OverviewInfo | null>(null);
@@ -213,11 +279,14 @@ export class OverviewPage {
     this.auth.permissions();
     return this.auth.can('transactions:manage') && this.auth.can('entries:create');
   });
-  /** L'installation n'est pas terminée et la personne a le droit de la terminer. */
+  /**
+   * L'installation n'est pas terminée et la personne a le droit de la terminer. Même règle que l'entrée « Démarrer » du menu
+   * (`SetupStatus`) : choisir le mode de démarrage n'est pas obligatoire, une carte d'accueil qui ne disparaît jamais serait trompeuse.
+   */
   protected readonly needsStart = computed(() => {
     const view = this.overview();
     this.auth.permissions();
-    return !!view && this.auth.can('settings.accounting:admin') && Object.values(view.setup).some((done) => !done);
+    return !!view && this.auth.can('settings.accounting:admin') && this.setupStatus.incomplete();
   });
 
   constructor() {
@@ -226,6 +295,11 @@ export class OverviewPage {
 
   protected amount(value: string): string {
     return formatApiAmount(value);
+  }
+
+  /** Où en est l'opération, en mots courants. */
+  protected situation(operation: RecentOperationInfo): string {
+    return SITUATIONS[operation.situation];
   }
 
   protected icon(item: TodoItemInfo): string {
@@ -238,7 +312,9 @@ export class OverviewPage {
 
   private async load(): Promise<void> {
     try {
-      this.overview.set(await this.api.overview());
+      const overview = await this.api.overview();
+      this.overview.set(overview);
+      this.setupStatus.set(overview.setup);
       this.error.set(null);
     } catch (failure) {
       this.error.set(describeHttpError(failure, "La vue d'ensemble n'a pas pu être chargée. Rechargez la page dans un instant.").message);

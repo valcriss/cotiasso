@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   AdminApiService,
   type AccountInfo,
@@ -23,17 +23,21 @@ import { FinancialAccountDialog, type AccountDialogData } from './account-dialog
 import { TransferDialog, type TransferDialogData } from './transfer-dialog';
 import { StatementDialog, type StatementDialogData } from './statement-dialog';
 import { TransactionsPanel } from './transactions-panel';
+import { formatDate } from '../ui/dates';
+import { FrDatePipe } from '../ui/fr-date.pipe';
+import { HelpHint } from '../ui/help-hint';
+import { Skeleton } from '../ui/skeleton';
 
 /** Comptes : banques et caisses avec leurs soldes (ouverture, calculé, comptable, relevé) et leurs transactions. */
 @Component({
   selector: 'app-accounts-page',
-  imports: [MatButtonModule, MatIconModule, MatMenuModule, RouterLink, PageHeader, TransactionsPanel],
+  imports: [Skeleton, HelpHint, FrDatePipe, MatButtonModule, MatIconModule, MatMenuModule, RouterLink, PageHeader, TransactionsPanel],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .accounts {
       display: grid;
       gap: 20px;
-      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr));
       list-style: none;
       margin: 0 0 20px;
       padding: 0;
@@ -120,11 +124,33 @@ import { TransactionsPanel } from './transactions-panel';
     .account-card.archived {
       opacity: 0.7;
     }
+    .gap {
+      align-items: flex-start;
+      display: flex;
+      font: var(--mat-sys-body-medium);
+      gap: 6px;
+      margin: 6px 0 0;
+    }
+    .gap mat-icon {
+      flex: none;
+      font-size: 20px;
+      height: 20px;
+      width: 20px;
+    }
     .balances {
       display: grid;
       gap: 2px 12px;
       grid-template-columns: 1fr auto;
       margin: 0;
+    }
+    /* Petit écran : l'intitulé passe au-dessus de sa valeur, pour que les phrases d'explication aient toute la largeur. */
+    @media (max-width: 600px) {
+      .balances {
+        grid-template-columns: 1fr;
+      }
+      .balances dd {
+        text-align: left;
+      }
     }
     .balances dt {
       color: var(--mat-sys-on-surface-variant);
@@ -169,7 +195,7 @@ import { TransactionsPanel } from './transactions-panel';
     }
 
     @if (loading()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="cards" />
     } @else if (accounts().length === 0) {
       <section class="panel">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">savings</mat-icon><span>Commençons par votre compte bancaire</span></h3>
@@ -202,13 +228,13 @@ import { TransactionsPanel } from './transactions-panel';
                     @if (!account.archivedOn) {
                       <a mat-menu-item [routerLink]="['/comptes', account.id, 'rapprochement']">
                         <mat-icon fontSet="material-icons-outlined" aria-hidden="true">fact_check</mat-icon>
-                        <span>Rapprocher</span>
+                        <span>{{ simple() ? 'Vérifier avec la banque' : 'Rapprocher' }}</span>
                       </a>
                     }
                     @if (canStatement() && !account.archivedOn) {
                       <button mat-menu-item type="button" (click)="statement(account)">
                         <mat-icon fontSet="material-icons-outlined" aria-hidden="true">receipt_long</mat-icon>
-                        <span>Solde de relevé</span>
+                        <span>{{ simple() ? 'Solde sur mon relevé' : 'Solde de relevé' }}</span>
                       </button>
                     }
                     @if (canAdmin() && !account.archivedOn) {
@@ -228,32 +254,39 @@ import { TransactionsPanel } from './transactions-panel';
             }
             <div class="big">{{ amount(account.balances.computed) }} €</div>
             @if (simple()) {
+              <div class="muted">Solde d’après vos enregistrements <app-help-hint term="solde" /></div>
+              @if (account.balances.lastStatement; as statement) {
+                <p class="gap" [class.danger-text]="statement.gap !== '0.00'" role="status">
+                  <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ statement.gap === '0.00' ? 'check_circle' : 'warning' }}</mat-icon>
+                  {{ gapSentence(statement) }}
+                </p>
+              }
               <dl class="balances">
-                <dt>Vérifié avec la banque</dt>
+                <dt>Vérifié avec la banque <app-help-hint term="verifie" /></dt>
                 <dd>
                   @if (account.balances.reconciled; as reconciled) {
-                    Oui, au {{ reconciled.periodEnd }}
+                    Oui, au {{ reconciled.periodEnd | frDate }}
                   } @else {
-                    <span class="muted">Pas encore vérifié</span>
+                    <span class="muted">Pas encore vérifié : vous n’avez pas encore comparé ce compte au relevé de la banque. Cela permet de repérer un oubli ou un doublon.</span>
                   }
                 </dd>
               </dl>
             } @else {
               <dl class="balances">
-                <dt>Ouverture ({{ account.openedOn }})</dt>
+                <dt>Ouverture ({{ account.openedOn | frDate }})</dt>
                 <dd>{{ amount(account.balances.opening) }}</dd>
                 <dt>Solde comptable (écritures)</dt>
                 <dd>{{ amount(account.balances.accounting) }}</dd>
                 <dt>Rapprochement</dt>
                 <dd>
                   @if (account.balances.reconciled; as reconciled) {
-                    Rapproché au {{ reconciled.periodEnd }}
+                    Rapproché au {{ reconciled.periodEnd | frDate }}
                   } @else {
                     <span class="muted">Pas encore rapproché</span>
                   }
                 </dd>
                 @if (account.balances.lastStatement; as statement) {
-                  <dt>Relevé au {{ statement.periodEnd }}</dt>
+                  <dt>Relevé au {{ statement.periodEnd | frDate }}</dt>
                   <dd>{{ amount(statement.closingBalance) }}</dd>
                   <dt>Écart relevé − calculé</dt>
                   <dd [class.danger-text]="statement.gap !== '0.00'">{{ amount(statement.gap) }}</dd>
@@ -262,7 +295,7 @@ import { TransactionsPanel } from './transactions-panel';
             }
             <span class="more-link" aria-hidden="true">
               <mat-icon fontSet="material-icons-outlined">{{ account.id === selectedId() ? 'expand_less' : 'arrow_forward' }}</mat-icon>
-              {{ account.id === selectedId() ? 'Masquer les transactions' : 'Voir les transactions' }}
+              {{ account.id === selectedId() ? (simple() ? 'Masquer les mouvements' : 'Masquer les transactions') : (simple() ? 'Voir les mouvements' : 'Voir les transactions') }}
             </span>
           </li>
         }
@@ -287,12 +320,27 @@ export class AccountsPage {
   protected readonly chart = signal<AccountInfo[]>([]);
   private readonly projects = signal<ProjectInfo[]>([]);
   protected readonly activeProjects = computed(() => this.projects().filter((p) => p.status !== 'ARCHIVED'));
+  private readonly route = inject(ActivatedRoute);
   protected readonly selectedId = signal<string | null>(null);
   protected readonly selected = computed(() => this.accounts().find((a) => a.id === this.selectedId()) ?? null);
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly amount = formatApiAmount;
+
+  /**
+   * L'écart est « relevé − enregistrements » : positif, la banque indique plus que ce qui est enregistré (il manque sans doute des
+   * mouvements) ; négatif, elle indique moins (un mouvement est peut-être en trop ou n'a pas encore passé). Dit en phrase, avec le sens.
+   */
+  protected gapSentence(statement: { gap: string; periodEnd: string }): string {
+    const date = formatDate(statement.periodEnd);
+    if (statement.gap === '0.00') return `Vos enregistrements correspondent au relevé du ${date}.`;
+    const negative = statement.gap.startsWith('-');
+    const amount = formatApiAmount(negative ? statement.gap.slice(1) : statement.gap);
+    return negative
+      ? `Au ${date}, votre banque indique ${amount} € de moins que vos enregistrements : un mouvement est peut-être en trop, ou n’a pas encore été débité.`
+      : `Au ${date}, votre banque indique ${amount} € de plus que vos enregistrements : il manque sans doute des mouvements.`;
+  }
 
   protected readonly canAdmin = computed(() => {
     this.auth.permissions();
@@ -413,6 +461,9 @@ export class AccountsPage {
 
   private async init(): Promise<void> {
     await this.load();
+    // Un lien de la vue d'ensemble ouvre directement le compte concerné.
+    const wanted = this.route.snapshot.queryParamMap.get('compte');
+    if (wanted && this.accounts().some((a) => a.id === wanted)) this.select(wanted);
     // Plan de comptes et projets : facultatifs pour consulter, ignorés sans droit.
     this.chart.set(await this.api.listAccounts().catch(() => []));
     this.projects.set(await this.api.listProjects().catch(() => []));

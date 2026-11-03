@@ -338,6 +338,26 @@ export class DocumentsService {
   }
 
   /**
+   * Parmi `objectIds`, ceux auxquels est lié au moins un document **que ce lecteur a le droit de voir** (non archivé ; restreint
+   * seulement avec `documents.restricted:view` ; une personne limitée à des projets ne voit que les liens de sa portée). Sert aux
+   * indicateurs « pièce jointe » des listes : un indicateur ne doit jamais révéler un document qu'on ne pourrait pas ouvrir.
+   */
+  async linkedObjectIds(objectType: string, objectIds: readonly string[], viewer: Viewer): Promise<Set<string>> {
+    if (objectIds.length === 0) return new Set();
+    const access = await this.access(viewer);
+    const links = await this.prisma.documentLink.findMany({
+      where: {
+        objectType,
+        objectId: { in: [...objectIds] },
+        ...(access.linkWhere && { AND: [access.linkWhere] }),
+        document: { AND: [access.where, { archivedAt: null }, ...(viewer.canSeeRestricted ? [] : [{ restricted: false }])] },
+      },
+      select: { objectId: true },
+    });
+    return new Set(links.map((l) => l.objectId));
+  }
+
+  /**
    * Visibilité d'un lecteur. Droit global : aucun filtre. Limité à des projets : lié à l'un d'eux ou à une subvention qui en
    * finance un, et jamais lié à un membre (les pièces personnelles ne s'ouvrent pas par la portée d'un projet).
    */

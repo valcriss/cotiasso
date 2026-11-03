@@ -179,7 +179,7 @@ describe("Import OFX : analyse, doublons, rapprochement et confirmation (base vi
         summary: { total: 4, new: 3, duplicate: 0, probableMatch: 0, error: 1 },
       });
       expect(batch.lines.map((l: { status: string }) => l.status)).toEqual(["NEW", "NEW", "NEW", "ERROR"]);
-      expect(batch.lines[3].errors[0]).toContain("FITID");
+      expect(batch.lines[3].errors[0]).toContain("numéro d'identification de la banque");
       expect(batch.lines[0]).toMatchObject({ operationDate: "2026-03-05", amount: "150.00", label: "VIREMENT M. DUPONT — Cotisation annuelle" });
 
       // L'analyse n'a rien créé, mais a gardé la ligne telle que lue (virgule décimale, heure comprise).

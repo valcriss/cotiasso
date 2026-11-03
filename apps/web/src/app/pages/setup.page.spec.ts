@@ -1,8 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
 import { vi } from 'vitest';
+import { Router, provideRouter } from '@angular/router';
 import { SetupPage } from './setup.page';
 
 const session = {
@@ -45,6 +45,24 @@ describe('SetupPage', () => {
   });
 
   afterEach(() => controller.verify());
+
+  it('dit où trouver le jeton, avec la commande exacte, sans l’afficher lui-même', () => {
+    const help = root.querySelector('details.token-help')!;
+    expect(help.querySelector('summary')!.textContent).toContain('Où trouver le jeton');
+    expect(help.querySelector('code')!.textContent).toBe('./scripts/install-token.sh --env-file .env.prod');
+    expect(help.textContent).toContain('docker compose restart api');
+  });
+
+  it('copie la commande qui donne le jeton, et le confirme', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const button = Array.from(root.querySelectorAll<HTMLButtonElement>('.token-help button')).find((b) => b.textContent!.includes('Copier'))!;
+    button.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(writeText).toHaveBeenCalledWith('./scripts/install-token.sh --env-file .env.prod');
+    expect(root.querySelector('.token-help button')!.textContent).toContain('Copié ✓');
+  });
 
   it("n'envoie rien quand le mot de passe est trop court ou mal confirmé", async () => {
     fill({ password: 'court', confirmation: 'court' });

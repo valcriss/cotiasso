@@ -21,6 +21,9 @@ import { Notifier } from '../ui/notifier.service';
 import { ThemeService } from '../theme/theme.service';
 import { PageHeader } from '../ui/page-header';
 import { StatementDialog, type StatementDialogData } from './statement-dialog';
+import { formatDate } from '../ui/dates';
+import { FrDatePipe } from '../ui/fr-date.pipe';
+import { Skeleton } from '../ui/skeleton';
 
 /**
  * Rapprochement bancaire (ADR 0018) : page dédiée, trop vaste pour une boîte de dialogue. On choisit un relevé, on
@@ -28,13 +31,13 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
  */
 @Component({
   selector: 'app-reconciliation-page',
-  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
+  imports: [Skeleton, FrDatePipe, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .figures {
       display: grid;
       gap: 12px 24px;
-      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
       margin: 12px 0 0;
     }
     .figure dt {
@@ -111,10 +114,10 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
     }
 
     @if (loading()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="table" />
     } @else if (current(); as rec) {
       <section class="panel" aria-label="Rapprochement en cours">
-        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">fact_check</mat-icon><span>Relevé au {{ rec.periodEnd }}</span></h3>
+        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">fact_check</mat-icon><span>Relevé au {{ rec.periodEnd | frDate }}</span></h3>
         <dl class="figures">
           <div class="figure">
             <dt>Solde du relevé</dt>
@@ -172,7 +175,7 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
       }
 
       <section class="panel" aria-label="Transactions à cocher">
-        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">checklist</mat-icon><span>Transactions jusqu'au {{ rec.periodEnd }}</span></h3>
+        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">checklist</mat-icon><span>Transactions jusqu'au {{ rec.periodEnd | frDate }}</span></h3>
         @if (items().length === 0) {
           <p class="muted">{{ simple() ? 'Aucun mouvement à vérifier jusqu’à cette date. Importez le relevé de votre banque ou enregistrez les mouvements manquants.' : 'Aucune transaction à rapprocher jusqu’à cette date. Importez le relevé de votre banque ou saisissez les mouvements manquants.' }}</p>
         } @else {
@@ -198,7 +201,7 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
                       (change)="toggle(item, $event.checked)"
                     />
                   </td>
-                  <td>{{ item.transaction.operationDate }}</td>
+                  <td>{{ item.transaction.operationDate | frDate }}</td>
                   <td>
                     {{ item.transaction.label }}
                     @if (item.transaction.bankIdentified) {
@@ -246,7 +249,7 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
               <mat-label>Relevé</mat-label>
               <mat-select formControlName="statementId" required>
                 @for (statement of available(); track statement.id) {
-                  <mat-option [value]="statement.id">Au {{ statement.periodEnd }} — solde {{ amount(statement.closingBalance) }} €</mat-option>
+                  <mat-option [value]="statement.id">Au {{ statement.periodEnd | frDate }} — solde {{ amount(statement.closingBalance) }} €</mat-option>
                 }
               </mat-select>
             </mat-form-field>
@@ -266,14 +269,14 @@ import { StatementDialog, type StatementDialogData } from './statement-dialog';
             <li>
               <span>
                 @if (rec.status === 'VALIDATED') {
-                  <span class="status ok"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">verified</mat-icon> Rapproché au {{ rec.periodEnd }}</span>
+                  <span class="status ok"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">verified</mat-icon> Rapproché au {{ rec.periodEnd | frDate }}</span>
                 } @else {
-                  <span class="muted">Annulé (relevé du {{ rec.periodEnd }})</span>
+                  <span class="muted">Annulé (relevé du {{ rec.periodEnd | frDate }})</span>
                 }
                 · solde {{ amount(rec.closingBalance) }} €, {{ rec.pointedCount }} transaction(s)
               </span>
               @if (rec.id === lastValidatedId() && !current() && canWrite()) {
-                <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler le rapprochement du ' + rec.periodEnd" [disabled]="busy()" (click)="cancel(rec)">
+                <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler le rapprochement du ' + (rec.periodEnd | frDate)" [disabled]="busy()" (click)="cancel(rec)">
                   Annuler ce rapprochement
                 </button>
               }
@@ -368,8 +371,8 @@ export class ReconciliationPage {
     const confirmed = await this.dialogs.confirm({
       title: this.simple() ? 'Valider cette vérification ?' : 'Valider ce rapprochement ?',
       message: this.simple()
-        ? `Le compte sera déclaré vérifié avec le relevé du ${rec.periodEnd} (solde ${this.amount(rec.closingBalance)} €). Les ${rec.pointedCount} mouvements cochés ne pourront plus être modifiés ni supprimés. En cas d’erreur, vous pourrez annuler cette vérification tant qu’elle est la dernière du compte.`
-        : `Le compte sera déclaré rapproché avec le relevé du ${rec.periodEnd} (solde ${this.amount(rec.closingBalance)} €). Les ${rec.pointedCount} transactions cochées ne pourront plus être modifiées ni supprimées. En cas d’erreur, vous pourrez annuler ce rapprochement tant qu’il est le dernier du compte.`,
+        ? `Le compte sera déclaré vérifié avec le relevé du ${formatDate(rec.periodEnd)} (solde ${this.amount(rec.closingBalance)} €). Les ${rec.pointedCount} mouvements cochés ne pourront plus être modifiés ni supprimés. En cas d’erreur, vous pourrez annuler cette vérification tant qu’elle est la dernière du compte.`
+        : `Le compte sera déclaré rapproché avec le relevé du ${formatDate(rec.periodEnd)} (solde ${this.amount(rec.closingBalance)} €). Les ${rec.pointedCount} transactions cochées ne pourront plus être modifiées ni supprimées. En cas d’erreur, vous pourrez annuler ce rapprochement tant qu’il est le dernier du compte.`,
       confirmLabel: 'Valider',
     });
     if (!confirmed) return;
@@ -401,7 +404,7 @@ export class ReconciliationPage {
   protected async cancel(rec: ReconciliationInfo): Promise<void> {
     const confirmed = await this.dialogs.confirm({
       title: 'Annuler ce rapprochement ?',
-      message: `Le rapprochement du ${rec.periodEnd} sera annulé : ses ${rec.pointedCount} transactions pourront de nouveau être modifiées. L'annulation est conservée dans l'historique. À faire seulement si vous avez constaté une erreur.`,
+      message: `Le rapprochement du ${formatDate(rec.periodEnd)} sera annulé : ses ${rec.pointedCount} transactions pourront de nouveau être modifiées. L'annulation est conservée dans l'historique. À faire seulement si vous avez constaté une erreur.`,
       confirmLabel: 'Annuler le rapprochement',
       cancelLabel: 'Garder',
       danger: true,

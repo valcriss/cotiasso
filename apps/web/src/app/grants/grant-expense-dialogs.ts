@@ -10,6 +10,8 @@ import { AdminApiService, type ExpenseCandidateInfo, type GrantExpensesInfo, typ
 import { describeHttpError } from '../auth/error-messages';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from '../accounting/amount';
 import { FormDialog } from '../ui/form-dialog';
+import { FrDatePipe } from '../ui/fr-date.pipe';
+import { formatDate } from '../ui/dates';
 
 const positive = (control: { value: string }) => {
   const cents = parseAmountToCents(control.value);
@@ -19,7 +21,7 @@ const positive = (control: { value: string }) => {
 /** Affecter une dépense à la subvention : choisir une dépense déjà comptabilisée de l'un des projets financés, et la part à y imputer. */
 @Component({
   selector: 'app-grant-expense-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [FrDatePipe, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -57,7 +59,7 @@ const positive = (control: { value: string }) => {
           @if (selected(); as chosen) {
             @if (chosen.outOfPeriod) {
               <p class="alert" role="alert">
-                Cette dépense est datée du {{ chosen.entry.date }}, hors de la période financée par la subvention. Vous pouvez l'affecter, mais
+                Cette dépense est datée du {{ chosen.entry.date | frDate }}, hors de la période financée par la subvention. Vous pouvez l'affecter, mais
                 certains financeurs l'écartent : elle sera signalée dans le compte rendu.
               </p>
             }
@@ -121,7 +123,7 @@ export class GrantExpenseDialog {
 
   protected label(candidate: ExpenseCandidateInfo): string {
     const number = candidate.entry.number === null ? '' : ` n° ${candidate.entry.number}`;
-    return `${candidate.entry.date} · ${candidate.entry.label} (${candidate.entry.journalCode}${number}) · ${candidate.account.number} ${candidate.account.label} · ${candidate.project.code} — ${formatApiAmount(candidate.remaining)} € libres`;
+    return `${formatDate(candidate.entry.date)} · ${candidate.entry.label} (${candidate.entry.journalCode}${number}) · ${candidate.account.number} ${candidate.account.label} · ${candidate.project.code} — ${formatApiAmount(candidate.remaining)} € libres`;
   }
 
   protected async save(): Promise<void> {

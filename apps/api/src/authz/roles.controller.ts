@@ -24,7 +24,7 @@ import {
   LastAdministratorError,
   RoleNotFoundError,
 } from "./errors.js";
-import { PERMISSIONS } from "./permissions.js";
+import { PERMISSIONS, isSensitive } from "./permissions.js";
 import { RolesService, type RoleInput } from "./roles.service.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -90,8 +90,8 @@ export class RolesController {
 
   @Authenticated()
   @Get("authz/permissions")
-  permissions(): { key: string; label: string }[] {
-    return Object.entries(PERMISSIONS).map(([key, label]) => ({ key, label }));
+  permissions(): { key: string; label: string; sensitive: boolean }[] {
+    return Object.entries(PERMISSIONS).map(([key, label]) => ({ key, label, sensitive: isSensitive(key) }));
   }
 
   @RequirePermission("users:view")

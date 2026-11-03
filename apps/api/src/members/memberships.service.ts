@@ -25,6 +25,21 @@ const campaignInput = z
   .refine((c) => c.startsOn <= c.endsOn, { message: "La fin précède le début.", path: ["endsOn"] });
 const campaignPatch = z.object({ name: z.string().trim().min(3).max(80).optional(), startsOn: isoDate.optional(), endsOn: isoDate.optional(), effectiveMode: mode.optional() }).strict();
 
+/** Saison suivante : mêmes réglages et mêmes tarifs que la saison copiée, avec ses propres dates. */
+const renewInput = z
+  .object({ name: z.string().trim().min(3, "Donnez un nom d'au moins 3 caractères.").max(80), startsOn: isoDate, endsOn: isoDate })
+  .strict()
+  .refine((c) => c.startsOn <= c.endsOn, { message: "La fin précède le début.", path: ["endsOn"] });
+const MAX_BULK = 500;
+const bulkInput = z
+  .object({
+    items: z
+      .array(z.object({ memberId: z.uuid(), tariffId: z.uuid() }).strict())
+      .min(1, "Choisissez au moins un membre.")
+      .max(MAX_BULK, `${MAX_BULK} inscriptions au plus à la fois.`),
+  })
+  .strict();
+
 const tariffInput = z.object({ label: z.string().trim().min(1, "Libellé obligatoire.").max(80), amount, categoryId: z.uuid().nullish() }).strict();
 const tariffPatch = z.object({ label: z.string().trim().min(1).max(80).optional(), amount: amount.optional(), categoryId: z.uuid().nullable().optional() }).strict();
 
@@ -49,6 +64,30 @@ export interface TariffView {
   membershipCount: number;
 }
 
+export interface RenewalPreview {
+  campaign: { id: string; name: string };
+  /** Saison dont on reprend les membres : la saison qui précède, ou celle demandée. */
+  source: { id: string; name: string } | null;
+  tariffs: { id: string; label: string; amount: string }[];
+  items: {
+    memberId: string;
+    memberName: string;
+    categoryName: string | null;
+    /** Était inscrit à la saison reprise : coché d'office dans l'écran. */
+    previouslyEnrolled: boolean;
+    previousTariffLabel: string | null;
+    /** Tarif proposé ; `null` quand le choix n'est pas évident (la personne le choisit). */
+    proposedTariffId: string | null;
+  }[];
+}
+
+export interface BulkEnrollResult {
+  created: number;
+  /** Total attendu des cotisations créées. */
+  expectedTotal: string;
+  skipped: { memberId: string; memberName: string; reason: string }[];
+}
+
 export interface CampaignView {
   id: string;
   name: string;
@@ -60,6 +99,9 @@ export interface CampaignView {
   /** Les dates et le mode ne changent plus dès qu'une adhésion existe. */
   locked: boolean;
 }
+
+/** Situation d'un membre pour la saison en cours. */
+export type MembershipState = "UP_TO_DATE" | "PARTIAL" | "DUE" | "EXEMPT" | "NONE";
 
 export interface MembershipView {
   id: string;
@@ -164,6 +206,148 @@ export class MembershipsService {
     return this.getCampaign(created.id);
   }
 
+  /** Prépare la saison suivante : copie les réglages et les tarifs (pas les adhésions), en une seule opération. */
+  async renewCampaign(sourceId: string, body: unknown, actorId: string): Promise<CampaignView> {
+    const input = parse(renewInput, body);
+    const source = await this.prisma.campaign.findUnique({ where: { id: sourceId }, include: { tariffs: true } });
+    if (!source) throw new AccountingNotFoundError("Campagne");
+    const created = await this.prisma.campaign
+      .create({
+        data: {
+          name: input.name,
+          startsOn: asDate(input.startsOn),
+          endsOn: asDate(input.endsOn),
+          effectiveMode: source.effectiveMode,
+          createdBy: actorId,
+          tariffs: { create: source.tariffs.map((t) => ({ label: t.label, amount: t.amount, categoryId: t.categoryId })) },
+        },
+      })
+      .catch(rethrow);
+    await this.audit.record({
+      action: "campaign.renewed",
+      objectType: "Campaign",
+      objectId: created.id,
+      actorId,
+      details: { fromCampaignId: sourceId, tariffs: source.tariffs.length },
+    });
+    return this.getCampaign(created.id);
+  }
+
+  /**
+   * Qui renouveler dans une campagne : les membres actuels (ni sortis, ni anonymisés) pas encore inscrits, avec un tarif proposé.
+   * Lecture seule. Tarif proposé : celui que le membre avait la saison reprise (même libellé), sinon celui de sa catégorie, sinon
+   * l'unique tarif sans catégorie ; en cas de doute, aucun (la personne choisit).
+   */
+  async renewalPreview(campaignId: string, query: unknown): Promise<RenewalPreview> {
+    const { from } = parse(z.object({ from: z.uuid().optional() }).strict(), query);
+    const target = await this.prisma.campaign.findUnique({ where: { id: campaignId }, include: { tariffs: { orderBy: { label: "asc" } } } });
+    if (!target) throw new AccountingNotFoundError("Campagne");
+    const source = from
+      ? await this.prisma.campaign.findUnique({ where: { id: from }, select: { id: true, name: true } })
+      : await this.prisma.campaign.findFirst({ where: { startsOn: { lt: target.startsOn } }, orderBy: { startsOn: "desc" }, select: { id: true, name: true } });
+    if (from && !source) throw new AccountingNotFoundError("Campagne à reprendre");
+    const members = await this.prisma.member.findMany({
+      where: { status: "ACTIVE", anonymizedAt: null, memberships: { none: { campaignId, status: { not: "CANCELLED" } } } },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        categoryId: true,
+        category: { select: { name: true } },
+        memberships: { where: { campaignId: source?.id ?? "00000000-0000-0000-0000-000000000000", status: { not: "CANCELLED" } }, select: { tariff: { select: { label: true } } } },
+      },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    });
+    const generic = target.tariffs.filter((t) => t.categoryId === null);
+    return {
+      campaign: { id: target.id, name: target.name },
+      source,
+      tariffs: target.tariffs.map((t) => ({ id: t.id, label: t.label, amount: Money.parse(dec(t.amount)).toString() })),
+      items: members.map((m) => {
+        const previous = m.memberships[0]?.tariff?.label ?? null;
+        const same = previous ? target.tariffs.find((t) => t.label.toLowerCase() === previous.toLowerCase()) : undefined;
+        const byCategory = m.categoryId ? target.tariffs.find((t) => t.categoryId === m.categoryId) : undefined;
+        const only = generic.length === 1 ? generic[0] : undefined;
+        return {
+          memberId: m.id,
+          memberName: `${m.lastName} ${m.firstName}`,
+          categoryName: m.category?.name ?? null,
+          previouslyEnrolled: m.memberships.length > 0,
+          previousTariffLabel: previous,
+          proposedTariffId: (same ?? byCategory ?? only)?.id ?? null,
+        };
+      }),
+    };
+  }
+
+  /**
+   * Inscrit plusieurs membres d'un coup (tout ou rien) au tarif choisi pour chacun. Les membres déjà inscrits sont **ignorés avec leur
+   * raison** (relancer ne crée aucun doublon) ; toute autre anomalie (tarif d'une autre campagne, membre sorti ou anonymisé) refuse
+   * l'ensemble sans rien créer. Mêmes règles qu'une inscription seule : montant attendu figé au tarif, état selon le mode.
+   */
+  async enrollMany(campaignId: string, body: unknown, actorId: string): Promise<BulkEnrollResult> {
+    const input = parse(bulkInput, body);
+    const campaign = await this.prisma.campaign.findUnique({ where: { id: campaignId }, include: { tariffs: true } });
+    if (!campaign) throw new AccountingNotFoundError("Campagne");
+    const memberIds = [...new Set(input.items.map((i) => i.memberId))];
+    const members = await this.prisma.member.findMany({
+      where: { id: { in: memberIds } },
+      select: { id: true, firstName: true, lastName: true, status: true, anonymizedAt: true, memberships: { where: { campaignId, status: { not: "CANCELLED" } }, select: { id: true } } },
+    });
+    const byId = new Map(members.map((m) => [m.id, m]));
+    const today = day(new Date());
+    const skipped: BulkEnrollResult["skipped"] = [];
+    const problems: string[] = [];
+    const rows: Prisma.MembershipCreateManyInput[] = [];
+    let total = Money.zero();
+    const seen = new Set<string>();
+    for (const item of input.items) {
+      const member = byId.get(item.memberId);
+      const tariff = campaign.tariffs.find((t) => t.id === item.tariffId);
+      if (!member) {
+        problems.push("Un membre choisi n'existe plus.");
+        continue;
+      }
+      const name = `${member.lastName} ${member.firstName}`;
+      if (seen.has(member.id)) continue; // même membre choisi deux fois : une seule inscription
+      seen.add(member.id);
+      if (member.memberships.length > 0) {
+        skipped.push({ memberId: member.id, memberName: name, reason: "Déjà inscrit à cette campagne." });
+        continue;
+      }
+      if (member.anonymizedAt || member.status !== "ACTIVE") {
+        problems.push(`${name} : ce membre est sorti ou anonymisé, on ne l'inscrit plus.`);
+        continue;
+      }
+      if (!tariff) {
+        problems.push(`${name} : le tarif choisi n'appartient pas à cette campagne.`);
+        continue;
+      }
+      const prepared = this.prepare(campaign, tariff, {}, today);
+      if (prepared.error) {
+        problems.push(`${name} : ${prepared.error}`);
+        continue;
+      }
+      total = total.add(Money.parse(prepared.expected));
+      rows.push({
+        campaignId,
+        memberId: member.id,
+        tariffId: tariff.id,
+        expectedAmount: prepared.expected,
+        exemptionReason: null,
+        createdBy: actorId,
+        ...(prepared.effective && { status: "EFFECTIVE" as const, effectiveOn: asDate(prepared.effective.effectiveOn), effectiveOrigin: prepared.effective.origin }),
+      });
+    }
+    if (problems.length > 0) {
+      const shown = problems.slice(0, 5).join(" ");
+      throw new AccountingConflictError(`Rien n'a été créé. ${shown}${problems.length > 5 ? ` (et ${problems.length - 5} autre(s))` : ""}`);
+    }
+    if (rows.length > 0) await this.prisma.membership.createMany({ data: rows }).catch(rethrow);
+    await this.audit.record({ action: "membership.bulk-created", objectType: "Campaign", objectId: campaignId, actorId, details: { created: rows.length, skipped: skipped.length } });
+    return { created: rows.length, expectedTotal: total.toString(), skipped };
+  }
+
   async updateCampaign(id: string, body: unknown, actorId: string): Promise<CampaignView> {
     const patch = parse(campaignPatch, body);
     const current = await this.prisma.campaign.findUnique({ where: { id } });
@@ -240,6 +424,31 @@ export class MembershipsService {
     return this.present(rows);
   }
 
+  /**
+   * Montant attendu et état d'une inscription, selon le tarif et le mode de la campagne : une seule source pour l'inscription seule et
+   * l'inscription en masse. Un refus est rendu en texte (`error`), jamais en exception, pour que l'inscription en masse les rassemble.
+   */
+  private prepare(
+    campaign: { startsOn: Date; endsOn: Date; effectiveMode: MembershipMode },
+    tariff: { amount: { toFixed(places: number): string } },
+    input: { expectedAmount?: string | undefined; exemptionReason?: string | undefined; effectiveOn?: string | undefined },
+    today: string,
+  ): { expected: string; effective: { effectiveOn: string; origin: MembershipOrigin } | null; error?: string } {
+    const expected = input.expectedAmount ?? dec(tariff.amount);
+    if (Money.parse(expected).equals(Money.parse(dec(tariff.amount))) === false && !input.exemptionReason) {
+      return { expected, effective: null, error: "Le montant diffère du tarif : indiquez la raison (exonération, remise…)." };
+    }
+    let effective: { effectiveOn: string; origin: MembershipOrigin } | null = null;
+    if (Money.parse(expected).isZero()) {
+      effective = { effectiveOn: this.clamp(today, campaign), origin: "EXEMPTION" };
+    } else if (campaign.effectiveMode === "START_DATE") {
+      const wanted = input.effectiveOn && input.effectiveOn > day(campaign.startsOn) ? input.effectiveOn : day(campaign.startsOn);
+      if (wanted > day(campaign.endsOn)) return { expected, effective: null, error: "La date d'effet doit tomber dans la campagne." };
+      effective = { effectiveOn: wanted, origin: "START_DATE" };
+    }
+    return { expected, effective };
+  }
+
   /** Inscrit un membre à une campagne : montant attendu figé, état selon le mode de la campagne ; aucune écriture comptable. */
   async createMembership(campaignId: string, body: unknown, actorId: string): Promise<MembershipView> {
     const input = parse(membershipInput, body);
@@ -250,20 +459,9 @@ export class MembershipsService {
     const member = await this.prisma.member.findUnique({ where: { id: input.memberId }, select: { id: true, status: true, anonymizedAt: true, categoryId: true } });
     if (!member) throw new AccountingNotFoundError("Membre");
 
-    const expected = input.expectedAmount ?? dec(tariff.amount);
-    if (Money.parse(expected).equals(Money.parse(dec(tariff.amount))) === false && !input.exemptionReason) {
-      throw new AccountingConflictError("Le montant diffère du tarif : indiquez la raison (exonération, remise…).");
-    }
-
-    const today = day(new Date());
-    let effective: { effectiveOn: string; origin: MembershipOrigin } | null = null;
-    if (Money.parse(expected).isZero()) {
-      effective = { effectiveOn: this.clamp(today, campaign), origin: "EXEMPTION" };
-    } else if (campaign.effectiveMode === "START_DATE") {
-      const wanted = input.effectiveOn && input.effectiveOn > day(campaign.startsOn) ? input.effectiveOn : day(campaign.startsOn);
-      if (wanted > day(campaign.endsOn)) throw new AccountingConflictError("La date d'effet doit tomber dans la campagne.");
-      effective = { effectiveOn: wanted, origin: "START_DATE" };
-    }
+    const prepared = this.prepare(campaign, tariff, input, day(new Date()));
+    if (prepared.error) throw new AccountingConflictError(prepared.error);
+    const { expected, effective } = prepared;
 
     const created = await this.prisma.membership
       .create({
@@ -307,6 +505,35 @@ export class MembershipsService {
       .catch(rethrow);
     await this.audit.record({ action: "membership.cancelled", objectType: "Membership", objectId: id, actorId, justification: reason });
     return (await this.present([await this.loadMembership(id)]))[0]!;
+  }
+
+  /** Saison de cotisation en cours à `today` (AAAA-MM-JJ) : les saisons ne se chevauchent pas, donc au plus une. */
+  async currentCampaign(today: string): Promise<{ id: string; name: string } | null> {
+    const date = new Date(`${today}T00:00:00Z`);
+    return this.prisma.campaign.findFirst({ where: { startsOn: { lte: date }, endsOn: { gte: date } }, select: { id: true, name: true } });
+  }
+
+  /**
+   * Où en est la cotisation de chaque membre pour une saison : à jour, partielle, due, exonérée, ou pas inscrite. Même source
+   * que les colonnes « payé / reste dû » (`paidFor`) : aucun second calcul. Une adhésion annulée vaut « pas inscrit ».
+   */
+  async statesFor(campaignId: string, memberIds?: string[]): Promise<Map<string, MembershipState>> {
+    const rows = await this.prisma.membership.findMany({
+      where: { campaignId, status: { not: "CANCELLED" }, ...(memberIds && { memberId: { in: memberIds } }) },
+      select: { id: true, memberId: true, expectedAmount: true },
+    });
+    const paid = await this.paidFor(rows.map((r) => r.id));
+    const states = new Map<string, MembershipState>();
+    for (const row of rows) {
+      const expected = Money.parse(dec(row.expectedAmount));
+      const net = paid.get(row.id) ?? Money.zero();
+      const balance = expected.subtract(net);
+      states.set(
+        row.memberId,
+        expected.compare(Money.zero()) === 0 ? "EXEMPT" : balance.compare(Money.zero()) <= 0 ? "UP_TO_DATE" : net.compare(Money.zero()) > 0 ? "PARTIAL" : "DUE",
+      );
+    }
+    return states;
   }
 
   /** Règlements nets (paiements − remboursements, hors affectations annulées) de chaque adhésion. */

@@ -37,6 +37,8 @@ export interface ManagedUser {
 export interface PermissionInfo {
   key: string;
   label: string;
+  /** Droit à confier avec soin (sécurité, comptes définitifs, export de toutes les données). */
+  sensitive?: boolean;
 }
 
 /** Lien à usage unique à transmettre à l'utilisateur ; n'est montré qu'une seule fois. */
@@ -293,7 +295,19 @@ export interface TodoItemInfo {
   detail: string;
   count?: number;
   link: string;
+  /** De quoi ouvrir l'écran déjà filtré (ex. le compte qui a des mouvements à classer). */
+  query?: Record<string, string>;
   actionLabel: string;
+}
+
+export interface RecentOperationInfo {
+  id: string;
+  date: string;
+  label: string;
+  /** Montant signé : positif = argent reçu, négatif = argent dépensé. */
+  amount: string;
+  accountName: string;
+  situation: 'TO_CLASSIFY' | 'CLASSIFIED' | 'DRAFT' | 'BOOKED' | 'TRANSFER';
 }
 
 export interface OverviewInfo {
@@ -307,6 +321,8 @@ export interface OverviewInfo {
   };
   cash: { total: string; accounts: { id: string; name: string; balance: string }[] } | null;
   month: { from: string; to: string; received: string; spent: string } | null;
+  /** Les 5 dernières opérations (absentes sans droit de lecture des comptes). */
+  recent?: RecentOperationInfo[] | null;
   todo: TodoItemInfo[];
 }
 
@@ -362,6 +378,21 @@ export type GuidedOperationBody = {
   reference?: string | null;
   post?: boolean;
 } & CategoryChoiceBody;
+
+export interface CorrectOperationBody {
+  categoryId?: string;
+  /** `null` : retour au projet par défaut ; absent : le projet actuel est gardé. */
+  projectId?: string | null;
+  label?: string;
+}
+
+export interface AdjustAmountBody {
+  /** Le montant juste, positif. */
+  amount: string;
+  date: string;
+}
+
+export type AdjustAmountResult = GuidedOperationResult & { adjustedTransactionId: string; difference: string };
 
 export interface BulkBookInfo {
   booked: number;
@@ -421,6 +452,21 @@ export interface TransactionInfo {
   /** Rapprochement où la transaction est pointée ; « validé » = rapprochée. */
   reconciliation: { id: string; status: 'IN_PROGRESS' | 'VALIDATED'; periodEnd: string } | null;
   version: number;
+  /** Proposition de classement (ADR 0019 amendé) : seulement dans la liste, jamais appliquée seule. */
+  suggestion?: TransactionSuggestionInfo | null;
+  /** Un document visible est lié au mouvement (liste seulement, avec le droit de lire les documents). */
+  hasDocument?: boolean;
+}
+
+export interface TransactionSuggestionInfo {
+  counterpartAccountId: string;
+  counterpartAccountNumber: string;
+  counterpartAccountLabel: string;
+  projectId: string | null;
+  projectCode: string | null;
+  /** Le mouvement le plus récent dont le classement est repris. */
+  basedOn: { label: string; operationDate: string };
+  matches: number;
 }
 
 export interface StatementInfo {
@@ -488,6 +534,8 @@ export interface MemberInfo {
   anonymized: boolean;
   currentOffices: string[];
   version: number;
+  /** Cotisation de la saison en cours, seulement dans la liste (`null` : aucune saison en cours). */
+  membershipStatus?: MemberCotisationState | null;
 }
 
 export interface MemberOfficeInfo {
@@ -512,10 +560,27 @@ export interface MemberBody {
   note: string | null;
 }
 
+export type MemberCotisationState = 'UP_TO_DATE' | 'PARTIAL' | 'DUE' | 'EXEMPT' | 'NONE';
+
+export interface RenewalPreviewInfo {
+  campaign: { id: string; name: string };
+  source: { id: string; name: string } | null;
+  tariffs: { id: string; label: string; amount: string }[];
+  items: { memberId: string; memberName: string; categoryName: string | null; previouslyEnrolled: boolean; previousTariffLabel: string | null; proposedTariffId: string | null }[];
+}
+
+export interface BulkEnrollInfo {
+  created: number;
+  expectedTotal: string;
+  skipped: { memberId: string; memberName: string; reason: string }[];
+}
+
 export interface MemberFilters {
   q?: string;
   status?: 'ACTIVE' | 'FORMER';
   categoryId?: string;
+  /** Cotisation de la saison en cours : à jour (exonérés compris), en retard (due ou partielle), ou pas inscrit. */
+  membershipStatus?: 'UP_TO_DATE' | 'LATE' | 'NONE';
   after?: string;
 }
 
@@ -1553,10 +1618,10 @@ export class AdminApiService {
     return firstValueFrom(this.http.patch<FinancialAccountInfo>(`/api/financial-accounts/${id}`, { archived: true }));
   }
 
-  listMembers(filters: MemberFilters = {}): Promise<{ members: MemberInfo[]; next: string | null }> {
+  listMembers(filters: MemberFilters = {}): Promise<{ members: MemberInfo[]; next: string | null; campaign?: { id: string; name: string } | null }> {
     let params = new HttpParams();
     for (const [key, value] of Object.entries(filters)) if (value) params = params.set(key, value);
-    return firstValueFrom(this.http.get<{ members: MemberInfo[]; next: string | null }>('/api/members', { params }));
+    return firstValueFrom(this.http.get<{ members: MemberInfo[]; next: string | null; campaign?: { id: string; name: string } | null }>('/api/members', { params }));
   }
 
   getMember(id: string): Promise<{ member: MemberInfo; offices: MemberOfficeInfo[] }> {
@@ -1623,8 +1688,28 @@ export class AdminApiService {
     return firstValueFrom(this.http.delete<CampaignInfo>(`/api/tariffs/${id}`));
   }
 
+  /** Prépare la saison suivante : mêmes réglages et tarifs, nouvelles dates, aucune adhésion. */
+  renewCampaign(campaignId: string, body: { name: string; startsOn: string; endsOn: string }): Promise<CampaignInfo> {
+    return firstValueFrom(this.http.post<CampaignInfo>(`/api/campaigns/${campaignId}/renew`, body));
+  }
+
+  /** Membres à renouveler dans une saison, avec un tarif proposé (lecture seule). */
+  renewalPreview(campaignId: string): Promise<RenewalPreviewInfo> {
+    return firstValueFrom(this.http.get<RenewalPreviewInfo>(`/api/campaigns/${campaignId}/renewal-preview`));
+  }
+
+  /** Inscrit plusieurs membres d'un coup (tout ou rien) ; les déjà inscrits sont ignorés avec leur raison. */
+  enrollMany(campaignId: string, items: { memberId: string; tariffId: string }[]): Promise<BulkEnrollInfo> {
+    return firstValueFrom(this.http.post<BulkEnrollInfo>(`/api/campaigns/${campaignId}/memberships/bulk`, { items }));
+  }
+
   listMemberships(campaignId: string): Promise<MembershipInfo[]> {
     return firstValueFrom(this.http.get<MembershipInfo[]>(`/api/campaigns/${campaignId}/memberships`));
+  }
+
+  /** Cotisations d'un membre, toutes saisons (celles qui restent à payer ont un `balance` positif). */
+  listMemberMemberships(memberId: string): Promise<MembershipInfo[]> {
+    return firstValueFrom(this.http.get<MembershipInfo[]>(`/api/members/${memberId}/memberships`));
   }
 
   createMembership(
@@ -1715,6 +1800,11 @@ export class AdminApiService {
 
   qualifyTransactions(accountId: string, body: { transactionIds: string[]; counterpartAccountId?: string; projectId?: string }): Promise<{ updated: number }> {
     return firstValueFrom(this.http.post<{ updated: number }>(`/api/financial-accounts/${accountId}/transactions/qualify`, body));
+  }
+
+  /** Le serveur recalcule les propositions : on n'envoie que les identifiants des mouvements à classer. */
+  acceptSuggestions(accountId: string, transactionIds: string[]): Promise<{ updated: number }> {
+    return firstValueFrom(this.http.post<{ updated: number }>(`/api/financial-accounts/${accountId}/transactions/accept-suggestions`, { transactionIds }));
   }
 
   listStatements(accountId: string): Promise<StatementInfo[]> {
@@ -2138,6 +2228,15 @@ export class AdminApiService {
 
   bookTransactions(accountId: string, body: { transactionIds?: string[]; post?: boolean }): Promise<BulkBookInfo> {
     return firstValueFrom(this.http.post<BulkBookInfo>(`/api/financial-accounts/${accountId}/transactions/book`, body));
+  }
+
+  /** Corrige une opération enregistrée : l'écriture est contrepassée puis refaite, d'un seul bloc (tout ou rien). */
+  correctOperation(transactionId: string, body: CorrectOperationBody): Promise<GuidedOperationResult & { reversedEntryId: string }> {
+    return firstValueFrom(this.http.post<GuidedOperationResult & { reversedEntryId: string }>(`/api/transactions/${transactionId}/correct`, body));
+  }
+
+  adjustOperationAmount(transactionId: string, body: AdjustAmountBody): Promise<AdjustAmountResult> {
+    return firstValueFrom(this.http.post<AdjustAmountResult>(`/api/transactions/${transactionId}/adjust-amount`, body));
   }
 
   recordOperation(body: GuidedOperationBody): Promise<GuidedOperationResult> {

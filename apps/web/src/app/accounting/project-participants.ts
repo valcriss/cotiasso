@@ -4,6 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { AdminApiService, type ParticipantInfo, type ProjectInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
+import { formatDate } from '../ui/dates';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { ParticipantDialog } from './participant-dialog';
@@ -100,7 +101,7 @@ export class ProjectParticipants {
 
   protected period(participant: ParticipantInfo): string {
     if (!participant.startDate && !participant.endDate) return '—';
-    return `${participant.startDate ?? '…'} → ${participant.endDate ?? 'en cours'}`;
+    return `${participant.startDate ? formatDate(participant.startDate) : '…'} → ${participant.endDate ? formatDate(participant.endDate) : 'en cours'}`;
   }
 
   protected async add(): Promise<void> {

@@ -8,6 +8,7 @@ import { AdminApiService, type CategoryChoiceBody, type FinancialAccountInfo, ty
 import { formatApiAmount, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 import { CategoryField, evaluateSplit, type SplitRow } from './category-field';
 
 export interface BookDialogData {
@@ -24,13 +25,13 @@ export interface BookDialogData {
  */
 @Component({
   selector: 'app-book-dialog',
-  imports: [CategoryField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatSelectModule],
+  imports: [CategoryField, FrDatePipe, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
         title="Classer et enregistrer ce mouvement"
         [description]="incoming ? 'De l’argent est arrivé sur le compte. Dites d’où il vient : le logiciel s’occupe de la comptabilité.' : 'De l’argent est sorti du compte. Dites à quoi il a servi : le logiciel s’occupe de la comptabilité.'"
-        [submitLabel]="data.canPost ? 'Classer et enregistrer' : 'Classer en brouillon'"
+        [submitLabel]="data.canPost ? 'Classer et enregistrer' : 'Classer et envoyer pour validation'"
         [dirty]="form.dirty"
         [busy]="busy()"
         [error]="error()"
@@ -38,7 +39,7 @@ export interface BookDialogData {
       >
         <p class="summary">
           <strong>{{ data.transaction.label }}</strong><br />
-          <span class="muted">{{ data.transaction.operationDate }} · {{ amount(data.transaction.amount) }} € · {{ data.account.name }}</span>
+          <span class="muted">{{ data.transaction.operationDate | frDate }} · {{ amount(data.transaction.amount) }} € · {{ data.account.name }}</span>
         </p>
         <app-category-field
           [label]="incoming ? 'D’où vient cet argent ?' : 'À quoi a servi cet argent ?'"
@@ -50,9 +51,9 @@ export interface BookDialogData {
           [(splits)]="splits"
         />
         <mat-form-field appearance="outline">
-          <mat-label>{{ incoming ? 'Reçu dans le cadre de quelle activité ? (facultatif)' : 'Pour quelle activité ? (facultatif)' }}</mat-label>
+          <mat-label>{{ incoming ? 'Reçu dans le cadre de quel projet ? (facultatif)' : 'Pour quel projet ? (facultatif)' }}</mat-label>
           <mat-select formControlName="projectId">
-            <mat-option [value]="null">Aucune activité en particulier</mat-option>
+            <mat-option [value]="null">Aucun projet en particulier</mat-option>
             @for (project of data.projects; track project.id) {
               <mat-option [value]="project.id">{{ project.name }}</mat-option>
             }
@@ -60,8 +61,8 @@ export interface BookDialogData {
           <mat-hint>
             {{
               incoming
-                ? 'Si cet argent a été reçu pendant ou à l’occasion d’une activité (festival, atelier…), choisissez-la. Sinon, laissez vide : il sera rattaché au fonctionnement général.'
-                : 'Si cette dépense concerne une activité (festival, atelier…), choisissez-la pour savoir ce qu’elle coûte. Sinon, laissez vide : elle sera rattachée au fonctionnement général.'
+                ? 'Si cet argent a été reçu pendant ou à l’occasion d’un projet (festival, atelier…), choisissez-le. Sinon, laissez vide : il sera rattaché au projet « Fonctionnement ».'
+                : 'Si cette dépense concerne un projet (festival, atelier…), choisissez-le pour savoir ce qu’il coûte. Sinon, laissez vide : elle sera rattachée au projet « Fonctionnement ».'
             }}
           </mat-hint>
         </mat-form-field>
@@ -74,7 +75,7 @@ export interface BookDialogData {
         } @else if (selected(); as category) {
           <p class="muted">
             Ce que verra l’expert-comptable : {{ incoming ? 'le compte ' + data.account.accountNumber + ' est débité et le compte ' + category.account.number + ' (' + category.account.label + ') crédité' : 'le compte ' + category.account.number + ' (' + category.account.label + ') est débité et le compte ' + data.account.accountNumber + ' crédité' }}.
-            {{ data.canPost ? 'L’opération est enregistrée définitivement ; vous pourrez toujours l’annuler.' : 'Elle sera mise en brouillon pour qu’une personne habilitée la relise.' }}
+            {{ data.canPost ? 'L’opération est enregistrée définitivement ; vous pourrez toujours l’annuler.' : 'Elle sera envoyée pour validation, en brouillon : une personne autorisée la relira puis l’enregistrera ; rien n’est compté dans les rapports avant.' }}
           </p>
         }
       </app-form-dialog>

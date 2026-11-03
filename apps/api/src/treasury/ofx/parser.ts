@@ -167,12 +167,12 @@ export function parseOfx(bytes: Buffer): OfxStatement {
     throw new OfxError("Le fichier contient une déclaration DOCTYPE, ENTITY ou CDATA, non prise en charge.");
   }
   const start = content.search(/<OFX\b/i);
-  if (start < 0) throw new OfxError("Ce fichier n'est pas un fichier OFX (balise <OFX> absente).");
-  if (!/<\/OFX\s*>/i.test(content)) throw new OfxError("Le fichier OFX est incomplet (balise </OFX> absente) : il semble tronqué.");
+  if (start < 0) throw new OfxError("Ce fichier n'est pas un fichier OFX : l'application ne lit que ce format de relevé. Cherchez sur le site de votre banque l'export « OFX » (parfois nommé « Money » ou « Quicken »), ou saisissez vos opérations à la main avec « J'ai reçu / J'ai dépensé de l'argent ».");
+  if (!/<\/OFX\s*>/i.test(content)) throw new OfxError("Le fichier OFX est incomplet : il semble tronqué (téléchargement interrompu ?). Téléchargez-le de nouveau depuis le site de votre banque.");
 
   const tree = buildTree(content.slice(start).replace(/<\/OFX\s*>[\s\S]*$/i, "</OFX>"));
   const ofx = find(tree, "OFX");
-  if (!ofx) throw new OfxError("Ce fichier n'est pas un fichier OFX.");
+  if (!ofx) throw new OfxError("Ce fichier n'est pas un fichier OFX : l'application ne lit que ce format de relevé. Cherchez sur le site de votre banque l'export « OFX » (parfois nommé « Money » ou « Quicken »), ou saisissez vos opérations à la main avec « J'ai reçu / J'ai dépensé de l'argent ».");
 
   const rejected = walkRejected(ofx);
   if (rejected) throw new OfxError(`Ce fichier contient des ${rejected} : seuls les relevés de comptes bancaires sont pris en charge.`);
@@ -215,7 +215,7 @@ export function parseOfx(bytes: Buffer): OfxStatement {
 
       const errors: string[] = [];
       const fitId = text(trn, "FITID");
-      if (!fitId) errors.push("Identifiant bancaire (FITID) absent : la ligne ne peut pas être importée sans risque de doublon.");
+      if (!fitId) errors.push("Cette ligne n'a pas de numéro d'identification de la banque : elle ne peut pas être importée sans risque de doublon. Saisissez-la à la main si besoin.");
       const date = parseOfxDate(text(trn, "DTPOSTED") ?? text(trn, "DTUSER"));
       if (!date) errors.push("Date d'opération absente ou illisible.");
       const rawAmount = text(trn, "TRNAMT");

@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { mockAuth } from '../testing/auth-mock';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { MembersPage } from './members.page';
@@ -92,6 +92,71 @@ describe('MembersPage', () => {
     expect(text).toContain('Trésorière');
     expect(root.querySelector('.help')!.textContent).toContain("pas besoin d'un compte de connexion");
     expect(text).not.toContain('Nouveau membre');
+  });
+
+  it("montre la cotisation de la saison en cours de chaque membre, et le filtre qui la sélectionne (#20)", async () => {
+    await TestBed.configureTestingModule({
+      imports: [MembersPage],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(['members:view']), NO_MATERIAL_ANIMATIONS],
+    }).compileComponents();
+    controller = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(MembersPage);
+    root = fixture.nativeElement as HTMLElement;
+    ui = new DialogTester(settle);
+    await settle();
+    controller.expectOne('/api/member-categories').flush(categories);
+    await settle();
+    const states = ['UP_TO_DATE', 'EXEMPT', 'PARTIAL', 'DUE', 'NONE'];
+    controller
+      .expectOne((r) => r.url === '/api/members')
+      .flush({ members: states.map((s, i) => member({ id: `m${i}`, firstName: `P${i}`, membershipStatus: s })), next: null, campaign: { id: 'c1', name: 'Saison 2026-2027' } });
+    await settle();
+    const rows = Array.from(root.querySelectorAll('tbody tr')).map((tr) => tr.querySelectorAll('td')[4]!.textContent!.replace(/\s+/g, ' ').trim());
+    expect(rows).toEqual(['check_circle À jour', 'check_circle À jour (exonéré)', 'warning Payée en partie', 'warning En retard', 'radio_button_unchecked Pas inscrit']);
+    expect(root.textContent).toContain('Cotisation — Saison 2026-2027');
+
+    // Choisir « En retard » demande la liste filtrée au serveur.
+    root.querySelector<HTMLElement>('mat-select[formcontrolname="membershipStatus"] .mat-mdc-select-trigger')!.click();
+    await settle();
+    Array.from(document.querySelectorAll<HTMLElement>('.cdk-overlay-container .mat-mdc-option')).find((o) => o.textContent!.includes('En retard'))!.click();
+    await settle();
+    await click('Rechercher');
+    const filtered = controller.expectOne((r) => r.url === '/api/members');
+    expect(filtered.request.params.get('membershipStatus')).toBe('LATE');
+    filtered.flush({ members: [member({ id: 'm3', membershipStatus: 'DUE' })], next: null, campaign: { id: 'c1', name: 'Saison 2026-2027' } });
+    await settle();
+  });
+
+  it("sans saison en cours, ne montre aucune situation de cotisation et le dit", async () => {
+    await create(['members:view'], [member({ membershipStatus: null })]);
+    expect(root.querySelector('tbody tr')!.querySelectorAll('td')[4]!.textContent!.trim()).toBe('—');
+    expect(root.textContent).toContain('Aucune saison de cotisation n’est en cours.');
+  });
+
+  it("ouvre la liste déjà filtrée sur les cotisations en retard quand le lien de la vue d'ensemble le demande (?cotisation=late)", async () => {
+    await TestBed.configureTestingModule({
+      imports: [MembersPage],
+      providers: [
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ cotisation: 'late' }) } } },
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        mockAuth(['members:view']),
+        NO_MATERIAL_ANIMATIONS,
+      ],
+    }).compileComponents();
+    controller = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(MembersPage);
+    root = fixture.nativeElement as HTMLElement;
+    ui = new DialogTester(settle);
+    await settle();
+    controller.expectOne('/api/member-categories').flush(categories);
+    await settle();
+    const request = controller.expectOne((r) => r.url === '/api/members');
+    expect(request.request.params.get('membershipStatus')).toBe('LATE');
+    request.flush({ members: [member({ membershipStatus: 'DUE' })], next: null, campaign: { id: 'c1', name: 'Saison' } });
+    await settle();
+    expect(root.textContent).toContain('En retard');
   });
 
   it("guide l'utilisateur quand il n'y a aucun membre", async () => {

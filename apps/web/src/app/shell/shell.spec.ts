@@ -6,6 +6,7 @@ import { AuthService, type AuthUser } from '../auth/auth.service';
 import { BrandingService } from '../branding/branding.service';
 import { NAVIGATION } from '../navigation';
 import { ThemeService } from '../theme/theme.service';
+import { SetupStatus } from '../pages/setup-status.service';
 import { Shell } from './shell';
 
 const user: AuthUser = {
@@ -50,7 +51,7 @@ describe('Shell', () => {
     const fixture = TestBed.createComponent(Shell);
     await fixture.whenStable();
     const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim());
-    expect(labels).toEqual(["Vue d'ensemble", 'Projets', 'Documents'].map((l) => expect.stringContaining(l)));
+    expect(labels).toEqual(["Vue d'ensemble", 'Projets', 'Documents', 'Aide et lexique'].map((l) => expect.stringContaining(l)));
   });
 
   it('pour un droit limité à un projet, montre les rubriques filtrées par le serveur mais pas la page Documents générale', async () => {
@@ -59,7 +60,7 @@ describe('Shell', () => {
     const fixture = TestBed.createComponent(Shell);
     await fixture.whenStable();
     const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim());
-    expect(labels).toEqual(["Vue d'ensemble", 'Projets', 'Subventions'].map((l) => expect.stringContaining(l)));
+    expect(labels).toEqual(["Vue d'ensemble", 'Projets', 'Subventions', 'Aide et lexique'].map((l) => expect.stringContaining(l)));
   });
 
   it("affiche le nom de l'association défini par la marque blanche", async () => {
@@ -75,7 +76,7 @@ describe('Shell', () => {
       a.textContent?.trim(),
     );
     // Affichage simple par défaut : les rubriques de l'expert (Comptabilité) sont masquées du menu.
-    expect(labels).toEqual([...NAVIGATION.filter((item) => !item.expert).map((item) => item.label), 'Paramètres'].map((l) => expect.stringContaining(l)));
+    expect(labels).toEqual([...NAVIGATION.filter((item) => !item.expert).map((item) => item.label), 'Paramètres', 'Aide et lexique'].map((l) => expect.stringContaining(l)));
     expect(labels.join(' ')).not.toContain('Comptabilité');
   });
 
@@ -84,7 +85,7 @@ describe('Shell', () => {
     const fixture = TestBed.createComponent(Shell);
     await fixture.whenStable();
     const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim());
-    expect(labels).toEqual([...NAVIGATION.map((item) => item.label), 'Paramètres'].map((l) => expect.stringContaining(l)));
+    expect(labels).toEqual([...NAVIGATION.map((item) => item.label), 'Paramètres', 'Aide et lexique'].map((l) => expect.stringContaining(l)));
     TestBed.inject(ThemeService).setViewMode('simple');
   });
 
@@ -130,5 +131,41 @@ describe('Shell', () => {
     await fixture.whenStable();
     expect(logout).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledWith('/connexion');
+  });
+
+  describe('entrée « Démarrer »', () => {
+    const complete = { fiscalYear: true, accounts: true, financialAccount: true, categories: true, startMode: 'HISTORY' as const, openingSituation: 'NONE' as const };
+    const labels = (fixture: { nativeElement: unknown }) => Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent!.trim());
+
+    it("apparaît, juste après la vue d'ensemble, tant qu'une étape manque, pour qui peut la faire", async () => {
+      permissions.set(new Set(['settings.accounting:admin', 'projects:view']));
+      TestBed.inject(SetupStatus).set({ ...complete, financialAccount: false });
+      const fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      const items = labels(fixture);
+      expect(items[0]).toContain("Vue d'ensemble");
+      expect(items[1]).toContain('Démarrer');
+    });
+
+    it("disparaît quand toutes les étapes sont faites, et reste absente sans le droit d'administrer la comptabilité", async () => {
+      permissions.set(new Set(['settings.accounting:admin']));
+      TestBed.inject(SetupStatus).set(complete);
+      let fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      expect(labels(fixture).join('|')).not.toContain('Démarrer');
+      TestBed.inject(SetupStatus).set({ ...complete, fiscalYear: false });
+      permissions.set(new Set(['projects:view']));
+      fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      expect(labels(fixture).join('|')).not.toContain('Démarrer');
+    });
+
+    it('compte la situation de départ comme étape quand on repart d’une situation d’ouverture', () => {
+      const status = TestBed.inject(SetupStatus);
+      status.set({ ...complete, startMode: 'OPENING', openingSituation: 'DRAFT' });
+      expect(status.incomplete()).toBe(true);
+      status.set({ ...complete, startMode: 'OPENING', openingSituation: 'POSTED' });
+      expect(status.incomplete()).toBe(false);
+    });
   });
 });

@@ -74,7 +74,7 @@ describe("parseOfx — OFX 1.x SGML en Windows-1252", () => {
   it("signale une ligne sans identifiant bancaire sans bloquer les autres", () => {
     const line = statement.lines[3]!;
     expect(line.fitId).toBeNull();
-    expect(line.errors.join(" ")).toContain("FITID");
+    expect(line.errors.join(" ")).toContain("numéro d'identification de la banque");
     expect(statement.lines.filter((l) => l.errors.length === 0)).toHaveLength(3);
   });
 });

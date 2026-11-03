@@ -23,6 +23,7 @@ import {
 import type { FastifyRequest } from "fastify";
 import { AccountingConflictError, AccountingNotFoundError, AccountingValidationError } from "../accounting/errors.js";
 import type { AuthenticatedRequest } from "../auth/auth.guard.js";
+import { AuthorizationService } from "../authz/authorization.service.js";
 import { RequirePermission } from "../authz/decorators.js";
 import { FinancialAccountsService, type FinancialAccountView, type StatementView } from "./financial-accounts.service.js";
 import {
@@ -64,6 +65,7 @@ export class TreasuryController {
     @Inject(TransactionLinksService) private readonly links: TransactionLinksService,
     @Inject(TransfersService) private readonly transfers: TransfersService,
     @Inject(ReconciliationsService) private readonly reconciliations: ReconciliationsService,
+    @Inject(AuthorizationService) private readonly authz: AuthorizationService,
   ) {}
 
   @RequirePermission("financial-accounts:view")
@@ -112,11 +114,16 @@ export class TreasuryController {
 
   @RequirePermission("financial-accounts:view")
   @Get("financial-accounts/:id/transactions")
-  listTransactions(
+  async listTransactions(
     @Param("id", ParseUUIDPipe) id: string,
     @Query() query: unknown,
+    @Req() request: AuthenticatedRequest,
   ): Promise<{ transactions: TransactionView[]; next: string | null }> {
-    return translate(() => this.transactions.list(id, query));
+    // Le droit de lire les documents (global) conditionne l'indicateur « pièce jointe » ; sans lui, le champ est absent.
+    const userId = request.auth!.user.id;
+    const permissions = await this.authz.permissionsFor(userId);
+    const viewer = permissions.has("documents:view") ? { userId, canSeeRestricted: permissions.has("documents.restricted:view") } : undefined;
+    return translate(() => this.transactions.list(id, query, viewer));
   }
 
   @RequirePermission("transactions:manage")
@@ -138,6 +145,18 @@ export class TreasuryController {
     @Req() request: AuthenticatedRequest,
   ): Promise<{ updated: number }> {
     return translate(() => this.transactions.qualifyMany(id, body, request.auth!.user.id));
+  }
+
+  /** Accepte les propositions de classement (ADR 0019 amendé) : le serveur les recalcule, le client n'envoie que des identifiants. */
+  @RequirePermission("transactions:manage")
+  @Post("financial-accounts/:id/transactions/accept-suggestions")
+  @HttpCode(HttpStatus.OK)
+  acceptSuggestions(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<{ updated: number }> {
+    return translate(() => this.transactions.acceptSuggestions(id, body, request.auth!.user.id));
   }
 
   @RequirePermission("transactions:manage")

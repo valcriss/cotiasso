@@ -178,7 +178,7 @@ describe('ReconciliationPage', () => {
     request.flush(reconciliation());
     await settle();
     await flushReload({ reconciliations: [reconciliation()], statements: [statement('s1', '2026-03-31', '1020.00')], transactions: [{ transaction: transaction('t1', 'Cotisation', '50.00'), pointed: false }] });
-    expect(root.textContent).toContain('Relevé au 2026-03-31');
+    expect(root.textContent).toContain('Relevé au 31/03/2026');
     expect(ui.snackbar).toContain('Rapprochement commencé');
   });
 
@@ -285,11 +285,11 @@ describe('ReconciliationPage', () => {
     const older = reconciliation({ id: 'r0', status: 'VALIDATED', periodEnd: '2026-02-28', pointedCount: 4 });
     const last = reconciliation({ id: 'r1', status: 'VALIDATED', periodEnd: '2026-03-31', pointedCount: 2 });
     await open(['financial-accounts:view', 'imports:post'], { reconciliations: [last, older] });
-    expect(root.textContent).toContain('Rapproché au 2026-03-31');
-    expect(root.textContent).toContain('Rapproché au 2026-02-28');
+    expect(root.textContent).toContain('Rapproché au 31/03/2026');
+    expect(root.textContent).toContain('Rapproché au 28/02/2026');
     expect(Array.from(root.querySelectorAll('button')).filter((b) => b.textContent!.includes('Annuler ce rapprochement'))).toHaveLength(1);
 
-    await click('Annuler le rapprochement du 2026-03-31');
+    await click('Annuler le rapprochement du 31/03/2026');
     expect(ui.text).toContain('pourront de nouveau être modifiées');
     await ui.click('Annuler le rapprochement');
     controller.expectOne('/api/reconciliations/r1/cancel').flush(null, { status: 204, statusText: 'No Content' });

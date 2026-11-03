@@ -92,7 +92,7 @@ describe('ProjectCommitments', () => {
       commitment({ id: 'cancelled', label: 'Annulé', state: 'CANCELLED', engaged: false, cancelReason: 'Devis refusé' }),
     ]);
     const text = root.textContent!.replace(/\s+/g, ' ');
-    expect(text).toContain('Écriture OD n° 12 du 2026-03-01');
+    expect(text).toContain('Écriture OD n° 12 du 01/03/2026');
     expect(text).toContain("L'écriture qui le soldait a été annulée : il compte de nouveau comme promis.");
     expect(text).toContain('Devis refusé');
     // Modifier : seulement l'ouvert. Solder et annuler : ouvert et rouvert. Aucune action sur le soldé ni sur l'annulé.

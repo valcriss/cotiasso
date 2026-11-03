@@ -5,9 +5,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { ActivatedRoute } from '@angular/router';
 import { AdminApiService, type MemberCategoryInfo, type MemberInfo, type MemberOfficeInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
+import { todayLocalIso } from '../ui/dates';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { ActionBar } from '../ui/action-bar';
@@ -21,11 +23,13 @@ import {
   type MemberDialogData,
   type OfficeDialogData,
 } from './member-dialogs';
+import { FrDatePipe } from '../ui/fr-date.pipe';
+import { Skeleton } from '../ui/skeleton';
 
 /** Membres : fiches, catégories, fonctions et mandats (ADR 0023). */
 @Component({
   selector: 'app-members-page',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ActionBar],
+  imports: [Skeleton, FrDatePipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ActionBar],
   styleUrl: '../admin/admin-pages.scss',
   template: `
     <app-action-bar
@@ -58,6 +62,18 @@ import {
           <mat-option value="ACTIVE">Membres actuels</mat-option>
           <mat-option value="FORMER">Anciens membres</mat-option>
         </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Cotisation{{ campaign() ? ' — ' + campaign()!.name : '' }}</mat-label>
+        <mat-select formControlName="membershipStatus">
+          <mat-option value="">Toutes</mat-option>
+          <mat-option value="UP_TO_DATE">À jour</mat-option>
+          <mat-option value="LATE">En retard (rien payé ou payé en partie)</mat-option>
+          <mat-option value="NONE">Pas inscrits à la saison</mat-option>
+        </mat-select>
+        @if (!campaign() && !loading()) {
+          <mat-hint>Aucune saison de cotisation n’est en cours.</mat-hint>
+        }
       </mat-form-field>
       <mat-form-field appearance="outline">
         <mat-label>Catégorie</mat-label>
@@ -95,10 +111,10 @@ import {
           <dt>Catégorie</dt>
           <dd>{{ detail.member.categoryName ?? '—' }}</dd>
           <dt>Entrée</dt>
-          <dd>{{ detail.member.joinedOn ?? '—' }}</dd>
+          <dd>{{ (detail.member.joinedOn | frDate) || '—' }}</dd>
           @if (detail.member.leftOn) {
             <dt>Sortie</dt>
-            <dd>{{ detail.member.leftOn }}</dd>
+            <dd>{{ detail.member.leftOn | frDate }}</dd>
           }
           @if (detail.member.note) {
             <dt>Note</dt>
@@ -129,7 +145,7 @@ import {
             @for (office of detail.offices; track office.id) {
               <li>
                 <strong>{{ office.title }}</strong>
-                · depuis le {{ office.startsOn }}@if (office.endsOn) { jusqu'au {{ office.endsOn }} } @else { (en cours) }
+                · depuis le {{ office.startsOn | frDate }}@if (office.endsOn) { jusqu'au {{ office.endsOn | frDate }} } @else { (en cours) }
                 @if (canManage() && !detail.member.anonymized) {
                   @if (office.current) {
                     <button mat-button type="button" [disabled]="busy()" [attr.aria-label]="'Terminer la fonction ' + office.title" (click)="endOffice(office)">Terminer aujourd'hui</button>
@@ -151,7 +167,7 @@ import {
     }
 
     @if (loading()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="table" />
     } @else if (members().length === 0) {
       <section class="panel">
         <p class="muted">
@@ -170,6 +186,7 @@ import {
             <th scope="col">Catégorie</th>
             <th scope="col">Fonctions</th>
             <th scope="col">État</th>
+            <th scope="col">Cotisation</th>
             <th scope="col"><span class="sr-only">Ouvrir</span></th>
           </tr>
         </thead>
@@ -185,6 +202,13 @@ import {
               <td>{{ member.categoryName ?? '—' }}</td>
               <td>{{ member.currentOffices.join(', ') || '—' }}</td>
               <td>{{ member.status === 'ACTIVE' ? 'Membre' : 'Ancien membre' }}</td>
+              <td>
+                @if (cotisation(member); as c) {
+                  <span class="status" [class.ok]="c.ok"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ c.icon }}</mat-icon> {{ c.label }}</span>
+                } @else {
+                  <span class="muted">—</span>
+                }
+              </td>
               <td class="row-actions">
                 <button mat-button type="button" [attr.aria-label]="'Ouvrir la fiche de ' + member.firstName + ' ' + member.lastName" (click)="open(member.id)">Ouvrir</button>
               </td>
@@ -225,6 +249,7 @@ export class MembersPage {
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly dialogs = inject(Dialogs);
+  private readonly route = inject(ActivatedRoute);
   private readonly notifier = inject(Notifier);
 
   protected readonly members = signal<MemberInfo[]>([]);
@@ -235,7 +260,9 @@ export class MembersPage {
   protected readonly loadingMore = signal(false);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly filters = this.fb.group({ q: [''], status: [''], categoryId: [''] });
+  protected readonly filters = this.fb.group({ q: [''], status: [''], categoryId: [''], membershipStatus: [''] });
+  /** Saison de cotisation en cours (aucune : pas de situation de cotisation à montrer). */
+  protected readonly campaign = signal<{ id: string; name: string } | null>(null);
   protected readonly canManage = computed(() => {
     this.auth.permissions();
     return this.auth.can('members:manage');
@@ -246,8 +273,26 @@ export class MembersPage {
   }
 
   protected hasFilter(): boolean {
-    const { q, status, categoryId } = this.filters.getRawValue();
-    return !!(q || status || categoryId);
+    const { q, status, categoryId, membershipStatus } = this.filters.getRawValue();
+    return !!(q || status || categoryId || membershipStatus);
+  }
+
+  /** Où en est la cotisation du membre pour la saison en cours, en un mot ; `null` s'il n'y a pas de saison en cours. */
+  protected cotisation(member: MemberInfo): { label: string; icon: string; ok: boolean } | null {
+    switch (member.membershipStatus) {
+      case 'UP_TO_DATE':
+        return { label: 'À jour', icon: 'check_circle', ok: true };
+      case 'EXEMPT':
+        return { label: 'À jour (exonéré)', icon: 'check_circle', ok: true };
+      case 'PARTIAL':
+        return { label: 'Payée en partie', icon: 'warning', ok: false };
+      case 'DUE':
+        return { label: 'En retard', icon: 'warning', ok: false };
+      case 'NONE':
+        return { label: 'Pas inscrit', icon: 'radio_button_unchecked', ok: false };
+      default:
+        return null;
+    }
   }
 
   protected address(member: MemberInfo): string {
@@ -262,6 +307,7 @@ export class MembersPage {
       const page = await this.api.listMembers(this.query());
       this.members.set(page.members);
       this.next.set(page.next);
+      this.campaign.set(page.campaign ?? null);
     } catch (failure) {
       this.error.set(describeHttpError(failure, 'Impossible de charger les membres.').message);
     } finally {
@@ -354,7 +400,7 @@ export class MembersPage {
     const member = this.selected()?.member;
     if (!member) return;
     await this.run(async () => {
-      await this.api.updateMemberOffice(office.id, { endsOn: new Date().toISOString().slice(0, 10) });
+      await this.api.updateMemberOffice(office.id, { endsOn: todayLocalIso() });
       this.notifier.success(`Fonction « ${office.title} » terminée.`);
       await this.search();
       await this.open(member.id);
@@ -389,8 +435,13 @@ export class MembersPage {
   }
 
   private query() {
-    const { q, status, categoryId } = this.filters.getRawValue();
-    return { ...(q && { q }), ...(status && { status: status as 'ACTIVE' | 'FORMER' }), ...(categoryId && { categoryId }) };
+    const { q, status, categoryId, membershipStatus } = this.filters.getRawValue();
+    return {
+      ...(q && { q }),
+      ...(status && { status: status as 'ACTIVE' | 'FORMER' }),
+      ...(categoryId && { categoryId }),
+      ...(membershipStatus && { membershipStatus: membershipStatus as 'UP_TO_DATE' | 'LATE' | 'NONE' }),
+    };
   }
 
   private async run(action: () => Promise<void>, fallback: string): Promise<void> {
@@ -407,6 +458,8 @@ export class MembersPage {
 
   private async init(): Promise<void> {
     this.categories.set(await this.api.listMemberCategories().catch(() => []));
+    // Un lien de la vue d'ensemble ouvre la liste déjà filtrée sur les cotisations en retard.
+    if (this.route.snapshot.queryParamMap.get('cotisation') === 'late') this.filters.patchValue({ membershipStatus: 'LATE' });
     await this.search();
   }
 }

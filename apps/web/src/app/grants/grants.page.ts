@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { formatApiAmount } from '../accounting/amount';
 import { LinkedDocuments } from '../documents/linked-documents';
-import { AdminApiService, type FunderInfo, type GrantInfo, type GrantStatus } from '../admin/admin-api.service';
+import { AdminApiService, type FunderInfo, type GrantFinanceInfo, type GrantInfo, type GrantStatus } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
@@ -14,9 +14,12 @@ import { PageHeader } from '../ui/page-header';
 import { FunderDialog } from './funder-dialog';
 import { GrantExpenses } from './grant-expenses';
 import { GrantFinance } from './grant-finance';
+import { GrantProgress, type ProgressAction } from './grant-progress';
 import { GrantReport } from './grant-report';
 import { FUNDER_TYPE_LABELS, GRANT_STATUS_LABELS, RESIDUAL_LABELS } from './grant-labels';
 import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, GrantReasonDialog } from './grant-dialogs';
+import { FrDatePipe } from '../ui/fr-date.pipe';
+import { Skeleton } from '../ui/skeleton';
 
 /**
  * Subventions : les dossiers déposés auprès des financeurs, de la demande à la clôture. C'est un suivi de gestion : rien
@@ -24,7 +27,7 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
  */
 @Component({
   selector: 'app-grants-page',
-  imports: [GrantExpenses, GrantFinance, GrantReport, LinkedDocuments, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
+  imports: [Skeleton, FrDatePipe, GrantProgress, GrantExpenses, GrantFinance, GrantReport, LinkedDocuments, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -90,7 +93,7 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
         </div>
       </div>
       @if (loading()) {
-        <p class="muted">Chargement…</p>
+        <app-skeleton variant="cards" />
       } @else if (grants().length === 0) {
         <p class="muted">
           @if (filter()) {
@@ -174,6 +177,7 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
             <button mat-button type="button" (click)="selected.set(null)">Fermer</button>
           </div>
         </div>
+        <app-grant-progress [grant]="grant" [canManage]="canManage()" [finance]="finance()" (act)="progress(grant, $event)" />
         <p class="muted">{{ explain(grant) }}</p>
         <dl class="facts">
           <dt>Financeur</dt>
@@ -185,18 +189,18 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
           <dt>État</dt>
           <dd>{{ statusLabel(grant.status) }}</dd>
           <dt>Montant demandé</dt>
-          <dd>{{ amount(grant.requestedAmount) }} €{{ grant.requestedOn ? ' (demande du ' + grant.requestedOn + ')' : '' }}</dd>
+          <dd>{{ amount(grant.requestedAmount) }} €{{ grant.requestedOn ? ' (demande du ' + (grant.requestedOn | frDate) + ')' : '' }}</dd>
           @if (grant.grantedAmount !== null) {
             <dt>Montant accordé</dt>
-            <dd>{{ amount(grant.grantedAmount) }} € (décision du {{ grant.decidedOn }})</dd>
+            <dd>{{ amount(grant.grantedAmount) }} € (décision du {{ grant.decidedOn | frDate }})</dd>
           }
           @if (grant.periodStart || grant.periodEnd) {
             <dt>Période financée</dt>
-            <dd>du {{ grant.periodStart ?? '…' }} au {{ grant.periodEnd ?? '…' }}</dd>
+            <dd>du {{ (grant.periodStart | frDate) || '…' }} au {{ (grant.periodEnd | frDate) || '…' }}</dd>
           }
           @if (grant.status === 'REFUSED') {
             <dt>Refus</dt>
-            <dd>{{ grant.decidedOn }} — {{ grant.reason }}</dd>
+            <dd>{{ grant.decidedOn | frDate }} — {{ grant.reason }}</dd>
           }
           @if (grant.status === 'CANCELLED') {
             <dt>Annulation</dt>
@@ -204,7 +208,7 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
           }
           @if (grant.status === 'CLOSED' && grant.residual) {
             <dt>Clôture</dt>
-            <dd>{{ grant.closedOn }} — {{ residualLabel(grant) }}{{ grant.residualNote ? ' : ' + grant.residualNote : '' }}</dd>
+            <dd>{{ grant.closedOn | frDate }} — {{ residualLabel(grant) }}{{ grant.residualNote ? ' : ' + grant.residualNote : '' }}</dd>
           }
           @if (grant.conditions) {
             <dt>Conditions</dt>
@@ -249,7 +253,7 @@ import { AllocationsDialog, GrantCloseDialog, GrantDecisionDialog, GrantDialog, 
         <app-linked-documents objectType="grant" [objectId]="grant.id" [name]="grant.title" [canDeposit]="documentsAllowed('documents:create', grant) && grant.status !== 'CLOSED'" />
       }
       @if (grant.status === 'GRANTED' || grant.status === 'CLOSED') {
-        <app-grant-finance [grant]="grant" [canManage]="canManage()" (changed)="refresh()" />
+        <app-grant-finance [grant]="grant" [canManage]="canManage()" (changed)="refresh()" (loaded)="finance.set($event)" />
         <app-grant-expenses [grant]="grant" [canManage]="canManage()" (changed)="refresh()" />
         <app-grant-report [grant]="grant" [refreshKey]="reportKey()" />
       }
@@ -384,6 +388,15 @@ export class GrantsPage {
       case 'CANCELLED':
         return 'Cette demande a été abandonnée. Elle reste ici avec son motif.';
     }
+  }
+
+  /** Le bouton de la frise ouvre la même boîte que le bouton habituel de la page : un seul chemin par geste. */
+  protected readonly finance = signal<GrantFinanceInfo | null>(null);
+
+  protected async progress(grant: GrantInfo, action: ProgressAction): Promise<void> {
+    if (action === 'allocate') await this.allocate(grant);
+    else if (action === 'decide') await this.decide(grant);
+    else await this.close(grant);
   }
 
   protected async changeFilter(value: GrantStatus | ''): Promise<void> {

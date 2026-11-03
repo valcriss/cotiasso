@@ -16,6 +16,26 @@ import { formatApiAmount } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { AuthService } from '../auth/auth.service';
 import { Notifier } from '../ui/notifier.service';
+import { FrDatePipe } from '../ui/fr-date.pipe';
+
+/** Extensions de fichiers que le logiciel ne lit pas : tableurs, PDF, images… (l'import CSV n'est pas pris en charge, ADR 0019). */
+const FOREIGN_EXTENSIONS = ['csv', 'xls', 'xlsx', 'ods', 'pdf', 'png', 'jpg', 'jpeg', 'docx', 'zip'];
+
+/** Refus d'un fichier d'un autre format, à trois temps : ce qui s'est passé, pourquoi, que faire. */
+export function foreignFileMessage(fileName: string): string {
+  return (
+    `Le fichier « ${fileName} » n'est pas un relevé au format OFX. L'application ne sait lire que ce format (pas les tableurs ni les PDF). ` +
+    "Sur le site de votre banque, cherchez « Télécharger mes opérations » ou « Exporter » et choisissez le format OFX (parfois nommé « Money » ou « Quicken »). " +
+    "Si votre banque ne le propose pas, saisissez vos opérations une à une avec « J'ai reçu de l'argent » et « J'ai dépensé de l'argent »."
+  );
+}
+
+const SIMPLE_STATUS_LABELS: Record<ImportLineInfo['status'], string> = {
+  NEW: 'Nouvelle',
+  DUPLICATE: 'Déjà importée',
+  PROBABLE_MATCH: 'Peut-être déjà saisie',
+  ERROR: 'Impossible à importer',
+};
 
 const STATUS_LABELS: Record<ImportLineInfo['status'], string> = {
   NEW: 'Nouvelle',
@@ -34,7 +54,7 @@ const LINK = 'LINK:';
  */
 @Component({
   selector: 'app-import-panel',
-  imports: [FileDropzone, FormsModule, MatButtonModule, MatCheckboxModule, MatIconModule],
+  imports: [FileDropzone, FrDatePipe, FormsModule, MatButtonModule, MatCheckboxModule, MatIconModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -69,16 +89,21 @@ const LINK = 'LINK:';
 
       @if (!batch()) {
         <p class="muted">
-          Le fichier est d'abord analysé : aucune transaction n'est créée avant votre confirmation. Formats pris en charge :
-          OFX 1.x et 2.x, comptes bancaires en euro.
+          @if (simple()) {
+            Le fichier est d'abord lu : rien n'est enregistré avant votre confirmation. Seuls les relevés au format OFX sont pris en charge,
+            pour des comptes bancaires en euro.
+          } @else {
+            Le fichier est d'abord analysé : aucune transaction n'est créée avant votre confirmation. Formats pris en charge :
+            OFX 1.x et 2.x, comptes bancaires en euro.
+          }
         </p>
-        <app-file-dropzone inputId="ofx-file" label="Fichier de relevé bancaire" accept=".ofx,.qfx,.xml,.txt" formats="OFX, QFX" [disabled]="busy()" (picked)="pick($event)" />
+        <app-file-dropzone inputId="ofx-file" label="Fichier de relevé bancaire" accept=".ofx,.qfx,.xml,.txt" formats="OFX, QFX" [strict]="false" [disabled]="busy()" (picked)="pick($event)" />
       } @else {
         @let b = batch()!;
         <p class="muted">
           {{ b.fileName }} · {{ b.format === 'XML' ? 'OFX 2.x' : 'OFX 1.x' }}
           @if (b.periodStart && b.periodEnd) {
-            · du {{ b.periodStart }} au {{ b.periodEnd }}
+            · du {{ b.periodStart | frDate }} au {{ b.periodEnd | frDate }}
           }
           @if (b.accountHint) {
             · compte se terminant par {{ b.accountHint }}
@@ -97,7 +122,7 @@ const LINK = 'LINK:';
           <span class="chip">{{ b.summary.new }} nouvelle(s)</span>
           <span class="chip">{{ b.summary.probableMatch }} {{ simple() ? 'à relier' : 'à rapprocher' }}</span>
           <span class="chip">{{ b.summary.duplicate }} déjà importée(s)</span>
-          <span class="chip">{{ b.summary.error }} en erreur</span>
+          <span class="chip">{{ b.summary.error }} {{ simple() ? 'impossible(s) à importer' : 'en erreur' }}</span>
         </div>
 
         <table class="table">
@@ -105,7 +130,7 @@ const LINK = 'LINK:';
           <thead>
             <tr>
               <th scope="col">Date</th>
-              <th scope="col">Libellé</th>
+              <th scope="col">{{ simple() ? 'Description' : 'Libellé' }}</th>
               <th scope="col" class="amount">Montant</th>
               <th scope="col">État</th>
               <th scope="col">Décision</th>
@@ -114,11 +139,11 @@ const LINK = 'LINK:';
           <tbody>
             @for (line of b.lines; track line.id) {
               <tr>
-                <td>{{ line.operationDate ?? '—' }}</td>
+                <td>{{ (line.operationDate | frDate) || '—' }}</td>
                 <td>
                   {{ line.label || '—' }}
                   @if (line.reference) {
-                    <div class="muted">Réf. {{ line.reference }}</div>
+                    <div class="muted">{{ simple() ? 'N° banque' : 'Réf.' }} {{ line.reference }}</div>
                   }
                 </td>
                 <td class="amount">{{ line.amount ? amount(line.amount) : '—' }}</td>
@@ -127,8 +152,8 @@ const LINK = 'LINK:';
                   @switch (line.status) {
                     @case ('NEW') {
                       <select [attr.aria-label]="'Décision de la ligne ' + line.position" [ngModel]="choice(line)" (ngModelChange)="decide(line, $event)">
-                        <option value="CREATE">Créer la transaction</option>
-                        <option value="SKIP">Ignorer</option>
+                        <option value="CREATE">{{ simple() ? 'Ajouter ce mouvement' : 'Créer la transaction' }}</option>
+                        <option value="SKIP">{{ simple() ? 'Ne pas l’ajouter' : 'Ignorer' }}</option>
                       </select>
                     }
                     @case ('PROBABLE_MATCH') {
@@ -141,11 +166,11 @@ const LINK = 'LINK:';
                         <option value="">— Choisir —</option>
                         @for (candidate of line.candidates; track candidate.transactionId) {
                           <option [value]="link + candidate.transactionId">
-                            Rattacher à « {{ candidate.label }} » ({{ candidate.operationDate }})
+                            {{ simple() ? 'Déjà saisi à la main : relier à' : 'Rattacher à' }} « {{ candidate.label }} » ({{ candidate.operationDate | frDate }})
                           </option>
                         }
-                        <option value="CREATE">Paiement distinct : créer quand même</option>
-                        <option value="SKIP">Ignorer</option>
+                        <option value="CREATE">{{ simple() ? 'C’est un autre paiement : l’ajouter quand même' : 'Paiement distinct : créer quand même' }}</option>
+                        <option value="SKIP">{{ simple() ? 'Ne pas l’ajouter' : 'Ignorer' }}</option>
                       </select>
                     }
                     @case ('DUPLICATE') {
@@ -164,7 +189,7 @@ const LINK = 'LINK:';
         @if (b.ledgerBalance) {
           <mat-checkbox [checked]="recordStatement()" (change)="recordStatement.set($event.checked)">
             Enregistrer aussi le solde du relevé ({{ amount(b.ledgerBalance) }} €@if (b.ledgerBalanceDate) {
-              au {{ b.ledgerBalanceDate }}
+              au {{ b.ledgerBalanceDate | frDate }}
             })
           </mat-checkbox>
           <p class="muted">Une preuve datée : elle mesure l'écart avec le solde calculé, elle ne {{ simple() ? 'vérifie pas' : 'rapproche pas' }} le compte.</p>
@@ -217,7 +242,7 @@ export class ImportPanel {
   );
 
   protected statusLabel(status: ImportLineInfo['status']): string {
-    return STATUS_LABELS[status];
+    return (this.simple() ? SIMPLE_STATUS_LABELS : STATUS_LABELS)[status];
   }
 
   protected choice(line: ImportLineInfo): string {
@@ -230,6 +255,12 @@ export class ImportPanel {
 
   protected async pick(file: File): Promise<void> {
     this.error.set(null);
+    const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+    if (FOREIGN_EXTENSIONS.includes(extension)) {
+      // Inutile d'envoyer le fichier : on dit tout de suite quoi faire.
+      this.error.set(foreignFileMessage(file.name));
+      return;
+    }
     this.busy.set(true);
     try {
       this.batch.set(await this.api.analyzeImport(this.account().id, file));

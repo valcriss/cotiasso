@@ -18,7 +18,7 @@ La comptabilité reste exacte et rigoureuse (c'est le rôle du logiciel), mais *
 6. **Montrer les conséquences avant d'agir.** Les actions qui ne se défont pas (comptabiliser, clôturer, rapprocher) disent clairement ce qui va se passer et ce qui ne sera plus possible, et demandent une confirmation explicite. À l'inverse, tout ce qui est réversible (brouillon, analyse d'import) le dit : « rien n'est enregistré avant votre confirmation ».
 7. **Rassurer.** Confirmer ce qui vient d'être fait (« Écriture comptabilisée : OD n° 12 »), dire qu'une erreur de saisie se corrige (brouillon, contrepassation), ne jamais laisser croire qu'un geste a tout cassé.
 8. **Ne rien cacher d'important, ne rien montrer d'inutile.** Les écrans montrent l'essentiel ; les détails techniques (identifiants, empreintes, codes de journal) apparaissent à la demande, avec leur explication.
-9. **Cohérence.** Le même geste se fait de la même façon partout (créer = bouton principal en haut à droite + boîte de dialogue ; voir §2 à §5). Un mot désigne une seule chose dans toute l'application.
+9. **Cohérence.** Le même geste se fait de la même façon partout (créer = bouton principal en haut à droite + boîte de dialogue ; voir §2 à §5). Un mot désigne une seule chose dans toute l'application. **Tout terme qui n'est pas du langage courant a une entrée dans le lexique** (`ui/glossary.ts`, source unique de la page « Aide et lexique » et de l'aide contextuelle `app-help-hint`) : définition en une à trois phrases, exemple, et mot comptable à côté.
 10. **Tester avec la bonne personne.** Une fonction n'est « finie » que si une personne sans connaissance comptable peut l'utiliser sans aide. Si une explication orale est nécessaire, c'est l'écran qui est à revoir.
 
 ### Règles pour qui écrit un écran
@@ -83,7 +83,7 @@ Phrases à afficher sous chaque titre. Elles sont volontairement pédagogiques ;
 | Comptabilité › Balance | Balance | Le total de chaque compte sur l'exercice. Si le total des débits égale celui des crédits, votre comptabilité est cohérente. | (Exporter, à venir) |
 | Comptabilité › Livre-journal | Livre-journal | Toutes les écritures dans l'ordre où elles ont été enregistrées, journal par journal. | (Exporter, à venir) |
 | Membres et cotisations | Membres et cotisations | Qui adhère, qui a payé sa cotisation et pour quelle période. | Nouveau membre |
-| Projets | Projets | Un projet regroupe les dépenses et recettes d'une activité (festival, ateliers…) pour savoir ce qu'elle coûte et rapporte. | Nouveau projet |
+| Projets | Projets | Un projet regroupe les dépenses et recettes d'une même action (festival, ateliers…) pour savoir ce qu'elle coûte et rapporte. | Nouveau projet |
 | Subventions | Subventions | Les aides que vous demandez ou recevez, et ce qui reste à justifier. | Nouvelle subvention |
 | Rapports | Rapports | Les états de synthèse pour l'assemblée générale : bilan, compte de résultat, trésorerie. | — |
 | Documents | Documents | Factures, relevés, comptes rendus : tous vos justificatifs au même endroit, retrouvables et liés aux opérations. | Déposer un document |

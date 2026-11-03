@@ -45,6 +45,11 @@ export const routes: Routes = [
         title: overview!.label,
         loadComponent: () => import('./pages/overview.page').then((m) => m.OverviewPage),
       },
+      {
+        path: 'aide',
+        title: 'Aide et lexique',
+        loadComponent: () => import('./pages/help.page').then((m) => m.HelpPage),
+      },
       ...others.filter((item) => item.path !== 'documents' && item.path !== 'comptabilite' && item.path !== 'projets' && item.path !== 'comptes' && item.path !== 'rapports' && item.path !== 'membres' && item.path !== 'subventions').map((item) => ({
         path: item.path,
         title: item.label,
@@ -120,7 +125,7 @@ export const routes: Routes = [
         children: [
           { path: '', pathMatch: 'full', redirectTo: 'liste' },
           { path: 'liste', title: 'Membres', loadComponent: () => import('./members/members.page').then((m) => m.MembersPage) },
-          { path: 'campagnes', title: 'Campagnes', loadComponent: () => import('./members/campaigns.page').then((m) => m.CampaignsPage) },
+          { path: 'campagnes', title: 'Saisons', loadComponent: () => import('./members/campaigns.page').then((m) => m.CampaignsPage) },
         ],
       },
       {
@@ -134,6 +139,7 @@ export const routes: Routes = [
           { path: 'compte-de-resultat', title: 'Compte de résultat', loadComponent: () => import('./reports/income-statement.page').then((m) => m.IncomeStatementPage) },
           { path: 'bilan', title: 'Bilan', loadComponent: () => import('./reports/balance-sheet.page').then((m) => m.BalanceSheetPage) },
           { path: 'tresorerie', title: 'Trésorerie', loadComponent: () => import('./reports/treasury.page').then((m) => m.TreasuryStatementPage) },
+          { path: 'assemblee', title: 'Dossier de l’assemblée générale', loadComponent: () => import('./reports/assembly.page').then((m) => m.AssemblyPage) },
           { path: 'figes', title: 'Rapports figés', loadComponent: () => import('./reports/frozen-reports.page').then((m) => m.FrozenReportsPage) },
         ],
       },

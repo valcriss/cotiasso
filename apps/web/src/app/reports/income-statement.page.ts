@@ -5,14 +5,16 @@ import { MatSelectModule } from '@angular/material/select';
 import { formatApiAmount } from '../accounting/amount';
 import { AdminApiService, type IncomeStatementInfo } from '../admin/admin-api.service';
 import { ActionBar } from '../ui/action-bar';
+import { NoPeriod } from '../ui/no-period';
 import { ExportLink } from './export-link';
 import { StatementPageBase } from './statement-page';
 import { StatementGroups } from './statements';
+import { Skeleton } from '../ui/skeleton';
 
 /** Compte de résultat : ce que l'association a gagné et dépensé sur l'exercice, avec l'exercice précédent en regard. */
 @Component({
   selector: 'app-income-statement-page',
-  imports: [MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink, StatementGroups],
+  imports: [Skeleton, NoPeriod, MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink, StatementGroups],
   styleUrl: '../admin/admin-pages.scss',
   template: `
     <app-action-bar
@@ -40,9 +42,9 @@ import { StatementGroups } from './statements';
       <p class="alert" role="alert">{{ message }}</p>
     }
     @if (loading()) {
-      <p class="muted">Calcul en cours…</p>
+      <app-skeleton variant="table" />
     } @else if (years().length === 0) {
-      <p class="muted">Aucun exercice n'est encore créé : créez-le dans Paramètres › Comptabilité.</p>
+      <app-no-period />
     } @else if (data(); as statement) {
       @if (statement.draftEntries > 0) {
         <p class="muted" role="status">
@@ -66,7 +68,7 @@ import { StatementGroups } from './statements';
         </p>
       }
       @if (!statement.previous) {
-        <p class="muted">Aucun exercice précédent : la colonne de comparaison est absente.</p>
+        <p class="muted">{{ simple() ? 'Il n’y a pas de période précédente : la colonne de comparaison est absente.' : 'Aucun exercice précédent : la colonne de comparaison est absente.' }}</p>
       }
       <section class="panel">
         <app-statement-groups
@@ -89,7 +91,7 @@ import { StatementGroups } from './statements';
             }
             <tr>
               <th scope="row">
-                Résultat de l'exercice
+                {{ simple() ? 'Résultat de la période' : 'Résultat de l’exercice' }}
                 <div class="muted">{{ resultKind(statement.result) }}</div>
               </th>
               <td class="amount" [class.danger-text]="statement.result.startsWith('-')"><strong>{{ amount(statement.result) }}</strong></td>

@@ -10,6 +10,8 @@ import { ThemeService } from '../theme/theme.service';
 import { formatApiAmount } from './amount';
 import { BudgetDialog } from './budget-dialog';
 import { BUDGET_KIND_LABELS, BUDGET_STATUS_LABELS } from './project-labels';
+import { FrDatePipe } from '../ui/fr-date.pipe';
+import { formatDate } from '../ui/dates';
 
 /**
  * Budget prévisionnel d'un projet : versions successives, une seule en vigueur. Une version approuvée ne se modifie plus
@@ -17,7 +19,7 @@ import { BUDGET_KIND_LABELS, BUDGET_STATUS_LABELS } from './project-labels';
  */
 @Component({
   selector: 'app-project-budget',
-  imports: [MatButtonModule, MatIconModule],
+  imports: [FrDatePipe, MatButtonModule, MatIconModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -143,7 +145,7 @@ import { BUDGET_KIND_LABELS, BUDGET_STATUS_LABELS } from './project-labels';
                   <tr>
                     <td>{{ kindLabel(line.kind) }}</td>
                     <td>{{ line.label }}</td>
-                    <td>{{ line.periodStart }} → {{ line.periodEnd }}</td>
+                    <td>{{ line.periodStart | frDate }} → {{ line.periodEnd | frDate }}</td>
                     <td class="amount">{{ amount(line.amount) }}</td>
                   </tr>
                 }
@@ -200,7 +202,7 @@ export class ProjectBudget {
   }
 
   protected approvedOn(budget: BudgetInfo): string {
-    return budget.approvedAt ? budget.approvedAt.slice(0, 10) : '';
+    return budget.approvedAt ? formatDate(budget.approvedAt.slice(0, 10)) : '';
   }
 
   protected async open(version: BudgetSummaryInfo): Promise<void> {

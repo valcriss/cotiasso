@@ -159,7 +159,7 @@ describe('RecoveryPage', () => {
     expect(ui.title).toBe('Reprendre un solde de départ');
     expect(ui.text).toContain("n'est pas une recette");
     // Seul le compte avec un solde d'ouverture non nul est proposé, et seulement les comptes de classe 1.
-    expect(await ui.options('mat-select[formcontrolname="financialAccountId"]')).toEqual(['Compte courant — 1000.00 € au 2026-01-01']);
+    expect(await ui.options('mat-select[formcontrolname="financialAccountId"]')).toEqual(['Compte courant — 1000.00 € au 01/01/2026']);
     expect(await ui.options('mat-select[formcontrolname="counterpartAccountId"]')).toEqual(['102 — Fonds associatifs']);
 
     await ui.submit();

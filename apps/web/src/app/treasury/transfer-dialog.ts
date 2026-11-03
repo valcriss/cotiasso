@@ -9,6 +9,7 @@ import { ThemeService } from '../theme/theme.service';
 import { AdminApiService, type FinancialAccountInfo, type TransferInfo } from '../admin/admin-api.service';
 import { centsToApi, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
+import { todayLocalIso } from '../ui/dates';
 import { FormDialog } from '../ui/form-dialog';
 import { DateField } from '../ui/date-field';
 
@@ -83,7 +84,7 @@ export class TransferDialog {
     fromAccountId: [this.data.fromAccountId ?? this.data.accounts[0]?.id ?? ''],
     toAccountId: [''],
     amount: [''],
-    date: [new Date().toISOString().slice(0, 10)],
+    date: [todayLocalIso()],
     label: [''],
     prepareEntry: [true],
   });

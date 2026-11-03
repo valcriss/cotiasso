@@ -18,3 +18,7 @@ Statut : retenu (1er novembre 2026, lot 2b.3). Applique le cadrage §10.1 et §1
 ## Limites
 
 Pas de fichier réel de banque dans le dépôt : l'analyseur est validé sur des fichiers fictifs conformes aux spécifications OFX 1.x et 2.x, à compléter avec des exports anonymisés des banques de l'association pilote avant toute affirmation de compatibilité. Le fichier d'origine pourra être déposé comme document (lien générique) si une preuve complète est requise.
+
+## Précision (3 novembre 2026)
+
+L'import **CSV** de relevés n'est **pas pris en charge pour le moment** (décision consignée dans l'[ADR 0019](0019-lots-de-reprise-et-qualification-en-masse.md), « Décision connexe »). Un fichier d'un autre format est refusé avec un message qui explique quoi faire.

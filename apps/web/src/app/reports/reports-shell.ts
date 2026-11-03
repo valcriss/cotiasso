@@ -6,10 +6,11 @@ import { PageHeader } from '../ui/page-header';
 
 /** Rubriques des rapports : états de synthèse à présenter à l'assemblée générale. */
 export const REPORT_TABS = [
-  { path: 'compte-de-resultat', label: 'Compte de résultat', icon: 'trending_up' },
-  { path: 'bilan', label: 'Bilan', icon: 'balance' },
-  { path: 'tresorerie', label: 'Trésorerie', icon: 'account_balance' },
-  { path: 'figes', label: 'Rapports figés', icon: 'lock' },
+  { path: 'compte-de-resultat', label: 'Compte de résultat', simple: 'Reçu et dépensé', icon: 'trending_up' },
+  { path: 'bilan', label: 'Bilan', simple: 'Possédé et dû', icon: 'balance' },
+  { path: 'tresorerie', label: 'Trésorerie', simple: 'Mouvements d’argent', icon: 'account_balance' },
+  { path: 'figes', label: 'Rapports figés', simple: 'Comptes arrêtés', icon: 'lock' },
+  { path: 'assemblee', label: 'Dossier de l’assemblée', simple: 'Assemblée générale', icon: 'groups' },
 ] as const;
 
 @Component({
@@ -27,7 +28,12 @@ export const REPORT_TABS = [
     <nav class="tabs" aria-label="Rapports">
       @for (tab of tabs; track tab.path) {
         <a [routerLink]="tab.path" routerLinkActive="active">
-          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ tab.icon }}</mat-icon><span>{{ tab.label }}</span>
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ tab.icon }}</mat-icon>
+          @if (simple()) {
+            <span>{{ tab.simple }} <small class="muted">({{ tab.label.toLowerCase() }})</small></span>
+          } @else {
+            <span>{{ tab.label }}</span>
+          }
         </a>
       }
     </nav>

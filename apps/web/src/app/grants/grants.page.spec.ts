@@ -228,7 +228,7 @@ describe('GrantsPage', () => {
     controller.expectOne('/api/grants/g1').flush(grant({ status: 'REFUSED', decidedOn: '2026-03-15', reason: 'Enveloppe épuisée' }));
     await settle();
     expect(has('Clôturer')).toBe(false);
-    expect(text()).toContain('2026-03-15 — Enveloppe épuisée');
+    expect(text()).toContain('15/03/2026 — Enveloppe épuisée');
   });
 
   it('montre les documents d’une subvention à qui peut les lire, et pas aux autres', async () => {
@@ -270,6 +270,36 @@ describe('GrantsPage', () => {
     expect(ui.isOpen).toBe(false);
     expect(ui.snackbar).toContain('Financeur « Mairie » ajouté.');
     expect(text()).toContain('Mairie');
+  });
+
+  it('crée le financeur depuis la demande, sans quitter la demande, et le choisit d’office (#22)', async () => {
+    await create(MANAGER, [], []);
+    await click('Demander une subvention');
+    controller.expectOne('/api/funders').flush([]);
+    controller.expectOne('/api/projects').flush(projects);
+    await settle();
+    expect(ui.title).toBe('Demander une subvention');
+    await ui.click('Nouveau financeur');
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    const dialogs = overlay.querySelectorAll('.mat-mdc-dialog-container');
+    expect(dialogs.length).toBe(2);
+    const name = dialogs[1]!.querySelector<HTMLInputElement>('input[formcontrolname="name"]')!;
+    name.value = 'Fondation du Sud';
+    name.dispatchEvent(new Event('input'));
+    await settle();
+    dialogs[1]!.querySelector('form')!.dispatchEvent(new Event('submit'));
+    await settle();
+    const request = controller.expectOne('/api/funders');
+    expect(request.request.method).toBe('POST');
+    request.flush(funder({ id: 'f9', name: 'Fondation du Sud' }), { status: 201, statusText: 'Created' });
+    await settle();
+    // La demande est restée ouverte, avec le nouveau financeur déjà choisi.
+    expect(overlay.querySelectorAll('.mat-mdc-dialog-container').length).toBe(1);
+    expect(ui.title).toBe('Demander une subvention');
+    ui.field('mat-select[formcontrolname="funderId"]').querySelector<HTMLElement>('.mat-mdc-select-trigger')!.click();
+    await settle();
+    const selected = Array.from(overlay.querySelectorAll<HTMLElement>('.mat-mdc-option')).filter((o) => o.getAttribute('aria-selected') === 'true').map((o) => o.textContent!.trim());
+    expect(selected).toEqual(['Fondation du Sud']);
   });
 
   it('demande une subvention avec sa répartition, montants envoyés en décimales exactes', async () => {

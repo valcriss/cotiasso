@@ -124,8 +124,8 @@ describe('GrantFinance', () => {
 
   it('liste les échéances avec leur état et signale celles en retard', async () => {
     await create(finance());
-    expect(cells(0, 0).slice(0, 5)).toEqual(['2026-05-01', 'À la signature', '300,00', '300,00', 'Reçu']);
-    expect(cells(0, 1).slice(0, 4)).toEqual(['2026-11-01', 'Après bilan', '400,00', '150,00']);
+    expect(cells(0, 0).slice(0, 5)).toEqual(['01/05/2026', 'À la signature', '300,00', '300,00', 'Reçu']);
+    expect(cells(0, 1).slice(0, 4)).toEqual(['01/11/2026', 'Après bilan', '400,00', '150,00']);
     expect(cells(0, 1)[4]).toContain('Partiellement reçu');
     expect(cells(0, 1)[4]).toContain('En retard');
     expect(cells(0, 0)[4]).not.toContain('En retard');
@@ -133,11 +133,11 @@ describe('GrantFinance', () => {
 
   it('liste les versements reçus et barre ceux qui sont annulés, avec leur motif', async () => {
     await create(finance({ payments: [payment(), payment({ id: 'pay3', cancelled: true, cancelReason: 'Rattaché par erreur', amount: '50.00', scheduleId: null })] }));
-    expect(cells(1, 0).slice(0, 3)).toEqual(['2026-05-10', '2026-05-01 — 300,00 €', '300,00']);
+    expect(cells(1, 0).slice(0, 3)).toEqual(['10/05/2026', '01/05/2026 — 300,00 €', '300,00']);
     expect(root.querySelectorAll('table')[1]!.querySelectorAll('tbody tr')[1]!.classList.contains('cancelled')).toBe(true);
     expect(text()).toContain('Annulé : Rattaché par erreur');
     // Un versement annulé n'a plus d'action.
-    expect(buttons().filter((b) => b.startsWith('Annuler le versement'))).toEqual(['Annuler le versement du 2026-05-10']);
+    expect(buttons().filter((b) => b.startsWith('Annuler le versement'))).toEqual(['Annuler le versement du 10/05/2026']);
   });
 
   it('signale un trop-perçu en toutes lettres', async () => {
@@ -201,8 +201,8 @@ describe('GrantFinance', () => {
 
   it('modifie une échéance, et ne propose de retirer que celles sans versement', async () => {
     await create(finance({ schedule: [line({ id: 'l1', state: 'RECEIVED', received: '300.00' }), line({ id: 'l3', dueOn: '2028-01-01', amount: '100.00' })] }));
-    expect(buttons().filter((b) => b.startsWith("Retirer l'échéance"))).toEqual(["Retirer l'échéance du 2026-05-01".replace('2026-05-01', '2028-01-01')]);
-    await click("Modifier l'échéance du 2028-01-01");
+    expect(buttons().filter((b) => b.startsWith("Retirer l'échéance"))).toEqual(["Retirer l'échéance du 01/01/2028"]);
+    await click("Modifier l'échéance du 01/01/2028");
     expect(ui.title).toBe("Modifier l'échéance");
     expect(ui.field<HTMLInputElement>('input[formcontrolname="amount"]').value).toBe('100,00');
     await ui.type('input[formcontrolname="amount"]', '120');
@@ -217,12 +217,12 @@ describe('GrantFinance', () => {
 
   it('retire une échéance seulement après confirmation', async () => {
     await create(finance({ schedule: [line({ id: 'l3', dueOn: '2028-01-01', amount: '100.00' })], payments: [] }));
-    await click("Retirer l'échéance du 2028-01-01");
+    await click("Retirer l'échéance du 01/01/2028");
     expect(ui.title).toBe('Retirer cette échéance ?');
     expect(ui.text).toContain('Aucun versement n\'y est rattaché');
     await ui.click('Annuler');
     controller.expectNone('/api/grant-schedule/l3');
-    await click("Retirer l'échéance du 2028-01-01");
+    await click("Retirer l'échéance du 01/01/2028");
     await ui.click('Retirer');
     const request = controller.expectOne('/api/grant-schedule/l3');
     expect(request.request.method).toBe('DELETE');
@@ -294,7 +294,7 @@ describe('GrantFinance', () => {
     expect(ui.field<HTMLInputElement>('input[formcontrolname="amount"]').value).toBe('350,00');
     expect(ui.text).toContain('Disponible sur cet encaissement : 350,00 €.');
     await ui.type('input[formcontrolname="amount"]', '250');
-    await ui.choose('mat-select[formcontrolname="scheduleId"]', '2026-11-01');
+    await ui.choose('mat-select[formcontrolname="scheduleId"]', '01/11/2026');
     await ui.submit();
     const request = controller.expectOne('/api/grants/g1/payments');
     expect(request.request.method).toBe('POST');
@@ -326,7 +326,7 @@ describe('GrantFinance', () => {
 
   it('annule un versement seulement avec un motif', async () => {
     await create(finance());
-    await click('Annuler le versement du 2026-05-10');
+    await click('Annuler le versement du 10/05/2026');
     expect(ui.title).toBe('Annuler le versement');
     expect(ui.text).toContain("rien n'est effacé");
     await ui.submit();

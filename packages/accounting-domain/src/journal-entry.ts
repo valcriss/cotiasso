@@ -140,7 +140,7 @@ export function checkEntryForPosting(entry: JournalEntryDraft, rules: PostingRul
 export function projectRequiredMessage(lineNumber: number, accountNumber: string): string {
   return (
     `Ligne ${lineNumber} (compte ${accountNumber}) : cette dépense ou cette recette n'est rattachée à aucun projet, ` +
-    "or votre comptabilité demande de rattacher chacune à une activité, pour savoir ce que chaque activité coûte et rapporte. " +
+    "or votre comptabilité demande de rattacher chacune à un projet, pour savoir ce que chaque projet coûte et rapporte. " +
     "À faire : choisissez le projet de cette ligne ; pour les dépenses et recettes courantes de l'association, « Fonctionnement » convient."
   );
 }

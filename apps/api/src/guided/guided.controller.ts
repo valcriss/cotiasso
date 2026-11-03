@@ -103,6 +103,24 @@ export class GuidedController {
     return translate(() => this.operations.book(id, body, userId, canPost));
   }
 
+  /** Corrige une opération enregistrée (catégorie, projet, description) : contrepassation et nouvelle écriture d'un bloc. */
+  @RequirePermission("transactions:manage", "entries:create", "entries:post")
+  @HttpCode(HttpStatus.OK)
+  @Post("transactions/:id/correct")
+  async correct(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<OperationResult & { reversedEntryId: string }> {
+    const userId = request.auth!.user.id;
+    return translate(() => this.operations.correct(id, body, userId, true));
+  }
+
+  /** Corrige un montant par un mouvement de régularisation de l'écart (ADR 0032). */
+  @RequirePermission("transactions:manage", "entries:create")
+  @Post("transactions/:id/adjust-amount")
+  async adjustAmount(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest) {
+    const userId = request.auth!.user.id;
+    const canPost = (await this.authz.permissionsFor(userId)).has("entries:post");
+    return translate(() => this.operations.adjustAmount(id, body, userId, canPost));
+  }
+
   @RequirePermission("transactions:manage", "entries:create")
   @HttpCode(HttpStatus.OK)
   @Post("financial-accounts/:id/transactions/book")

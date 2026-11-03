@@ -7,6 +7,8 @@ import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { GrantPaymentCancelDialog, GrantPaymentDialog, ScheduleDialog } from './grant-finance-dialogs';
+import { formatDate } from '../ui/dates';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 const STATE_LABELS: Record<ScheduleState, string> = { PENDING: 'Attendu', PARTIAL: 'Partiellement reçu', RECEIVED: 'Reçu' };
 
@@ -16,7 +18,7 @@ const STATE_LABELS: Record<ScheduleState, string> = { PENDING: 'Attendu', PARTIA
  */
 @Component({
   selector: 'app-grant-finance',
-  imports: [MatButtonModule, MatIconModule],
+  imports: [FrDatePipe, MatButtonModule, MatIconModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -112,7 +114,7 @@ const STATE_LABELS: Record<ScheduleState, string> = { PENDING: 'Attendu', PARTIA
           <tbody>
             @for (line of data.schedule; track line.id) {
               <tr>
-                <td>{{ line.dueOn }}</td>
+                <td>{{ line.dueOn | frDate }}</td>
                 <td>{{ line.condition || '—' }}</td>
                 <td class="amount">{{ amount(line.amount) }}</td>
                 <td class="amount">{{ amount(line.received) }}</td>
@@ -124,9 +126,9 @@ const STATE_LABELS: Record<ScheduleState, string> = { PENDING: 'Attendu', PARTIA
                 </td>
                 <td class="row-actions">
                   @if (editable()) {
-                    <button mat-button type="button" [attr.aria-label]="'Modifier l\\'échéance du ' + line.dueOn" (click)="editLine(line)">Modifier</button>
+                    <button mat-button type="button" [attr.aria-label]="'Modifier l\\'échéance du ' + (line.dueOn | frDate)" (click)="editLine(line)">Modifier</button>
                     @if (line.state === 'PENDING') {
-                      <button mat-button type="button" [attr.aria-label]="'Retirer l\\'échéance du ' + line.dueOn" (click)="removeLine(line)">Retirer</button>
+                      <button mat-button type="button" [attr.aria-label]="'Retirer l\\'échéance du ' + (line.dueOn | frDate)" (click)="removeLine(line)">Retirer</button>
                     }
                   }
                 </td>
@@ -159,7 +161,7 @@ const STATE_LABELS: Record<ScheduleState, string> = { PENDING: 'Attendu', PARTIA
             @for (payment of data.payments; track payment.id) {
               <tr [class.cancelled]="payment.cancelled">
                 <td>
-                  {{ payment.operationDate }}
+                  {{ payment.operationDate | frDate }}
                   @if (payment.note) {
                     <span class="note">{{ payment.note }}</span>
                   }
@@ -171,7 +173,7 @@ const STATE_LABELS: Record<ScheduleState, string> = { PENDING: 'Attendu', PARTIA
                 <td class="amount">{{ amount(payment.amount) }}</td>
                 <td class="row-actions">
                   @if (editable() && !payment.cancelled) {
-                    <button mat-button type="button" [attr.aria-label]="'Annuler le versement du ' + payment.operationDate" (click)="cancelPayment(payment.id)">Annuler</button>
+                    <button mat-button type="button" [attr.aria-label]="'Annuler le versement du ' + (payment.operationDate | frDate)" (click)="cancelPayment(payment.id)">Annuler</button>
                   }
                 </td>
               </tr>
@@ -205,6 +207,8 @@ export class GrantFinance {
   readonly canManage = input(false);
   /** Émis quand un versement ou une échéance change : la liste des subventions se recharge. */
   readonly changed = output<void>();
+  /** Le suivi vient d'être (re)chargé : la frise d'avancement de la page s'en sert, sans le redemander au serveur. */
+  readonly loaded = output<GrantFinanceInfo>();
 
   protected readonly finance = signal<GrantFinanceInfo | null>(null);
   protected readonly loading = signal(true);
@@ -229,7 +233,7 @@ export class GrantFinance {
 
   protected lineLabel(schedule: GrantScheduleInfo[], id: string | null): string {
     const line = schedule.find((l) => l.id === id);
-    return line ? `${line.dueOn} — ${formatApiAmount(line.amount)} €` : '—';
+    return line ? `${formatDate(line.dueOn)} — ${formatApiAmount(line.amount)} €` : '—';
   }
 
   protected async addLine(): Promise<void> {
@@ -251,7 +255,7 @@ export class GrantFinance {
   protected async removeLine(line: GrantScheduleInfo): Promise<void> {
     const confirmed = await this.dialogs.confirm({
       title: "Retirer cette échéance ?",
-      message: `L'échéance du ${line.dueOn} (${formatApiAmount(line.amount)} €) sera retirée du plan. Aucun versement n'y est rattaché, et le montant accordé ne change pas.`,
+      message: `L'échéance du ${formatDate(line.dueOn)} (${formatApiAmount(line.amount)} €) sera retirée du plan. Aucun versement n'y est rattaché, et le montant accordé ne change pas.`,
       confirmLabel: 'Retirer',
       danger: true,
     });
@@ -288,7 +292,9 @@ export class GrantFinance {
   private async load(grantId: string): Promise<void> {
     this.error.set(null);
     try {
-      this.finance.set(await this.api.grantFinance(grantId));
+      const finance = await this.api.grantFinance(grantId);
+      this.finance.set(finance);
+      this.loaded.emit(finance);
     } catch (failure) {
       this.error.set(describeHttpError(failure, "Impossible de charger l'échéancier et les versements.").message);
     } finally {

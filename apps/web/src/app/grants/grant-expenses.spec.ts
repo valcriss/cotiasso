@@ -116,7 +116,7 @@ describe('GrantExpenses', () => {
   it('liste les dépenses avec leur poste, leur projet et leur part', async () => {
     await create(info());
     const cells = Array.from(root.querySelectorAll('tbody tr')[0]!.querySelectorAll('td')).map((td) => td.textContent!.replace(/\s+/g, ' ').trim());
-    expect(cells[0]).toBe('2026-03-01');
+    expect(cells[0]).toBe('01/03/2026');
     expect(cells[1]).toBe('Facture traiteur 606 — Achats');
     expect(cells.slice(2, 4)).toEqual(['ATELIERS', '250,00']);
   });
@@ -185,7 +185,7 @@ describe('GrantExpenses', () => {
 
     await ui.choose('mat-select[formcontrolname="allocationId"]', 'Matériel');
     expect(ui.field<HTMLInputElement>('input[formcontrolname="amount"]').value).toBe('100,00');
-    expect(ui.text).toContain('datée du 2027-02-01, hors de la période financée');
+    expect(ui.text).toContain('datée du 01/02/2027, hors de la période financée');
     expect(ui.text).toContain('Disponible sur cette dépense : 100,00 € (sur 100,00 €).');
     await ui.type('textarea[formcontrolname="coFinancingReason"]', 'Cofinancé par la mairie');
     await ui.submit();
@@ -233,7 +233,7 @@ describe('GrantExpenses', () => {
 
   it('annule une affectation seulement avec un motif', async () => {
     await create(info());
-    await click("Annuler l'affectation du 2026-03-01");
+    await click("Annuler l'affectation du 01/03/2026");
     expect(ui.title).toBe("Annuler l'affectation");
     expect(ui.text).toContain("rien n'est effacé");
     await ui.submit();

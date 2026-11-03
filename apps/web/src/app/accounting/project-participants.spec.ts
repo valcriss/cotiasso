@@ -77,7 +77,7 @@ describe('ProjectParticipants', () => {
     await create(['projects:view'], [alice]);
     expect(root.textContent).toContain('Alice Martin');
     expect(root.textContent).toContain('Coordinatrice');
-    expect(root.textContent).toContain('2026-05-01 → en cours');
+    expect(root.textContent).toContain('01/05/2026 → en cours');
     expect(Array.from(root.querySelectorAll('button'))).toHaveLength(0);
   });
 
@@ -142,7 +142,7 @@ describe('ProjectParticipants', () => {
     await settle();
     controller.expectOne('/api/projects/p1/participants').flush([{ ...alice, endDate: '2026-09-30' }]);
     await settle();
-    expect(root.textContent).toContain('2026-05-01 → 2026-09-30');
+    expect(root.textContent).toContain('01/05/2026 → 30/09/2026');
   });
 
   it('retire un participant après confirmation, en proposant la date de fin pour garder l’historique', async () => {

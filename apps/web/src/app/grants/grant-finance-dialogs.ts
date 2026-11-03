@@ -20,6 +20,8 @@ import { FormDialog } from '../ui/form-dialog';
 import { AutoBook } from '../treasury/auto-book';
 import type { OperationCategoryInfo } from '../admin/admin-api.service';
 import { DateField } from '../ui/date-field';
+import { FrDatePipe } from '../ui/fr-date.pipe';
+import { formatDate } from '../ui/dates';
 
 const positive = (control: { value: string }) => {
   const cents = parseAmountToCents(control.value);
@@ -118,7 +120,7 @@ export interface PaymentDialogData {
 /** Enregistrer un versement reçu : choisir l'encaissement sur le compte bancaire, et la part qui vient de cette subvention. */
 @Component({
   selector: 'app-grant-payment-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [FrDatePipe, ReactiveFormsModule, FormDialog, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -168,7 +170,7 @@ export interface PaymentDialogData {
               <mat-select formControlName="scheduleId">
                 <mat-option value="">Aucune</mat-option>
                 @for (line of data.schedule; track line.id) {
-                  <mat-option [value]="line.id">{{ line.dueOn }} — {{ amount(line.amount) }} € attendus</mat-option>
+                  <mat-option [value]="line.id">{{ line.dueOn | frDate }} — {{ amount(line.amount) }} € attendus</mat-option>
                 }
               </mat-select>
               <mat-hint>Pour suivre ce qui est attendu et ce qui est arrivé.</mat-hint>
@@ -230,7 +232,7 @@ export class GrantPaymentDialog {
   }
 
   protected label(candidate: PaymentCandidateInfo): string {
-    return `${candidate.operationDate} · ${candidate.label} · ${candidate.accountName} — ${formatApiAmount(candidate.amount)} €`;
+    return `${formatDate(candidate.operationDate)} · ${candidate.label} · ${candidate.accountName} — ${formatApiAmount(candidate.amount)} €`;
   }
 
   protected async save(): Promise<void> {

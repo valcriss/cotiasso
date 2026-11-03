@@ -7,6 +7,7 @@ import { AppModule } from "../../src/app.module.js";
 import { UsersService } from "../../src/auth/users.service.js";
 import { readEnv } from "../../src/config/env.js";
 import { ENV } from "../../src/config/tokens.js";
+import { OverviewService } from "../../src/guided/overview.service.js";
 import { PrismaService } from "../../src/prisma/prisma.service.js";
 import { SetupService } from "../../src/setup/setup.service.js";
 import { createTempDatabase, type TempDatabase } from "./support/temp-database.js";
@@ -270,6 +271,184 @@ describe("Parcours simplifiés : catégories, saisie guidée et vue d'ensemble (
       expect(overview.cash.total).toBe("109.50");
       expect(overview.todo.map((t: { code: string }) => t.code)).toContain("DRAFTS");
       expect(overview.todo.find((t: { code: string }) => t.code === "TO_VERIFY")).toMatchObject({ level: "INFO" });
+    });
+
+    it("la vue d'ensemble montre les dernières opérations, ouvre « à classer » sur le bon compte et annonce la fin de période (#27)", async () => {
+      const loose = await call("POST", `/financial-accounts/${ids.fBank}/transactions`, treasurer, { operationDate: "2026-03-25", amount: "-12.00", label: "Ticket sans catégorie" });
+      expect(loose.statusCode, loose.body).toBe(201);
+      const overview = (await call("GET", "/overview", treasurer)).json();
+
+      expect(overview.recent.length).toBeGreaterThan(1);
+      expect(overview.recent.length).toBeLessThanOrEqual(5);
+      expect(overview.recent[0]).toMatchObject({ label: "Ticket sans catégorie", amount: "-12.00", accountName: "Banque", situation: "TO_CLASSIFY", date: "2026-03-25" });
+      const dates = overview.recent.map((r: { date: string }) => r.date);
+      expect([...dates].sort().reverse()).toEqual(dates);
+      expect(overview.recent.map((r: { situation: string }) => r.situation)).toEqual(expect.arrayContaining(["BOOKED"]));
+
+      const toClassify = overview.todo.find((t: { code: string }) => t.code === "TO_CLASSIFY");
+      expect(toClassify).toMatchObject({ link: "/comptes", query: { compte: ids.fBank } });
+      // Sans droit de lire les comptes, ni dernières opérations ni montants.
+      expect((await call("GET", "/overview", reader)).json().recent).toBeNull();
+
+      // Fin de période : la marche à suivre apparaît un mois avant, puis passe en avertissement quand la période est dépassée.
+      const me = (await call("GET", "/auth/me", treasurer)).json().user.id as string;
+      const svc = app.get(OverviewService);
+      const code = (view: { todo: { code: string; detail: string }[] }) => view.todo.find((t) => t.code === "PERIOD_END");
+      expect(code(await svc.overview(me, new Date("2026-06-01T10:00:00Z")))).toBeUndefined();
+      const soon = code(await svc.overview(me, new Date("2026-12-10T10:00:00Z")));
+      expect(soon).toMatchObject({ level: "INFO", title: "Votre période se termine le 31/12/2026 (dans 21 jours)", link: "/parametres" });
+      expect(soon!.detail).toContain("clôturez la période");
+      expect(code(await svc.overview(me, new Date("2026-12-31T10:00:00Z")))).toMatchObject({ title: "Votre période se termine aujourd'hui" });
+      expect(code(await svc.overview(me, new Date("2027-01-05T10:00:00Z")))).toMatchObject({ level: "WARNING", title: "Votre période est terminée depuis le 31/12/2026" });
+      // Réservé à qui peut clôturer.
+      expect((await svc.overview((await call("GET", "/auth/me", reader)).json().user.id as string, new Date("2026-12-10T10:00:00Z"))).todo.some((t) => t.code === "PERIOD_END")).toBe(false);
+    });
+
+    it("la vue d'ensemble annonce les cotisations qui restent à payer de la saison en cours (#27)", async () => {
+      const shift = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+      const campaign = await call("POST", "/campaigns", treasurer, { name: "Saison en cours", startsOn: shift(-30), endsOn: shift(300), effectiveMode: "PAYMENT" });
+      expect(campaign.statusCode, campaign.body).toBe(201);
+      const tariffId = (await call("POST", `/campaigns/${campaign.json().id}/tariffs`, treasurer, { label: "Plein tarif", amount: "30.00" })).json().tariffs[0].id as string;
+      for (const firstName of ["Alice", "Bob"]) {
+        const memberId = (await call("POST", "/members", treasurer, { firstName, lastName: "Test" })).json().id as string;
+        expect((await call("POST", `/campaigns/${campaign.json().id}/memberships`, treasurer, { memberId, tariffId })).statusCode).toBe(201);
+      }
+      const late = (await call("GET", "/overview", treasurer)).json().todo.find((t: { code: string }) => t.code === "MEMBERSHIPS_LATE");
+      expect(late).toMatchObject({ level: "INFO", count: 2, title: "2 cotisations restent à payer (60,00 €)", link: "/membres", query: { cotisation: "late" } });
+      expect((await call("GET", "/overview", reader)).json().todo.some((t: { code: string }) => t.code === "MEMBERSHIPS_LATE")).toBe(false);
+    });
+
+    describe("corriger une opération enregistrée (#17)", () => {
+      const record = async (label: string, categoryLabel: string, amount = "40.00") => {
+        const response = await call("POST", "/guided-operations", treasurer, { financialAccountId: ids.fBank, direction: "OUT", amount, date: "2026-04-02", label, categoryId: await category(categoryLabel) });
+        expect(response.statusCode, response.body).toBe(201);
+        return response.json() as { transactionId: string; entryId: string };
+      };
+      const entryOf = async (id: string) => (await call("GET", `/entries/${id}`, treasurer)).json();
+      const correct = (transactionId: string, body: object, session: Session | undefined = treasurer) => call("POST", `/transactions/${transactionId}/correct`, session, body);
+
+      it("contrepasse puis refait l'écriture avec la nouvelle catégorie, en gardant tout l'historique", async () => {
+        const op = await record("Facture mal classée", "Assurance");
+        const done = await correct(op.transactionId, { categoryId: await category("Communication et publicité"), label: "Facture de l'imprimeur" });
+        expect(done.statusCode, done.body).toBe(200);
+        const result = done.json();
+        expect(result).toMatchObject({ transactionId: op.transactionId, posted: true, reversedEntryId: op.entryId });
+        expect(result.entryId).not.toBe(op.entryId);
+
+        expect((await entryOf(op.entryId)).status).toBe("REVERSED");
+        const fresh = await entryOf(result.entryId);
+        expect(fresh.status).toBe("POSTED");
+        const numbers = fresh.lines.map((l: { accountNumber: string }) => l.accountNumber);
+        expect(numbers).toContain("512");
+        expect(numbers).not.toContain("616");
+        // L'écriture inverse existe, comptabilisée, et le mouvement pointe sur la nouvelle écriture uniquement.
+        const reversals = await prisma.journalEntry.findMany({ where: { reversalOfId: op.entryId } });
+        expect(reversals).toHaveLength(1);
+        expect(reversals[0]!.status).toBe("POSTED");
+        const links = await prisma.treasuryMatch.findMany({ where: { transactionId: op.transactionId }, orderBy: { createdAt: "asc" } });
+        expect(links.map((l) => l.status)).toEqual(["ENDED", "ACTIVE"]);
+        const tx = await prisma.transaction.findUniqueOrThrow({ where: { id: op.transactionId } });
+        expect(tx.label).toBe("Facture de l'imprimeur");
+        expect(tx.amount.toString()).toBe("-40");
+        const audit = await prisma.auditEvent.findFirst({ where: { action: "operation.corrected", objectId: op.transactionId } });
+        expect(audit?.details).toMatchObject({ entryId: result.entryId, reversedEntryId: op.entryId, posted: true });
+      });
+
+      it("change le projet seul, et rend rien de plus quand rien ne change", async () => {
+        const op = await record("Achat pour l'atelier", "Assurance");
+        const project = (await call("POST", "/projects", treasurer, { code: "ATELIER", name: "Atelier" })).json();
+        const done = await correct(op.transactionId, { projectId: project.id });
+        expect(done.statusCode, done.body).toBe(200);
+        expect((await prisma.transaction.findUniqueOrThrow({ where: { id: op.transactionId } })).projectId).toBe(project.id);
+        const again = await correct(op.transactionId, { projectId: project.id });
+        expect(again.statusCode).toBe(409);
+        expect(again.json().message).toContain("Rien n'a changé");
+        expect((await correct(op.transactionId, {})).statusCode).toBe(400);
+      });
+
+      it("est tout ou rien : un refus en cours de route laisse l'écriture d'origine intacte", async () => {
+        const op = await record("Facture à ne pas perdre", "Assurance");
+        const archived = (await call("POST", "/projects", treasurer, { code: "ARCHIVE", name: "Archivé" })).json();
+        expect((await call("PATCH", `/projects/${archived.id}`, treasurer, { version: archived.version, status: "ARCHIVED" })).statusCode).toBe(200);
+        const entriesBefore = await prisma.journalEntry.count();
+        const refused = await correct(op.transactionId, { projectId: archived.id });
+        expect(refused.statusCode).toBe(409);
+        expect(refused.json().message).toContain("projet archivé");
+        expect((await entryOf(op.entryId)).status).toBe("POSTED");
+        expect(await prisma.journalEntry.count()).toBe(entriesBefore);
+        expect((await prisma.treasuryMatch.findMany({ where: { transactionId: op.transactionId } })).map((m) => m.status)).toEqual(["ACTIVE"]);
+      });
+
+      it("refuse une catégorie du mauvais sens, un brouillon, un mouvement non enregistré et un droit insuffisant", async () => {
+        const op = await record("Facture", "Assurance");
+        expect((await correct(op.transactionId, { categoryId: await category("Dons") })).json().message).toContain("argent dépensé");
+
+        const loose = await call("POST", `/financial-accounts/${ids.fBank}/transactions`, treasurer, { operationDate: "2026-04-03", amount: "-5.00", label: "Pas encore enregistré" });
+        const notBooked = await correct(loose.json().id, { label: "Autre" });
+        expect(notBooked.statusCode).toBe(409);
+        expect(notBooked.json().message).toContain("pas encore enregistré dans les comptes");
+
+        const draft = await call("POST", "/guided-operations", treasurer, { financialAccountId: ids.fBank, direction: "OUT", amount: "6.00", date: "2026-04-03", label: "Brouillon", categoryId: await category("Assurance"), post: false });
+        expect(draft.json().posted).toBe(false);
+        const refusedDraft = await correct(draft.json().transactionId, { label: "Autre" });
+        expect(refusedDraft.statusCode).toBe(409);
+        expect(refusedDraft.json().message).toContain("encore en brouillon");
+
+        expect((await correct(op.transactionId, { label: "Autre" }, reader)).statusCode).toBe(403);
+        expect((await call("POST", `/transactions/${op.transactionId}/correct`, undefined, { label: "Autre" })).statusCode).toBe(401);
+      });
+
+      const adjust = (transactionId: string, body: object, session: Session | undefined = treasurer) => call("POST", `/transactions/${transactionId}/adjust-amount`, session, body);
+
+      it("corrige un montant par un mouvement de régularisation de l'écart, sans toucher à l'original (ADR 0032)", async () => {
+        const op = await record("Facture saisie trop haute", "Assurance", "49.00");
+        const done = await adjust(op.transactionId, { amount: "40.00", date: "2026-04-05" });
+        expect(done.statusCode, done.body).toBe(201);
+        const result = done.json();
+        expect(result).toMatchObject({ adjustedTransactionId: op.transactionId, difference: "9.00", posted: true });
+        expect(result.transactionId).not.toBe(op.transactionId);
+
+        const original = await prisma.transaction.findUniqueOrThrow({ where: { id: op.transactionId } });
+        expect(original.amount.toString()).toBe("-49");
+        expect((await entryOf(op.entryId)).status).toBe("POSTED");
+        const fix = await prisma.transaction.findUniqueOrThrow({ where: { id: result.transactionId } });
+        expect(fix.amount.toString()).toBe("9");
+        expect(fix.label).toBe("Correction : Facture saisie trop haute");
+        expect(fix.counterpartAccountId).toBe(original.counterpartAccountId);
+        // Le net de la dépense et de la banque vaut le bon montant : 49 − 9 = 40.
+        const fixEntry = await entryOf(result.entryId);
+        expect(fixEntry.status).toBe("POSTED");
+        const audit = await prisma.auditEvent.findFirst({ where: { action: "operation.amount-adjusted", objectId: op.transactionId } });
+        expect(audit?.details).toMatchObject({ adjustmentTransactionId: result.transactionId });
+      });
+
+      it("ajoute une dépense quand le montant était trop bas, et refuse un montant identique, un brouillon, un virement et un droit insuffisant", async () => {
+        const op = await record("Facture trop basse", "Assurance", "40.00");
+        const more = await adjust(op.transactionId, { amount: "45.00", date: "2026-04-05" });
+        expect(more.statusCode, more.body).toBe(201);
+        expect(more.json().difference).toBe("-5.00");
+        expect((await prisma.transaction.findUniqueOrThrow({ where: { id: more.json().transactionId } })).amount.toString()).toBe("-5");
+
+        const same = await adjust(op.transactionId, { amount: "40.00", date: "2026-04-05" });
+        expect(same.statusCode).toBe(409);
+        expect(same.json().message).toContain("déjà celui de l'opération");
+
+        const draft = await call("POST", "/guided-operations", treasurer, { financialAccountId: ids.fBank, direction: "OUT", amount: "6.00", date: "2026-04-03", label: "Brouillon", categoryId: await category("Assurance"), post: false });
+        expect((await adjust(draft.json().transactionId, { amount: "7.00", date: "2026-04-05" })).statusCode).toBe(409);
+
+        expect((await adjust(op.transactionId, { amount: "0", date: "2026-04-05" })).statusCode).toBe(400);
+        expect((await adjust(op.transactionId, { amount: "41.00", date: "2026-04-05" }, reader)).statusCode).toBe(403);
+        expect((await call("POST", `/transactions/${op.transactionId}/adjust-amount`, undefined, { amount: "41.00", date: "2026-04-05" })).statusCode).toBe(401);
+      });
+
+      it("ne laisse aucun mouvement derrière lui quand la date tombe hors de tout exercice", async () => {
+        const op = await record("Facture à régulariser", "Assurance", "30.00");
+        const before = await prisma.transaction.count();
+        const refused = await adjust(op.transactionId, { amount: "20.00", date: "2001-01-01" });
+        expect(refused.statusCode).toBe(409);
+        expect(refused.json().message).toContain("Aucun exercice");
+        expect(await prisma.transaction.count()).toBe(before);
+      });
     });
 
     it("classe et enregistre en un geste un mouvement qui existe déjà (importé ou saisi), puis refuse de le refaire", async () => {

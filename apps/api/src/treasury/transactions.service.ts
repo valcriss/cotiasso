@@ -5,7 +5,9 @@ import { Money } from "@cotiasso/accounting-domain";
 import { AccountingConflictError, AccountingNotFoundError } from "../accounting/errors.js";
 import { parse } from "../accounting/schemas.js";
 import { AuditService } from "../audit/audit.service.js";
+import { DocumentsService, type Viewer } from "../documents/documents.service.js";
 import { PrismaService } from "../prisma/prisma.service.js";
+import { buildSuggester, type ClassifiedSample, type Suggestion } from "./classification-suggestions.js";
 import { signedAmount } from "./financial-accounts.service.js";
 
 const isoDate = z
@@ -54,6 +56,10 @@ const qualifyInput = z
     message: "Choisissez un compte de contrepartie et/ou un projet à appliquer.",
     path: ["counterpartAccountId"],
   });
+
+const acceptInput = z
+  .object({ transactionIds: z.array(z.uuid()).min(1, "Cochez au moins un mouvement.").max(200, "200 mouvements au plus à la fois.") })
+  .strict();
 
 const listQuery = z
   .object({
@@ -108,6 +114,19 @@ export interface TransactionView {
   /** Rapprochement bancaire où la transaction est pointée (ADR 0018) ; « validé » = rapprochée. */
   reconciliation: { id: string; status: "IN_PROGRESS" | "VALIDATED"; periodEnd: string } | null;
   version: number;
+  /**
+   * Proposition de classement (ADR 0019 amendé), seulement dans la liste et pour un mouvement à classer : calculée à la demande,
+   * jamais appliquée seule (voir `acceptSuggestions`).
+   */
+  suggestion?: TransactionSuggestion | null;
+  /** Un document visible par le lecteur est lié à ce mouvement (liste seulement, et seulement avec le droit de lire les documents). */
+  hasDocument?: boolean;
+}
+
+export interface TransactionSuggestion extends Pick<Suggestion, "counterpartAccountId" | "projectId" | "basedOn" | "matches"> {
+  counterpartAccountNumber: string;
+  counterpartAccountLabel: string;
+  projectCode: string | null;
 }
 
 export const transactionInclude = {
@@ -198,9 +217,10 @@ export class TransactionsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(DocumentsService) private readonly documents: DocumentsService,
   ) {}
 
-  async list(accountId: string, query: unknown): Promise<{ transactions: TransactionView[]; next: string | null }> {
+  async list(accountId: string, query: unknown, documentViewer?: Viewer): Promise<{ transactions: TransactionView[]; next: string | null }> {
     const q = parse(listQuery, query);
     await this.assertAccount(accountId);
     const rows = await this.prisma.transaction.findMany({
@@ -244,7 +264,113 @@ export class TransactionsService {
       ...(q.after && { cursor: { id: q.after }, skip: 1 }),
     });
     const page = rows.slice(0, q.limit);
-    return { transactions: page.map(view), next: rows.length > q.limit ? page[page.length - 1]!.id : null };
+    const suggestions = await this.suggestionsFor(accountId, page);
+    // Indicateur « pièce jointe » : seulement pour qui peut lire les documents, et seulement ceux qu'il pourrait ouvrir.
+    const withDocument = documentViewer ? await this.documents.linkedObjectIds("transaction", page.map((t) => t.id), documentViewer) : null;
+    return {
+      transactions: page.map((t) => ({ ...view(t), suggestion: suggestions.get(t.id) ?? null, ...(withDocument && { hasDocument: withDocument.has(t.id) }) })),
+      next: rows.length > q.limit ? page[page.length - 1]!.id : null,
+    };
+  }
+
+  /** Un mouvement peut recevoir une suggestion tant qu'il n'est ni classé, ni enregistré, ni un côté de virement. */
+  private isSuggestible(t: Loaded): boolean {
+    return t.counterpartAccountId === null && t.matches.every((m) => m.status !== "ACTIVE") && !t.transferOut && !t.transferIn;
+  }
+
+  private async loadSuggester(accountId: string) {
+    const rows = await this.prisma.transaction.findMany({
+      where: {
+        financialAccountId: accountId,
+        counterpartAccountId: { not: null },
+        counterpartAccount: { active: true },
+        transferOut: null,
+        transferIn: null,
+        OR: [{ projectId: null }, { project: { status: { not: "ARCHIVED" } } }],
+      },
+      select: { label: true, amount: true, counterpartAccountId: true, projectId: true, operationDate: true },
+    });
+    const samples: ClassifiedSample[] = rows.map((r) => ({
+      label: r.label,
+      sign: r.amount.isNegative() ? -1 : 1,
+      counterpartAccountId: r.counterpartAccountId!,
+      projectId: r.projectId,
+      operationDate: day(r.operationDate),
+    }));
+    return buildSuggester(samples);
+  }
+
+  /** Suggestions des mouvements proposables de `items` ; vide si aucun n'est proposable (aucune requête de plus). */
+  private async suggestionsFor(accountId: string, items: Loaded[]): Promise<Map<string, TransactionSuggestion>> {
+    const result = new Map<string, TransactionSuggestion>();
+    const candidates = items.filter((t) => this.isSuggestible(t));
+    if (candidates.length === 0) return result;
+    const suggest = await this.loadSuggester(accountId);
+    const found = candidates.flatMap((t) => {
+      const s = suggest(t.label, t.amount.isNegative() ? -1 : 1);
+      return s ? [{ id: t.id, s }] : [];
+    });
+    if (found.length === 0) return result;
+    const accounts = await this.prisma.account.findMany({ where: { id: { in: [...new Set(found.map((f) => f.s.counterpartAccountId))] } }, select: { id: true, number: true, label: true } });
+    const projectIds = [...new Set(found.flatMap((f) => (f.s.projectId ? [f.s.projectId] : [])))];
+    const projects = projectIds.length ? await this.prisma.project.findMany({ where: { id: { in: projectIds } }, select: { id: true, code: true } }) : [];
+    for (const { id, s } of found) {
+      const account = accounts.find((a) => a.id === s.counterpartAccountId);
+      if (!account) continue;
+      result.set(id, {
+        ...s,
+        counterpartAccountNumber: account.number,
+        counterpartAccountLabel: account.label,
+        projectCode: s.projectId ? (projects.find((p) => p.id === s.projectId)?.code ?? null) : null,
+      });
+    }
+    return result;
+  }
+
+  /**
+   * Accepte les propositions de classement de la sélection (200 au plus, **tout ou rien**). Le serveur **recalcule** chaque
+   * proposition au moment de l'acceptation : le client n'envoie que des identifiants, jamais le classement. Si une proposition a
+   * disparu (mouvement déjà classé, précédents contradictoires) ou si un mouvement a bougé entre-temps, rien n'est modifié.
+   */
+  async acceptSuggestions(accountId: string, body: unknown, actorId: string): Promise<{ updated: number }> {
+    const input = parse(acceptInput, body);
+    await this.assertAccount(accountId);
+    const ids = [...new Set(input.transactionIds)];
+    const rows = await this.prisma.transaction.findMany({ where: { id: { in: ids }, financialAccountId: accountId }, include });
+    if (rows.length !== ids.length) {
+      throw new AccountingConflictError("Certains mouvements n'appartiennent pas à ce compte : rien n'a été modifié.");
+    }
+    const suggestions = await this.suggestionsFor(accountId, rows.filter((t) => this.isSuggestible(t)));
+    const missing = rows.find((t) => !suggestions.has(t.id));
+    if (missing) {
+      throw new AccountingConflictError(
+        `Le mouvement « ${missing.label} » n'a plus de proposition de classement (déjà classé, enregistré, ou classements précédents différents) : rien n'a été modifié. Classez-le vous-même.`,
+      );
+    }
+    const updated = await this.prisma
+      .$transaction(async (db) => {
+        for (const t of rows) {
+          const s = suggestions.get(t.id)!;
+          const result = await db.transaction.updateMany({
+            // Garde de version : un mouvement modifié depuis la lecture n'est pas écrasé.
+            where: { id: t.id, counterpartAccountId: null, version: t.version },
+            data: { counterpartAccountId: s.counterpartAccountId, ...(s.projectId !== null && { projectId: s.projectId }), version: { increment: 1 } },
+          });
+          if (result.count !== 1) {
+            throw new AccountingConflictError(`Le mouvement « ${t.label} » a été modifié entre-temps : rien n'a été modifié. Rechargez la liste.`);
+          }
+        }
+        return rows.length;
+      })
+      .catch((error) => this.rethrow(error));
+    await this.audit.record({
+      action: "transactions.suggestions.accepted",
+      objectType: "FinancialAccount",
+      objectId: accountId,
+      actorId,
+      details: { count: updated },
+    });
+    return { updated };
   }
 
   async create(accountId: string, body: unknown, actorId: string): Promise<TransactionView> {
