@@ -27,6 +27,11 @@ interface Identity {
   selector: 'app-association-page',
   imports: [ActionBar, MatIconModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule],
   styleUrl: './admin-pages.scss',
+  styles: [`
+    .identity-form {
+      gap: 12px;
+    }
+  `],
   template: `
     <app-action-bar
       label="Association"
@@ -37,7 +42,7 @@ interface Identity {
       "
     />
 
-    <form class="panel" [formGroup]="identityForm" (ngSubmit)="saveIdentity()" novalidate>
+    <form class="panel identity-form" [formGroup]="identityForm" (ngSubmit)="saveIdentity()" novalidate>
       <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">badge</mat-icon><span>Identité</span></h3>
       <mat-form-field appearance="outline">
         <mat-label>Nom de l'association</mat-label>
