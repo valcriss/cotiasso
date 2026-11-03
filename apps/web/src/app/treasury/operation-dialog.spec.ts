@@ -71,6 +71,8 @@ describe("Saisie guidée « J'ai reçu / J'ai dépensé de l'argent »", () => {
     const { result } = await open('OUT');
     expect(ui.title).toBe('J’ai dépensé de l’argent');
     expect(ui.text).toContain('le logiciel s’occupe de la comptabilité');
+    expect(ui.text).toContain('Pour quel projet ? (facultatif)');
+    expect(ui.text).not.toContain('activité');
     expect(ui.text).not.toContain('Ce que verra l’expert-comptable');
 
     // Formulaire incomplet : expliqué, rien n'est envoyé.

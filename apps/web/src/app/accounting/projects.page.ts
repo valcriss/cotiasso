@@ -38,7 +38,7 @@ import { PROJECT_STATUS_LABELS } from './project-labels';
     <app-page-header
       title="Projets"
       icon="folder_open"
-      description="Un projet regroupe les dépenses et les recettes d'une activité (festival, ateliers…) pour savoir ce qu'elle coûte et ce qu'elle rapporte."
+      description="Un projet regroupe les dépenses et les recettes d'une même action (festival, ateliers…) pour savoir ce qu'elle coûte et ce qu'elle rapporte."
     >
       @if (canUpdate()) {
         <button mat-flat-button type="button" (click)="create()">

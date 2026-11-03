@@ -53,7 +53,7 @@ export interface BookDialogData {
           }
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Pour quelle activité ? (facultatif)</mat-label>
+          <mat-label>Pour quel projet ? (facultatif)</mat-label>
           <mat-select formControlName="projectId">
             <mat-option value="">Fonctionnement général (par défaut)</mat-option>
             @for (project of data.projects; track project.id) {

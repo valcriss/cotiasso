@@ -158,8 +158,8 @@ export const ENTRY_STATUS_LABELS = {
                 {{ missingProject().length === 1 ? 'Une ligne de dépense ou de recette n’a pas de projet' : missingProject().length + ' lignes de dépense ou de recette n’ont pas de projet' }}
               </strong>
               <p>
-                Vous pouvez enregistrer en brouillon, mais pour comptabiliser, chaque dépense ou recette doit être rattachée à une activité (un projet) :
-                c’est ce qui permet de savoir ce que chaque activité coûte et rapporte.
+                Vous pouvez enregistrer en brouillon, mais pour comptabiliser, chaque dépense ou recette doit être rattachée à un projet :
+                c’est ce qui permet de savoir ce que chaque projet coûte et rapporte.
               </p>
               <p>
                 À faire : choisissez le projet dans la colonne « Projet »

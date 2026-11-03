@@ -99,14 +99,14 @@ export interface OperationDialogData {
           }
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Pour quelle activité ? (facultatif)</mat-label>
+          <mat-label>Pour quel projet ? (facultatif)</mat-label>
           <mat-select formControlName="projectId">
             <mat-option value="">Fonctionnement général (par défaut)</mat-option>
             @for (project of projects; track project.id) {
               <mat-option [value]="project.id">{{ project.name }}</mat-option>
             }
           </mat-select>
-          <mat-hint>Un projet regroupe les opérations d’une activité (festival, ateliers…) pour savoir ce qu’elle coûte.</mat-hint>
+          <mat-hint>Un projet regroupe les opérations d’une même action (festival, ateliers…) pour savoir ce qu’elle coûte.</mat-hint>
         </mat-form-field>
 
         @if (preview(); as lines) {
