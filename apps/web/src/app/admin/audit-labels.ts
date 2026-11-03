@@ -78,6 +78,8 @@ const ACTION_LABELS: Record<string, string> = {
   'member.anonymized': 'Membre anonymisé',
   'member.category.created': 'Catégorie de membres créée',
   'member.category.updated': 'Catégorie de membres modifiée',
+  'office-role.created': 'Fonction du bureau créée',
+  'office-role.updated': 'Fonction du bureau modifiée ou archivée',
   'member.office.added': 'Fonction ajoutée à un membre',
   'member.office.updated': 'Fonction d’un membre modifiée',
   'member.office.removed': 'Fonction d’un membre retirée',

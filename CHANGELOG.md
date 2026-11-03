@@ -8,6 +8,7 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 ### À savoir avant de mettre à jour
 
+- Nouvelle migration (catalogue de fonctions). Les fonctions des membres (Président, Trésorier…) ne sont plus un texte libre : elles viennent d'une liste de l'association. La migration reprend automatiquement les intitulés déjà saisis (« Présidente » et « présidente » deviennent une seule fonction) et rattache les mandats existants, sans rien perdre. Aucune action n'est nécessaire.
 - Nouvelle migration (rôle des catégories). Si les catégories de départ sont déjà installées, « Cotisations des adhérents » et « Subvention » reçoivent leur rôle au prochain « Installer les catégories de départ » ; sinon, désignez-les dans Paramètres › Comptabilité › Catégories.
 - Nouvelle migration (catégories d'opération). **Changement visible** : l'affichage par défaut est maintenant « Simple » ; chaque personne retrouve le menu complet via Apparence › Affichage › Comptable. Les droits ne changent pas.
 - Les migrations de base de données ne sont pas réversibles : lancez `scripts/update.sh <version>`, qui sauvegarde et vérifie avant de changer de version. Pour revenir en arrière, on restaure la sauvegarde faite juste avant.
@@ -16,6 +17,7 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 ### Nouveautés
 
+- Fonctions du bureau : la page Membres a un bouton « Fonctions » qui gère la liste des fonctions de l'association (Président, Trésorier, Secrétaire…, avec trois fonctions usuelles proposées quand la liste est vide). On attribue ensuite une fonction à un membre en la choisissant dans cette liste, avec ses dates. Une fonction ne se supprime pas : on l'archive, et les mandats passés restent lisibles. Elle ne donne toujours aucun droit d'accès ; elle servira à désigner qui valide une demande de remboursement (ADR 0035).
 - Emails d'invitation et de réinitialisation de mot de passe : quand un serveur SMTP est configuré (`SMTP_HOST`, `SMTP_FROM`, `PUBLIC_URL` dans `.env.prod`, facultatifs), le lien part par email au nom de l'association (logo et nom, « pour vous connecter à Cotiasso »), en plus d'être affiché à l'administrateur. Un email qui échoue ne défait jamais la création du compte. Sans configuration, rien ne change. Voir `docs/exploitation.md`.
 - Affichage mobile revu après un audit sur écran de 390 px : les tableaux deviennent des cartes « colonne : valeur » (plus de défilement horizontal), le menu s’ouvre en tiroir depuis une barre du haut au lieu de garder une colonne d’icônes, les boutons se rangent en deux colonnes au lieu de s’empiler, les onglets d’une page se replient en un bouton « Rubrique : … », les en-têtes de page sont plus compacts, les zones de toucher (aide « ? », retrait d’un rôle, montants du budget) sont plus grandes, la page de connexion occupe tout l’écran, et les lignes des dernières opérations se lisent sur deux lignes.
 - Identité visuelle de Cotiasso : nouveau symbole (un « C » ouvert sur une pièce) en icône d'onglet, icône d'écran d'accueil mobile et manifeste web. 

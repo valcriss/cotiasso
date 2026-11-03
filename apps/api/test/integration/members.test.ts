@@ -206,22 +206,66 @@ describe("Membres : fiches, catégories, fonctions et oubli (ADR 0023, base vier
     });
   });
 
-  describe("fonctions et mandats", () => {
+  describe("catalogue de fonctions et mandats", () => {
+    const unique = () => randomUUID().slice(0, 8);
+    const newRole = async (name: string) => {
+      const created = await call("POST", "/office-roles", treasurer, { name });
+      expect(created.statusCode, created.body).toBe(201);
+      return created.json() as { id: string; name: string };
+    };
+
+    it("crée une fonction, refuse un doublon à la casse et aux accents près, la renomme et l'archive", async () => {
+      const suffix = unique();
+      const created = await newRole(`Présidente ${suffix}`);
+      expect(created).toMatchObject({ name: `Présidente ${suffix}`, active: true, mandateCount: 0 });
+      const twice = await call("POST", "/office-roles", treasurer, { name: `  PRESIDENTE   ${suffix.toUpperCase()}` });
+      expect(twice.statusCode).toBe(409);
+      expect(twice.json().message).toContain("déjà ce nom");
+      const renamed = await call("PATCH", `/office-roles/${created.id}`, treasurer, { name: `Président·e ${suffix}` });
+      expect(renamed.json()).toMatchObject({ name: `Président·e ${suffix}` });
+      const archived = await call("PATCH", `/office-roles/${created.id}`, treasurer, { active: false });
+      expect(archived.json()).toMatchObject({ active: false });
+      expect((await call("GET", "/office-roles", boardMember)).statusCode).toBe(200);
+      expect((await call("POST", "/office-roles", boardMember, { name: `Interdite ${suffix}` })).statusCode).toBe(403);
+      expect((await call("PATCH", `/office-roles/${randomUUID()}`, treasurer, { active: false })).statusCode).toBe(404);
+    });
+
+    it("n'attribue plus une fonction archivée mais garde lisibles les mandats passés", async () => {
+      const member = await newMember({ firstName: "Louis", lastName: "Vidal" });
+      const role = await newRole(`Secrétaire ${unique()}`);
+      const added = await call("POST", `/members/${member.id}/offices`, treasurer, { officeRoleId: role.id, startsOn: "2019-01-01", endsOn: "2020-12-31" });
+      expect(added.statusCode, added.body).toBe(201);
+      await call("PATCH", `/office-roles/${role.id}`, treasurer, { active: false });
+      const refused = await call("POST", `/members/${member.id}/offices`, treasurer, { officeRoleId: role.id, startsOn: "2021-01-01" });
+      expect(refused.statusCode).toBe(409);
+      expect(refused.json().message).toContain("archivée");
+      const detail = (await call("GET", `/members/${member.id}`, boardMember)).json();
+      expect(detail.offices[0]).toMatchObject({ title: role.name });
+      // Changer un mandat vers une fonction archivée est refusé de la même façon.
+      const other = await newRole(`Vice-présidente ${unique()}`);
+      const second = await call("POST", `/members/${member.id}/offices`, treasurer, { officeRoleId: other.id, startsOn: "2021-01-01" });
+      expect((await call("PATCH", `/member-offices/${second.json().id}`, treasurer, { officeRoleId: role.id })).statusCode).toBe(409);
+    });
+
     it("ajoute un mandat en cours, le montre sur la fiche, le termine, le corrige et le retire", async () => {
       const member = await newMember({ firstName: "Claire", lastName: "Morel" });
-      const added = await call("POST", `/members/${member.id}/offices`, treasurer, { title: "Trésorière", startsOn: "2020-01-01" });
+      const role = await newRole(`Trésorière ${unique()}`);
+      const added = await call("POST", `/members/${member.id}/offices`, treasurer, { officeRoleId: role.id, startsOn: "2020-01-01" });
       expect(added.statusCode, added.body).toBe(201);
-      expect(added.json()).toMatchObject({ title: "Trésorière", endsOn: null, current: true });
+      expect(added.json()).toMatchObject({ officeRoleId: role.id, title: role.name, endsOn: null, current: true });
       const detail = (await call("GET", `/members/${member.id}`, boardMember)).json();
-      expect(detail.member.currentOffices).toEqual(["Trésorière"]);
+      expect(detail.member.currentOffices).toEqual([role.name]);
       expect(detail.offices).toHaveLength(1);
+      expect((await call("GET", "/office-roles", boardMember)).json().find((r: { id: string }) => r.id === role.id)).toMatchObject({ mandateCount: 1 });
 
       const ended = await call("PATCH", `/member-offices/${added.json().id}`, treasurer, { endsOn: "2021-06-30" });
       expect(ended.json()).toMatchObject({ endsOn: "2021-06-30", current: false });
       expect((await call("GET", `/members/${member.id}`, boardMember)).json().member.currentOffices).toEqual([]);
 
-      const invalid = await call("POST", `/members/${member.id}/offices`, treasurer, { title: "Président", startsOn: "2022-01-01", endsOn: "2021-01-01" });
+      const invalid = await call("POST", `/members/${member.id}/offices`, treasurer, { officeRoleId: role.id, startsOn: "2022-01-01", endsOn: "2021-01-01" });
       expect(invalid.statusCode).toBe(400);
+      expect((await call("POST", `/members/${member.id}/offices`, treasurer, { title: "Texte libre", startsOn: "2022-01-01" })).statusCode).toBe(400);
+      expect((await call("POST", `/members/${member.id}/offices`, treasurer, { officeRoleId: randomUUID(), startsOn: "2022-01-01" })).statusCode).toBe(404);
       expect((await call("DELETE", `/member-offices/${added.json().id}`, treasurer)).statusCode).toBe(204);
       expect((await call("GET", `/members/${member.id}`, boardMember)).json().offices).toHaveLength(0);
       expect((await call("DELETE", `/member-offices/${randomUUID()}`, treasurer)).statusCode).toBe(404);

@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute } from '@angular/router';
-import { AdminApiService, type MemberCategoryInfo, type MemberInfo, type MemberOfficeInfo } from '../admin/admin-api.service';
+import { AdminApiService, type MemberCategoryInfo, type MemberInfo, type MemberOfficeInfo, type OfficeRoleInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { todayLocalIso } from '../ui/dates';
@@ -18,10 +18,12 @@ import {
   CategoriesDialog,
   MemberDialog,
   OfficeDialog,
+  OfficeRolesDialog,
   type AnonymizeDialogData,
   type CategoriesDialogData,
   type MemberDialogData,
   type OfficeDialogData,
+  type OfficeRolesDialogData,
 } from './member-dialogs';
 import { FrDatePipe } from '../ui/fr-date.pipe';
 import { Skeleton } from '../ui/skeleton';
@@ -42,6 +44,9 @@ import { Skeleton } from '../ui/skeleton';
         </button>
         <button mat-stroked-button type="button" (click)="manageCategories()">
           <mat-icon fontSet="material-icons-outlined" aria-hidden="true">category</mat-icon> Catégories
+        </button>
+        <button mat-stroked-button type="button" (click)="manageOfficeRoles()">
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">badge</mat-icon> Fonctions
         </button>
       }
     </app-action-bar>
@@ -254,6 +259,7 @@ export class MembersPage {
 
   protected readonly members = signal<MemberInfo[]>([]);
   protected readonly categories = signal<MemberCategoryInfo[]>([]);
+  protected readonly officeRoles = signal<OfficeRoleInfo[]>([]);
   protected readonly selected = signal<{ member: MemberInfo; offices: MemberOfficeInfo[] } | null>(null);
   protected readonly next = signal<string | null>(null);
   protected readonly loading = signal(true);
@@ -385,10 +391,19 @@ export class MembersPage {
     if (categories) this.categories.set(categories);
   }
 
+  protected async manageOfficeRoles(): Promise<void> {
+    const roles = await this.dialogs.open<OfficeRoleInfo[], OfficeRolesDialogData>(OfficeRolesDialog, {
+      size: 'md',
+      dismissible: true,
+      data: { roles: this.officeRoles() },
+    });
+    if (roles) this.officeRoles.set(roles);
+  }
+
   protected async addOffice(member: MemberInfo): Promise<void> {
     const added = await this.dialogs.open<MemberOfficeInfo, OfficeDialogData>(OfficeDialog, {
       size: 'md',
-      data: { memberId: member.id, memberName: `${member.firstName} ${member.lastName}` },
+      data: { memberId: member.id, memberName: `${member.firstName} ${member.lastName}`, roles: this.officeRoles().filter((role) => role.active) },
     });
     if (!added) return;
     this.notifier.success(`Fonction « ${added.title} » ajoutée.`);
@@ -458,6 +473,7 @@ export class MembersPage {
 
   private async init(): Promise<void> {
     this.categories.set(await this.api.listMemberCategories().catch(() => []));
+    this.officeRoles.set(await this.api.listOfficeRoles().catch(() => []));
     // Un lien de la vue d'ensemble ouvre la liste déjà filtrée sur les cotisations en retard.
     if (this.route.snapshot.queryParamMap.get('cotisation') === 'late') this.filters.patchValue({ membershipStatus: 'LATE' });
     await this.search();

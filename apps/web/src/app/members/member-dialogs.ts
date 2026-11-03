@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { AdminApiService, type MemberCategoryInfo, type MemberInfo, type MemberOfficeInfo } from '../admin/admin-api.service';
+import { AdminApiService, type MemberCategoryInfo, type MemberInfo, type MemberOfficeInfo, type OfficeRoleInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { todayLocalIso } from '../ui/dates';
 import { FormDialog } from '../ui/form-dialog';
@@ -156,12 +156,14 @@ export class MemberDialog {
 export interface OfficeDialogData {
   memberId: string;
   memberName: string;
+  /** Fonctions du catalogue qu'on peut encore attribuer (les archivées sont exclues). */
+  roles: OfficeRoleInfo[];
 }
 
 /** Ajout d'une fonction ou d'un mandat (Président, Trésorier…). Renvoie la fonction créée. */
 @Component({
   selector: 'app-office-dialog',
-  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
+  imports: [DateField, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -172,16 +174,20 @@ export interface OfficeDialogData {
         [busy]="busy()"
         [error]="error()"
       >
+        @if (data.roles.length === 0) {
+          <p class="alert" role="status">
+            Aucune fonction n’est disponible. Fermez cette boîte, puis utilisez le bouton « Fonctions » en haut de la page pour créer « Président », « Trésorier »… avant de les attribuer.
+          </p>
+        }
         <mat-form-field appearance="outline">
           <mat-label>Fonction</mat-label>
-          <input matInput formControlName="title" list="office-suggestions" placeholder="Trésorier" required />
-          <datalist id="office-suggestions">
-            @for (suggestion of suggestions; track suggestion) {
-              <option [value]="suggestion"></option>
+          <mat-select formControlName="officeRoleId" required>
+            @for (role of data.roles; track role.id) {
+              <mat-option [value]="role.id">{{ role.name }}</mat-option>
             }
-          </datalist>
-          @if (form.controls.title.hasError('required')) {
-            <mat-error>Indiquez la fonction, par exemple « Trésorier ».</mat-error>
+          </mat-select>
+          @if (form.controls.officeRoleId.hasError('required')) {
+            <mat-error>Choisissez la fonction, par exemple « Trésorier ».</mat-error>
           }
         </mat-form-field>
         <div class="row">
@@ -197,11 +203,10 @@ export class OfficeDialog {
   private readonly reference = inject<MatDialogRef<OfficeDialog, MemberOfficeInfo>>(MatDialogRef);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly data = inject<OfficeDialogData>(MAT_DIALOG_DATA);
-  protected readonly suggestions = ['Président', 'Vice-président', 'Trésorier', 'Secrétaire', 'Membre du bureau'];
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly form = this.fb.group({
-    title: ['', [Validators.required]],
+    officeRoleId: ['', [Validators.required]],
     startsOn: [todayLocalIso(), [Validators.required]],
     endsOn: [''],
   });
@@ -216,9 +221,131 @@ export class OfficeDialog {
     this.error.set(null);
     this.busy.set(true);
     try {
-      this.reference.close(await this.api.addMemberOffice(this.data.memberId, { title: raw.title.trim(), startsOn: raw.startsOn, endsOn: raw.endsOn || null }));
+      this.reference.close(await this.api.addMemberOffice(this.data.memberId, { officeRoleId: raw.officeRoleId, startsOn: raw.startsOn, endsOn: raw.endsOn || null }));
     } catch (failure) {
       this.error.set(describeHttpError(failure, "La fonction n'a pas pu être ajoutée. Réessayez dans un instant.").message);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+}
+
+export interface OfficeRolesDialogData {
+  roles: OfficeRoleInfo[];
+}
+
+const STARTER_ROLES = ['Président', 'Trésorier', 'Secrétaire'];
+
+/** Catalogue des fonctions de l'association : ajout, archivage. Renvoie la liste à jour quand on la ferme. */
+@Component({
+  selector: 'app-office-roles-dialog',
+  imports: [ReactiveFormsModule, MatDialogModule, MatButtonModule, MatFormFieldModule, MatInputModule],
+  styles: `
+    .role {
+      align-items: center;
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+      padding: 6px 0;
+    }
+    form {
+      align-items: baseline;
+      display: flex;
+      gap: 8px;
+    }
+    form mat-form-field {
+      flex: 1;
+    }
+    .starters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+  `,
+  template: `
+    <h2 mat-dialog-title>Fonctions du bureau</h2>
+    <mat-dialog-content>
+      <p class="muted">
+        La liste des fonctions de votre association (Président, Trésorier, Secrétaire…). On les attribue ensuite aux membres, avec des dates. Une fonction ne donne aucun droit dans l’application, mais elle servira à
+        désigner qui doit donner son accord. Une fonction ne se supprime pas : archivez-la quand elle n’existe plus.
+      </p>
+      @if (error(); as message) {
+        <p class="alert" role="alert">{{ message }}</p>
+      }
+      @for (role of roles(); track role.id) {
+        <div class="role">
+          <span [class.muted]="!role.active">{{ role.name }} · {{ role.mandateCount }} mandat(s)@if (!role.active) { (archivée) }</span>
+          <button mat-button type="button" [disabled]="busy()" [attr.aria-label]="(role.active ? 'Archiver ' : 'Réactiver ') + role.name" (click)="toggle(role)">
+            {{ role.active ? 'Archiver' : 'Réactiver' }}
+          </button>
+        </div>
+      } @empty {
+        <p class="muted">Aucune fonction pour l’instant. Ajoutez celles de votre bureau :</p>
+        <div class="starters">
+          @for (starter of starters; track starter) {
+            <button mat-stroked-button type="button" [disabled]="busy()" (click)="create(starter)">{{ starter }}</button>
+          }
+        </div>
+      }
+      <form [formGroup]="form" (ngSubmit)="add()" novalidate>
+        <mat-form-field appearance="outline">
+          <mat-label>Nouvelle fonction</mat-label>
+          <input matInput formControlName="name" placeholder="Vice-président" />
+        </mat-form-field>
+        <button mat-flat-button type="submit" [disabled]="busy()">Ajouter</button>
+      </form>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-flat-button type="button" (click)="close()">Fermer</button>
+    </mat-dialog-actions>
+  `,
+})
+export class OfficeRolesDialog {
+  private readonly api = inject(AdminApiService);
+  private readonly reference = inject<MatDialogRef<OfficeRolesDialog, OfficeRoleInfo[]>>(MatDialogRef);
+  private readonly fb = inject(FormBuilder).nonNullable;
+  protected readonly data = inject<OfficeRolesDialogData>(MAT_DIALOG_DATA);
+  protected readonly roles = signal<OfficeRoleInfo[]>(this.data.roles);
+  protected readonly starters = STARTER_ROLES;
+  protected readonly busy = signal(false);
+  protected readonly error = signal<string | null>(null);
+  protected readonly form = this.fb.group({ name: [''] });
+
+  protected async add(): Promise<void> {
+    const name = this.form.getRawValue().name.trim();
+    if (!name) {
+      this.error.set('Donnez un nom à la fonction, par exemple « Vice-président ».');
+      return;
+    }
+    await this.create(name);
+    if (!this.error()) this.form.reset({ name: '' });
+  }
+
+  protected create(name: string): Promise<void> {
+    return this.run(async () => {
+      await this.api.createOfficeRole(name);
+    });
+  }
+
+  protected toggle(role: OfficeRoleInfo): Promise<void> {
+    return this.run(async () => {
+      await this.api.updateOfficeRole(role.id, { active: !role.active });
+    });
+  }
+
+  protected close(): void {
+    this.reference.close(this.roles());
+  }
+
+  private async run(action: () => Promise<void>): Promise<void> {
+    this.error.set(null);
+    this.busy.set(true);
+    try {
+      await action();
+      this.roles.set(await this.api.listOfficeRoles());
+    } catch (failure) {
+      this.error.set(describeHttpError(failure, "L’opération a échoué. Réessayez dans un instant.").message);
     } finally {
       this.busy.set(false);
     }

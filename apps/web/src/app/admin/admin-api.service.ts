@@ -543,8 +543,18 @@ export interface MemberInfo {
   membershipStatus?: MemberCotisationState | null;
 }
 
+/** Fonction du catalogue de l'association (Président, Trésorier…). */
+export interface OfficeRoleInfo {
+  id: string;
+  name: string;
+  active: boolean;
+  mandateCount: number;
+}
+
 export interface MemberOfficeInfo {
   id: string;
+  officeRoleId: string;
+  /** Nom de la fonction du catalogue. */
   title: string;
   startsOn: string;
   endsOn: string | null;
@@ -1673,11 +1683,23 @@ export class AdminApiService {
     return firstValueFrom(this.http.patch<MemberCategoryInfo>(`/api/member-categories/${id}`, body));
   }
 
-  addMemberOffice(memberId: string, body: { title: string; startsOn: string; endsOn?: string | null; note?: string | null }): Promise<MemberOfficeInfo> {
+  listOfficeRoles(): Promise<OfficeRoleInfo[]> {
+    return firstValueFrom(this.http.get<OfficeRoleInfo[]>('/api/office-roles'));
+  }
+
+  createOfficeRole(name: string): Promise<OfficeRoleInfo> {
+    return firstValueFrom(this.http.post<OfficeRoleInfo>('/api/office-roles', { name }));
+  }
+
+  updateOfficeRole(id: string, body: { name?: string; active?: boolean }): Promise<OfficeRoleInfo> {
+    return firstValueFrom(this.http.patch<OfficeRoleInfo>(`/api/office-roles/${id}`, body));
+  }
+
+  addMemberOffice(memberId: string, body: { officeRoleId: string; startsOn: string; endsOn?: string | null; note?: string | null }): Promise<MemberOfficeInfo> {
     return firstValueFrom(this.http.post<MemberOfficeInfo>(`/api/members/${memberId}/offices`, body));
   }
 
-  updateMemberOffice(id: string, body: { title?: string; startsOn?: string; endsOn?: string | null; note?: string | null }): Promise<MemberOfficeInfo> {
+  updateMemberOffice(id: string, body: { officeRoleId?: string; startsOn?: string; endsOn?: string | null; note?: string | null }): Promise<MemberOfficeInfo> {
     return firstValueFrom(this.http.patch<MemberOfficeInfo>(`/api/member-offices/${id}`, body));
   }
 

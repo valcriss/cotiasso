@@ -782,18 +782,35 @@ model Member {
 
 // Fonction ou mandat d'un membre (Président, Trésorier…), avec ses dates.
 model MemberOffice {
-  id        String    @id @default(uuid()) @db.Uuid
-  memberId  String    @db.Uuid
-  title     String
+  id           String    @id @default(uuid()) @db.Uuid
+  memberId     String    @db.Uuid
+  // Fonction du catalogue (ADR 0035) : jamais un intitulé libre.
+  officeRoleId String    @db.Uuid
   startsOn  DateTime  @db.Date
   endsOn    DateTime? @db.Date
   note      String?
   createdAt DateTime  @default(now()) @db.Timestamptz(3)
   createdBy String?   @db.Uuid
 
-  member Member @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  member     Member     @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  officeRole OfficeRole @relation(fields: [officeRoleId], references: [id], onDelete: Restrict)
 
   @@index([memberId])
+  @@index([officeRoleId])
+}
+
+// Catalogue de fonctions de l'association (Président, Trésorier…) : jamais supprimé, archivable (ADR 0035).
+// Une fonction n'accorde aucun droit d'accès ; elle sert à désigner qui peut valider une étape d'un circuit.
+model OfficeRole {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  // Nom sans casse ni accents, calculé par l'application : l'unicité se juge dessus.
+  nameKey   String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  createdBy String?  @db.Uuid
+
+  offices MemberOffice[]
 }
 
 enum MembershipMode {
