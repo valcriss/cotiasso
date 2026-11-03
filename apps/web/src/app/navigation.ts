@@ -28,6 +28,15 @@ export const NAVIGATION: readonly NavigationItem[] = [
   { path: 'documents', label: 'Documents', icon: 'description', permission: 'documents:view', global: true },
 ];
 
+/** Assistant de démarrage : ajouté au menu par le shell tant qu'une étape de préparation manque (voir `SetupStatus`). */
+export const START_ITEM: NavigationItem = {
+  path: 'demarrage',
+  label: 'Démarrer',
+  icon: 'rocket_launch',
+  permission: 'settings.accounting:admin',
+  global: true,
+};
+
 export const SETTINGS_ITEM: NavigationItem = {
   path: 'parametres',
   label: 'Paramètres',

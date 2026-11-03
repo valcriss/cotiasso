@@ -8,6 +8,7 @@ import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { GrantExpenseCancelDialog, GrantExpenseDialog } from './grant-expense-dialogs';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 /**
  * Dépenses affectées à une subvention : les dépenses déjà comptabilisées que la subvention prend en charge. C'est un suivi pour
@@ -15,7 +16,7 @@ import { GrantExpenseCancelDialog, GrantExpenseDialog } from './grant-expense-di
  */
 @Component({
   selector: 'app-grant-expenses',
-  imports: [MatButtonModule, MatIconModule],
+  imports: [FrDatePipe, MatButtonModule, MatIconModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -111,7 +112,7 @@ import { GrantExpenseCancelDialog, GrantExpenseDialog } from './grant-expense-di
           <tbody>
             @for (expense of info.expenses; track expense.id) {
               <tr [class.cancelled]="expense.cancelled || expense.reversed">
-                <td>{{ expense.entry.date }}</td>
+                <td>{{ expense.entry.date | frDate }}</td>
                 <td>
                   {{ expense.entry.label ?? 'Écriture ' + expense.entry.journalCode + (expense.entry.number === null ? '' : ' n° ' + expense.entry.number) }}
                   <span class="note">{{ expense.account.number }} — {{ expense.account.label }}</span>
@@ -132,7 +133,7 @@ import { GrantExpenseCancelDialog, GrantExpenseDialog } from './grant-expense-di
                 <td class="amount">{{ amount(expense.amount) }}</td>
                 <td class="row-actions">
                   @if (editable() && !expense.cancelled) {
-                    <button mat-button type="button" [attr.aria-label]="'Annuler l\\'affectation du ' + expense.entry.date" (click)="cancel(expense)">Annuler</button>
+                    <button mat-button type="button" [attr.aria-label]="'Annuler l\\'affectation du ' + (expense.entry.date | frDate)" (click)="cancel(expense)">Annuler</button>
                   }
                 </td>
               </tr>

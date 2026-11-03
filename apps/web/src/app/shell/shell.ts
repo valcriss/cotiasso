@@ -5,7 +5,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { BrandingService } from '../branding/branding.service';
-import { NAVIGATION, SETTINGS_ITEM } from '../navigation';
+import { NAVIGATION, SETTINGS_ITEM, START_ITEM } from '../navigation';
+import { SetupStatus } from '../pages/setup-status.service';
 import { DENSITIES, THEME_MODES, ThemeService, VIEW_MODES } from '../theme/theme.service';
 
 @Component({
@@ -17,6 +18,7 @@ import { DENSITIES, THEME_MODES, ThemeService, VIEW_MODES } from '../theme/theme
 export class Shell {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly setupStatus = inject(SetupStatus);
 
   protected readonly theme = inject(ThemeService);
   private readonly brandingService = inject(BrandingService);
@@ -24,7 +26,10 @@ export class Shell {
   protected readonly navigation = computed(() => {
     this.auth.permissions();
     const simple = this.theme.viewMode() === 'simple';
-    return NAVIGATION.filter((item) => !(simple && item.expert)).filter((item) => (item.global ? this.auth.can(item.permission) : this.auth.canAny(item.permission)));
+    const items = NAVIGATION.filter((item) => !(simple && item.expert)).filter((item) => (item.global ? this.auth.can(item.permission) : this.auth.canAny(item.permission)));
+    // « Démarrer » reste dans le menu tant qu'une étape de préparation manque, pour la retrouver une fois la carte d'accueil disparue.
+    if (this.setupStatus.incomplete() && this.auth.can(START_ITEM.permission)) items.splice(1, 0, START_ITEM);
+    return items;
   });
   protected readonly settings = computed(() => {
     this.auth.permissions();
@@ -41,6 +46,10 @@ export class Shell {
     effect(() => {
       this.auth.permissions();
       if (this.auth.can('reports:export') && !this.auth.can('transactions:manage')) this.theme.suggestViewMode('accounting');
+    });
+    effect(() => {
+      this.auth.permissions();
+      if (this.auth.can(START_ITEM.permission)) void this.setupStatus.ensureLoaded();
     });
   }
 

@@ -8,6 +8,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type MemberCategoryInfo, type MemberInfo, type MemberOfficeInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
+import { todayLocalIso } from '../ui/dates';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { ActionBar } from '../ui/action-bar';
@@ -21,11 +22,12 @@ import {
   type MemberDialogData,
   type OfficeDialogData,
 } from './member-dialogs';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 /** Membres : fiches, catégories, fonctions et mandats (ADR 0023). */
 @Component({
   selector: 'app-members-page',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ActionBar],
+  imports: [FrDatePipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ActionBar],
   styleUrl: '../admin/admin-pages.scss',
   template: `
     <app-action-bar
@@ -95,10 +97,10 @@ import {
           <dt>Catégorie</dt>
           <dd>{{ detail.member.categoryName ?? '—' }}</dd>
           <dt>Entrée</dt>
-          <dd>{{ detail.member.joinedOn ?? '—' }}</dd>
+          <dd>{{ (detail.member.joinedOn | frDate) || '—' }}</dd>
           @if (detail.member.leftOn) {
             <dt>Sortie</dt>
-            <dd>{{ detail.member.leftOn }}</dd>
+            <dd>{{ detail.member.leftOn | frDate }}</dd>
           }
           @if (detail.member.note) {
             <dt>Note</dt>
@@ -129,7 +131,7 @@ import {
             @for (office of detail.offices; track office.id) {
               <li>
                 <strong>{{ office.title }}</strong>
-                · depuis le {{ office.startsOn }}@if (office.endsOn) { jusqu'au {{ office.endsOn }} } @else { (en cours) }
+                · depuis le {{ office.startsOn | frDate }}@if (office.endsOn) { jusqu'au {{ office.endsOn | frDate }} } @else { (en cours) }
                 @if (canManage() && !detail.member.anonymized) {
                   @if (office.current) {
                     <button mat-button type="button" [disabled]="busy()" [attr.aria-label]="'Terminer la fonction ' + office.title" (click)="endOffice(office)">Terminer aujourd'hui</button>
@@ -354,7 +356,7 @@ export class MembersPage {
     const member = this.selected()?.member;
     if (!member) return;
     await this.run(async () => {
-      await this.api.updateMemberOffice(office.id, { endsOn: new Date().toISOString().slice(0, 10) });
+      await this.api.updateMemberOffice(office.id, { endsOn: todayLocalIso() });
       this.notifier.success(`Fonction « ${office.title} » terminée.`);
       await this.search();
       await this.open(member.id);

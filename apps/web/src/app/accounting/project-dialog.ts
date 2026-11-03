@@ -22,7 +22,7 @@ export interface ProjectDialogData {
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
         [title]="project ? 'Modifier le projet ' + project.code : 'Nouveau projet'"
-        description="Un projet regroupe les dépenses et les recettes d'une activité, pour savoir ce qu'elle coûte et ce qu'elle rapporte."
+        description="Un projet regroupe les dépenses et les recettes d'une même action (festival, ateliers…), pour savoir ce qu'elle coûte et ce qu'elle rapporte."
         [dirty]="form.dirty"
         [busy]="busy()"
         [error]="error()"

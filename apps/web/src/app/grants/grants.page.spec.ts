@@ -228,7 +228,7 @@ describe('GrantsPage', () => {
     controller.expectOne('/api/grants/g1').flush(grant({ status: 'REFUSED', decidedOn: '2026-03-15', reason: 'Enveloppe épuisée' }));
     await settle();
     expect(has('Clôturer')).toBe(false);
-    expect(text()).toContain('2026-03-15 — Enveloppe épuisée');
+    expect(text()).toContain('15/03/2026 — Enveloppe épuisée');
   });
 
   it('montre les documents d’une subvention à qui peut les lire, et pas aux autres', async () => {

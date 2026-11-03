@@ -14,11 +14,12 @@ import { formatApiAmount, formatBalance } from './amount';
 import { ActionBar } from '../ui/action-bar';
 import { ExportLink } from '../reports/export-link';
 import { ReportFilters, type PeriodFilter } from './report-filters';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 /** Grand livre : les mouvements de chaque compte avec leur solde cumulé, écritures comptabilisées seulement. */
 @Component({
   selector: 'app-ledger-page',
-  imports: [ActionBar, ExportLink, FormsModule, MatFormFieldModule, MatInputModule, MatSelectModule, ReportFilters],
+  imports: [FrDatePipe, ActionBar, ExportLink, FormsModule, MatFormFieldModule, MatInputModule, MatSelectModule, ReportFilters],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -81,7 +82,7 @@ import { ReportFilters, type PeriodFilter } from './report-filters';
           <tbody>
             @for (line of account.lines; track $index) {
               <tr>
-                <td>{{ line.date }}</td>
+                <td>{{ line.date | frDate }}</td>
                 <td>{{ line.journalCode }}</td>
                 <td>{{ line.entryNumber }}</td>
                 <td>{{ line.lineLabel || line.entryLabel }}</td>

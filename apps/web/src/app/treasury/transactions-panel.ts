@@ -1,10 +1,13 @@
-import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { debounceTime } from 'rxjs';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterLink } from '@angular/router';
 import {
@@ -28,13 +31,78 @@ import { BulkBookResultDialog, type BulkBookResultData } from './bulk-book-resul
 import { LinkEntryDialog, type LinkEntryDialogData } from './link-entry-dialog';
 import { QualifyDialog, type QualifyDialogData } from './qualify-dialog';
 import { TransactionDialog, type TransactionDialogData, type TransactionDialogResult } from './transaction-dialog';
+import { todayLocalIso } from '../ui/dates';
+import { FrDatePipe } from '../ui/fr-date.pipe';
+
+const HINT_KEY = 'cotiasso.transactions.situations-hint-dismissed';
+function readHintFlag(): boolean {
+  try {
+    return localStorage.getItem(HINT_KEY) !== '1';
+  } catch {
+    return true;
+  }
+}
+function writeHintFlag(visible: boolean): void {
+  try {
+    if (visible) localStorage.removeItem(HINT_KEY);
+    else localStorage.setItem(HINT_KEY, '1');
+  } catch {
+    // Stockage refusé (navigation privée…) : le choix vaut pour cette page seulement.
+  }
+}
+
+type PeriodKey = 'month' | 'last-month' | 'year' | 'all';
+const PERIOD_SHORTCUTS: { key: PeriodKey; label: string }[] = [
+  { key: 'month', label: 'Ce mois-ci' },
+  { key: 'last-month', label: 'Le mois dernier' },
+  { key: 'year', label: 'Cette année' },
+  { key: 'all', label: 'Tout' },
+];
+
+const two = (value: number) => String(value).padStart(2, '0');
+
+/** Bornes `AAAA-MM-JJ` d'un raccourci de période, calculées sur la date locale (aucune conversion UTC). */
+export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date()): { from: string; to: string } {
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  if (key === 'year') return { from: `${year}-01-01`, to: `${year}-12-31` };
+  const first = key === 'month' ? new Date(year, month, 1) : new Date(year, month - 1, 1);
+  const last = new Date(first.getFullYear(), first.getMonth() + 1, 0);
+  return { from: todayLocalIso(first), to: `${last.getFullYear()}-${two(last.getMonth() + 1)}-${two(last.getDate())}` };
+}
 
 /** Transactions d'un compte : liste filtrable, saisie (boîte de dialogue) et accès à l'import d'un relevé. */
 @Component({
   selector: 'app-transactions-panel',
-  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [FrDatePipe, MatMenuModule, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
+    .periods {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 12px;
+    }
+    .periods .active {
+      background: var(--mat-sys-secondary-container);
+    }
+    .hint-banner {
+      align-items: center;
+      background: var(--app-surface-variant, var(--mat-sys-surface-container));
+      border-radius: var(--app-radius);
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      margin: 0 0 12px;
+      padding: 8px 12px;
+    }
+    .todo-count {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 12px;
+    }
     .amount {
       font-variant-numeric: tabular-nums;
       text-align: right;
@@ -56,9 +124,9 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
     }
   `,
   template: `
-    <section class="panel" [attr.aria-label]="'Transactions de ' + account().name">
+    <section class="panel" [attr.aria-label]="(simple() ? 'Mouvements de ' : 'Transactions de ') + account().name">
       <div class="head">
-        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">swap_horiz</mat-icon><span>Transactions de {{ account().name }}</span></h3>
+        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">swap_horiz</mat-icon><span>{{ simple() ? 'Mouvements' : 'Transactions' }} de {{ account().name }}</span></h3>
         <div class="actions">
           @if (canImport() && !account().archivedOn) {
             <a mat-stroked-button [routerLink]="['/comptes', account().id, 'import']">
@@ -98,7 +166,7 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
           <input matInput type="date" formControlName="to" />
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Libellé ou référence</mat-label>
+          <mat-label>{{ simple() ? 'Description ou numéro de la banque' : 'Libellé ou référence' }}</mat-label>
           <input matInput formControlName="q" />
         </mat-form-field>
         <mat-form-field appearance="outline">
@@ -119,40 +187,68 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
           </mat-select>
         </mat-form-field>
         <div class="actions">
-          <button mat-flat-button type="submit">
-            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_alt</mat-icon> Filtrer
-          </button>
+          @if (simple()) {
+            @if (hasFilter()) {
+              <button mat-stroked-button type="button" (click)="clearFilters()">
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_alt_off</mat-icon> Effacer les filtres
+              </button>
+            }
+          } @else {
+            <button mat-flat-button type="submit">
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_alt</mat-icon> Filtrer
+            </button>
+          }
         </div>
       </form>
+      <div class="periods" role="group" aria-label="Raccourcis de période">
+        @for (shortcut of periodShortcuts; track shortcut.key) {
+          <button mat-stroked-button type="button" [attr.aria-pressed]="activePeriod() === shortcut.key" [class.active]="activePeriod() === shortcut.key" (click)="applyPeriod(shortcut.key)">
+            {{ shortcut.label }}
+          </button>
+        }
+      </div>
+      @if (simple() && !loading() && toClassifyOnly() && transactions().length > 0) {
+        <p class="todo-count" role="status">
+          <strong>{{ transactions().length }}{{ next() ? ' ou plus' : '' }} mouvement(s) à classer.</strong>
+          <button mat-button type="button" (click)="showAll()">Voir tous les mouvements</button>
+        </p>
+      }
 
       @if (loading()) {
         <p class="muted">Chargement…</p>
       } @else if (transactions().length === 0) {
         <p class="muted">
-          Aucune transaction pour ces critères.
+          {{ simple() ? 'Aucun mouvement pour ces critères.' : 'Aucune transaction pour ces critères.' }}
           @if (canManage() && !account().archivedOn) {
             Ajoutez un mouvement à la main ou importez le relevé de votre banque.
           }
         </p>
       } @else {
         @if (simple()) {
-          <p class="muted">
-            Un mouvement passe par trois situations : <strong>À classer</strong> (on ne sait pas encore à quoi il correspond), <strong>Classé</strong> (la
-            catégorie est choisie, il reste à l'enregistrer dans les comptes) puis <strong>Enregistré dans les comptes</strong>. Une fois le relevé de la
-            banque comparé, il est aussi <strong>Vérifié avec la banque</strong>.
-          </p>
+          @if (hintVisible()) {
+            <p class="hint-banner" role="note">
+              <span>
+                Un mouvement passe par trois situations : <strong>À classer</strong> (on ne sait pas encore à quoi il correspond), <strong>Classé</strong> (la
+                catégorie est choisie, il reste à l'enregistrer dans les comptes) puis <strong>Enregistré dans les comptes</strong>. Une fois le relevé de la
+                banque comparé, il est aussi <strong>Vérifié avec la banque</strong>.
+              </span>
+              <button mat-button type="button" (click)="dismissHint()">Compris</button>
+            </p>
+          } @else {
+            <p class="muted"><button mat-button type="button" (click)="showHint()">Rappel : les situations d’un mouvement</button></p>
+          }
         } @else {
           <p class="muted">« Comptabilisée » veut dire qu'une écriture validée enregistre ce mouvement dans les comptes de l'association.</p>
         }
         <table class="table">
-          <caption class="sr-only">Transactions</caption>
+          <caption class="sr-only">{{ simple() ? 'Mouvements' : 'Transactions' }}</caption>
           <thead>
             <tr>
               @if (canManage()) {
                 <th scope="col"><span class="sr-only">Sélection</span></th>
               }
               <th scope="col">Date</th>
-              <th scope="col">Libellé</th>
+              <th scope="col">{{ simple() ? 'Description' : 'Libellé' }}</th>
               <th scope="col">Projet</th>
               <th scope="col">{{ simple() ? 'Catégorie' : 'Contrepartie' }}</th>
               <th scope="col">{{ simple() ? 'Situation' : 'Comptabilisation' }}</th>
@@ -172,14 +268,14 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
                     />
                   </td>
                 }
-                <td class="date">{{ item.operationDate }}</td>
+                <td class="date">{{ item.operationDate | frDate }}</td>
                 <td>
                   {{ item.label }}
                   @if (item.bankIdentified) {
-                    <span class="chip">{{ item.origin === 'IMPORT' ? 'Importée' : 'Rapprochée du relevé' }}</span>
+                    <span class="chip">{{ item.origin === 'IMPORT' ? (simple() ? 'Venue de la banque' : 'Importée') : (simple() ? 'Reliée à la banque' : 'Rapprochée du relevé') }}</span>
                   }
                   @if (item.reference) {
-                    <div class="muted">Réf. {{ item.reference }}</div>
+                    <div class="muted">{{ simple() ? 'N° banque' : 'Réf.' }} {{ item.reference }}</div>
                   }
                 </td>
                 <td>{{ item.projectCode ?? '—' }}</td>
@@ -232,17 +328,39 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
                   @if (item.entry && canViewEntries() && (!simple() || item.accounting === 'IN_PROGRESS')) {
                     <a mat-button [attr.aria-label]="(simple() ? 'Relire le brouillon de ' : 'Voir l’écriture de ') + item.label" [routerLink]="['/comptabilite/ecritures', item.entry.id]">{{ simple() ? 'Relire le brouillon' : "Voir l'écriture" }}</a>
                   }
-                  @if (canCancelOperation() && item.accounting === 'POSTED' && item.entry && !item.transfer && item.reconciliation?.status !== 'VALIDATED') {
-                    <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler l’opération ' + item.label" [disabled]="busy()" (click)="cancelOperation(item)">Annuler l’opération</button>
-                  }
-                  @if (canLink() && item.accounting === 'IN_PROGRESS') {
-                    <button mat-button type="button" [attr.aria-label]="'Dissocier ' + item.label" [disabled]="busy()" (click)="unlink(item)">Dissocier</button>
-                  }
-                  @if (canManage() && item.financialLock === 'TRANSFER' && item.transfer) {
-                    <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler le virement ' + item.label" [disabled]="busy()" (click)="cancelTransfer(item)">Annuler le virement</button>
-                  }
-                  @if (canManage()) {
-                    <button mat-button type="button" [attr.aria-label]="'Modifier ' + item.label" (click)="open(item)">Modifier</button>
+                  @if (simple()) {
+                    @if (canManage() || canLink() || canCancelOperation()) {
+                      <button mat-icon-button type="button" [matMenuTriggerFor]="rowMenu" [attr.aria-label]="'Autres actions pour ' + item.label" [disabled]="busy()">
+                        <mat-icon fontSet="material-icons-outlined" aria-hidden="true">more_vert</mat-icon>
+                      </button>
+                      <mat-menu #rowMenu="matMenu">
+                        @if (canManage()) {
+                          <button mat-menu-item type="button" [attr.aria-label]="'Modifier ' + item.label" (click)="open(item)">Modifier</button>
+                        }
+                        @if (canLink() && item.accounting === 'IN_PROGRESS') {
+                          <button mat-menu-item type="button" [attr.aria-label]="'Dissocier ' + item.label" (click)="unlink(item)">Dissocier</button>
+                        }
+                        @if (canCancelOperation() && item.accounting === 'POSTED' && item.entry && !item.transfer && item.reconciliation?.status !== 'VALIDATED') {
+                          <button mat-menu-item class="danger" type="button" [attr.aria-label]="'Annuler l’opération ' + item.label" (click)="cancelOperation(item)">Annuler l’opération</button>
+                        }
+                        @if (canManage() && item.financialLock === 'TRANSFER' && item.transfer) {
+                          <button mat-menu-item class="danger" type="button" [attr.aria-label]="'Annuler le virement ' + item.label" (click)="cancelTransfer(item)">Annuler le virement</button>
+                        }
+                      </mat-menu>
+                    }
+                  } @else {
+                    @if (canCancelOperation() && item.accounting === 'POSTED' && item.entry && !item.transfer && item.reconciliation?.status !== 'VALIDATED') {
+                      <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler l’opération ' + item.label" [disabled]="busy()" (click)="cancelOperation(item)">Annuler l’opération</button>
+                    }
+                    @if (canLink() && item.accounting === 'IN_PROGRESS') {
+                      <button mat-button type="button" [attr.aria-label]="'Dissocier ' + item.label" [disabled]="busy()" (click)="unlink(item)">Dissocier</button>
+                    }
+                    @if (canManage() && item.financialLock === 'TRANSFER' && item.transfer) {
+                      <button mat-button class="danger" type="button" [attr.aria-label]="'Annuler le virement ' + item.label" [disabled]="busy()" (click)="cancelTransfer(item)">Annuler le virement</button>
+                    }
+                    @if (canManage()) {
+                      <button mat-button type="button" [attr.aria-label]="'Modifier ' + item.label" (click)="open(item)">Modifier</button>
+                    }
                   }
                 </div></td>
               </tr>
@@ -309,6 +427,22 @@ export class TransactionsPanel {
   });
 
   protected readonly filters = this.fb.group({ from: [''], to: [''], q: [''], qualified: [''], accounting: [''] });
+  private readonly destroyRef = inject(DestroyRef);
+  /** Le formulaire n'est pas un signal : ces deux-là suivent ses valeurs pour l'affichage (puces de période, compteur). */
+  private readonly filterValues = signal(this.filters.getRawValue());
+  protected readonly hasFilter = computed(() => Object.values(this.filterValues()).some((value) => value !== ''));
+  protected readonly toClassifyOnly = computed(() => this.filterValues().qualified === 'false');
+  protected readonly periodShortcuts = PERIOD_SHORTCUTS;
+  /** Explication des situations : lue une fois, elle se range (choix gardé en local, le stockage peut être refusé). */
+  protected readonly hintVisible = signal(readHintFlag());
+  protected readonly activePeriod = computed(() => {
+    const { from, to } = this.filterValues();
+    if (!from && !to) return 'all';
+    return PERIOD_SHORTCUTS.find((shortcut) => shortcut.key !== 'all' && periodRange(shortcut.key).from === from && periodRange(shortcut.key).to === to)?.key ?? null;
+  });
+  /** Une réponse tardive d'une requête abandonnée (filtre changé entre-temps) ne doit pas remplacer la liste à jour. */
+  private requestSeq = 0;
+  private lastAccountId: string | null = null;
 
   /** Identifiant seul : recharger les soldes du compte ne doit pas relancer la liste ni perdre les filtres. */
   private readonly accountId = computed(() => this.account().id);
@@ -318,8 +452,10 @@ export class TransactionsPanel {
       this.accountId();
       this.reloadKey();
       // La requête lit d'autres signaux (compte, filtres) : hors suivi, seul le changement de compte relance l'effet.
-      untracked(() => void this.search());
+      untracked(() => void this.openAccount());
     });
+    // Filtrage immédiat : plus besoin de penser à cliquer sur « Filtrer ».
+    this.filters.valueChanges.pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef)).subscribe(() => void this.search());
     // En affichage simple, les catégories remplacent les numéros de compte : on les charge une fois, quand elles servent.
     effect(() => {
       if (this.simple() && !this.categoriesRequested) untracked(() => void this.loadCategories());
@@ -529,18 +665,66 @@ export class TransactionsPanel {
     }
   }
 
+  /**
+   * Ouverture d'un compte. En affichage simple, on commence par ce qui reste à faire (« À classer ») ; s'il n'y a rien à classer,
+   * on montre tout plutôt qu'une liste vide. Un rechargement du même compte garde les filtres de la personne.
+   */
+  private async openAccount(): Promise<void> {
+    const accountId = this.accountId();
+    if (accountId === this.lastAccountId) {
+      await this.search();
+      return;
+    }
+    this.lastAccountId = accountId;
+    this.filters.reset({ from: '', to: '', q: '', qualified: this.simple() ? 'false' : '', accounting: '' }, { emitEvent: false });
+    await this.search();
+    if (this.simple() && !this.error() && this.transactions().length === 0) {
+      this.filters.patchValue({ qualified: '' }, { emitEvent: false });
+      await this.search();
+    }
+  }
+
   protected async search(): Promise<void> {
+    const seq = ++this.requestSeq;
+    this.filterValues.set(this.filters.getRawValue());
     this.loading.set(true);
     this.error.set(null);
     try {
       const page = await this.api.listTransactions(this.account().id, this.query());
+      if (seq !== this.requestSeq) return;
       this.transactions.set(page.transactions);
       this.next.set(page.next);
     } catch (failure) {
+      if (seq !== this.requestSeq) return;
       this.error.set(describeHttpError(failure, 'Impossible de charger les transactions.').message);
     } finally {
-      this.loading.set(false);
+      if (seq === this.requestSeq) this.loading.set(false);
     }
+  }
+
+  protected async applyPeriod(key: PeriodKey): Promise<void> {
+    this.filters.patchValue(key === 'all' ? { from: '', to: '' } : periodRange(key), { emitEvent: false });
+    await this.search();
+  }
+
+  protected dismissHint(): void {
+    this.hintVisible.set(false);
+    writeHintFlag(false);
+  }
+
+  protected showHint(): void {
+    this.hintVisible.set(true);
+    writeHintFlag(true);
+  }
+
+  protected async clearFilters(): Promise<void> {
+    this.filters.reset({ from: '', to: '', q: '', qualified: '', accounting: '' }, { emitEvent: false });
+    await this.search();
+  }
+
+  protected async showAll(): Promise<void> {
+    this.filters.patchValue({ qualified: '' }, { emitEvent: false });
+    await this.search();
   }
 
   protected async more(): Promise<void> {

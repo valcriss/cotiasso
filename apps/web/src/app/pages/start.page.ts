@@ -7,6 +7,7 @@ import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { PageHeader } from '../ui/page-header';
+import { SetupStatus } from './setup-status.service';
 import { OpeningSituationDialog, type OpeningSituationDialogData } from './opening-situation-dialog';
 import { StartAccountDialog, StartYearDialog, type StartAccountDialogData } from './start-dialogs';
 
@@ -140,6 +141,7 @@ export class StartPage {
   private readonly api = inject(AdminApiService);
   private readonly dialogs = inject(Dialogs);
   private readonly notifier = inject(Notifier);
+  private readonly setupStatus = inject(SetupStatus);
 
   protected readonly overview = signal<OverviewInfo | null>(null);
   protected readonly error = signal<string | null>(null);
@@ -277,6 +279,7 @@ export class StartPage {
       this.accounts = accounts;
       this.defaultStart = overview.setup.startMode === 'OPENING' ? ([...years].map((y) => y.start).sort()[0] ?? null) : null;
       this.overview.set(overview);
+      this.setupStatus.set(overview.setup);
     } catch (failure) {
       this.error.set(describeHttpError(failure, "L'assistant n'a pas pu être chargé. Rechargez la page dans un instant.").message);
     }

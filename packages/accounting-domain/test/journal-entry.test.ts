@@ -56,7 +56,7 @@ describe("checkEntryForPosting", () => {
     const message = !result.ok ? result.errors[0]!.message : "";
     expect(message).toContain("Ligne 1 (compte 625)");
     expect(message).toContain("n'est rattachée à aucun projet");
-    expect(message).toContain("pour savoir ce que chaque activité coûte et rapporte");
+    expect(message).toContain("pour savoir ce que chaque projet coûte et rapporte");
     expect(message).toContain("À faire");
     expect(message).toContain("« Fonctionnement »");
     expect(message).toBe(projectRequiredMessage(1, "625"));

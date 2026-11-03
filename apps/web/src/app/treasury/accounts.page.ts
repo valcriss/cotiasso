@@ -22,11 +22,13 @@ import { FinancialAccountDialog, type AccountDialogData } from './account-dialog
 import { TransferDialog, type TransferDialogData } from './transfer-dialog';
 import { StatementDialog, type StatementDialogData } from './statement-dialog';
 import { TransactionsPanel } from './transactions-panel';
+import { formatDate } from '../ui/dates';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 /** Comptes : banques et caisses avec leurs soldes (ouverture, calculé, comptable, relevé) et leurs transactions. */
 @Component({
   selector: 'app-accounts-page',
-  imports: [MatButtonModule, MatIconModule, RouterLink, PageHeader, TransactionsPanel],
+  imports: [FrDatePipe, MatButtonModule, MatIconModule, RouterLink, PageHeader, TransactionsPanel],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .accounts {
@@ -52,6 +54,19 @@ import { TransactionsPanel } from './transactions-panel';
     }
     .account-card.archived {
       opacity: 0.7;
+    }
+    .gap {
+      align-items: flex-start;
+      display: flex;
+      font: var(--mat-sys-body-medium);
+      gap: 6px;
+      margin: 6px 0 0;
+    }
+    .gap mat-icon {
+      flex: none;
+      font-size: 20px;
+      height: 20px;
+      width: 20px;
     }
     .balances {
       display: grid;
@@ -134,23 +149,30 @@ import { TransactionsPanel } from './transactions-panel';
             }
             <div class="big">{{ amount(account.balances.computed) }} €</div>
             @if (simple()) {
+              <div class="muted">Solde d’après vos enregistrements</div>
+              @if (account.balances.lastStatement; as statement) {
+                <p class="gap" [class.danger-text]="statement.gap !== '0.00'" role="status">
+                  <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ statement.gap === '0.00' ? 'check_circle' : 'warning' }}</mat-icon>
+                  {{ gapSentence(statement) }}
+                </p>
+              }
               <dl class="balances">
                 <dt>Vérifié avec la banque</dt>
                 <dd>
                   @if (account.balances.reconciled; as reconciled) {
-                    Oui, au {{ reconciled.periodEnd }}
+                    Oui, au {{ reconciled.periodEnd | frDate }}
                   } @else {
-                    <span class="muted">Pas encore vérifié</span>
+                    <span class="muted">Pas encore vérifié : vous n’avez pas encore comparé ce compte au relevé de la banque. Cela permet de repérer un oubli ou un doublon.</span>
                   }
                 </dd>
               </dl>
               <details>
                 <summary>Détails du solde</summary>
                 <dl class="balances">
-                  <dt>Au départ ({{ account.openedOn }})</dt>
+                  <dt>Au départ ({{ account.openedOn | frDate }})</dt>
                   <dd>{{ amount(account.balances.opening) }}</dd>
                   @if (account.balances.lastStatement; as statement) {
-                    <dt>Solde du relevé au {{ statement.periodEnd }}</dt>
+                    <dt>Solde du relevé au {{ statement.periodEnd | frDate }}</dt>
                     <dd>{{ amount(statement.closingBalance) }}</dd>
                     <dt>Écart entre le relevé et vos comptes</dt>
                     <dd [class.danger-text]="statement.gap !== '0.00'">{{ amount(statement.gap) }}</dd>
@@ -159,20 +181,20 @@ import { TransactionsPanel } from './transactions-panel';
               </details>
             } @else {
               <dl class="balances">
-                <dt>Ouverture ({{ account.openedOn }})</dt>
+                <dt>Ouverture ({{ account.openedOn | frDate }})</dt>
                 <dd>{{ amount(account.balances.opening) }}</dd>
                 <dt>Solde comptable (écritures)</dt>
                 <dd>{{ amount(account.balances.accounting) }}</dd>
                 <dt>Rapprochement</dt>
                 <dd>
                   @if (account.balances.reconciled; as reconciled) {
-                    Rapproché au {{ reconciled.periodEnd }}
+                    Rapproché au {{ reconciled.periodEnd | frDate }}
                   } @else {
                     <span class="muted">Pas encore rapproché</span>
                   }
                 </dd>
                 @if (account.balances.lastStatement; as statement) {
-                  <dt>Relevé au {{ statement.periodEnd }}</dt>
+                  <dt>Relevé au {{ statement.periodEnd | frDate }}</dt>
                   <dd>{{ amount(statement.closingBalance) }}</dd>
                   <dt>Écart relevé − calculé</dt>
                   <dd [class.danger-text]="statement.gap !== '0.00'">{{ amount(statement.gap) }}</dd>
@@ -181,13 +203,13 @@ import { TransactionsPanel } from './transactions-panel';
             }
             <div class="actions">
               <button mat-stroked-button type="button" [attr.aria-label]="'Ouvrir ' + account.name" (click)="select(account.id)">
-                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">list</mat-icon> Transactions
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">list</mat-icon> {{ simple() ? 'Mouvements' : 'Transactions' }}
               </button>
               @if (!account.archivedOn) {
-                <a mat-button [routerLink]="['/comptes', account.id, 'rapprochement']" [attr.aria-label]="'Rapprocher ' + account.name">Rapprocher</a>
+                <a mat-button [routerLink]="['/comptes', account.id, 'rapprochement']" [attr.aria-label]="(simple() ? 'Vérifier avec la banque ' : 'Rapprocher ') + account.name">{{ simple() ? 'Vérifier avec la banque' : 'Rapprocher' }}</a>
               }
               @if (canStatement() && !account.archivedOn) {
-                <button mat-button type="button" [attr.aria-label]="'Relevé de ' + account.name" (click)="statement(account)">Solde de relevé</button>
+                <button mat-button type="button" [attr.aria-label]="'Relevé de ' + account.name" (click)="statement(account)">{{ simple() ? 'Solde sur mon relevé' : 'Solde de relevé' }}</button>
               }
               @if (canAdmin() && !account.archivedOn) {
                 <button mat-button type="button" [attr.aria-label]="'Archiver ' + account.name" [disabled]="busy()" (click)="archive(account)">Archiver</button>
@@ -222,6 +244,20 @@ export class AccountsPage {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly amount = formatApiAmount;
+
+  /**
+   * L'écart est « relevé − enregistrements » : positif, la banque indique plus que ce qui est enregistré (il manque sans doute des
+   * mouvements) ; négatif, elle indique moins (un mouvement est peut-être en trop ou n'a pas encore passé). Dit en phrase, avec le sens.
+   */
+  protected gapSentence(statement: { gap: string; periodEnd: string }): string {
+    const date = formatDate(statement.periodEnd);
+    if (statement.gap === '0.00') return `Vos enregistrements correspondent au relevé du ${date}.`;
+    const negative = statement.gap.startsWith('-');
+    const amount = formatApiAmount(negative ? statement.gap.slice(1) : statement.gap);
+    return negative
+      ? `Au ${date}, votre banque indique ${amount} € de moins que vos enregistrements : un mouvement est peut-être en trop, ou n’a pas encore été débité.`
+      : `Au ${date}, votre banque indique ${amount} € de plus que vos enregistrements : il manque sans doute des mouvements.`;
+  }
 
   protected readonly canAdmin = computed(() => {
     this.auth.permissions();

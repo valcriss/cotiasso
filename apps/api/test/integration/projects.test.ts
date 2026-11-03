@@ -174,7 +174,7 @@ describe("Projets et ventilation analytique (base vierge)", () => {
       expect(refused.json().issues[0].code).toBe("PROJECT_REQUIRED");
       // Message à trois temps : où, pourquoi, que faire.
       expect(refused.json().issues[0].message).toMatch(/^Ligne 1 \(compte \d+\)/);
-      expect(refused.json().issues[0].message).toContain("pour savoir ce que chaque activité coûte et rapporte");
+      expect(refused.json().issues[0].message).toContain("pour savoir ce que chaque projet coûte et rapporte");
       expect(refused.json().issues[0].message).toContain("« Fonctionnement »");
       expect((await call("GET", `/entries/${entry.id}`, treasurer)).json().status).toBe("DRAFT");
       // La base refuse aussi, hors du service.

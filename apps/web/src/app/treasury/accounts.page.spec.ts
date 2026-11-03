@@ -126,7 +126,7 @@ describe('AccountsPage', () => {
     expect(text).toContain('BQ-1');
     expect(text).toContain('969,50');
     expect(text).toContain('Solde comptable (écritures)');
-    expect(text).toContain('Relevé au 2026-03-31');
+    expect(text).toContain('Relevé au 31/03/2026');
     expect(text).toContain('-19,50');
     // Un relevé enregistré n'est pas un rapprochement : tant qu'aucun n'est validé, le compte n'est pas dit rapproché.
     expect(text).toContain('Pas encore rapproché');
@@ -139,6 +139,7 @@ describe('AccountsPage', () => {
     const text = root.textContent!;
     expect(text).toContain('Vérifié avec la banque');
     expect(text).toContain('Pas encore vérifié');
+    expect(text).toContain('Solde d’après vos enregistrements');
     expect(text).not.toContain('Solde comptable (écritures)');
     expect(text).not.toContain('BQ-1');
     const buttons = Array.from(root.querySelectorAll('app-page-header button')).map((b) => b.textContent!.trim());
@@ -146,10 +147,22 @@ describe('AccountsPage', () => {
     expect(buttons.join('|')).toContain('J’ai dépensé de l’argent');
   });
 
+  it('dit l’écart avec le relevé en phrase, avec son sens (#14)', async () => {
+    const lower = (gap: string) => account({ balances: { ...account().balances, lastStatement: { periodEnd: '2026-03-31', closingBalance: '950.00', gap } } });
+    await create(['financial-accounts:view'], [lower('-19.50')], 'simple');
+    expect(root.textContent).toContain('Au 31/03/2026, votre banque indique 19,50 € de moins que vos enregistrements');
+    TestBed.resetTestingModule();
+    await create(['financial-accounts:view'], [lower('120.00')], 'simple');
+    expect(root.textContent).toContain('votre banque indique 120,00 € de plus que vos enregistrements : il manque sans doute des mouvements');
+    TestBed.resetTestingModule();
+    await create(['financial-accounts:view'], [lower('0.00')], 'simple');
+    expect(root.textContent).toContain('Vos enregistrements correspondent au relevé du 31/03/2026');
+  });
+
   it("indique « rapproché » seulement pour un rapprochement validé, et propose d'en commencer un", async () => {
     const validated = account({ balances: { ...account().balances, reconciled: { periodEnd: '2026-03-31', closingBalance: '950.00' } } });
     await create(['financial-accounts:view', 'imports:post'], [validated]);
-    expect(root.textContent).toContain('Rapproché au 2026-03-31');
+    expect(root.textContent).toContain('Rapproché au 31/03/2026');
     const link = Array.from(root.querySelectorAll<HTMLAnchorElement>('a')).find((a) => a.textContent!.includes('Rapprocher'));
     expect(link?.getAttribute('href')).toBe('/comptes/f1/rapprochement');
   });
@@ -494,6 +507,111 @@ describe('AccountsPage', () => {
       controller.expectOne('/api/operation-categories').flush(cats);
       await settle();
     };
+
+    it('parle de mouvements, de description et de vérification avec la banque, sans le vocabulaire bancaire (#8)', async () => {
+      await create([...SIMPLE, 'imports:post'], [account()], 'simple');
+      await click('Ouvrir Compte courant');
+      controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: [transaction({ id: 't1', label: 'Prélèvement', reference: 'REF42', origin: 'IMPORT', bankIdentified: true })], next: null });
+      controller.expectOne('/api/operation-categories').flush(cats);
+      await settle();
+      const text = root.textContent!;
+      expect(text).toContain('Mouvements de Compte courant');
+      expect(text).toContain('Description');
+      expect(text).toContain('N° banque REF42');
+      expect(text).toContain('Venue de la banque');
+      expect(text).toContain('Vérifier avec la banque');
+      expect(text).toContain('Solde sur mon relevé');
+      expect(text).not.toContain('Transactions de');
+      expect(text).not.toContain('Libellé');
+      expect(text).not.toContain('Réf.');
+      expect(text).not.toContain('Importée');
+      expect(text).not.toContain('Rapprocher');
+    });
+
+    describe('actions de ligne et bandeau (#26)', () => {
+      const rowButtons = (index: number) => Array.from(root.querySelectorAll('tbody tr')[index]!.querySelectorAll('button, a')).map((b) => b.textContent!.trim());
+      const menuItems = () => Array.from(document.querySelectorAll('.cdk-overlay-container [role="menuitem"]')).map((b) => b.textContent!.trim());
+
+      it('met un seul bouton principal par ligne et range le reste dans « Autres actions »', async () => {
+        await openSimple([
+          transaction({ id: 't1', label: 'À faire' }),
+          transaction({ id: 't4', label: 'Fait', accounting: 'POSTED', counterpartAccountId: 'a616', counterpartAccountNumber: '616', entry: entryRef({ id: 'e4', status: 'POSTED', number: 4 }), financialLock: 'ENTRY', deletable: false }),
+        ]);
+        expect(rowButtons(0).filter((t) => t)).toEqual(['Classer et enregistrer', 'more_vert']);
+        expect(rowButtons(1).filter((t) => t)).toEqual(['more_vert']);
+        // Le geste destructeur n'est jamais au premier plan : il faut ouvrir le menu.
+        expect(root.textContent).not.toContain('Annuler l’opération');
+        (root.querySelectorAll('tbody tr')[1]!.querySelector('button[aria-label^="Autres actions"]') as HTMLElement).click();
+        await settle();
+        expect(menuItems()).toEqual(expect.arrayContaining(['Modifier', 'Annuler l’opération']));
+        ui.closeAll();
+      });
+
+      it('range l’explication des situations après « Compris » et la rend sur demande', async () => {
+        localStorage.removeItem('cotiasso.transactions.situations-hint-dismissed');
+        await openSimple([transaction({ id: 't1' })]);
+        expect(root.querySelector('.hint-banner')!.textContent).toContain('trois situations');
+        await click('Compris');
+        expect(root.querySelector('.hint-banner')).toBeNull();
+        expect(localStorage.getItem('cotiasso.transactions.situations-hint-dismissed')).toBe('1');
+        await click('Rappel : les situations');
+        expect(root.querySelector('.hint-banner')).not.toBeNull();
+        localStorage.removeItem('cotiasso.transactions.situations-hint-dismissed');
+      });
+    });
+
+    describe('filtres de la liste (#25)', () => {
+      const txUrl = (r: { url: string }) => r.url === '/api/financial-accounts/f1/transactions';
+
+      it('s’ouvre sur « À classer » avec un compteur, et permet de tout voir', async () => {
+        await create(SIMPLE, [account()], 'simple');
+        await click('Ouvrir Compte courant');
+        const first = controller.expectOne(txUrl);
+        expect(first.request.params.get('qualified')).toBe('false');
+        first.flush({ transactions: [transaction({ id: 't1', label: 'Inconnu' }), transaction({ id: 't2', label: 'Autre' })], next: null });
+        controller.expectOne('/api/operation-categories').flush(cats);
+        await settle();
+        expect(root.querySelector('.todo-count')!.textContent).toContain('2 mouvement(s) à classer');
+
+        await click('Voir tous les mouvements');
+        const all = controller.expectOne(txUrl);
+        expect(all.request.params.has('qualified')).toBe(false);
+        all.flush({ transactions: [transaction({ id: 't1' })], next: null });
+        await settle();
+        expect(root.querySelector('.todo-count')).toBeNull();
+      });
+
+      it('montre tout plutôt qu’une liste vide quand il n’y a rien à classer', async () => {
+        await create(SIMPLE, [account()], 'simple');
+        await click('Ouvrir Compte courant');
+        controller.expectOne(txUrl).flush({ transactions: [], next: null });
+        controller.expectOne('/api/operation-categories').flush(cats);
+        await settle();
+        const fallback = controller.expectOne(txUrl);
+        expect(fallback.request.params.has('qualified')).toBe(false);
+        fallback.flush({ transactions: [transaction({ id: 't9', label: 'Déjà classé', counterpartAccountId: 'a616', counterpartAccountNumber: '616' })], next: null });
+        await settle();
+        expect(root.textContent).toContain('Déjà classé');
+        expect(root.querySelector('.todo-count')).toBeNull();
+      });
+
+      it('applique un raccourci de période sans bouton « Filtrer »', async () => {
+        await openSimple([transaction({ id: 't1' })]);
+        expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.trim() === 'Filtrer')).toBe(false);
+        await click('Ce mois-ci');
+        const request = controller.expectOne(txUrl);
+        expect(request.request.params.get('from')).toMatch(/^\d{4}-\d{2}-01$/);
+        expect(request.request.params.get('to')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        request.flush({ transactions: [], next: null });
+        await settle();
+        expect(root.querySelector('.periods .active')!.textContent).toContain('Ce mois-ci');
+        await click('Effacer les filtres');
+        const cleared = controller.expectOne(txUrl);
+        expect(cleared.request.params.keys()).toEqual([]);
+        cleared.flush({ transactions: [], next: null });
+        await settle();
+      });
+    });
 
     it('donne une seule situation lisible par mouvement, la catégorie en mots courants et masque les gestes de comptable', async () => {
       await openSimple([

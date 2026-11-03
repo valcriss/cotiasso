@@ -114,7 +114,7 @@ describe('CampaignsPage', () => {
   it("liste les campagnes avec leurs dates et le mode d'adhésion effective, sans actions en lecture seule", async () => {
     await create(['members:view']);
     const text = root.textContent!;
-    expect(text).toContain('Du 2025-09-29 au 2026-09-28');
+    expect(text).toContain('Du 29/09/2025 au 28/09/2026');
     expect(text).toContain("À l'encaissement");
     expect(text).not.toContain('Nouvelle campagne');
   });
@@ -210,7 +210,7 @@ describe('CampaignsPage', () => {
     await settle();
     await reloadAll([campaign({ effectiveMode: 'VALIDATION' })], [membership({ status: 'EFFECTIVE', effectiveOrigin: 'VALIDATION', effectiveOn: '2026-01-10' })]);
     expect(ui.snackbar).toContain('validée');
-    expect(root.textContent).toContain('depuis le 2026-01-10 (validation)');
+    expect(root.textContent).toContain('depuis le 10/01/2026 (validation)');
     expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Valider'))).toBe(false);
   });
 

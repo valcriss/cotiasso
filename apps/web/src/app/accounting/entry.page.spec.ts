@@ -205,7 +205,7 @@ describe('EntryPage', () => {
       await create(['entries:view', 'entries:create'], entry(), [permanent, festival], true);
       const panel = root.querySelector('.hint-panel')!;
       expect(panel.textContent).toContain('Une ligne de dépense ou de recette n’a pas de projet');
-      expect(panel.textContent).toContain('ce que chaque activité coûte et rapporte');
+      expect(panel.textContent).toContain('ce que chaque projet coûte et rapporte');
       expect(panel.textContent).toContain('À faire');
       await click('Rattacher cette ligne à « Fonctionnement »');
       expect(root.querySelector('.hint-panel')).toBeNull();

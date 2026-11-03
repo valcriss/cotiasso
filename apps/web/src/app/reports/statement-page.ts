@@ -28,7 +28,7 @@ export abstract class StatementPageBase<T> {
         await this.show();
       }
     } catch (failure) {
-      this.error.set(describeHttpError(failure, 'Impossible de charger les exercices.').message);
+      this.error.set(describeHttpError(failure, 'Impossible de charger les périodes de comptabilité (exercices).').message);
     } finally {
       this.loading.set(false);
     }

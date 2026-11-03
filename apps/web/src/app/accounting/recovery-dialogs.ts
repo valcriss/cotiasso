@@ -14,6 +14,7 @@ import {
 } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 const INVALID = 'Vérifiez les champs signalés en rouge, puis validez de nouveau.';
 
@@ -84,7 +85,7 @@ export interface OpeningDialogData {
 /** Solde d'ouverture d'un compte : banque / compte de capitaux choisi, origine expliquée. Renvoie l'écriture préparée. */
 @Component({
   selector: 'app-opening-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [FrDatePipe, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -102,7 +103,7 @@ export interface OpeningDialogData {
             <mat-label>Compte</mat-label>
             <mat-select formControlName="financialAccountId" required>
               @for (account of data.accounts; track account.id) {
-                <mat-option [value]="account.id">{{ account.name }} — {{ account.balances.opening }} € au {{ account.openedOn }}</mat-option>
+                <mat-option [value]="account.id">{{ account.name }} — {{ account.balances.opening }} € au {{ account.openedOn | frDate }}</mat-option>
               }
             </mat-select>
           </mat-form-field>

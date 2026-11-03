@@ -16,6 +16,7 @@ import { FormDialog } from '../ui/form-dialog';
 import { Notifier } from '../ui/notifier.service';
 import { AutoBook } from '../treasury/auto-book';
 import type { OperationCategoryInfo } from '../admin/admin-api.service';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 export interface PaymentsDialogData {
   membership: MembershipInfo;
@@ -81,7 +82,7 @@ export class CancelAllocationDialog {
  */
 @Component({
   selector: 'app-payments-dialog',
-  imports: [ReactiveFormsModule, RouterLink, MatDialogModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [FrDatePipe, ReactiveFormsModule, RouterLink, MatDialogModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   styles: `
     .figures {
       display: flex;
@@ -133,7 +134,7 @@ export class CancelAllocationDialog {
       @for (allocation of allocations(); track allocation.id) {
         <div class="alloc" [class.muted]="allocation.cancelled">
           <span>
-            {{ allocation.kind === 'REFUND' ? 'Remboursement' : 'Règlement' }} de {{ amount(allocation.amount) }} € · {{ allocation.transactionDate }} · {{ allocation.accountName }}
+            {{ allocation.kind === 'REFUND' ? 'Remboursement' : 'Règlement' }} de {{ amount(allocation.amount) }} € · {{ allocation.transactionDate | frDate }} · {{ allocation.accountName }}
             @if (allocation.note) { · {{ allocation.note }} }
             @if (allocation.cancelled) { · annulé : {{ allocation.cancelReason }} }
           </span>
@@ -169,7 +170,7 @@ export class CancelAllocationDialog {
               <mat-label>Transaction</mat-label>
               <mat-select formControlName="transactionId" (selectionChange)="suggest()">
                 @for (candidate of candidates(); track candidate.id) {
-                  <mat-option [value]="candidate.id">{{ candidate.operationDate }} · {{ candidate.label }} · reste {{ amount(candidate.remaining) }} €</mat-option>
+                  <mat-option [value]="candidate.id">{{ candidate.operationDate | frDate }} · {{ candidate.label }} · reste {{ amount(candidate.remaining) }} €</mat-option>
                 }
               </mat-select>
               @if (candidates().length === 0) {

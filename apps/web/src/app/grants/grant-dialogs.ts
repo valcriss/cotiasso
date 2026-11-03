@@ -9,12 +9,13 @@ import { startWith } from 'rxjs';
 import { AdminApiService, type FunderInfo, type GrantFinanceInfo, type GrantInfo, type GrantResidual, type ProjectInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from '../accounting/amount';
+import { todayLocalIso } from '../ui/dates';
 import { FormDialog } from '../ui/form-dialog';
 import { allocationRows, allocationTotalCents, readAllocations, type AllocationRow } from './allocation-rows';
 import { AllocationsFields } from './allocations-fields';
 import { RESIDUAL_LABELS } from './grant-labels';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = todayLocalIso;
 const amountValidator = (control: { value: string }) => {
   const cents = parseAmountToCents(control.value);
   return cents === null || cents <= 0 ? { amount: true } : null;

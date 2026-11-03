@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { AdminApiService, type ProjectInfo, type ProjectStatus, type ProjectSummaryInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
+import { formatDate } from '../ui/dates';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { PageHeader } from '../ui/page-header';
@@ -37,7 +38,7 @@ import { PROJECT_STATUS_LABELS } from './project-labels';
     <app-page-header
       title="Projets"
       icon="folder_open"
-      description="Un projet regroupe les dépenses et les recettes d'une activité (festival, ateliers…) pour savoir ce qu'elle coûte et ce qu'elle rapporte."
+      description="Un projet regroupe les dépenses et les recettes d'une même action (festival, ateliers…) pour savoir ce qu'elle coûte et ce qu'elle rapporte."
     >
       @if (canUpdate()) {
         <button mat-flat-button type="button" (click)="create()">
@@ -208,7 +209,7 @@ export class ProjectsPage {
 
   protected period(project: ProjectInfo): string {
     if (!project.startDate && !project.endDate) return '—';
-    return `${project.startDate ?? '…'} → ${project.endDate ?? '…'}`;
+    return `${project.startDate ? formatDate(project.startDate) : '…'} → ${project.endDate ? formatDate(project.endDate) : '…'}`;
   }
 
   protected async create(): Promise<void> {

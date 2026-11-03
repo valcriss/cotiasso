@@ -100,7 +100,7 @@ describe('ProjectsPage', () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toContain('FONCT');
     expect(rows[0]).toContain('Permanent');
-    expect(rows[1]).toContain('2026-06-01 → 2026-06-30');
+    expect(rows[1]).toContain('01/06/2026 → 30/06/2026');
     expect(root.textContent).not.toContain('Nouveau projet');
   });
 

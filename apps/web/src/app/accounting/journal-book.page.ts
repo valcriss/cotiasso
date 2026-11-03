@@ -13,11 +13,12 @@ import { formatApiAmount } from './amount';
 import { ActionBar } from '../ui/action-bar';
 import { ExportLink } from '../reports/export-link';
 import { ReportFilters, type PeriodFilter } from './report-filters';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 /** Livre-journal : les écritures comptabilisées dans l'ordre de leur numérotation, avec leurs lignes. */
 @Component({
   selector: 'app-journal-book-page',
-  imports: [ActionBar, ExportLink, FormsModule, MatFormFieldModule, MatSelectModule, ReportFilters],
+  imports: [FrDatePipe, ActionBar, ExportLink, FormsModule, MatFormFieldModule, MatSelectModule, ReportFilters],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -73,7 +74,7 @@ import { ReportFilters, type PeriodFilter } from './report-filters';
         <div class="entry-head">
           <h3>{{ entry.journalCode }} n° {{ entry.number }} — {{ entry.label }}</h3>
           <span class="tag">
-            {{ entry.date }}@if (entry.reference) {
+            {{ entry.date | frDate }}@if (entry.reference) {
               · Réf. {{ entry.reference }}
             }@if (entry.kind === 'REVERSAL') {
               · Contrepassation

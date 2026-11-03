@@ -6,11 +6,12 @@ import { formatApiAmount } from '../accounting/amount';
 import { AdminApiService, type ReceiptInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { PageHeader } from '../ui/page-header';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 /** Reçu simple d'une adhésion, imprimable. Il récapitule les règlements ; il n'est jamais un reçu fiscal. */
 @Component({
   selector: 'app-receipt-page',
-  imports: [RouterLink, MatButtonModule, MatIconModule, PageHeader],
+  imports: [FrDatePipe, RouterLink, MatButtonModule, MatIconModule, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -50,7 +51,7 @@ import { PageHeader } from '../ui/page-header';
           <p class="muted">{{ r.association.address }} {{ r.association.postalCode }} {{ r.association.city }}</p>
         }
         <p>
-          Reçu de <strong>{{ r.member }}</strong> pour l'adhésion « {{ r.campaign.name }} » (du {{ r.campaign.startsOn }} au {{ r.campaign.endsOn }}).
+          Reçu de <strong>{{ r.member }}</strong> pour l'adhésion « {{ r.campaign.name }} » (du {{ r.campaign.startsOn | frDate }} au {{ r.campaign.endsOn | frDate }}).
         </p>
         <table class="table">
           <caption class="sr-only">Règlements</caption>
@@ -64,7 +65,7 @@ import { PageHeader } from '../ui/page-header';
           <tbody>
             @for (payment of r.payments; track $index) {
               <tr>
-                <td>{{ payment.date }}</td>
+                <td>{{ payment.date | frDate }}</td>
                 <td>{{ payment.kind === 'REFUND' ? 'Remboursement' : 'Règlement' }}</td>
                 <td class="amount">{{ payment.kind === 'REFUND' ? '−' : '' }}{{ amount(payment.amount) }} €</td>
               </tr>
@@ -81,7 +82,7 @@ import { PageHeader } from '../ui/page-header';
           Cotisation attendue : {{ amount(r.expectedAmount) }} € ·
           @if (Number(r.balance) > 0) { reste dû : {{ amount(r.balance) }} € } @else if (Number(r.balance) < 0) { trop-perçu : {{ amount(r.balance.replace('-', '')) }} € } @else { cotisation réglée }
         </p>
-        <p class="muted">Établi le {{ r.issuedOn }}.</p>
+        <p class="muted">Établi le {{ r.issuedOn | frDate }}.</p>
         <p class="notice">{{ r.notice }}</p>
       </section>
     }

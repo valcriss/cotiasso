@@ -5,13 +5,14 @@ import { MatSelectModule } from '@angular/material/select';
 import { formatApiAmount } from '../accounting/amount';
 import { AdminApiService, type TreasuryStatementInfo } from '../admin/admin-api.service';
 import { ActionBar } from '../ui/action-bar';
+import { NoPeriod } from '../ui/no-period';
 import { ExportLink } from './export-link';
 import { StatementPageBase } from './statement-page';
 
 /** État de trésorerie : pour chaque compte de banque ou de caisse, d'où l'on part, ce qui est entré et sorti, où l'on arrive. */
 @Component({
   selector: 'app-treasury-statement-page',
-  imports: [MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink],
+  imports: [NoPeriod, MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink],
   styleUrl: '../admin/admin-pages.scss',
   template: `
     <app-action-bar
@@ -41,7 +42,7 @@ import { StatementPageBase } from './statement-page';
     @if (loading()) {
       <p class="muted">Calcul en cours…</p>
     } @else if (years().length === 0) {
-      <p class="muted">Aucun exercice n'est encore créé : créez-le dans Paramètres › Comptabilité.</p>
+      <app-no-period />
     } @else if (data(); as statement) {
       @if (statement.carryWarning; as warning) {
         <p class="alert" role="status">{{ warning }}</p>
@@ -52,7 +53,7 @@ import { StatementPageBase } from './statement-page';
         </p>
       }
       @if (!statement.previous) {
-        <p class="muted">Aucun exercice précédent : la colonne de comparaison est absente.</p>
+        <p class="muted">{{ simple() ? 'Il n’y a pas de période précédente : la colonne de comparaison est absente.' : 'Aucun exercice précédent : la colonne de comparaison est absente.' }}</p>
       }
       @if (statement.rows.length === 0) {
         <section class="panel">

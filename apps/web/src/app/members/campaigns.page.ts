@@ -20,6 +20,7 @@ import {
   type TariffDialogData,
 } from './campaign-dialogs';
 import { PaymentsDialog, type PaymentsDialogData } from './payments-dialog';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 const STATUS_LABELS = { PENDING: 'En attente', EFFECTIVE: 'Effective', CANCELLED: 'Annulée' } as const;
 const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_DATE: 'date de début', EXEMPTION: 'exonération' } as const;
@@ -27,7 +28,7 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
 /** Campagnes d'adhésion, tarifs et adhésions des membres (ADR 0023). */
 @Component({
   selector: 'app-campaigns-page',
-  imports: [MatButtonModule, MatIconModule, ActionBar],
+  imports: [FrDatePipe, MatButtonModule, MatIconModule, ActionBar],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -65,7 +66,7 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
           <li class="card-item">
             <div>
               <strong>{{ campaign.name }}</strong>
-              <div class="muted">Du {{ campaign.startsOn }} au {{ campaign.endsOn }} · {{ campaign.membershipCount }} adhésion(s)</div>
+              <div class="muted">Du {{ campaign.startsOn | frDate }} au {{ campaign.endsOn | frDate }} · {{ campaign.membershipCount }} adhésion(s)</div>
               <div class="muted">{{ modeLabel(campaign.effectiveMode) }}</div>
             </div>
             <button mat-stroked-button type="button" [attr.aria-label]="'Ouvrir la campagne ' + campaign.name" (click)="open(campaign.id)">
@@ -194,7 +195,7 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
                   <td>
                     @if (membership.status === 'EFFECTIVE') {
                       <span class="status ok">{{ statusLabel(membership.status) }}</span>
-                      <div class="muted">depuis le {{ membership.effectiveOn }} ({{ originLabel(membership) }})</div>
+                      <div class="muted">depuis le {{ membership.effectiveOn | frDate }} ({{ originLabel(membership) }})</div>
                     } @else if (membership.status === 'CANCELLED') {
                       <span class="muted">{{ statusLabel(membership.status) }}</span>
                       <div class="muted">{{ membership.cancelReason }}</div>

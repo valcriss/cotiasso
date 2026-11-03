@@ -203,7 +203,7 @@ describe('FrozenReportsPage', () => {
 
   it('sans exercice, dit quoi faire en premier', async () => {
     await create(['reports:view'], [], []);
-    expect(root.textContent).toContain('Aucun exercice n’est encore créé');
+    expect(root.textContent).toContain('Aucune période de comptabilité');
   });
 
   it('affiche le refus du serveur', async () => {

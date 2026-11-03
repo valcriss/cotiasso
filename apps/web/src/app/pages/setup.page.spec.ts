@@ -46,6 +46,13 @@ describe('SetupPage', () => {
 
   afterEach(() => controller.verify());
 
+  it('dit où trouver le jeton, avec la commande exacte, sans l’afficher lui-même', () => {
+    const help = root.querySelector('details.token-help')!;
+    expect(help.querySelector('summary')!.textContent).toContain('Où trouver le jeton');
+    expect(help.querySelector('code')!.textContent).toBe('./scripts/install-token.sh --env-file .env.prod');
+    expect(help.textContent).toContain('docker compose restart api');
+  });
+
   it("n'envoie rien quand le mot de passe est trop court ou mal confirmé", async () => {
     fill({ password: 'court', confirmation: 'court' });
     await submit();

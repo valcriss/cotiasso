@@ -7,6 +7,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type FinancialAccountInfo, type FiscalYearInfo } from '../admin/admin-api.service';
 import { centsToApi, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
+import { todayLocalIso } from '../ui/dates';
 import { FormDialog } from '../ui/form-dialog';
 
 /** Dernier jour d'une période de 12 mois qui commence à `start` (AAAA-MM-JJ), en dates UTC : aucun décalage d'heure. */
@@ -178,7 +179,7 @@ export class StartAccountDialog {
   protected readonly form = this.fb.group({
     type: ['BANK' as 'BANK' | 'CASH'],
     name: ['', [Validators.required]],
-    openedOn: [this.data.defaultDate ?? new Date().toISOString().slice(0, 10), [Validators.required]],
+    openedOn: [this.data.defaultDate ?? todayLocalIso(), [Validators.required]],
     openingBalance: ['0'],
   });
 

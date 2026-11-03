@@ -83,7 +83,7 @@ Phrases à afficher sous chaque titre. Elles sont volontairement pédagogiques ;
 | Comptabilité › Balance | Balance | Le total de chaque compte sur l'exercice. Si le total des débits égale celui des crédits, votre comptabilité est cohérente. | (Exporter, à venir) |
 | Comptabilité › Livre-journal | Livre-journal | Toutes les écritures dans l'ordre où elles ont été enregistrées, journal par journal. | (Exporter, à venir) |
 | Membres et cotisations | Membres et cotisations | Qui adhère, qui a payé sa cotisation et pour quelle période. | Nouveau membre |
-| Projets | Projets | Un projet regroupe les dépenses et recettes d'une activité (festival, ateliers…) pour savoir ce qu'elle coûte et rapporte. | Nouveau projet |
+| Projets | Projets | Un projet regroupe les dépenses et recettes d'une même action (festival, ateliers…) pour savoir ce qu'elle coûte et rapporte. | Nouveau projet |
 | Subventions | Subventions | Les aides que vous demandez ou recevez, et ce qui reste à justifier. | Nouvelle subvention |
 | Rapports | Rapports | Les états de synthèse pour l'assemblée générale : bilan, compte de résultat, trésorerie. | — |
 | Documents | Documents | Factures, relevés, comptes rendus : tous vos justificatifs au même endroit, retrouvables et liés aux opérations. | Déposer un document |

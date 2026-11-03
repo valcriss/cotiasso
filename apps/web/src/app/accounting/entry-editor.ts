@@ -21,6 +21,7 @@ import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from './amount';
 import { ThirdPartyDialog } from './third-party-dialog';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 /** Valeur du sélecteur de projet pour une ligne déjà ventilée entre plusieurs projets : la ventilation est conservée. */
 export const MULTI_PROJECT = '__multi';
@@ -37,7 +38,7 @@ export const ENTRY_STATUS_LABELS = {
  */
 @Component({
   selector: 'app-entry-editor',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [FrDatePipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .hint-panel {
@@ -157,8 +158,8 @@ export const ENTRY_STATUS_LABELS = {
                 {{ missingProject().length === 1 ? 'Une ligne de dépense ou de recette n’a pas de projet' : missingProject().length + ' lignes de dépense ou de recette n’ont pas de projet' }}
               </strong>
               <p>
-                Vous pouvez enregistrer en brouillon, mais pour comptabiliser, chaque dépense ou recette doit être rattachée à une activité (un projet) :
-                c’est ce qui permet de savoir ce que chaque activité coûte et rapporte.
+                Vous pouvez enregistrer en brouillon, mais pour comptabiliser, chaque dépense ou recette doit être rattachée à un projet :
+                c’est ce qui permet de savoir ce que chaque projet coûte et rapporte.
               </p>
               <p>
                 À faire : choisissez le projet dans la colonne « Projet »
@@ -302,7 +303,7 @@ export const ENTRY_STATUS_LABELS = {
         </form>
       } @else if (entry(); as e) {
         <p class="muted">
-          {{ e.journalCode }} · {{ e.date }}
+          {{ e.journalCode }} · {{ e.date | frDate }}
           @if (e.reference) {
             · Réf. {{ e.reference }}
           }
