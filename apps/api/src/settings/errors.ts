@@ -30,3 +30,11 @@ export class ModuleStateError extends Error {
     this.name = "ModuleStateError";
   }
 }
+
+/** Logo refusé : le message dit ce qui s'est passé, pourquoi et quoi faire (jamais de jargon technique). */
+export class InvalidLogoError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidLogoError";
+  }
+}

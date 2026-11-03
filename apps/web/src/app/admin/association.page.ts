@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatRadioModule } from '@angular/material/radio';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { AuthService } from '../auth/auth.service';
@@ -25,11 +26,34 @@ interface Identity {
 
 @Component({
   selector: 'app-association-page',
-  imports: [ActionBar, MatIconModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule],
+  imports: [ActionBar, MatIconModule, MatRadioModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule],
   styleUrl: './admin-pages.scss',
   styles: [`
     .identity-form {
       gap: 12px;
+    }
+    .logo-zone {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .logo-preview {
+      align-items: center;
+      background: var(--app-bg);
+      border: 1px dashed var(--app-border);
+      border-radius: 4px;
+      display: flex;
+      justify-content: center;
+      min-height: 96px;
+      min-width: 160px;
+      padding: 12px;
+
+      img {
+        max-height: 80px;
+        max-width: 240px;
+        object-fit: contain;
+      }
     }
   `],
   template: `
@@ -107,6 +131,52 @@ interface Identity {
         </div>
       }
     </form>
+
+    <section class="panel" aria-labelledby="logo-title">
+      <h3 id="logo-title"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">image</mat-icon><span>Logo</span></h3>
+      <p class="muted">
+        Votre logo s'affiche en haut du menu, sur la page de connexion et sur les reçus de cotisation. Choisissez une image
+        PNG, JPEG ou SVG (1 Mo au plus) ; un logo carré ou large sur fond transparent donne le meilleur résultat.
+      </p>
+      <div class="logo-zone">
+        <div class="logo-preview" aria-label="Aperçu du logo">
+          @if (logoUrl(); as url) {
+            <img [src]="url" alt="Logo actuel de l'association" />
+          } @else {
+            <span class="muted">Aucun logo pour l'instant : le nom de l'association est affiché seul.</span>
+          }
+        </div>
+        @if (canEdit()) {
+          <div class="actions">
+            <input #logoInput class="sr-only" type="file" accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml" (change)="chooseLogo(logoInput)" aria-label="Choisir un logo" />
+            <button mat-flat-button type="button" [disabled]="saving()" (click)="logoInput.click()">
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload</mat-icon> {{ logoUrl() ? 'Remplacer le logo' : 'Ajouter un logo' }}
+            </button>
+            @if (logoUrl()) {
+              <button mat-stroked-button type="button" [disabled]="saving()" (click)="removeLogo()">
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">delete</mat-icon> Retirer le logo
+              </button>
+            }
+          </div>
+        }
+      </div>
+      @if (logoUrl()) {
+        <fieldset class="group">
+          <legend>Affichage dans le menu</legend>
+          <mat-radio-group aria-label="Affichage du logo dans le menu" [value]="showName()" [disabled]="!canEdit() || saving()" (change)="chooseDisplay($event.value)">
+            <mat-radio-button [value]="true">Logo et nom de l'association</mat-radio-button>
+            <mat-radio-button [value]="false">Logo seul</mat-radio-button>
+          </mat-radio-group>
+          <p class="muted">Choisissez « Logo seul » si votre logo contient déjà le nom de l'association : il ne sera pas répété à côté.</p>
+        </fieldset>
+      }
+      @if (logoError(); as failure) {
+        <div class="alert" role="alert"><p>{{ failure.message }}</p></div>
+      }
+      @if (logoNotice(); as notice) {
+        <p class="success" role="status">{{ notice }}</p>
+      }
+    </section>
 
     <form class="panel" [formGroup]="brandingForm" (ngSubmit)="saveBranding()" novalidate>
       <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">palette</mat-icon><span>Apparence</span></h3>
@@ -218,6 +288,10 @@ export class AssociationPage {
   protected readonly identityNotice = signal<string | null>(null);
   protected readonly brandingError = signal<FormError | null>(null);
   protected readonly brandingNotice = signal<string | null>(null);
+  protected readonly logoError = signal<FormError | null>(null);
+  protected readonly logoNotice = signal<string | null>(null);
+  protected readonly logoUrl = this.branding.logoUrl;
+  protected readonly showName = computed(() => this.branding.branding().logoShowsName !== false);
 
   protected readonly identityForm = this.fb.group({
     name: ['', [Validators.required]],
@@ -253,6 +327,39 @@ export class AssociationPage {
 
   constructor() {
     void this.load();
+  }
+
+  protected async chooseLogo(input: HTMLInputElement): Promise<void> {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    this.logoError.set(null);
+    this.logoNotice.set(null);
+    await this.save(async () => {
+      const result = await this.api.uploadLogo(file);
+      this.branding.setLogoHash(result.logoHash);
+      this.logoNotice.set('Logo enregistré. Il apparaît déjà dans le menu.');
+    }, this.logoError);
+  }
+
+  protected async chooseDisplay(showName: boolean): Promise<void> {
+    this.logoError.set(null);
+    this.logoNotice.set(null);
+    await this.save(async () => {
+      await this.api.setLogoDisplay(showName);
+      this.branding.setLogoShowsName(showName);
+      this.logoNotice.set(showName ? 'Le menu affiche le logo et le nom de l’association.' : 'Le menu affiche le logo seul.');
+    }, this.logoError);
+  }
+
+  protected async removeLogo(): Promise<void> {
+    this.logoError.set(null);
+    this.logoNotice.set(null);
+    await this.save(async () => {
+      await this.api.removeLogo();
+      this.branding.setLogoHash(null);
+      this.logoNotice.set('Logo retiré. Vous pourrez en ajouter un autre quand vous voudrez.');
+    }, this.logoError);
   }
 
   protected resetAccent(): void {

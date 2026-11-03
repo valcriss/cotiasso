@@ -24,6 +24,9 @@ export class Shell {
   protected readonly theme = inject(ThemeService);
   private readonly brandingService = inject(BrandingService);
   protected readonly associationName = computed(() => this.brandingService.branding().appName);
+  protected readonly logoUrl = this.brandingService.logoUrl;
+  /** Le nom accompagne le logo, sauf si l'association a choisi le logo seul (il contient déjà son nom). Sans logo, il s'affiche toujours. */
+  protected readonly showName = computed(() => !this.logoUrl() || this.brandingService.branding().logoShowsName !== false);
   protected readonly navigation = computed(() => {
     this.auth.permissions();
     const simple = this.theme.viewMode() === 'simple';

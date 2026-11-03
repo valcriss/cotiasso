@@ -1,4 +1,4 @@
-import { Component, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, inject, signal, viewChild } from '@angular/core';
 import { FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError, type FormError } from '../auth/error-messages';
+import { BrandingService } from '../branding/branding.service';
 
 @Component({
   selector: 'app-login-page',
@@ -15,7 +16,12 @@ import { describeHttpError, type FormError } from '../auth/error-messages';
     <main class="page">
       <mat-card appearance="outlined" class="card">
         <mat-card-header>
-          <h1>Connexion</h1>
+          <div>
+            @if (logoUrl(); as url) {
+              <img class="logo" [src]="url" [alt]="'Logo de ' + associationName()" />
+            }
+            <h1>Connexion</h1>
+          </div>
         </mat-card-header>
         <mat-card-content>
           <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
@@ -50,6 +56,10 @@ import { describeHttpError, type FormError } from '../auth/error-messages';
 export class LoginPage {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly branding = inject(BrandingService);
+
+  protected readonly logoUrl = this.branding.logoUrl;
+  protected readonly associationName = computed(() => this.branding.branding().appName);
 
   protected readonly form = inject(FormBuilder).nonNullable.group({
     email: ['', [Validators.required]],

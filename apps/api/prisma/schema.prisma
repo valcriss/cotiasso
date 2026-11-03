@@ -1261,3 +1261,15 @@ model FrozenReportApproval {
 
   set FrozenReportSet @relation(fields: [setId], references: [id], onDelete: Restrict)
 }
+
+// Logo de l'association (marque blanche). Contenu adressé par son empreinte, en ajout seul : le logo en vigueur est
+// désigné par la section de paramètres « logo », donc versionné et auditable ; changer ou retirer le logo ne supprime rien.
+model BrandLogo {
+  sha256    String   @id
+  mimeType  String
+  width     Int
+  height    Int
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+}

@@ -4,14 +4,22 @@
     <button type="button" class="toggle" (click)="openMenu()" aria-label="Ouvrir le menu" aria-controls="main-menu">
       <mat-icon fontSet="material-icons-outlined">menu</mat-icon>
     </button>
-    <span class="name">{{ associationName() }}</span>
+    @if (logoUrl(); as url) {
+      <img class="logo" [src]="url" [alt]="showName() ? '' : associationName()" />
+    }
+    @if (showName()) {
+      <span class="name">{{ associationName() }}</span>
+    }
   </header>
   @if (menuOpen()) {
     <div class="scrim" (click)="closeMenu()" aria-hidden="true"></div>
   }
   <aside class="sidebar" id="main-menu">
     <header class="brand">
-      @if (!compact()) {
+      @if (logoUrl(); as url) {
+        <img class="logo" [src]="url" [alt]="showName() ? '' : associationName()" />
+      }
+      @if (!compact() && showName()) {
         <span class="name">{{ associationName() }}</span>
       }
       <button

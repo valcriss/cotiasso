@@ -52,6 +52,12 @@ const startSchema = z
   })
   .strict();
 
+/**
+ * Logo en vigueur : empreinte du contenu (table BrandLogo), ou rien ; `showName` dit si le nom de l'association s'affiche à côté
+ * (faux quand le logo contient déjà le nom). Versionné comme tout paramètre, mais écrit par le service du logo.
+ */
+const logoSchema = z.strictObject({ sha256: z.string().regex(/^[0-9a-f]{64}$/).nullable(), showName: z.boolean() });
+
 export type Identity = z.infer<typeof identitySchema>;
 /** Adhésion effective (ADR 0004, 0023) : mode proposé aux nouvelles campagnes, figé sur chaque campagne à sa création. */
 const membershipSchema = z.object({ effectiveMode: z.enum(["PAYMENT", "VALIDATION", "START_DATE"]) }).strict();
@@ -78,6 +84,10 @@ export const SETTINGS_SECTIONS = {
     schema: startSchema,
     defaults: { mode: null, openingSkipped: false } satisfies StartSettings,
   },
+  logo: {
+    schema: logoSchema,
+    defaults: { sha256: null, showName: true } as { sha256: string | null; showName: boolean },
+  },
   branding: {
     schema: brandingSchema,
     defaults: { appName: "cotiasso", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55", accentColor: DEFAULT_ACCENT } satisfies Branding,
@@ -87,7 +97,7 @@ export const SETTINGS_SECTIONS = {
 export type SettingsSection = keyof typeof SETTINGS_SECTIONS;
 
 /** Rubriques qui ne passent pas par l'API générique des paramètres : leurs droits propres sont portés par leur module. */
-export const MODULE_OWNED_SECTIONS: readonly SettingsSection[] = ["accounting", "start"];
+export const MODULE_OWNED_SECTIONS: readonly SettingsSection[] = ["accounting", "start", "logo"];
 
 export function isSettingsSection(value: string): value is SettingsSection {
   return Object.hasOwn(SETTINGS_SECTIONS, value) && !MODULE_OWNED_SECTIONS.includes(value as SettingsSection);

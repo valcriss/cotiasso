@@ -30,8 +30,20 @@
   min-height: 48px;
   padding: 0 4px 0 8px;
 
+  .logo {
+    border-radius: 4px;
+    flex: none;
+    height: 32px;
+    margin-right: 8px;
+    max-width: 96px;
+    object-fit: contain;
+    width: auto;
+  }
+
   .name {
+    flex: 1;
     font: var(--mat-sys-title-medium);
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -41,6 +53,10 @@
 .collapsed .brand {
   justify-content: center;
   padding: 0;
+
+  .logo {
+    display: none;
+  }
 }
 
 .toggle {
@@ -133,6 +149,15 @@ nav {
     gap: 8px;
     min-height: 48px;
     padding: 4px 8px;
+
+    .logo {
+      border-radius: 4px;
+      flex: none;
+      height: 32px;
+      max-width: 120px;
+      object-fit: contain;
+      width: auto;
+    }
 
     .name {
       font: var(--mat-sys-title-medium);
