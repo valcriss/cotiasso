@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   AdminApiService,
   type AccountInfo,
@@ -238,6 +238,7 @@ export class AccountsPage {
   protected readonly chart = signal<AccountInfo[]>([]);
   private readonly projects = signal<ProjectInfo[]>([]);
   protected readonly activeProjects = computed(() => this.projects().filter((p) => p.status !== 'ARCHIVED'));
+  private readonly route = inject(ActivatedRoute);
   protected readonly selectedId = signal<string | null>(null);
   protected readonly selected = computed(() => this.accounts().find((a) => a.id === this.selectedId()) ?? null);
   protected readonly loading = signal(true);
@@ -372,6 +373,9 @@ export class AccountsPage {
 
   private async init(): Promise<void> {
     await this.load();
+    // Un lien de la vue d'ensemble ouvre directement le compte concerné.
+    const wanted = this.route.snapshot.queryParamMap.get('compte');
+    if (wanted && this.accounts().some((a) => a.id === wanted)) this.select(wanted);
     // Plan de comptes et projets : facultatifs pour consulter, ignorés sans droit.
     this.chart.set(await this.api.listAccounts().catch(() => []));
     this.projects.set(await this.api.listProjects().catch(() => []));

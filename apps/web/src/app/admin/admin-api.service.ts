@@ -293,7 +293,19 @@ export interface TodoItemInfo {
   detail: string;
   count?: number;
   link: string;
+  /** De quoi ouvrir l'écran déjà filtré (ex. le compte qui a des mouvements à classer). */
+  query?: Record<string, string>;
   actionLabel: string;
+}
+
+export interface RecentOperationInfo {
+  id: string;
+  date: string;
+  label: string;
+  /** Montant signé : positif = argent reçu, négatif = argent dépensé. */
+  amount: string;
+  accountName: string;
+  situation: 'TO_CLASSIFY' | 'CLASSIFIED' | 'DRAFT' | 'BOOKED' | 'TRANSFER';
 }
 
 export interface OverviewInfo {
@@ -307,6 +319,8 @@ export interface OverviewInfo {
   };
   cash: { total: string; accounts: { id: string; name: string; balance: string }[] } | null;
   month: { from: string; to: string; received: string; spent: string } | null;
+  /** Les 5 dernières opérations (absentes sans droit de lecture des comptes). */
+  recent?: RecentOperationInfo[] | null;
   todo: TodoItemInfo[];
 }
 
