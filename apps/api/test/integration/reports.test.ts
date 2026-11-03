@@ -28,7 +28,7 @@ describe("États de lecture : grand livre, balance, livre-journal (base vierge)"
   let reader: Session;
   const ids: Record<string, string> = {};
 
-  const call = (method: "GET" | "POST", url: string, session?: Session, payload?: unknown) =>
+  const call = (method: "GET" | "POST" | "PUT", url: string, session?: Session, payload?: unknown) =>
     app.inject({
       method,
       url,
@@ -69,6 +69,19 @@ describe("États de lecture : grand livre, balance, livre-journal (base vierge)"
   };
   const get = (url: string, session = treasurer) => call("GET", url, session);
   const q = (path: string, extra = "") => `/reports/${path}?fiscalYearId=${ids.fy2026}${extra}`;
+
+  it("refuse d'écraser une prévision budgétaire modifiée entre-temps", async () => {
+    const url = `/annual-budgets/${ids.fy2027}`;
+    const estimate = { code: "PRO_COTIS", label: "Cotisations", expected: "0.00" };
+    const results = await Promise.all([
+      call("PUT", url + "/estimate", treasurer, { ...estimate, amount: "100.00" }),
+      call("PUT", url + "/estimate", treasurer, { ...estimate, amount: "200.00" }),
+    ]);
+    expect(results.map((result) => result.statusCode).sort()).toEqual([200, 409]);
+    const budget = await get(url);
+    expect(budget.json().history).toHaveLength(1);
+    expect(budget.json().estimates).toEqual(results.find((result) => result.statusCode === 200)!.json().estimates);
+  });
 
   beforeAll(async () => {
     db = await createTempDatabase();

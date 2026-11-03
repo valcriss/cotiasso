@@ -35,14 +35,20 @@ export async function createTempDatabase(): Promise<TempDatabase> {
 
   const url = new URL(adminUrl);
   url.pathname = `/${name}`;
-  execFileSync(process.execPath, [prismaCli, "migrate", "deploy"], {
-    cwd: apiRoot,
-    env: { ...process.env, DATABASE_URL: url.toString() },
-    stdio: "pipe",
-  });
-
-  return {
-    url: url.toString(),
-    drop: () => withAdminClient(adminUrl, (client) => client.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`).then(() => undefined)),
-  };
+  const drop = () => withAdminClient(adminUrl, (client) => client.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`).then(() => undefined));
+  try {
+    execFileSync(process.execPath, [prismaCli, "migrate", "deploy"], {
+      cwd: apiRoot,
+      env: { ...process.env, DATABASE_URL: url.toString() },
+      stdio: "pipe",
+    });
+  } catch (error) {
+    try {
+      await drop();
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], "La migration et le nettoyage de la base de test ont échoué.");
+    }
+    throw error;
+  }
+  return { url: url.toString(), drop };
 }

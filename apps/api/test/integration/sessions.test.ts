@@ -119,6 +119,24 @@ describe("LoginThrottleService (base réelle)", () => {
   // et le compteur par IP couvre 15 minutes, une collision avec un run précédent doit rester négligeable.
   const ip = () => `10.${randomInt(256)}.${randomInt(256)}.${randomInt(256)}`;
 
+  it("réserve les tentatives en cours et limite les vérifications simultanées", async () => {
+    const address = ip();
+    const account = email();
+    const now = new Date(Date.now() - 100);
+    for (let i = 0; i < 5; i += 1) await throttle.record(account, address, false, now);
+
+    const reservations = await Promise.all(
+      Array.from({ length: 5 }, (_, index) => throttle.reserveLogin(index < 2 ? account : email(), address)),
+    );
+    try {
+      expect(reservations.slice(0, 2).filter(({ allowed }) => allowed)).toHaveLength(1);
+      expect(reservations.slice(2).map(({ allowed }) => allowed)).toEqual([true, true, false]);
+      await expect(throttle.check(account, address)).resolves.toMatchObject({ allowed: false });
+    } finally {
+      await Promise.all(reservations.flatMap((reservation) => reservation.allowed ? [reservation.finish(false)] : []));
+    }
+  });
+
   it("tolère 5 échecs puis impose un délai croissant par compte", async () => {
     const e = email();
     const now = new Date();

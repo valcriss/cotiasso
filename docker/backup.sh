@@ -4,13 +4,12 @@
 #   backup.sh run               boucle de sauvegarde planifiée (service « backup »)
 #   backup.sh once              une sauvegarde immédiate
 #   backup.sh list              liste les sauvegardes
-#   backup.sh verify [fichier]  restaure dans une base et un dossier TEMPORAIRES et compare les comptages
+#   backup.sh verify [fichier]  restaure temporairement, compare les comptages et les empreintes des pièces
 #   backup.sh restore fichier   restaure l'installation (exige CONFIRM_RESTORE=yes, API arrêtée)
 #   backup.sh offsite           copie les sauvegardes vers le stockage hors site (rclone), si configuré
 #
 # Une sauvegarde est une archive chiffrée (AES-256) contenant : la base (pg_dump), les documents et un manifeste.
-# Ordre : base d'abord, puis fichiers. Les fichiers sont immuables une fois écrits (clés opaques, versions
-# immuables) : un document déposé entre les deux étapes est simplement absent de la base sauvegardée, jamais l'inverse.
+# Ordre : base d'abord, puis fichiers. Les pièces référencées par la copie de la base sont contrôlées avant publication.
 # La clé MFA_ENCRYPTION_KEY n'est PAS dans l'archive : elle se conserve séparément, et son empreinte figure au manifeste.
 set -euo pipefail
 
@@ -69,11 +68,12 @@ wait_for_schema() {
 do_backup() (
   require_passphrase
   mkdir -p "$BACKUP_DIR"
-  local stamp name work
+  local stamp name work database
   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
   name="cotiasso-$stamp"
   work="$(mktemp -d)"
-  trap 'rm -rf "$work"' EXIT
+  database="cotiasso_backup_${work##*.}"
+  trap 'dropdb --if-exists --force "$database" 2>/dev/null || true; rm -rf "$work"; rm -f "$BACKUP_DIR/$name.tar.enc.partial"' EXIT
 
   log "Sauvegarde de la base…"
   pg_dump --format=custom --no-owner --file="$work/db.dump"
@@ -81,16 +81,21 @@ do_backup() (
   log "Archivage des documents…"
   mkdir -p "$DOCUMENTS_DIR"
   tar -C "$DOCUMENTS_DIR" -cf "$work/documents.tar" .
+  createdb "$database"
+  pg_restore --exit-on-error --no-owner --dbname="$database" "$work/db.dump"
+  mkdir "$work/documents"
+  tar -C "$work/documents" -xf "$work/documents.tar"
+  verify_documents "$database" "$work/documents"
 
   # Comptages calculés avant d'écrire le manifeste : un échec ici interrompt la sauvegarde (les substitutions
   # placées dans un document « heredoc » ne feraient pas échouer le script).
   local migrations users documents versions events
-  migrations="$(psql -tA -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')"
+  migrations="$(psql -tA -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL' "$database")"
   [[ "$migrations" =~ ^[0-9]+$ ]] || die "Lecture des migrations impossible."
-  users="$(count User)"
-  documents="$(count Document)"
-  versions="$(count DocumentVersion)"
-  events="$(count AuditEvent)"
+  users="$(count User "$database")"
+  documents="$(count Document "$database")"
+  versions="$(count DocumentVersion "$database")"
+  events="$(count AuditEvent "$database")"
 
   cat > "$work/manifest.json" <<EOF
 {
@@ -197,7 +202,8 @@ cmd_offsite() {
 
 cmd_once() {
   mkdir -p "$BACKUP_DIR"
-  if do_backup; then
+  # Le processus séparé garde errexit actif même si l'appelant teste le code de sortie.
+  if bash "$0" create; then
     write_status yes ""
     apply_retention
     # Copie hors site : un échec est enregistré mais ne remet pas en cause la sauvegarde locale réussie.
@@ -261,20 +267,34 @@ compare_counts() {
   return $ok
 }
 
+verify_documents() {
+  local database="$1" directory="$2" rows key expected actual
+  rows="$(psql -tA -F '|' -v ON_ERROR_STOP=1 -c 'SELECT "storageKey", sha256 FROM "DocumentVersion"' "$database")" \
+    || die "Impossible de lire les empreintes des documents."
+  [ -n "$rows" ] || return 0
+  while IFS='|' read -r key expected; do
+    [[ "$key" =~ ^[0-9]{4}/[0-9]{2}/[0-9a-f-]{36}$ ]] || die "Clé de document invalide : $key."
+    [ -f "$directory/$key" ] && [ ! -L "$directory/$key" ] || die "Document absent : $key."
+    actual="$(sha256sum "$directory/$key" | cut -d' ' -f1)"
+    [ "$actual" = "$expected" ] || die "Empreinte de document invalide : $key."
+  done <<< "$rows"
+}
+
 cmd_verify() (
   local file="${1:-$(latest_backup)}"
   [ -n "$file" ] || die "Aucune sauvegarde à vérifier."
   [ -f "$file" ] || file="$BACKUP_DIR/$file"
   local work scratch database
   work="$(mktemp -d)"; scratch="$(mktemp -d)"
-  database="cotiasso_verify_$(date -u +%s)"
+  database="cotiasso_verify_${work##*.}"
   trap 'dropdb --if-exists --force "$database" 2>/dev/null || true; rm -rf "$work" "$scratch"' EXIT
 
   log "Vérification de $(basename "$file") dans une base temporaire ($database)…"
   unpack "$file" "$work"
   createdb "$database"
-  pg_restore --no-owner --dbname="$database" "$work/db.dump"
+  pg_restore --exit-on-error --no-owner --dbname="$database" "$work/db.dump"
   tar -C "$scratch" -xf "$work/documents.tar"
+  verify_documents "$database" "$scratch"
   log "Documents restaurés : $(find "$scratch" -type f | wc -l | tr -d ' ') fichier(s)"
   compare_counts "$work" "$database" || die "Les comptages de la base restaurée ne correspondent pas au manifeste."
   log "Vérification réussie : l'archive est lisible et complète."
@@ -286,26 +306,58 @@ cmd_restore() (
   [ -f "$file" ] || file="$BACKUP_DIR/$file"
   [ "${CONFIRM_RESTORE:-}" = "yes" ] || die "Restauration destructive : elle remplace la base et les documents. Relancer avec CONFIRM_RESTORE=yes, API et web arrêtés."
 
-  local work
+  local work stage database previous item
+  local -a moved_old=() moved_new=()
+  local switched=no
   work="$(mktemp -d)"
   trap 'rm -rf "$work"' EXIT
   unpack "$file" "$work"
 
-  log "Remplacement de la base…"
-  dropdb --if-exists --force "$PGDATABASE"
-  createdb "$PGDATABASE"
-  pg_restore --no-owner --dbname="$PGDATABASE" "$work/db.dump"
-
-  log "Remplacement des documents…"
   mkdir -p "$DOCUMENTS_DIR"
-  find "$DOCUMENTS_DIR" -mindepth 1 -delete
-  tar -C "$DOCUMENTS_DIR" -xf "$work/documents.tar"
+  stage="$(mktemp -d "$DOCUMENTS_DIR/.restore.XXXXXXXX")"
+  database="cotiasso_restore_${stage##*.}"
+  previous="cotiasso_previous_${stage##*.}"
+  cleanup_restore() {
+    local result=$? item
+    if [ "$switched" = no ]; then
+      for item in "${moved_new[@]}"; do mv -- "$DOCUMENTS_DIR/$item" "$stage/new/" || return 1; done
+      for item in "${moved_old[@]}"; do mv -- "$stage/old/$item" "$DOCUMENTS_DIR/" || return 1; done
+      dropdb --if-exists --force "$database" 2>/dev/null || true
+    fi
+    rm -rf -- "$work" "$stage"
+    return "$result"
+  }
+  trap cleanup_restore EXIT
+  createdb "$database"
+  pg_restore --exit-on-error --no-owner --dbname="$database" "$work/db.dump"
+  mkdir "$stage/new" "$stage/old"
+  tar -C "$stage/new" -xf "$work/documents.tar"
+  verify_documents "$database" "$stage/new"
+  compare_counts "$work" "$database" || die "Les comptages de la base restaurée ne correspondent pas au manifeste."
 
-  compare_counts "$work" "$PGDATABASE" || die "Les comptages de la base restaurée ne correspondent pas au manifeste."
+  shopt -s nullglob dotglob
+  for item in "$DOCUMENTS_DIR"/*; do
+    [ "$item" != "$stage" ] || continue
+    mv -- "$item" "$stage/old/"
+    moved_old+=("${item##*/}")
+  done
+  for item in "$stage/new"/*; do
+    mv -- "$item" "$DOCUMENTS_DIR/"
+    moved_new+=("${item##*/}")
+  done
+
+  psql -X -v ON_ERROR_STOP=1 --single-transaction -d postgres \
+    -v live="$PGDATABASE" -v staged="$database" -v previous="$previous" <<'SQL'
+ALTER DATABASE :"live" RENAME TO :"previous";
+ALTER DATABASE :"staged" RENAME TO :"live";
+SQL
+  switched=yes
+  dropdb --if-exists "$previous" || log "Ancienne base conservée : $previous."
   log "Restauration terminée. Redémarrer l'API et le web, puis vérifier le journal d'audit (Paramètres, Journal d'audit)."
 )
 
 case "${1:-}" in
+  create) do_backup ;;
   run) cmd_run ;;
   once) cmd_once ;;
   list) cmd_list ;;

@@ -26,7 +26,7 @@ export class Shell {
   protected readonly navigation = computed(() => {
     this.auth.permissions();
     const simple = this.theme.viewMode() === 'simple';
-    const items = NAVIGATION.filter((item) => !(simple && item.expert)).filter((item) => (item.global ? this.auth.can(item.permission) : this.auth.canAny(item.permission)));
+    const items = NAVIGATION.filter((item) => !(simple && item.expert)).filter((item) => this.auth.can(item.additionalPermission)).filter((item) => (item.global ? this.auth.can(item.permission) : this.auth.canAny(item.permission)));
     // « Démarrer » reste dans le menu tant qu'une étape de préparation manque, pour la retrouver une fois la carte d'accueil disparue.
     if (this.setupStatus.incomplete() && this.auth.can(START_ITEM.permission)) items.splice(1, 0, START_ITEM);
     return items;

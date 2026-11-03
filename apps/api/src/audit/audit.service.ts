@@ -25,7 +25,7 @@ const CHAIN_LOCK = "cotiasso:audit-chain";
 export class AuditService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async record(entry: AuditRecord): Promise<void> {
+  async record(entry: AuditRecord, transaction?: Prisma.TransactionClient): Promise<void> {
     const id = randomUUID();
     const occurredAt = new Date();
     const fields = {
@@ -39,7 +39,7 @@ export class AuditService {
       details: entry.details ?? null,
     };
 
-    await this.prisma.$transaction(async (tx) => {
+    const write = async (tx: Prisma.TransactionClient) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${CHAIN_LOCK}))`;
       const last = await tx.auditEvent.findFirst({
         where: { hash: { not: null } },
@@ -62,6 +62,8 @@ export class AuditService {
           hash: computeEventHash(previousHash, fields),
         },
       });
-    });
+    };
+    if (transaction) await write(transaction);
+    else await this.prisma.$transaction(write);
   }
 }

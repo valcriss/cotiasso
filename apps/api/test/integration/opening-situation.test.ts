@@ -101,8 +101,8 @@ describe("Situation d'ouverture : l'autre mode de démarrage (ADR 0029, base vie
   }, 60_000);
 
   afterAll(async () => {
-    await app.close();
-    await db.drop();
+    await app?.close();
+    await db?.drop();
   });
 
   it("réserve le choix du mode et la situation à l'administration de la comptabilité", async () => {

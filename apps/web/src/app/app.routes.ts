@@ -54,8 +54,10 @@ export const routes: Routes = [
         path: item.path,
         title: item.label,
         canActivate: [permissionGuard],
-        data: { title: item.label, permission: item.permission },
-        loadComponent: () => import('./pages/placeholder.page').then((m) => m.PlaceholderPage),
+        data: { title: item.label, permission: item.permission, additionalPermission: item.additionalPermission },
+        loadComponent: item.path === 'budget'
+          ? () => import('./reports/budget.page').then((m) => m.BudgetPage)
+          : () => import('./pages/placeholder.page').then((m) => m.PlaceholderPage),
       })),
       {
         path: 'comptabilite/ecritures/:id',

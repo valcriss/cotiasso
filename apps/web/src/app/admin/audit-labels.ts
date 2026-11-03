@@ -66,6 +66,7 @@ const ACTION_LABELS: Record<string, string> = {
   'transaction.entry.prepared': 'Brouillon d’écriture préparé depuis une transaction',
   'transaction.linked': 'Transaction liée à une écriture',
   'transaction.unlinked': 'Transaction dissociée d’une écriture',
+  'annual-budget.estimate.changed': 'Estimation du budget modifiée',
   'report.exported': 'État exporté (CSV)',
   'member.created': 'Membre créé',
   'member.updated': 'Fiche membre modifiée',

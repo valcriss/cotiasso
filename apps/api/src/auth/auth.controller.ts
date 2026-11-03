@@ -66,7 +66,7 @@ export class AuthController {
     const normalizedEmail = normalizeEmail(email);
     const ipAddress = request.ip;
 
-    const decision = await this.throttle.check(normalizedEmail, ipAddress);
+    const decision = await this.throttle.reserveLogin(normalizedEmail, ipAddress);
     if (!decision.allowed) {
       reply.header("Retry-After", String(decision.retryAfterSeconds));
       throw new HttpException(
@@ -75,8 +75,12 @@ export class AuthController {
       );
     }
 
-    const user = await this.users.verifyCredentials(email, password);
-    await this.throttle.record(normalizedEmail, ipAddress, user !== null);
+    let user: Awaited<ReturnType<UsersService["verifyCredentials"]>> = null;
+    try {
+      user = await this.users.verifyCredentials(email, password);
+    } finally {
+      await decision.finish(user !== null);
+    }
 
     if (!user) {
       await this.audit.record({

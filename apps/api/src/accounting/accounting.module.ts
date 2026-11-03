@@ -1,3 +1,4 @@
+import { AnnualBudgetsController } from './annual-budgets.controller.js';
 import { Module } from "@nestjs/common";
 import { AuditModule } from "../audit/audit.module.js";
 import { PrismaModule } from "../prisma/prisma.module.js";
@@ -27,7 +28,7 @@ import { AccountingService } from "./accounting.service.js";
 
 @Module({
   imports: [PrismaModule, AuditModule, SettingsModule],
-  controllers: [AccountingController, EntriesController, ClosingController, ReportsController, ProjectsController, BudgetsController, CommitmentsController, BudgetReportController, ThirdPartiesController, FrozenReportsController],
+  controllers: [AnnualBudgetsController, AccountingController, EntriesController, ClosingController, ReportsController, ProjectsController, BudgetsController, CommitmentsController, BudgetReportController, ThirdPartiesController, FrozenReportsController],
   providers: [AccountingService, EntriesService, ClosingService, ReportsService, StatementsService, ProjectsService, BudgetsService, ParticipantsService, CommitmentsService, BudgetReportService, ThirdPartiesService, FrozenReportsService],
   exports: [AccountingService, EntriesService, ThirdPartiesService],
 })

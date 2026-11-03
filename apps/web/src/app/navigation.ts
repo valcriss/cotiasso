@@ -4,6 +4,7 @@ export interface NavigationItem {
   icon: string;
   /** Permission exigée pour voir et ouvrir la rubrique ; absente = tout utilisateur connecté. */
   permission?: string;
+  additionalPermission?: string;
   /**
    * La rubrique exige le droit **global** : un droit limité à un projet ne suffit pas. Les documents d'un projet se lisent depuis
    * sa fiche (ADR 0024, tranche 4.5), pas depuis la page Documents générale.
@@ -20,6 +21,7 @@ export interface NavigationItem {
 export const NAVIGATION: readonly NavigationItem[] = [
   { path: 'vue-d-ensemble', label: "Vue d'ensemble", icon: 'dashboard' },
   { path: 'comptes', label: 'Comptes', icon: 'account_balance', permission: 'financial-accounts:view' },
+  { path: 'budget', label: 'Budget', icon: 'pie_chart', permission: 'reports:view', additionalPermission: 'entries:view' },
   { path: 'comptabilite', label: 'Comptabilité', icon: 'menu_book', permission: 'entries:view', expert: true },
   { path: 'membres', label: 'Membres et cotisations', icon: 'groups', permission: 'members:view' },
   { path: 'projets', label: 'Projets', icon: 'folder_open', permission: 'projects:view' },

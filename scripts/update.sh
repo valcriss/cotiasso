@@ -73,7 +73,7 @@ if ! compose up -d --wait --wait-timeout 300; then
 ERREUR : le démarrage de la version $VERSION a échoué.
 Pour revenir à la version $CURRENT avec les données d'avant la mise à jour (les migrations ne sont pas réversibles) :
 
-  docker compose --env-file $ENV_FILE stop api web
+  docker compose --env-file $ENV_FILE stop api web backup
   cp $ENV_FILE.avant-$VERSION $ENV_FILE
   CONFIRM_RESTORE=yes docker compose --env-file $ENV_FILE --profile tools run --rm tools restore $ARCHIVE
   docker compose --env-file $ENV_FILE up -d
