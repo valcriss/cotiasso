@@ -140,7 +140,7 @@ import { Skeleton } from '../ui/skeleton';
             </li>
           }
         </ul>
-        @if (canCreate() && !doc.archivedAt) {
+        @if (canCreate() && !doc.archivedAt && doc.category !== 'releve') {
           <div class="file-input">
             <label for="version-file">Ajouter une version</label>
             <app-file-dropzone inputId="version-file" label="Nouvelle version du fichier" [accept]="accept()" [fileName]="versionFile()?.name ?? ''" (picked)="pickFile($event)" />
