@@ -21,6 +21,8 @@ export interface SubjectEvent {
   /** Étape concernée (activée, ou à l'origine du renvoi). */
   nodeId?: string | null;
   message?: string | null;
+  /** Décisions enregistrées par ce changement (par exemple l'accord qui vient d'être donné). */
+  decisions?: { outcome: string; actorUserId: string }[];
 }
 
 /**

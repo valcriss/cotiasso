@@ -117,7 +117,7 @@ export class WorkflowEngineService {
       });
     await this.record(tx, instance.id, 1, transition.decisions);
     await this.subjects.notify(params.subjectType, this.event("STARTED", instance, transition.state), tx);
-    await this.subjects.notify(params.subjectType, this.event("STEP_ACTIVATED", instance, transition.state), tx);
+    await this.subjects.notify(params.subjectType, this.event("STEP_ACTIVATED", instance, transition.state, null, transition.decisions), tx);
     return { instanceId: instance.id, status: transition.state.status, currentNodeId: transition.state.currentNodeId };
   }
 
@@ -231,6 +231,17 @@ export class WorkflowEngineService {
     return result;
   }
 
+  /** Les comptes actifs qui peuvent décider d'une étape de cette demande (désignations du circuit et ajouts décidés pour elle). */
+  async designatedUsers(instanceId: string, nodeId: string, db: Tx | PrismaService = this.prisma): Promise<{ users: Set<string>; stepType: "APPROVAL" | "PROCESSING" } | null> {
+    const instance = await db.workflowInstance.findUnique({ where: { id: instanceId }, include: { definitionVersion: true } });
+    if (!instance) return null;
+    const { circuit } = parseCircuit(instance.definitionVersion.document);
+    const node = circuit?.nodes.find((n) => n.id === nodeId);
+    if (!circuit || !node || (node.type !== "APPROVAL" && node.type !== "PROCESSING")) return null;
+    const extra = await this.extraDesignations(db, instanceId);
+    return { users: await this.resolver.eligibleUsers([...node.approvers, ...(extra.get(node.id) ?? [])], db), stepType: node.type };
+  }
+
   /** L'étape que cette personne peut décider maintenant sur cette demande, ou `null`. */
   async decisionFor(instanceId: string, userId: string): Promise<{ nodeId: string; label: string; stepType: "APPROVAL" | "PROCESSING" } | null> {
     const instance = await this.prisma.workflowInstance.findUnique({ where: { id: instanceId }, include: { definitionVersion: true } });
@@ -321,10 +332,24 @@ export class WorkflowEngineService {
     });
     const type: SubjectEvent["type"] =
       status === "COMPLETED" || status === "REFUSED" || status === "CANCELLED" || status === "RETURNED" ? status : before.status === "RETURNED" ? "RESUMED" : "STEP_ACTIVATED";
-    await this.subjects.notify(before.subjectType, this.event(type, updated, transition.state, transition.decisions.at(-1)?.message ?? null), db);
+    await this.subjects.notify(before.subjectType, this.event(type, updated, transition.state, transition.decisions.at(-1)?.message ?? null, transition.decisions), db);
   }
 
-  private event(type: SubjectEvent["type"], instance: { id: string; subjectId: string; requesterUserId: string }, state: EngineState, message: string | null = null): SubjectEvent {
-    return { type, instanceId: instance.id, subjectId: instance.subjectId, requesterUserId: instance.requesterUserId, nodeId: state.currentNodeId ?? state.returnedFromNodeId, message };
+  private event(
+    type: SubjectEvent["type"],
+    instance: { id: string; subjectId: string; requesterUserId: string },
+    state: EngineState,
+    message: string | null = null,
+    decisions: readonly DecisionRecord[] = [],
+  ): SubjectEvent {
+    return {
+      type,
+      instanceId: instance.id,
+      subjectId: instance.subjectId,
+      requesterUserId: instance.requesterUserId,
+      nodeId: state.currentNodeId ?? state.returnedFromNodeId,
+      message,
+      decisions: decisions.map((d) => ({ outcome: d.outcome, actorUserId: d.actorId })),
+    };
   }
 }

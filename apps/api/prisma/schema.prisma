@@ -1458,3 +1458,38 @@ model ReimbursementPayment {
   request     ReimbursementRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
   transaction Transaction          @relation(fields: [transactionId], references: [id], onDelete: Restrict)
 }
+
+// --- File d'envoi des notifications (ADR 0035, tranche 4) ---
+
+enum NotificationKind {
+  REIMBURSEMENT_TO_DECIDE
+  REIMBURSEMENT_TO_PAY
+  REIMBURSEMENT_APPROVED
+  REIMBURSEMENT_RETURNED
+  REIMBURSEMENT_REFUSED
+  REIMBURSEMENT_PAID
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// Une notification à envoyer par email : écrite dans la transaction de la décision, envoyée ensuite par un traitement
+// d'arrière-plan avec de nouveaux essais. Aucun texte libre ni contenu de message n'y est stocké : seulement qui, quoi, laquelle.
+// L'email n'est jamais la source de vérité : l'état dans l'application fait foi.
+model NotificationOutbox {
+  id              String             @id @default(uuid()) @db.Uuid
+  kind            NotificationKind
+  recipientUserId String             @db.Uuid
+  subjectId       String             @db.Uuid
+  status          NotificationStatus @default(PENDING)
+  attempts        Int                @default(0)
+  nextAttemptAt   DateTime           @default(now()) @db.Timestamptz(3)
+  createdAt       DateTime           @default(now()) @db.Timestamptz(3)
+  sentAt          DateTime?          @db.Timestamptz(3)
+  lastError       String?
+
+  @@index([status, nextAttemptAt])
+}

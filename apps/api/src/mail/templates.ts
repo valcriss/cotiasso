@@ -37,6 +37,9 @@ export interface RenderedEmail {
   attachments: EmailAttachment[];
 }
 
+/** Ce dont le gabarit a besoin pour habiller un message : l'association, le lien, la marque. */
+export type RenderContext = Pick<EmailContext, "associationName" | "link" | "accentColor" | "logo" | "showName">;
+
 interface EmailContent {
   subject: string;
   greeting: string;
@@ -73,7 +76,7 @@ export function formatExpiry(date: Date): string {
   return `${part("weekday")} ${part("day")} ${part("month")} à ${Number(part("hour"))} h${minutes === "00" ? "" : ` ${minutes}`}`;
 }
 
-function textBody(content: EmailContent, context: EmailContext): string {
+function textBody(content: EmailContent, context: RenderContext): string {
   return [
     content.greeting,
     "",
@@ -89,7 +92,7 @@ function textBody(content: EmailContent, context: EmailContext): string {
   ].join("\n");
 }
 
-function htmlBody(content: EmailContent, context: EmailContext, accent: string): string {
+function htmlBody(content: EmailContent, context: RenderContext, accent: string): string {
   const name = escapeHtml(oneLine(context.associationName));
   const link = escapeHtml(context.link);
   const header = [
@@ -121,7 +124,7 @@ ${paragraph(content.ignoreNote, "#4a5163", 14)}
 </body></html>`;
 }
 
-function render(content: EmailContent, context: EmailContext): RenderedEmail {
+function render(content: EmailContent, context: RenderContext): RenderedEmail {
   const accent = /^#[0-9a-fA-F]{6}$/.test(context.accentColor) ? context.accentColor : DEFAULT_ACCENT;
   const attachments: EmailAttachment[] = [
     { cid: "cotiasso-mark", filename: "cotiasso.png", contentType: "image/png", content: Buffer.from(COTIASSO_MARK_PNG_BASE64, "base64") },
@@ -172,6 +175,70 @@ export function renderResetEmail(context: EmailContext): RenderedEmail {
         `Ce lien est valable ${context.validityHours} heures (jusqu’au ${formatExpiry(context.expiresAt)}) et ne sert qu’une fois. Une fois votre mot de passe changé, vous serez déconnecté·e de vos autres appareils.`,
       ],
       ignoreNote: "Vous n’êtes pas à l’origine de cette demande ? Ignorez ce message : votre mot de passe actuel reste valable. Prévenez un administrateur de l’association.",
+    },
+    context,
+  );
+}
+
+export type NotificationTemplate = "TO_DECIDE" | "TO_PAY" | "APPROVED" | "RETURNED" | "REFUSED" | "PAID";
+
+export interface NotificationEmailContext extends RenderContext {
+  template: NotificationTemplate;
+  recipientName: string;
+  /** Prénom et nom de la personne qui a fait la demande. Aucun montant ni justificatif dans un email. */
+  requesterName: string;
+  requestNumber: number;
+}
+
+/**
+ * Prévient une personne qu’une demande de remboursement avance ou l’attend (ADR 0035). Le message reste minimal : qui, quelle demande,
+ * et un lien. Il ne contient ni montant, ni justificatif, ni motif : tout se lit dans l’application, qui fait foi.
+ */
+export function renderNotificationEmail(context: NotificationEmailContext): RenderedEmail {
+  const association = oneLine(context.associationName);
+  const requester = oneLine(context.requesterName);
+  const number = context.requestNumber;
+  const content: Record<NotificationTemplate, { subject: string; intro: string; button: string }> = {
+    TO_DECIDE: {
+      subject: `Une demande de remboursement attend votre accord (n° ${number})`,
+      intro: `${requester} a demandé le remboursement de frais avancés pour ${association}. La demande n° ${number} attend votre accord.`,
+      button: "Examiner la demande",
+    },
+    TO_PAY: {
+      subject: `Une demande de remboursement est à rembourser (n° ${number})`,
+      intro: `La demande n° ${number} de ${requester} a reçu tous les accords nécessaires : elle est prête à être remboursée.`,
+      button: "Rembourser",
+    },
+    APPROVED: {
+      subject: `Votre demande de remboursement a reçu un accord (n° ${number})`,
+      intro: `Une étape de validation a donné son accord à votre demande n° ${number}. Elle continue son chemin.`,
+      button: "Suivre ma demande",
+    },
+    RETURNED: {
+      subject: `Votre demande de remboursement est à corriger (n° ${number})`,
+      intro: `Votre demande n° ${number} vous a été renvoyée pour correction. Le message qui explique ce qu’il faut changer se trouve dans l’application.`,
+      button: "Corriger ma demande",
+    },
+    REFUSED: {
+      subject: `Votre demande de remboursement a été refusée (n° ${number})`,
+      intro: `Votre demande n° ${number} a été refusée. Vous trouverez le motif dans l’application.`,
+      button: "Voir ma demande",
+    },
+    PAID: {
+      subject: `Votre demande de remboursement est réglée (n° ${number})`,
+      intro: `Votre demande n° ${number} a été remboursée.`,
+      button: "Voir ma demande",
+    },
+  };
+  const entry = content[context.template];
+  return render(
+    {
+      subject: entry.subject,
+      greeting: `Bonjour ${oneLine(context.recipientName)},`,
+      intro: entry.intro,
+      buttonLabel: entry.button,
+      afterButton: ["Cet email est un simple rappel : c’est l’état affiché dans l’application qui fait foi."],
+      ignoreNote: `Vous recevez ce message parce que vous êtes concerné·e par cette demande chez ${association}. Vous ne connaissez pas cette association ? Ignorez ce message.`,
     },
     context,
   );

@@ -98,7 +98,7 @@ Si l'opération est annulée plus tard (contrepassation), la demande reste « re
 
 ### Notifications (tranche 5.3 suite)
 
-- **File d'envoi** : les notifications sont écrites **dans la même transaction SQL que la décision** puis envoyées par un traitement d'arrière-plan avec nouvel essai (pg-boss, [ADR 0001](0001-stack-technique.md) ; reprise annoncée par l'ADR 0034). **Un échec d'envoi ne défait jamais une décision.**
+- **File d'envoi** : les notifications sont écrites **dans la même transaction SQL que la décision** puis envoyées par un traitement d'arrière-plan avec nouvel essai. *Réalisé* par une table `NotificationOutbox` et un traitement périodique dans l'API plutôt que par pg-boss ([ADR 0001](0001-stack-technique.md)), qui n'est pas installé : l'écriture dans la transaction de la décision est ce qui garantit qu'aucune notification n'est perdue ni envoyée pour une décision défaite ; pg-boss pourra prendre le relais de l'envoi sans changer ce contrat. **Un échec d'envoi ne défait jamais une décision.**
 - **Qui reçoit quoi** : les personnes désignées pour l'étape atteinte (« une demande attend votre accord »), le demandeur à chaque décision (acceptée par une étape, refusée, renvoyée, remboursée). Contenu minimal : prénom et nom du demandeur, lien ; ni justificatif ni coordonnées.
 - **L'email n'est jamais la source de vérité** : l'état dans l'application fait foi. Le contenu n'est pas journalisé ; l'audit garde le type seulement. Sans SMTP, rien ne change (la fonction fonctionne, les gens consultent « À faire »).
 - Pas de rappel automatique d'attente en V1.

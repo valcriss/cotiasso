@@ -358,6 +358,8 @@ describe("Demandes de remboursement (ADR 0035, base vierge)", () => {
       expect((await prisma.journalEntry.findUniqueOrThrow({ where: { id: payment.entryId } })).status).toBe("POSTED");
       expect((await view(id, lea)).instance.decisions.map((d: { outcome: string }) => d.outcome)).toEqual(["APPROVED", "PROCESSED"]);
       expect(await prisma.auditEvent.count({ where: { action: "reimbursement.paid", objectId: id } })).toBe(1);
+      // Sans messagerie configurée, aucune notification n'est mise en file.
+      expect(await prisma.notificationOutbox.count()).toBe(0);
       // Déjà remboursée : une seconde fois est refusée, rien n'est créé.
       expect((await call("POST", `/reimbursements/${id}/process`, tess, { mode: "CREATE", financialAccountId: bankId, date: "2026-03-12", categoryId })).statusCode).toBe(409);
       expect(await prisma.reimbursementPayment.count({ where: { requestId: id } })).toBe(1);

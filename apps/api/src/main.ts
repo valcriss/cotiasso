@@ -4,6 +4,7 @@ import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fa
 import { AppModule } from "./app.module.js";
 import { configureApp } from "./app.setup.js";
 import { readEnv } from "./config/env.js";
+import { ReimbursementNotifier } from "./reimbursements/reimbursement-notifier.js";
 
 async function bootstrap(): Promise<void> {
   const env = readEnv();
@@ -11,6 +12,8 @@ async function bootstrap(): Promise<void> {
   await configureApp(app, env);
   app.enableShutdownHooks();
   await app.listen(env.port, env.host);
+  // Envoi périodique des notifications (sans effet tant que SMTP n'est pas configuré).
+  app.get(ReimbursementNotifier).start();
 }
 
 bootstrap().catch((error: unknown) => {

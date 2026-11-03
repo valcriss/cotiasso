@@ -1,6 +1,7 @@
-import { Inject, Injectable, type OnModuleInit } from "@nestjs/common";
+import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import type { Prisma, ReimbursementStatus } from "../generated/prisma/client.js";
 import { WorkflowSubjectRegistry, type SubjectEvent, type WorkflowSubjectHandler } from "../workflows/subject-handlers.js";
+import { ReimbursementNotifier } from "./reimbursement-notifier.js";
 import { REIMBURSEMENT_SUBJECT } from "./reimbursements.service.js";
 
 /** Statut de la demande après chaque événement du circuit. Les autres événements n'y changent rien. */
@@ -22,7 +23,12 @@ const CLOSING: readonly ReimbursementStatus[] = ["REFUSED", "CANCELLED", "PAID"]
 export class ReimbursementSubjectHandler implements WorkflowSubjectHandler, OnModuleInit {
   readonly subjectType = REIMBURSEMENT_SUBJECT;
 
-  constructor(@Inject(WorkflowSubjectRegistry) private readonly registry: WorkflowSubjectRegistry) {}
+  private readonly logger = new Logger(ReimbursementSubjectHandler.name);
+
+  constructor(
+    @Inject(WorkflowSubjectRegistry) private readonly registry: WorkflowSubjectRegistry,
+    @Inject(ReimbursementNotifier) private readonly notifier: ReimbursementNotifier,
+  ) {}
 
   onModuleInit(): void {
     this.registry.register(this);
@@ -30,10 +36,20 @@ export class ReimbursementSubjectHandler implements WorkflowSubjectHandler, OnMo
 
   async onEvent(event: SubjectEvent, tx: Prisma.TransactionClient): Promise<void> {
     const status = STATUS[event.type];
-    if (!status) return;
-    await tx.reimbursementRequest.update({
-      where: { id: event.subjectId },
-      data: { status, ...(CLOSING.includes(status) && { closedAt: new Date() }) },
-    });
+    if (status) {
+      await tx.reimbursementRequest.update({
+        where: { id: event.subjectId },
+        data: { status, ...(CLOSING.includes(status) && { closedAt: new Date() }) },
+      });
+    }
+    // Les notifications ne défont jamais une décision : un point de reprise isole leur écriture, et une erreur est simplement journalisée.
+    await tx.$executeRawUnsafe("SAVEPOINT notify");
+    try {
+      await this.notifier.enqueue(event, tx);
+      await tx.$executeRawUnsafe("RELEASE SAVEPOINT notify");
+    } catch (error) {
+      await tx.$executeRawUnsafe("ROLLBACK TO SAVEPOINT notify");
+      this.logger.warn(`Notification non enregistrée (${error instanceof Error ? error.message : "erreur inconnue"})`);
+    }
   }
 }
