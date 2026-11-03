@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { formatApiAmount } from '../accounting/amount';
-import { AdminApiService, type CampaignInfo, type MemberCategoryInfo, type MemberInfo, type MembershipInfo, type ReminderInfo } from '../admin/admin-api.service';
+import { AdminApiService, type BulkEnrollInfo, type CampaignInfo, type MemberCategoryInfo, type MemberInfo, type MembershipInfo, type ReminderInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { BrandingService } from '../branding/branding.service';
 import { describeHttpError } from '../auth/error-messages';
@@ -21,6 +21,7 @@ import {
   type TariffDialogData,
 } from './campaign-dialogs';
 import { PaymentsDialog, type PaymentsDialogData } from './payments-dialog';
+import { BulkEnrollDialog, RenewCampaignDialog, type BulkEnrollDialogData, type RenewCampaignDialogData } from './renewal-dialogs';
 import { FrDatePipe } from '../ui/fr-date.pipe';
 
 const STATUS_LABELS = { PENDING: 'En attente', EFFECTIVE: 'Effective', CANCELLED: 'Annulée' } as const;
@@ -85,6 +86,9 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
           <div class="actions">
             @if (canManage()) {
               <button mat-stroked-button type="button" (click)="editCampaign(campaign)">Modifier la campagne</button>
+              <button mat-stroked-button type="button" [disabled]="campaign.tariffs.length === 0" (click)="renewCampaign(campaign)">
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">event_repeat</mat-icon> Préparer la campagne suivante
+              </button>
               <button mat-flat-button type="button" (click)="addTariff(campaign)">
                 <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Ajouter un tarif
               </button>
@@ -133,6 +137,9 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
               <mat-icon fontSet="material-icons-outlined" aria-hidden="true">notifications_active</mat-icon> Cotisations restant dues
             </button>
           @if (canManage()) {
+            <button mat-stroked-button type="button" [disabled]="campaign.tariffs.length === 0" (click)="enrollMany(campaign)">
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">groups</mat-icon> Inscrire plusieurs membres
+            </button>
             <button mat-flat-button type="button" [disabled]="campaign.tariffs.length === 0" (click)="newMembership(campaign)">
               <mat-icon fontSet="material-icons-outlined" aria-hidden="true">person_add</mat-icon> Nouvelle adhésion
             </button>
@@ -329,6 +336,24 @@ export class CampaignsPage {
       data: { membership, canManage: this.canManage() },
     });
     if (updated) await this.refresh();
+  }
+
+  /** Copie les réglages et les tarifs d'une campagne dans la suivante, puis l'ouvre : il reste à y inscrire les membres. */
+  protected async renewCampaign(campaign: CampaignInfo): Promise<void> {
+    const created = await this.dialogs.open<CampaignInfo, RenewCampaignDialogData>(RenewCampaignDialog, { size: 'md', data: { source: campaign } });
+    if (!created) return;
+    await this.reload();
+    await this.open(created.id);
+    this.notifier.success(`Campagne « ${created.name} » créée avec ${created.tariffs.length} tarif(s). Vérifiez les tarifs, puis inscrivez-y les membres.`);
+  }
+
+  /** Inscrit plusieurs membres d'un coup ; dit combien de cotisations sont créées et combien étaient déjà inscrits. */
+  protected async enrollMany(campaign: CampaignInfo): Promise<void> {
+    const result = await this.dialogs.open<BulkEnrollInfo, BulkEnrollDialogData>(BulkEnrollDialog, { size: 'lg', data: { campaign } });
+    if (!result) return;
+    await this.refresh();
+    const skipped = result.skipped.length > 0 ? ` ${result.skipped.length} membre(s) étaient déjà inscrits et n’ont pas été modifiés.` : '';
+    this.notifier.success(`${result.created} cotisation(s) créée(s), pour un total attendu de ${formatApiAmount(result.expectedTotal)} €.${skipped}`);
   }
 
   protected async newCampaign(): Promise<void> {

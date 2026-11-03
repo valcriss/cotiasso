@@ -519,6 +519,19 @@ export interface MemberBody {
 
 export type MemberCotisationState = 'UP_TO_DATE' | 'PARTIAL' | 'DUE' | 'EXEMPT' | 'NONE';
 
+export interface RenewalPreviewInfo {
+  campaign: { id: string; name: string };
+  source: { id: string; name: string } | null;
+  tariffs: { id: string; label: string; amount: string }[];
+  items: { memberId: string; memberName: string; categoryName: string | null; previouslyEnrolled: boolean; previousTariffLabel: string | null; proposedTariffId: string | null }[];
+}
+
+export interface BulkEnrollInfo {
+  created: number;
+  expectedTotal: string;
+  skipped: { memberId: string; memberName: string; reason: string }[];
+}
+
 export interface MemberFilters {
   q?: string;
   status?: 'ACTIVE' | 'FORMER';
@@ -1630,6 +1643,21 @@ export class AdminApiService {
 
   removeTariff(id: string): Promise<CampaignInfo> {
     return firstValueFrom(this.http.delete<CampaignInfo>(`/api/tariffs/${id}`));
+  }
+
+  /** Prépare la campagne suivante : mêmes réglages et tarifs, nouvelles dates, aucune adhésion. */
+  renewCampaign(campaignId: string, body: { name: string; startsOn: string; endsOn: string }): Promise<CampaignInfo> {
+    return firstValueFrom(this.http.post<CampaignInfo>(`/api/campaigns/${campaignId}/renew`, body));
+  }
+
+  /** Membres à renouveler dans une campagne, avec un tarif proposé (lecture seule). */
+  renewalPreview(campaignId: string): Promise<RenewalPreviewInfo> {
+    return firstValueFrom(this.http.get<RenewalPreviewInfo>(`/api/campaigns/${campaignId}/renewal-preview`));
+  }
+
+  /** Inscrit plusieurs membres d'un coup (tout ou rien) ; les déjà inscrits sont ignorés avec leur raison. */
+  enrollMany(campaignId: string, items: { memberId: string; tariffId: string }[]): Promise<BulkEnrollInfo> {
+    return firstValueFrom(this.http.post<BulkEnrollInfo>(`/api/campaigns/${campaignId}/memberships/bulk`, { items }));
   }
 
   listMemberships(campaignId: string): Promise<MembershipInfo[]> {

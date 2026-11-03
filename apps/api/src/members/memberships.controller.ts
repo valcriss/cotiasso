@@ -23,7 +23,7 @@ import type { AuthenticatedRequest } from "../auth/auth.guard.js";
 import { RequirePermission } from "../authz/decorators.js";
 import { amountCell, safeFilename, toCsv } from "../accounting/csv.js";
 import { AuditService } from "../audit/audit.service.js";
-import { MembershipsService, type CampaignView, type MembershipView } from "./memberships.service.js";
+import { MembershipsService, type BulkEnrollResult, type CampaignView, type MembershipView, type RenewalPreview } from "./memberships.service.js";
 import { PaymentsService, type AllocationView, type PaymentCandidate, type Receipt, type ReminderItem } from "./payments.service.js";
 
 async function translate<T>(operation: () => Promise<T>): Promise<T> {
@@ -98,6 +98,28 @@ export class MembershipsController {
   @Get("members/:id/memberships")
   forMember(@Param("id", ParseUUIDPipe) id: string): Promise<MembershipView[]> {
     return this.memberships.listForMember(id);
+  }
+
+  /** Prépare la saison suivante : copie les réglages et les tarifs d'une campagne. */
+  @RequirePermission("members:manage")
+  @Post("campaigns/:id/renew")
+  renewCampaign(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<CampaignView> {
+    return translate(() => this.memberships.renewCampaign(id, body, request.auth!.user.id));
+  }
+
+  /** Qui renouveler dans cette campagne, avec un tarif proposé (lecture seule). */
+  @RequirePermission("members:manage")
+  @Get("campaigns/:id/renewal-preview")
+  renewalPreview(@Param("id", ParseUUIDPipe) id: string, @Query() query: unknown): Promise<RenewalPreview> {
+    return translate(() => this.memberships.renewalPreview(id, query));
+  }
+
+  /** Inscrit plusieurs membres d'un coup (tout ou rien). */
+  @RequirePermission("members:manage")
+  @Post("campaigns/:id/memberships/bulk")
+  @HttpCode(HttpStatus.OK)
+  enrollMany(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<BulkEnrollResult> {
+    return translate(() => this.memberships.enrollMany(id, body, request.auth!.user.id));
   }
 
   @RequirePermission("members:manage")
