@@ -24,6 +24,7 @@ export const NAVIGATION: readonly NavigationItem[] = [
   { path: 'budget', label: 'Budget', icon: 'pie_chart', permission: 'reports:view', additionalPermission: 'entries:view' },
   { path: 'comptabilite', label: 'Comptabilité', icon: 'menu_book', permission: 'entries:view', expert: true },
   { path: 'membres', label: 'Membres et cotisations', icon: 'groups', permission: 'members:view' },
+  { path: 'remboursements', label: 'Remboursements', icon: 'receipt_long', permission: 'reimbursements:create' },
   { path: 'projets', label: 'Projets', icon: 'folder_open', permission: 'projects:view' },
   { path: 'subventions', label: 'Subventions', icon: 'payments', permission: 'grants:view' },
   { path: 'rapports', label: 'Rapports', icon: 'bar_chart', permission: 'reports:view' },
