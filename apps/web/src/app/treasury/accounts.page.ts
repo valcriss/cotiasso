@@ -182,13 +182,13 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
             }
             <div class="actions">
               <button mat-stroked-button type="button" [attr.aria-label]="'Ouvrir ' + account.name" (click)="select(account.id)">
-                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">list</mat-icon> Transactions
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">list</mat-icon> {{ simple() ? 'Mouvements' : 'Transactions' }}
               </button>
               @if (!account.archivedOn) {
-                <a mat-button [routerLink]="['/comptes', account.id, 'rapprochement']" [attr.aria-label]="'Rapprocher ' + account.name">Rapprocher</a>
+                <a mat-button [routerLink]="['/comptes', account.id, 'rapprochement']" [attr.aria-label]="(simple() ? 'Vérifier avec la banque ' : 'Rapprocher ') + account.name">{{ simple() ? 'Vérifier avec la banque' : 'Rapprocher' }}</a>
               }
               @if (canStatement() && !account.archivedOn) {
-                <button mat-button type="button" [attr.aria-label]="'Relevé de ' + account.name" (click)="statement(account)">Solde de relevé</button>
+                <button mat-button type="button" [attr.aria-label]="'Relevé de ' + account.name" (click)="statement(account)">{{ simple() ? 'Solde sur mon relevé' : 'Solde de relevé' }}</button>
               }
               @if (canAdmin() && !account.archivedOn) {
                 <button mat-button type="button" [attr.aria-label]="'Archiver ' + account.name" [disabled]="busy()" (click)="archive(account)">Archiver</button>

@@ -57,9 +57,9 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
     }
   `,
   template: `
-    <section class="panel" [attr.aria-label]="'Transactions de ' + account().name">
+    <section class="panel" [attr.aria-label]="(simple() ? 'Mouvements de ' : 'Transactions de ') + account().name">
       <div class="head">
-        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">swap_horiz</mat-icon><span>Transactions de {{ account().name }}</span></h3>
+        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">swap_horiz</mat-icon><span>{{ simple() ? 'Mouvements' : 'Transactions' }} de {{ account().name }}</span></h3>
         <div class="actions">
           @if (canImport() && !account().archivedOn) {
             <a mat-stroked-button [routerLink]="['/comptes', account().id, 'import']">
@@ -99,7 +99,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
           <input matInput type="date" formControlName="to" />
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Libellé ou référence</mat-label>
+          <mat-label>{{ simple() ? 'Description ou numéro de la banque' : 'Libellé ou référence' }}</mat-label>
           <input matInput formControlName="q" />
         </mat-form-field>
         <mat-form-field appearance="outline">
@@ -130,7 +130,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
         <p class="muted">Chargement…</p>
       } @else if (transactions().length === 0) {
         <p class="muted">
-          Aucune transaction pour ces critères.
+          {{ simple() ? 'Aucun mouvement pour ces critères.' : 'Aucune transaction pour ces critères.' }}
           @if (canManage() && !account().archivedOn) {
             Ajoutez un mouvement à la main ou importez le relevé de votre banque.
           }
@@ -146,14 +146,14 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
           <p class="muted">« Comptabilisée » veut dire qu'une écriture validée enregistre ce mouvement dans les comptes de l'association.</p>
         }
         <table class="table">
-          <caption class="sr-only">Transactions</caption>
+          <caption class="sr-only">{{ simple() ? 'Mouvements' : 'Transactions' }}</caption>
           <thead>
             <tr>
               @if (canManage()) {
                 <th scope="col"><span class="sr-only">Sélection</span></th>
               }
               <th scope="col">Date</th>
-              <th scope="col">Libellé</th>
+              <th scope="col">{{ simple() ? 'Description' : 'Libellé' }}</th>
               <th scope="col">Projet</th>
               <th scope="col">{{ simple() ? 'Catégorie' : 'Contrepartie' }}</th>
               <th scope="col">{{ simple() ? 'Situation' : 'Comptabilisation' }}</th>
@@ -177,10 +177,10 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
                 <td>
                   {{ item.label }}
                   @if (item.bankIdentified) {
-                    <span class="chip">{{ item.origin === 'IMPORT' ? 'Importée' : 'Rapprochée du relevé' }}</span>
+                    <span class="chip">{{ item.origin === 'IMPORT' ? (simple() ? 'Venue de la banque' : 'Importée') : (simple() ? 'Reliée à la banque' : 'Rapprochée du relevé') }}</span>
                   }
                   @if (item.reference) {
-                    <div class="muted">Réf. {{ item.reference }}</div>
+                    <div class="muted">{{ simple() ? 'N° banque' : 'Réf.' }} {{ item.reference }}</div>
                   }
                 </td>
                 <td>{{ item.projectCode ?? '—' }}</td>

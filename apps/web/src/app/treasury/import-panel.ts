@@ -108,7 +108,7 @@ const LINK = 'LINK:';
           <thead>
             <tr>
               <th scope="col">Date</th>
-              <th scope="col">Libellé</th>
+              <th scope="col">{{ simple() ? 'Description' : 'Libellé' }}</th>
               <th scope="col" class="amount">Montant</th>
               <th scope="col">État</th>
               <th scope="col">Décision</th>
@@ -121,7 +121,7 @@ const LINK = 'LINK:';
                 <td>
                   {{ line.label || '—' }}
                   @if (line.reference) {
-                    <div class="muted">Réf. {{ line.reference }}</div>
+                    <div class="muted">{{ simple() ? 'N° banque' : 'Réf.' }} {{ line.reference }}</div>
                   }
                 </td>
                 <td class="amount">{{ line.amount ? amount(line.amount) : '—' }}</td>

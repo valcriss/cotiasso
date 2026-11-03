@@ -495,6 +495,26 @@ describe('AccountsPage', () => {
       await settle();
     };
 
+    it('parle de mouvements, de description et de vérification avec la banque, sans le vocabulaire bancaire (#8)', async () => {
+      await create([...SIMPLE, 'imports:post'], [account()], 'simple');
+      await click('Ouvrir Compte courant');
+      controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: [transaction({ id: 't1', label: 'Prélèvement', reference: 'REF42', origin: 'IMPORT', bankIdentified: true })], next: null });
+      controller.expectOne('/api/operation-categories').flush(cats);
+      await settle();
+      const text = root.textContent!;
+      expect(text).toContain('Mouvements de Compte courant');
+      expect(text).toContain('Description');
+      expect(text).toContain('N° banque REF42');
+      expect(text).toContain('Venue de la banque');
+      expect(text).toContain('Vérifier avec la banque');
+      expect(text).toContain('Solde sur mon relevé');
+      expect(text).not.toContain('Transactions de');
+      expect(text).not.toContain('Libellé');
+      expect(text).not.toContain('Réf.');
+      expect(text).not.toContain('Importée');
+      expect(text).not.toContain('Rapprocher');
+    });
+
     it('donne une seule situation lisible par mouvement, la catégorie en mots courants et masque les gestes de comptable', async () => {
       await openSimple([
         transaction({ id: 't1', label: 'Inconnu' }),
