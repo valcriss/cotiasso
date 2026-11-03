@@ -27,20 +27,20 @@ export function nextCampaignName(name: string): string {
 }
 
 export interface RenewCampaignDialogData {
-  /** Campagne dont on reprend les réglages et les tarifs. */
+  /** Saison dont on reprend les réglages et les tarifs. */
   source: CampaignInfo;
 }
 
-/** « Préparer la campagne suivante » : mêmes réglages et tarifs, nouvelles dates. Renvoie la campagne créée. */
+/** « Préparer la saison suivante » : mêmes réglages et tarifs, nouvelles dates. Renvoie la saison créée. */
 @Component({
   selector: 'app-renew-campaign-dialog',
   imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
-        title="Préparer la campagne suivante"
-        [description]="'Une nouvelle campagne est créée avec les mêmes réglages et les ' + source.tariffs.length + ' tarif(s) de « ' + source.name + ' ». Aucun membre n’est inscrit à ce stade : vous le ferez à l’étape suivante. Nom et dates sont proposés, modifiez-les si besoin.'"
-        submitLabel="Créer la campagne"
+        title="Préparer la saison suivante"
+        [description]="'Une nouvelle saison est créée avec les mêmes réglages et les ' + source.tariffs.length + ' tarif(s) de « ' + source.name + ' ». Aucun membre n’est inscrit à ce stade : vous le ferez à l’étape suivante. Nom et dates sont proposés, modifiez-les si besoin.'"
+        submitLabel="Créer la saison"
         [dirty]="form.dirty"
         [busy]="busy()"
         [error]="error()"
@@ -49,7 +49,7 @@ export interface RenewCampaignDialogData {
           <mat-label>Nom</mat-label>
           <input matInput formControlName="name" required />
           @if (form.controls.name.hasError('required') || form.controls.name.hasError('minlength')) {
-            <mat-error>Donnez un nom d’au moins 3 caractères à la campagne.</mat-error>
+            <mat-error>Donnez un nom d’au moins 3 caractères à la saison.</mat-error>
           }
         </mat-form-field>
         <div class="row">
@@ -92,7 +92,7 @@ export class RenewCampaignDialog {
     try {
       this.reference.close(await this.api.renewCampaign(this.source.id, { name: raw.name.trim(), startsOn: raw.startsOn, endsOn: raw.endsOn }));
     } catch (failure) {
-      this.error.set(describeHttpError(failure, "La campagne n'a pas pu être créée. Réessayez dans un instant.").message);
+      this.error.set(describeHttpError(failure, "La saison n'a pas pu être créée. Réessayez dans un instant.").message);
     } finally {
       this.busy.set(false);
     }
@@ -118,7 +118,7 @@ interface Row {
   template: `
     <form (submit)="$event.preventDefault(); save()" novalidate>
       <app-form-dialog
-        title="Inscrire les membres à cette campagne"
+        title="Inscrire les membres à cette saison"
         [description]="'Choisissez les membres à inscrire à « ' + data.campaign.name + ' » et leur tarif. La cotisation attendue est notée pour chacun, mais rien n’est comptabilisé tant qu’un règlement n’est pas enregistré. Les membres déjà inscrits ne sont pas proposés.'"
         [submitLabel]="'Inscrire ' + chosen().length + ' membre(s)'"
         [dirty]="dirty()"
@@ -128,12 +128,12 @@ interface Row {
         @if (loading()) {
           <p class="muted">Chargement…</p>
         } @else if (rows().length === 0) {
-          <p class="muted" role="status">Tous les membres actuels sont déjà inscrits à cette campagne.</p>
+          <p class="muted" role="status">Tous les membres actuels sont déjà inscrits à cette saison.</p>
         } @else {
           @if (preview()?.source; as source) {
             <p class="muted">Les membres déjà inscrits à « {{ source.name }} » sont cochés d’office, avec le même tarif lorsqu’il existe encore.</p>
           } @else {
-            <p class="muted">Aucune campagne précédente : choisissez vous-même les membres et leur tarif.</p>
+            <p class="muted">Aucune saison précédente : choisissez vous-même les membres et leur tarif.</p>
           }
           <p><button type="button" class="link" (click)="selectAll(true)">Tout cocher</button> · <button type="button" class="link" (click)="selectAll(false)">Tout décocher</button></p>
           <table class="table">

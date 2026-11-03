@@ -3,10 +3,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { PageHeader } from '../ui/page-header';
 
-/** Rubriques de « Membres et cotisations » : les personnes, puis les campagnes d'adhésion et les cotisations. */
+/** Rubriques de « Membres et cotisations » : les personnes, puis les saisons d'adhésion et les cotisations. */
 export const MEMBER_TABS = [
   { path: 'liste', label: 'Membres', icon: 'groups' },
-  { path: 'campagnes', label: 'Campagnes et cotisations', icon: 'event_repeat' },
+  { path: 'campagnes', label: 'Saisons et cotisations', icon: 'event_repeat' },
 ] as const;
 
 @Component({
@@ -17,7 +17,7 @@ export const MEMBER_TABS = [
     <app-page-header
       title="Membres et cotisations"
       icon="groups"
-      description="Les personnes de l'association, et ce qu'elles doivent et ont payé pour chaque campagne d'adhésion."
+      description="Les personnes de l'association, et ce qu'elles doivent et ont payé pour chaque saison d'adhésion."
     />
     <nav class="tabs" aria-label="Membres et cotisations">
       @for (tab of tabs; track tab.path) {

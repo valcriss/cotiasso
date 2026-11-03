@@ -27,7 +27,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
 const STATUS_LABELS = { PENDING: 'En attente', EFFECTIVE: 'Effective', CANCELLED: 'Annulée' } as const;
 const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_DATE: 'date de début', EXEMPTION: 'exonération' } as const;
 
-/** Campagnes d'adhésion, tarifs et adhésions des membres (ADR 0023). */
+/** Saisons d'adhésion, tarifs et adhésions des membres (ADR 0023). */
 @Component({
   selector: 'app-campaigns-page',
   imports: [FrDatePipe, MatButtonModule, MatIconModule, ActionBar],
@@ -41,12 +41,12 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
   `,
   template: `
     <app-action-bar
-      label="Actions des campagnes"
-      description="Une campagne est une période d'adhésion (par exemple d'un 29 septembre au 28 septembre suivant) avec ses tarifs. Chaque membre y a une adhésion : la cotisation attendue y est notée, sans rien comptabiliser tant qu'elle n'est pas payée."
+      label="Actions des saisons"
+      description="Une saison est une période d'adhésion (par exemple d'un 29 septembre au 28 septembre suivant) avec ses tarifs. Chaque membre y a une adhésion : la cotisation attendue y est notée, sans rien comptabiliser tant qu'elle n'est pas payée."
     >
       @if (canManage()) {
         <button mat-flat-button type="button" (click)="newCampaign()">
-          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Nouvelle campagne
+          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Nouvelle saison
         </button>
       }
     </app-action-bar>
@@ -59,8 +59,8 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
       <p class="muted">Chargement…</p>
     } @else if (campaigns().length === 0) {
       <section class="panel">
-        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">event_repeat</mat-icon><span>Aucune campagne</span></h3>
-        <p>Créez votre première campagne d'adhésion, ajoutez-y ses tarifs, puis inscrivez les membres.</p>
+        <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">event_repeat</mat-icon><span>Aucune saison</span></h3>
+        <p>Créez votre première saison d'adhésion, ajoutez-y ses tarifs, puis inscrivez les membres.</p>
       </section>
     } @else {
       <ul class="cards">
@@ -71,7 +71,7 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
               <div class="muted">Du {{ campaign.startsOn | frDate }} au {{ campaign.endsOn | frDate }} · {{ campaign.membershipCount }} adhésion(s)</div>
               <div class="muted">{{ modeLabel(campaign.effectiveMode) }}</div>
             </div>
-            <button mat-stroked-button type="button" [attr.aria-label]="'Ouvrir la campagne ' + campaign.name" (click)="open(campaign.id)">
+            <button mat-stroked-button type="button" [attr.aria-label]="'Ouvrir la saison ' + campaign.name" (click)="open(campaign.id)">
               {{ selectedId() === campaign.id ? 'Ouverte' : 'Ouvrir' }}
             </button>
           </li>
@@ -85,9 +85,9 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
           <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">sell</mat-icon><span>Tarifs — {{ campaign.name }}</span></h3>
           <div class="actions">
             @if (canManage()) {
-              <button mat-stroked-button type="button" (click)="editCampaign(campaign)">Modifier la campagne</button>
+              <button mat-stroked-button type="button" (click)="editCampaign(campaign)">Modifier la saison</button>
               <button mat-stroked-button type="button" [disabled]="campaign.tariffs.length === 0" (click)="renewCampaign(campaign)">
-                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">event_repeat</mat-icon> Préparer la campagne suivante
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">event_repeat</mat-icon> Préparer la saison suivante
               </button>
               <button mat-flat-button type="button" (click)="addTariff(campaign)">
                 <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Ajouter un tarif
@@ -149,7 +149,7 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
         @if (reminders(); as due) {
           <div class="reminders" aria-label="Cotisations restant dues">
             @if (due.items.length === 0) {
-              <p class="success" role="status">Toutes les cotisations de cette campagne sont réglées.</p>
+              <p class="success" role="status">Toutes les cotisations de cette saison sont réglées.</p>
             } @else {
               <p>
                 <strong>{{ due.items.length }}</strong> cotisation(s) restent à payer, pour un total de <strong>{{ amount(due.totalDue) }} €</strong>.
@@ -182,7 +182,7 @@ const ORIGIN_LABELS = { PAYMENT: 'règlement', VALIDATION: 'validation', START_D
           </div>
         }
         @if (memberships().length === 0) {
-          <p class="muted">Aucune adhésion pour cette campagne.</p>
+          <p class="muted">Aucune adhésion pour cette saison.</p>
         } @else {
           <table class="table">
             <caption class="sr-only">Adhésions</caption>
@@ -338,13 +338,13 @@ export class CampaignsPage {
     if (updated) await this.refresh();
   }
 
-  /** Copie les réglages et les tarifs d'une campagne dans la suivante, puis l'ouvre : il reste à y inscrire les membres. */
+  /** Copie les réglages et les tarifs d'une saison dans la suivante, puis l'ouvre : il reste à y inscrire les membres. */
   protected async renewCampaign(campaign: CampaignInfo): Promise<void> {
     const created = await this.dialogs.open<CampaignInfo, RenewCampaignDialogData>(RenewCampaignDialog, { size: 'md', data: { source: campaign } });
     if (!created) return;
     await this.reload();
     await this.open(created.id);
-    this.notifier.success(`Campagne « ${created.name} » créée avec ${created.tariffs.length} tarif(s). Vérifiez les tarifs, puis inscrivez-y les membres.`);
+    this.notifier.success(`Saison « ${created.name} » créée avec ${created.tariffs.length} tarif(s). Vérifiez les tarifs, puis inscrivez-y les membres.`);
   }
 
   /** Inscrit plusieurs membres d'un coup ; dit combien de cotisations sont créées et combien étaient déjà inscrits. */
@@ -359,7 +359,7 @@ export class CampaignsPage {
   protected async newCampaign(): Promise<void> {
     const created = await this.dialogs.open<CampaignInfo, CampaignDialogData>(CampaignDialog, { size: 'md', data: { campaign: null } });
     if (!created) return;
-    this.notifier.success(`Campagne « ${created.name} » créée : ajoutez-lui ses tarifs.`);
+    this.notifier.success(`Saison « ${created.name} » créée : ajoutez-lui ses tarifs.`);
     await this.reload();
     await this.open(created.id);
   }
@@ -367,7 +367,7 @@ export class CampaignsPage {
   protected async editCampaign(campaign: CampaignInfo): Promise<void> {
     const saved = await this.dialogs.open<CampaignInfo, CampaignDialogData>(CampaignDialog, { size: 'md', data: { campaign } });
     if (!saved) return;
-    this.notifier.success('Campagne enregistrée.');
+    this.notifier.success('Saison enregistrée.');
     await this.reload();
   }
 
@@ -382,7 +382,7 @@ export class CampaignsPage {
   protected async removeTariff(id: string, label: string): Promise<void> {
     const confirmed = await this.dialogs.confirm({
       title: `Retirer le tarif « ${label} » ?`,
-      message: 'Aucune adhésion ne l\'utilise : il disparaît simplement de la campagne.',
+      message: 'Aucune adhésion ne l\'utilise : il disparaît simplement de la saison.',
       confirmLabel: 'Retirer',
       danger: true,
     });
@@ -442,7 +442,7 @@ export class CampaignsPage {
     try {
       await this.reload();
     } catch (failure) {
-      this.error.set(describeHttpError(failure, 'Impossible de charger les campagnes.').message);
+      this.error.set(describeHttpError(failure, 'Impossible de charger les saisons.').message);
     } finally {
       this.loading.set(false);
     }

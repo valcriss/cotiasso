@@ -120,7 +120,7 @@ export const routes: Routes = [
         children: [
           { path: '', pathMatch: 'full', redirectTo: 'liste' },
           { path: 'liste', title: 'Membres', loadComponent: () => import('./members/members.page').then((m) => m.MembersPage) },
-          { path: 'campagnes', title: 'Campagnes', loadComponent: () => import('./members/campaigns.page').then((m) => m.CampaignsPage) },
+          { path: 'campagnes', title: 'Saisons', loadComponent: () => import('./members/campaigns.page').then((m) => m.CampaignsPage) },
         ],
       },
       {
