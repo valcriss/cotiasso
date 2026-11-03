@@ -89,7 +89,7 @@ describe('CampaignsPage', () => {
     await settle();
   };
   const openFirst = async (memberships: object[] = [membership()], c: object = campaign()) => {
-    await click('Ouvrir la campagne Adhésions 2025-2026');
+    await click('Ouvrir la saison Adhésions 2025-2026');
     controller.expectOne('/api/campaigns/c1/memberships').flush(memberships);
     await settle();
     return c;
@@ -106,24 +106,39 @@ describe('CampaignsPage', () => {
     controller.verify();
   });
 
-  it("guide l'utilisateur quand il n'y a aucune campagne", async () => {
+  it("guide l'utilisateur quand il n'y a aucune saison", async () => {
     await create(['members:view', 'members:manage'], []);
-    expect(root.textContent).toContain('Aucune campagne');
-    expect(root.textContent).toContain('Nouvelle campagne');
+    expect(root.textContent).toContain('Aucune saison');
+    expect(root.textContent).toContain('Nouvelle saison');
   });
 
-  it("liste les campagnes avec leurs dates et le mode d'adhésion effective, sans actions en lecture seule", async () => {
+  it("liste les saisons avec leurs dates et le mode d'adhésion effective, sans actions en lecture seule", async () => {
     await create(['members:view']);
     const text = root.textContent!;
     expect(text).toContain('Du 29/09/2025 au 28/09/2026');
     expect(text).toContain("À l'encaissement");
-    expect(text).not.toContain('Nouvelle campagne');
+    expect(text).not.toContain('Nouvelle saison');
   });
 
-  it("crée une campagne aux dates explicites avec le mode choisi", async () => {
+  it("range le mode d'adhésion effective sous « Options avancées », fermé par défaut et ouvert si le mode n'est pas le défaut (#19)", async () => {
+    await create(['members:view', 'members:manage'], [campaign({ id: 'c3', name: 'Par validation', effectiveMode: 'VALIDATION', locked: false, membershipCount: 0 })]);
+    await click('Nouvelle saison');
+    expect(ui.title).toBe('Nouvelle saison');
+    expect(ui.text).toContain('Par défaut, un membre est à jour dès que sa cotisation est payée');
+    expect(document.querySelector<HTMLDetailsElement>('.cdk-overlay-container details')!.open).toBe(false);
+    ui.closeAll();
+    await click('Ouvrir la saison Par validation');
+    controller.expectOne('/api/campaigns/c3/memberships').flush([]);
+    await settle();
+    await click('Modifier la saison');
+    expect(document.querySelector<HTMLDetailsElement>('.cdk-overlay-container details')?.open ?? true).toBe(true);
+    ui.closeAll();
+  });
+
+  it("crée une saison aux dates explicites avec le mode choisi", async () => {
     await create(['members:view', 'members:manage'], []);
-    await click('Nouvelle campagne');
-    expect(ui.title).toBe('Nouvelle campagne');
+    await click('Nouvelle saison');
+    expect(ui.title).toBe('Nouvelle saison');
     await ui.submit();
     expect(ui.error).toContain('Vérifiez les champs');
     await ui.type('input[formcontrolname="name"]', 'Adhésions 2026-2027');
@@ -142,14 +157,14 @@ describe('CampaignsPage', () => {
     expect(ui.snackbar).toContain('ajoutez-lui ses tarifs');
   });
 
-  it("explique un chevauchement de campagne refusé par le serveur", async () => {
+  it("explique un chevauchement de saison refusé par le serveur", async () => {
     await create(['members:view', 'members:manage'], []);
-    await click('Nouvelle campagne');
+    await click('Nouvelle saison');
     await ui.type('input[formcontrolname="name"]', 'Chevauche');
     await ui.type('input[formcontrolname="startsOn"]', '2026-01-01');
     await ui.type('input[formcontrolname="endsOn"]', '2026-12-31');
     await ui.submit();
-    controller.expectOne('/api/campaigns').flush({ message: 'Cette campagne chevauche une autre campagne : les périodes ne se recouvrent pas.' }, { status: 409, statusText: 'Conflict' });
+    controller.expectOne('/api/campaigns').flush({ message: 'Cette saison chevauche une autre saison : les périodes ne se recouvrent pas.' }, { status: 409, statusText: 'Conflict' });
     await settle();
     expect(ui.error).toContain('chevauche');
     expect(ui.isOpen).toBe(true);
@@ -203,7 +218,7 @@ describe('CampaignsPage', () => {
     expect(ui.snackbar).toContain('Adhésion de Dupont Marie enregistrée');
   });
 
-  it("n'affiche « Valider » que pour une adhésion en attente d'une campagne par validation, et valide", async () => {
+  it("n'affiche « Valider » que pour une adhésion en attente d'une saison par validation, et valide", async () => {
     await create(['members:view', 'members:manage'], [campaign({ effectiveMode: 'VALIDATION' })]);
     await openFirst();
     await click("Valider l'adhésion de Dupont Marie");
@@ -243,7 +258,7 @@ describe('CampaignsPage', () => {
     expect(text).toContain('Trop-perçu 20,00 €');
   });
 
-  describe('nouvelle campagne et inscriptions en masse (#21)', () => {
+  describe('nouvelle saison et inscriptions en masse (#21)', () => {
     const preview = (over: object = {}) => ({
       campaign: { id: 'c2', name: 'Adhésions 2026-2027' },
       source: { id: 'c1', name: 'Adhésions 2025-2026' },
@@ -259,11 +274,11 @@ describe('CampaignsPage', () => {
       ...over,
     });
 
-    it('prépare la campagne suivante avec des dates et un nom proposés, puis l\'ouvre', async () => {
+    it('prépare la saison suivante avec des dates et un nom proposés, puis l\'ouvre', async () => {
       await create(['members:view', 'members:manage']);
       await openFirst();
-      await click('Préparer la campagne suivante');
-      expect(ui.title).toBe('Préparer la campagne suivante');
+      await click('Préparer la saison suivante');
+      expect(ui.title).toBe('Préparer la saison suivante');
       expect(ui.text).toContain('2 tarif(s)');
       expect(ui.field<HTMLInputElement>('input[formcontrolname="name"]').value).toBe('Adhésions 2026-2027');
       expect(ui.field<HTMLInputElement>('input[formcontrolname="startsOn"]').value).toBe('2026-09-29');
@@ -277,15 +292,15 @@ describe('CampaignsPage', () => {
       await settle();
       controller.expectOne('/api/campaigns/c2/memberships').flush([]);
       await settle();
-      expect(ui.snackbar).toContain('Campagne « Adhésions 2026-2027 » créée avec 2 tarif(s)');
+      expect(ui.snackbar).toContain('Saison « Adhésions 2026-2027 » créée avec 2 tarif(s)');
     });
 
     it('explique le refus du serveur (dates qui se chevauchent) sans fermer la boîte', async () => {
       await create(['members:view', 'members:manage']);
       await openFirst();
-      await click('Préparer la campagne suivante');
+      await click('Préparer la saison suivante');
       await ui.submit();
-      controller.expectOne('/api/campaigns/c1/renew').flush({ message: 'Ces dates chevauchent une autre campagne.' }, { status: 409, statusText: 'Conflict' });
+      controller.expectOne('/api/campaigns/c1/renew').flush({ message: 'Ces dates chevauchent une autre saison.' }, { status: 409, statusText: 'Conflict' });
       await settle();
       expect(ui.isOpen).toBe(true);
       expect(ui.error).toContain('chevauchent');
@@ -293,13 +308,13 @@ describe('CampaignsPage', () => {
 
     it('propose les membres actuels, coche ceux de la dernière fois avec leur tarif, et annonce le total', async () => {
       await create(['members:view', 'members:manage'], [campaign({ id: 'c2', name: 'Adhésions 2026-2027', locked: false, membershipCount: 0 }), campaign()]);
-      await click('Ouvrir la campagne Adhésions 2026-2027');
+      await click('Ouvrir la saison Adhésions 2026-2027');
       controller.expectOne('/api/campaigns/c2/memberships').flush([]);
       await settle();
       await click('Inscrire plusieurs membres');
       controller.expectOne('/api/campaigns/c2/renewal-preview').flush(preview());
       await settle();
-      expect(ui.title).toBe('Inscrire les membres à cette campagne');
+      expect(ui.title).toBe('Inscrire les membres à cette saison');
       expect(ui.text).toContain('cochés d’office');
       expect(ui.text).toContain('Dupont Marie');
       expect(ui.text).toContain('pas inscrit la dernière fois');
@@ -310,7 +325,7 @@ describe('CampaignsPage', () => {
       await ui.submit();
       const request = controller.expectOne('/api/campaigns/c2/memberships/bulk');
       expect(request.request.body).toEqual({ items: [{ memberId: 'm1', tariffId: 'n1' }, { memberId: 'm2', tariffId: 'n2' }] });
-      request.flush({ created: 2, expectedTotal: '45.00', skipped: [{ memberId: 'm9', memberName: 'Test Dora', reason: 'Déjà inscrit à cette campagne.' }] });
+      request.flush({ created: 2, expectedTotal: '45.00', skipped: [{ memberId: 'm9', memberName: 'Test Dora', reason: 'Déjà inscrit à cette saison.' }] });
       await settle();
       controller.expectOne('/api/campaigns').flush([campaign({ id: 'c2', name: 'Adhésions 2026-2027', locked: true, membershipCount: 2 }), campaign()]);
       await settle();
@@ -322,7 +337,7 @@ describe('CampaignsPage', () => {
 
     it('refuse de valider tant qu\'un membre coché n\'a pas de tarif, et n\'envoie rien', async () => {
       await create(['members:view', 'members:manage'], [campaign({ id: 'c2', name: 'Adhésions 2026-2027', locked: false, membershipCount: 0 }), campaign()]);
-      await click('Ouvrir la campagne Adhésions 2026-2027');
+      await click('Ouvrir la saison Adhésions 2026-2027');
       controller.expectOne('/api/campaigns/c2/memberships').flush([]);
       await settle();
       await click('Inscrire plusieurs membres');
@@ -340,7 +355,7 @@ describe('CampaignsPage', () => {
 
     it('dit quand tous les membres sont déjà inscrits, et ne propose rien en lecture seule', async () => {
       await create(['members:view', 'members:manage'], [campaign({ id: 'c2', name: 'Adhésions 2026-2027', locked: true, membershipCount: 3 }), campaign()]);
-      await click('Ouvrir la campagne Adhésions 2026-2027');
+      await click('Ouvrir la saison Adhésions 2026-2027');
       controller.expectOne('/api/campaigns/c2/memberships').flush([]);
       await settle();
       await click('Inscrire plusieurs membres');
@@ -352,7 +367,7 @@ describe('CampaignsPage', () => {
     it('masque ces gestes sans le droit de gérer les membres', async () => {
       await create(['members:view']);
       await openFirst();
-      expect(root.textContent).not.toContain('Préparer la campagne suivante');
+      expect(root.textContent).not.toContain('Préparer la saison suivante');
       expect(root.textContent).not.toContain('Inscrire plusieurs membres');
     });
   });
@@ -429,7 +444,7 @@ describe('CampaignsPage', () => {
     await click('Cotisations restant dues');
     controller.expectOne('/api/campaigns/c1/reminders').flush({ campaignName: 'x', totalDue: '0.00', items: [] });
     await settle();
-    expect(root.textContent).toContain('Toutes les cotisations de cette campagne sont réglées');
+    expect(root.textContent).toContain('Toutes les cotisations de cette saison sont réglées');
   });
 
   describe('rattacher un règlement et l’enregistrer dans les comptes d’un même geste (ADR 0028)', () => {

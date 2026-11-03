@@ -32,7 +32,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
       description="Un récapitulatif simple de ce qui a été payé pour une adhésion. Imprimez-le ou enregistrez-le en PDF pour le remettre au membre."
     >
       <a mat-stroked-button routerLink="/membres/campagnes">
-        <mat-icon fontSet="material-icons-outlined" aria-hidden="true">arrow_back</mat-icon> Retour aux campagnes
+        <mat-icon fontSet="material-icons-outlined" aria-hidden="true">arrow_back</mat-icon> Retour aux saisons
       </a>
       @if (receipt()) {
         <button mat-flat-button type="button" (click)="print()">

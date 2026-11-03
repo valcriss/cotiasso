@@ -18,11 +18,12 @@ import { describeHttpError } from '../auth/error-messages';
 import { formatApiAmount } from './amount';
 import { ENTRY_STATUS_LABELS } from './entry-editor';
 import { FrDatePipe } from '../ui/fr-date.pipe';
+import { Skeleton } from '../ui/skeleton';
 
 /** Comptabilité : liste filtrée des écritures ; la saisie et la lecture d’une écriture ont leur page (`EntryPage`). */
 @Component({
   selector: 'app-entries-page',
-  imports: [FrDatePipe, ReactiveFormsModule, RouterLink, ActionBar, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule],
+  imports: [Skeleton, FrDatePipe, ReactiveFormsModule, RouterLink, ActionBar, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -80,7 +81,7 @@ import { FrDatePipe } from '../ui/fr-date.pipe';
     </form>
 
     @if (loading()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="table" />
     } @else if (entries().length === 0) {
       <p class="muted">Aucune écriture pour ces critères.@if (canCreate()) { Cliquez sur « Nouvelle écriture » pour noter votre première opération. }</p>
     } @else {

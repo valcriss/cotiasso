@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { nextCampaignName, shiftYear } from './renewal-dialogs';
 
-describe('campagne suivante : propositions de nom et de dates (#21)', () => {
+describe('saison suivante : propositions de nom et de dates (#21)', () => {
   it("fait avancer chaque année du nom d'un an, ou marque la suite", () => {
     expect(nextCampaignName('Adhésions 2025-2026')).toBe('Adhésions 2026-2027');
     expect(nextCampaignName('Saison 2026')).toBe('Saison 2027');

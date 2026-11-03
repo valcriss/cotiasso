@@ -18,11 +18,12 @@ import { ProjectDialog } from './project-dialog';
 import { ProjectGrants } from './project-grants';
 import { ProjectParticipants } from './project-participants';
 import { PROJECT_STATUS_LABELS } from './project-labels';
+import { Skeleton } from '../ui/skeleton';
 
 /** Projets : axe analytique des charges et produits, avec leur synthèse globale et annuelle. */
 @Component({
   selector: 'app-projects-page',
-  imports: [MatButtonModule, MatIconModule, PageHeader, LinkedDocuments, ProjectBudget, ProjectCommitments, ProjectGrants, ProjectParticipants, ProjectReport],
+  imports: [Skeleton, MatButtonModule, MatIconModule, PageHeader, LinkedDocuments, ProjectBudget, ProjectCommitments, ProjectGrants, ProjectParticipants, ProjectReport],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -52,7 +53,7 @@ import { PROJECT_STATUS_LABELS } from './project-labels';
     }
 
     @if (loading()) {
-      <p class="muted">Chargement…</p>
+      <app-skeleton variant="cards" />
     } @else {
       <table class="table">
         <caption class="sr-only">Projets</caption>

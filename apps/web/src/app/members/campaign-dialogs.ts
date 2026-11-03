@@ -18,19 +18,19 @@ export const MODE_LABELS: Record<MembershipModeInfo, string> = {
 };
 
 export interface CampaignDialogData {
-  /** Campagne à modifier, ou `null` pour en créer une. */
+  /** Saison à modifier, ou `null` pour en créer une. */
   campaign: CampaignInfo | null;
 }
 
-/** Création et modification d'une campagne d'adhésion. Renvoie la campagne enregistrée. */
+/** Création et modification d'une saison d'adhésion. Renvoie la saison enregistrée. */
 @Component({
   selector: 'app-campaign-dialog',
   imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
-        [title]="campaign ? 'Modifier la campagne' : 'Nouvelle campagne'"
-        description="Une campagne est la période pendant laquelle les adhésions sont valables (par exemple du 29 septembre au 28 septembre de l'année suivante). Les dates sont saisies telles quelles : elles ne sont jamais recalculées."
+        [title]="campaign ? 'Modifier la saison' : 'Nouvelle saison'"
+        description="Une saison est la période pendant laquelle les adhésions sont valables (par exemple du 29 septembre au 28 septembre de l'année suivante). Vous choisissez vous-même les dates de début et de fin."
         [dirty]="form.dirty"
         [busy]="busy()"
         [error]="error()"
@@ -39,7 +39,7 @@ export interface CampaignDialogData {
           <mat-label>Nom</mat-label>
           <input matInput formControlName="name" placeholder="Adhésions 2025-2026" required />
           @if (form.controls.name.hasError('required') || form.controls.name.hasError('minlength')) {
-            <mat-error>Donnez un nom d'au moins 3 caractères à la campagne.</mat-error>
+            <mat-error>Donnez un nom d'au moins 3 caractères à la saison.</mat-error>
           }
         </mat-form-field>
         @if (campaign?.locked) {
@@ -55,15 +55,19 @@ export interface CampaignDialogData {
               <input matInput type="date" formControlName="endsOn" required />
             </mat-form-field>
           </div>
-          <mat-form-field appearance="outline">
-            <mat-label>Quand une adhésion devient-elle effective ?</mat-label>
-            <mat-select formControlName="effectiveMode">
-              @for (mode of modes; track mode) {
-                <mat-option [value]="mode">{{ label(mode) }}</mat-option>
-              }
-            </mat-select>
-            <mat-hint>Ce choix est figé dès la première adhésion de la campagne.</mat-hint>
-          </mat-form-field>
+          <p class="muted">Par défaut, un membre est à jour dès que sa cotisation est payée : c'est le bon choix dans la plupart des cas.</p>
+          <details [open]="form.controls.effectiveMode.value !== 'PAYMENT'">
+            <summary>Options avancées : quand une adhésion devient-elle effective ?</summary>
+            <mat-form-field appearance="outline">
+              <mat-label>Quand une adhésion devient-elle effective ?</mat-label>
+              <mat-select formControlName="effectiveMode">
+                @for (mode of modes; track mode) {
+                  <mat-option [value]="mode">{{ label(mode) }}</mat-option>
+                }
+              </mat-select>
+              <mat-hint>Ce choix est figé dès la première adhésion de la saison.</mat-hint>
+            </mat-form-field>
+          </details>
         }
       </app-form-dialog>
     </form>
@@ -102,7 +106,7 @@ export class CampaignDialog {
           : await this.api.createCampaign({ name: raw.name.trim(), startsOn: raw.startsOn, endsOn: raw.endsOn, effectiveMode: raw.effectiveMode }),
       );
     } catch (failure) {
-      this.error.set(describeHttpError(failure, "La campagne n'a pas pu être enregistrée. Réessayez dans un instant.").message);
+      this.error.set(describeHttpError(failure, "La saison n'a pas pu être enregistrée. Réessayez dans un instant.").message);
     } finally {
       this.busy.set(false);
     }
@@ -115,7 +119,7 @@ export interface TariffDialogData {
   categories: MemberCategoryInfo[];
 }
 
-/** Ajout et modification d'un tarif de campagne. Renvoie la campagne mise à jour. */
+/** Ajout et modification d'un tarif de saison. Renvoie la saison mise à jour. */
 @Component({
   selector: 'app-tariff-dialog',
   imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
@@ -200,7 +204,7 @@ export interface MembershipDialogData {
   members: MemberInfo[];
 }
 
-/** Inscription d'un membre à une campagne. Renvoie l'adhésion créée. */
+/** Inscription d'un membre à une saison. Renvoie l'adhésion créée. */
 @Component({
   selector: 'app-membership-dialog',
   imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatInputModule, MatSelectModule],
@@ -208,7 +212,7 @@ export interface MembershipDialogData {
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
         title="Nouvelle adhésion"
-        description="Inscrivez un membre à la campagne avec son tarif. La cotisation attendue est notée, mais rien n'est comptabilisé tant qu'un règlement n'est pas enregistré."
+        description="Inscrivez un membre à la saison avec son tarif. La cotisation attendue est notée, mais rien n'est comptabilisé tant qu'un règlement n'est pas enregistré."
         submitLabel="Enregistrer l'adhésion"
         [dirty]="form.dirty"
         [busy]="busy()"
@@ -230,7 +234,7 @@ export interface MembershipDialogData {
             }
           </mat-select>
           @if (data.campaign.tariffs.length === 0) {
-            <mat-hint>Ajoutez d'abord un tarif à la campagne.</mat-hint>
+            <mat-hint>Ajoutez d'abord un tarif à la saison.</mat-hint>
           }
         </mat-form-field>
         <div class="row">
@@ -309,7 +313,7 @@ export interface CancelMembershipDialogData {
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
         [title]="'Annuler l\\'adhésion de ' + data.membership.memberName + ' ?'"
-        description="L'adhésion est conservée dans l'historique avec votre motif, mais elle ne compte plus. Le membre pourra adhérer de nouveau à cette campagne."
+        description="L'adhésion est conservée dans l'historique avec votre motif, mais elle ne compte plus. Le membre pourra adhérer de nouveau à cette saison."
         submitLabel="Annuler l'adhésion"
         [dirty]="form.dirty"
         [busy]="busy()"

@@ -1670,12 +1670,12 @@ export class AdminApiService {
     return firstValueFrom(this.http.delete<CampaignInfo>(`/api/tariffs/${id}`));
   }
 
-  /** Prépare la campagne suivante : mêmes réglages et tarifs, nouvelles dates, aucune adhésion. */
+  /** Prépare la saison suivante : mêmes réglages et tarifs, nouvelles dates, aucune adhésion. */
   renewCampaign(campaignId: string, body: { name: string; startsOn: string; endsOn: string }): Promise<CampaignInfo> {
     return firstValueFrom(this.http.post<CampaignInfo>(`/api/campaigns/${campaignId}/renew`, body));
   }
 
-  /** Membres à renouveler dans une campagne, avec un tarif proposé (lecture seule). */
+  /** Membres à renouveler dans une saison, avec un tarif proposé (lecture seule). */
   renewalPreview(campaignId: string): Promise<RenewalPreviewInfo> {
     return firstValueFrom(this.http.get<RenewalPreviewInfo>(`/api/campaigns/${campaignId}/renewal-preview`));
   }

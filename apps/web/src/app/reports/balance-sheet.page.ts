@@ -9,11 +9,12 @@ import { NoPeriod } from '../ui/no-period';
 import { ExportLink } from './export-link';
 import { StatementPageBase } from './statement-page';
 import { StatementGroups } from './statements';
+import { Skeleton } from '../ui/skeleton';
 
 /** Bilan : ce que l'association possède (actif) et d'où ça vient (passif), à la fin de l'exercice. */
 @Component({
   selector: 'app-balance-sheet-page',
-  imports: [NoPeriod, MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink, StatementGroups],
+  imports: [Skeleton, NoPeriod, MatFormFieldModule, MatIconModule, MatSelectModule, ActionBar, ExportLink, StatementGroups],
   styleUrl: '../admin/admin-pages.scss',
   template: `
     <app-action-bar
@@ -41,7 +42,7 @@ import { StatementGroups } from './statements';
       <p class="alert" role="alert">{{ message }}</p>
     }
     @if (loading()) {
-      <p class="muted">Calcul en cours…</p>
+      <app-skeleton variant="table" />
     } @else if (years().length === 0) {
       <app-no-period />
     } @else if (data(); as sheet) {
