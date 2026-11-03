@@ -6,6 +6,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type AccountInfo, type CommitmentInfo, type EntryCandidateInfo, type ProjectInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
+import { todayLocalIso } from '../ui/dates';
 import { FormDialog } from '../ui/form-dialog';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from './amount';
 
@@ -96,7 +97,7 @@ export class CommitmentDialog {
         },
       ],
     ],
-    committedOn: [this.data.commitment?.committedOn ?? new Date().toISOString().slice(0, 10), [Validators.required]],
+    committedOn: [this.data.commitment?.committedOn ?? todayLocalIso(), [Validators.required]],
     accountId: [this.data.commitment?.accountId ?? ''],
     note: [this.data.commitment?.note ?? ''],
   });

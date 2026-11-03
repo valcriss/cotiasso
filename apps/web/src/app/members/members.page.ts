@@ -8,6 +8,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type MemberCategoryInfo, type MemberInfo, type MemberOfficeInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
+import { todayLocalIso } from '../ui/dates';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { ActionBar } from '../ui/action-bar';
@@ -354,7 +355,7 @@ export class MembersPage {
     const member = this.selected()?.member;
     if (!member) return;
     await this.run(async () => {
-      await this.api.updateMemberOffice(office.id, { endsOn: new Date().toISOString().slice(0, 10) });
+      await this.api.updateMemberOffice(office.id, { endsOn: todayLocalIso() });
       this.notifier.success(`Fonction « ${office.title} » terminée.`);
       await this.search();
       await this.open(member.id);

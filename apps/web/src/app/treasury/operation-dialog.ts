@@ -8,6 +8,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { AdminApiService, type FinancialAccountInfo, type GuidedOperationResult, type OperationCategoryInfo, type ProjectInfo } from '../admin/admin-api.service';
 import { centsToApi, formatCents, parseAmountToCents } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
+import { todayLocalIso } from '../ui/dates';
 import { FormDialog } from '../ui/form-dialog';
 
 export interface OperationDialogData {
@@ -180,7 +181,7 @@ export class OperationDialog {
   protected readonly form = this.fb.group({
     accountId: [this.data.accountId ?? (this.data.accounts.length === 1 ? this.data.accounts[0]!.id : ''), [Validators.required]],
     amount: [''],
-    date: [new Date().toISOString().slice(0, 10)],
+    date: [todayLocalIso()],
     categoryId: ['', [Validators.required]],
     label: ['', [Validators.required]],
     projectId: [''],
