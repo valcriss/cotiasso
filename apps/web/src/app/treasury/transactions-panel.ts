@@ -104,6 +104,12 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
       display: flex;
       gap: 4px;
     }
+    .clip {
+      font-size: 16px;
+      height: 16px;
+      vertical-align: text-bottom;
+      width: 16px;
+    }
     .hint-banner {
       align-items: center;
       background: var(--app-surface-variant, var(--mat-sys-surface-container));
@@ -294,6 +300,9 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
                 <td class="date">{{ item.operationDate | frDate }}</td>
                 <td>
                   {{ item.label }}
+                  @if (item.hasDocument) {
+                    <mat-icon class="clip" fontSet="material-icons-outlined" aria-hidden="true">attach_file</mat-icon><span class="sr-only">Pièce jointe</span>
+                  }
                   @if (item.bankIdentified) {
                     <span class="chip">{{ item.origin === 'IMPORT' ? (simple() ? 'Venue de la banque' : 'Importée') : (simple() ? 'Reliée à la banque' : 'Rapprochée du relevé') }}</span>
                   }

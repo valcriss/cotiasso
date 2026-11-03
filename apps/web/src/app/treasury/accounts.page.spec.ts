@@ -561,6 +561,15 @@ describe('AccountsPage', () => {
       expect(text).not.toContain('Rapprocher');
     });
 
+    it('signale par un trombone (lu à voix haute « Pièce jointe ») le mouvement qui a un justificatif (#30)', async () => {
+      await openSimple([transaction({ id: 't1', label: 'Avec facture', hasDocument: true }), transaction({ id: 't2', label: 'Sans facture', hasDocument: false })]);
+      const rows = Array.from(root.querySelectorAll('tbody tr'));
+      expect(rows[0]!.querySelector('.clip')).not.toBeNull();
+      expect(rows[0]!.textContent).toContain('Pièce jointe');
+      expect(rows[1]!.querySelector('.clip')).toBeNull();
+      expect(rows[1]!.textContent).not.toContain('Pièce jointe');
+    });
+
     describe('actions de ligne et bandeau (#26)', () => {
       const rowButtons = (index: number) => Array.from(root.querySelectorAll('tbody tr')[index]!.querySelectorAll('button, a')).map((b) => b.textContent!.trim());
       const menuItems = () => Array.from(document.querySelectorAll('.cdk-overlay-container [role="menuitem"]')).map((b) => b.textContent!.trim());

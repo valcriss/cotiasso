@@ -5,6 +5,7 @@ import { Money } from "@cotiasso/accounting-domain";
 import { AccountingConflictError, AccountingNotFoundError } from "../accounting/errors.js";
 import { parse } from "../accounting/schemas.js";
 import { AuditService } from "../audit/audit.service.js";
+import { DocumentsService, type Viewer } from "../documents/documents.service.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { buildSuggester, type ClassifiedSample, type Suggestion } from "./classification-suggestions.js";
 import { signedAmount } from "./financial-accounts.service.js";
@@ -116,6 +117,8 @@ export interface TransactionView {
    * jamais appliquée seule (voir `acceptSuggestions`).
    */
   suggestion?: TransactionSuggestion | null;
+  /** Un document visible par le lecteur est lié à ce mouvement (liste seulement, et seulement avec le droit de lire les documents). */
+  hasDocument?: boolean;
 }
 
 export interface TransactionSuggestion extends Pick<Suggestion, "counterpartAccountId" | "projectId" | "basedOn" | "matches"> {
@@ -202,9 +205,10 @@ export class TransactionsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(DocumentsService) private readonly documents: DocumentsService,
   ) {}
 
-  async list(accountId: string, query: unknown): Promise<{ transactions: TransactionView[]; next: string | null }> {
+  async list(accountId: string, query: unknown, documentViewer?: Viewer): Promise<{ transactions: TransactionView[]; next: string | null }> {
     const q = parse(listQuery, query);
     await this.assertAccount(accountId);
     const rows = await this.prisma.transaction.findMany({
@@ -247,8 +251,10 @@ export class TransactionsService {
     });
     const page = rows.slice(0, q.limit);
     const suggestions = await this.suggestionsFor(accountId, page);
+    // Indicateur « pièce jointe » : seulement pour qui peut lire les documents, et seulement ceux qu'il pourrait ouvrir.
+    const withDocument = documentViewer ? await this.documents.linkedObjectIds("transaction", page.map((t) => t.id), documentViewer) : null;
     return {
-      transactions: page.map((t) => ({ ...view(t), suggestion: suggestions.get(t.id) ?? null })),
+      transactions: page.map((t) => ({ ...view(t), suggestion: suggestions.get(t.id) ?? null, ...(withDocument && { hasDocument: withDocument.has(t.id) }) })),
       next: rows.length > q.limit ? page[page.length - 1]!.id : null,
     };
   }

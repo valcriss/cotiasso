@@ -427,6 +427,8 @@ export interface TransactionInfo {
   version: number;
   /** Proposition de classement (ADR 0019 amendé) : seulement dans la liste, jamais appliquée seule. */
   suggestion?: TransactionSuggestionInfo | null;
+  /** Un document visible est lié au mouvement (liste seulement, avec le droit de lire les documents). */
+  hasDocument?: boolean;
 }
 
 export interface TransactionSuggestionInfo {
