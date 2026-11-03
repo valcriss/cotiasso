@@ -37,6 +37,8 @@ export interface ManagedUser {
 export interface PermissionInfo {
   key: string;
   label: string;
+  /** Droit à confier avec soin (sécurité, comptes définitifs, export de toutes les données). */
+  sensitive?: boolean;
 }
 
 /** Lien à usage unique à transmettre à l'utilisateur ; n'est montré qu'une seule fois. */
