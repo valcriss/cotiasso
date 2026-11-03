@@ -17,11 +17,12 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { formatApiAmount } from './amount';
 import { ENTRY_STATUS_LABELS } from './entry-editor';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 /** Comptabilité : liste filtrée des écritures ; la saisie et la lecture d’une écriture ont leur page (`EntryPage`). */
 @Component({
   selector: 'app-entries-page',
-  imports: [ReactiveFormsModule, RouterLink, ActionBar, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule],
+  imports: [FrDatePipe, ReactiveFormsModule, RouterLink, ActionBar, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -99,7 +100,7 @@ import { ENTRY_STATUS_LABELS } from './entry-editor';
         <tbody>
           @for (entry of entries(); track entry.id) {
             <tr>
-              <td>{{ entry.date }}</td>
+              <td>{{ entry.date | frDate }}</td>
               <td>{{ entry.journalCode }}</td>
               <td>{{ entry.number ?? '—' }}</td>
               <td>{{ entry.label }}</td>

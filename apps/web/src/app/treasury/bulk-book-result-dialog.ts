@@ -3,6 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import type { BulkBookInfo } from '../admin/admin-api.service';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 export interface BulkBookResultData {
   result: BulkBookInfo;
@@ -14,7 +15,7 @@ export interface BulkBookResultData {
  */
 @Component({
   selector: 'app-bulk-book-result-dialog',
-  imports: [MatDialogModule, MatButtonModule, MatIconModule],
+  imports: [FrDatePipe, MatDialogModule, MatButtonModule, MatIconModule],
   styles: `
     .summary {
       margin: 0 0 12px;
@@ -58,7 +59,7 @@ export interface BulkBookResultData {
         <ul class="ignored" aria-label="Mouvements non enregistrés">
           @for (item of data.result.ignored; track item.transactionId) {
             <li>
-              <strong>{{ item.label }}</strong> <span class="muted">· {{ item.date }}</span>
+              <strong>{{ item.label }}</strong> <span class="muted">· {{ item.date | frDate }}</span>
               <div>{{ item.reason }}</div>
             </li>
           }

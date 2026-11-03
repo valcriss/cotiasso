@@ -7,6 +7,7 @@ import { AdminApiService, type EntryCandidateInfo, type TransactionInfo } from '
 import { formatApiAmount } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 export interface LinkEntryDialogData {
   transaction: TransactionInfo;
@@ -15,7 +16,7 @@ export interface LinkEntryDialogData {
 /** Associe une transaction à une écriture déjà saisie dont la ligne de banque a le même montant. Renvoie la transaction mise à jour. */
 @Component({
   selector: 'app-link-entry-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatSelectModule],
+  imports: [FrDatePipe, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -40,7 +41,7 @@ export interface LinkEntryDialogData {
             <mat-select formControlName="entryId" required>
               @for (candidate of candidates(); track candidate.id) {
                 <mat-option [value]="candidate.id">
-                  {{ candidate.date }} · {{ candidate.label }} ·
+                  {{ candidate.date | frDate }} · {{ candidate.label }} ·
                   {{ candidate.status === 'POSTED' ? candidate.journalCode + ' n° ' + candidate.number : 'brouillon' }}
                 </mat-option>
               }

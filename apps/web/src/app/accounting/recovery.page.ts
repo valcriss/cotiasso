@@ -24,6 +24,7 @@ import {
   type OpeningDialogData,
   type PrepareDialogData,
 } from './recovery-dialogs';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 const STATUS_LABELS = { OPEN: 'En préparation', COMPLETED: 'Terminé', ABANDONED: 'Abandonné' } as const;
 const ENTRY_STATUS = { DRAFT: 'Brouillon', POSTED: 'Comptabilisée', REVERSED: 'Contrepassée' } as const;
@@ -36,7 +37,7 @@ type Report = { kind: 'prepare'; data: PrepareReportInfo } | { kind: 'post'; dat
  */
 @Component({
   selector: 'app-recovery-page',
-  imports: [MatButtonModule, MatIconModule, RouterLink, ActionBar],
+  imports: [FrDatePipe, MatButtonModule, MatIconModule, RouterLink, ActionBar],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -148,7 +149,7 @@ type Report = { kind: 'prepare'; data: PrepareReportInfo } | { kind: 'post'; dat
             @if (current.data.skipped.length > 0) {
               <ul>
                 @for (skipped of current.data.skipped; track skipped.transactionId) {
-                  <li>{{ skipped.date }} · {{ skipped.label }} ({{ amount(skipped.amount) }} €) — {{ skipped.message }}</li>
+                  <li>{{ skipped.date | frDate }} · {{ skipped.label }} ({{ amount(skipped.amount) }} €) — {{ skipped.message }}</li>
                 }
               </ul>
             }
@@ -166,7 +167,7 @@ type Report = { kind: 'prepare'; data: PrepareReportInfo } | { kind: 'post'; dat
               <ul>
                 @for (failed of current.data.failed; track failed.entryId) {
                   <li>
-                    {{ failed.date }} · {{ failed.label }} — {{ failed.messages.join(' ') }}
+                    {{ failed.date | frDate }} · {{ failed.label }} — {{ failed.messages.join(' ') }}
                     <a [routerLink]="['/comptabilite/ecritures', failed.entryId]">Ouvrir l'écriture</a>
                   </li>
                 }
@@ -196,7 +197,7 @@ type Report = { kind: 'prepare'; data: PrepareReportInfo } | { kind: 'post'; dat
             <tbody>
               @for (item of lot.items; track item.entryId) {
                 <tr>
-                  <td>{{ item.date }}</td>
+                  <td>{{ item.date | frDate }}</td>
                   <td>
                     {{ item.label }}
                     @if (item.kind === 'OPENING') {

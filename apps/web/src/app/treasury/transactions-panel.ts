@@ -28,11 +28,12 @@ import { BulkBookResultDialog, type BulkBookResultData } from './bulk-book-resul
 import { LinkEntryDialog, type LinkEntryDialogData } from './link-entry-dialog';
 import { QualifyDialog, type QualifyDialogData } from './qualify-dialog';
 import { TransactionDialog, type TransactionDialogData, type TransactionDialogResult } from './transaction-dialog';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 /** Transactions d'un compte : liste filtrable, saisie (boîte de dialogue) et accès à l'import d'un relevé. */
 @Component({
   selector: 'app-transactions-panel',
-  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [FrDatePipe, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -172,7 +173,7 @@ import { TransactionDialog, type TransactionDialogData, type TransactionDialogRe
                     />
                   </td>
                 }
-                <td class="date">{{ item.operationDate }}</td>
+                <td class="date">{{ item.operationDate | frDate }}</td>
                 <td>
                   {{ item.label }}
                   @if (item.bankIdentified) {

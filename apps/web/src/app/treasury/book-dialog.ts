@@ -8,6 +8,7 @@ import { AdminApiService, type FinancialAccountInfo, type GuidedOperationResult,
 import { formatApiAmount } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { FormDialog } from '../ui/form-dialog';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 export interface BookDialogData {
   transaction: TransactionInfo;
@@ -23,7 +24,7 @@ export interface BookDialogData {
  */
 @Component({
   selector: 'app-book-dialog',
-  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatSelectModule],
+  imports: [FrDatePipe, ReactiveFormsModule, FormDialog, MatFormFieldModule, MatSelectModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" novalidate>
       <app-form-dialog
@@ -37,7 +38,7 @@ export interface BookDialogData {
       >
         <p class="summary">
           <strong>{{ data.transaction.label }}</strong><br />
-          <span class="muted">{{ data.transaction.operationDate }} · {{ amount(data.transaction.amount) }} € · {{ data.account.name }}</span>
+          <span class="muted">{{ data.transaction.operationDate | frDate }} · {{ amount(data.transaction.amount) }} € · {{ data.account.name }}</span>
         </p>
         <mat-form-field appearance="outline">
           <mat-label>{{ incoming ? 'D’où vient cet argent ?' : 'À quoi a servi cet argent ?' }}</mat-label>

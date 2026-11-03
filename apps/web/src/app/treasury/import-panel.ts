@@ -15,6 +15,7 @@ import { formatApiAmount } from '../accounting/amount';
 import { describeHttpError } from '../auth/error-messages';
 import { AuthService } from '../auth/auth.service';
 import { Notifier } from '../ui/notifier.service';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 const STATUS_LABELS: Record<ImportLineInfo['status'], string> = {
   NEW: 'Nouvelle',
@@ -33,7 +34,7 @@ const LINK = 'LINK:';
  */
 @Component({
   selector: 'app-import-panel',
-  imports: [FormsModule, MatButtonModule, MatCheckboxModule, MatIconModule],
+  imports: [FrDatePipe, FormsModule, MatButtonModule, MatCheckboxModule, MatIconModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -80,7 +81,7 @@ const LINK = 'LINK:';
         <p class="muted">
           {{ b.fileName }} · {{ b.format === 'XML' ? 'OFX 2.x' : 'OFX 1.x' }}
           @if (b.periodStart && b.periodEnd) {
-            · du {{ b.periodStart }} au {{ b.periodEnd }}
+            · du {{ b.periodStart | frDate }} au {{ b.periodEnd | frDate }}
           }
           @if (b.accountHint) {
             · compte se terminant par {{ b.accountHint }}
@@ -116,7 +117,7 @@ const LINK = 'LINK:';
           <tbody>
             @for (line of b.lines; track line.id) {
               <tr>
-                <td>{{ line.operationDate ?? '—' }}</td>
+                <td>{{ (line.operationDate | frDate) || '—' }}</td>
                 <td>
                   {{ line.label || '—' }}
                   @if (line.reference) {
@@ -143,7 +144,7 @@ const LINK = 'LINK:';
                         <option value="">— Choisir —</option>
                         @for (candidate of line.candidates; track candidate.transactionId) {
                           <option [value]="link + candidate.transactionId">
-                            Rattacher à « {{ candidate.label }} » ({{ candidate.operationDate }})
+                            Rattacher à « {{ candidate.label }} » ({{ candidate.operationDate | frDate }})
                           </option>
                         }
                         <option value="CREATE">Paiement distinct : créer quand même</option>
@@ -166,7 +167,7 @@ const LINK = 'LINK:';
         @if (b.ledgerBalance) {
           <mat-checkbox [checked]="recordStatement()" (change)="recordStatement.set($event.checked)">
             Enregistrer aussi le solde du relevé ({{ amount(b.ledgerBalance) }} €@if (b.ledgerBalanceDate) {
-              au {{ b.ledgerBalanceDate }}
+              au {{ b.ledgerBalanceDate | frDate }}
             })
           </mat-checkbox>
           <p class="muted">Une preuve datée : elle mesure l'écart avec le solde calculé, elle ne {{ simple() ? 'vérifie pas' : 'rapproche pas' }} le compte.</p>

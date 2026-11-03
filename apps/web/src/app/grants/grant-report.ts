@@ -4,6 +4,8 @@ import { formatApiAmount } from '../accounting/amount';
 import { AdminApiService, type GrantInfo, type GrantReportInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
 import { ExportLink } from '../reports/export-link';
+import { formatDate } from '../ui/dates';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 /**
  * Compte rendu pour le financeur : dépenses affectées regroupées par poste, versements reçus et reliquat, sur une période.
@@ -12,7 +14,7 @@ import { ExportLink } from '../reports/export-link';
  */
 @Component({
   selector: 'app-grant-report',
-  imports: [ExportLink, MatIconModule],
+  imports: [FrDatePipe, ExportLink, MatIconModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -157,7 +159,7 @@ import { ExportLink } from '../reports/export-link';
           <tbody>
             @for (payment of data.payments; track $index) {
               <tr>
-                <td>{{ payment.operationDate }}</td>
+                <td>{{ payment.operationDate | frDate }}</td>
                 <td class="amount">{{ amount(payment.amount) }}</td>
               </tr>
             } @empty {
@@ -208,7 +210,7 @@ export class GrantReport {
 
   protected financed(data: GrantReportInfo): string {
     const { periodStart, periodEnd } = data.grant;
-    return periodStart || periodEnd ? `du ${periodStart ?? '…'} au ${periodEnd ?? '…'}` : 'non précisée';
+    return periodStart || periodEnd ? `du ${periodStart ? formatDate(periodStart) : '…'} au ${periodEnd ? formatDate(periodEnd) : '…'}` : 'non précisée';
   }
 
   protected setFrom(value: string): void {

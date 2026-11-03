@@ -22,11 +22,12 @@ import { FinancialAccountDialog, type AccountDialogData } from './account-dialog
 import { TransferDialog, type TransferDialogData } from './transfer-dialog';
 import { StatementDialog, type StatementDialogData } from './statement-dialog';
 import { TransactionsPanel } from './transactions-panel';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 /** Comptes : banques et caisses avec leurs soldes (ouverture, calculé, comptable, relevé) et leurs transactions. */
 @Component({
   selector: 'app-accounts-page',
-  imports: [MatButtonModule, MatIconModule, RouterLink, PageHeader, TransactionsPanel],
+  imports: [FrDatePipe, MatButtonModule, MatIconModule, RouterLink, PageHeader, TransactionsPanel],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .accounts {
@@ -138,7 +139,7 @@ import { TransactionsPanel } from './transactions-panel';
                 <dt>Vérifié avec la banque</dt>
                 <dd>
                   @if (account.balances.reconciled; as reconciled) {
-                    Oui, au {{ reconciled.periodEnd }}
+                    Oui, au {{ reconciled.periodEnd | frDate }}
                   } @else {
                     <span class="muted">Pas encore vérifié</span>
                   }
@@ -147,10 +148,10 @@ import { TransactionsPanel } from './transactions-panel';
               <details>
                 <summary>Détails du solde</summary>
                 <dl class="balances">
-                  <dt>Au départ ({{ account.openedOn }})</dt>
+                  <dt>Au départ ({{ account.openedOn | frDate }})</dt>
                   <dd>{{ amount(account.balances.opening) }}</dd>
                   @if (account.balances.lastStatement; as statement) {
-                    <dt>Solde du relevé au {{ statement.periodEnd }}</dt>
+                    <dt>Solde du relevé au {{ statement.periodEnd | frDate }}</dt>
                     <dd>{{ amount(statement.closingBalance) }}</dd>
                     <dt>Écart entre le relevé et vos comptes</dt>
                     <dd [class.danger-text]="statement.gap !== '0.00'">{{ amount(statement.gap) }}</dd>
@@ -159,20 +160,20 @@ import { TransactionsPanel } from './transactions-panel';
               </details>
             } @else {
               <dl class="balances">
-                <dt>Ouverture ({{ account.openedOn }})</dt>
+                <dt>Ouverture ({{ account.openedOn | frDate }})</dt>
                 <dd>{{ amount(account.balances.opening) }}</dd>
                 <dt>Solde comptable (écritures)</dt>
                 <dd>{{ amount(account.balances.accounting) }}</dd>
                 <dt>Rapprochement</dt>
                 <dd>
                   @if (account.balances.reconciled; as reconciled) {
-                    Rapproché au {{ reconciled.periodEnd }}
+                    Rapproché au {{ reconciled.periodEnd | frDate }}
                   } @else {
                     <span class="muted">Pas encore rapproché</span>
                   }
                 </dd>
                 @if (account.balances.lastStatement; as statement) {
-                  <dt>Relevé au {{ statement.periodEnd }}</dt>
+                  <dt>Relevé au {{ statement.periodEnd | frDate }}</dt>
                   <dd>{{ amount(statement.closingBalance) }}</dd>
                   <dt>Écart relevé − calculé</dt>
                   <dd [class.danger-text]="statement.gap !== '0.00'">{{ amount(statement.gap) }}</dd>

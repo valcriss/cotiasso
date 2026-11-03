@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { AdminApiService, type ProjectInfo, type ProjectStatus, type ProjectSummaryInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
+import { formatDate } from '../ui/dates';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { PageHeader } from '../ui/page-header';
@@ -208,7 +209,7 @@ export class ProjectsPage {
 
   protected period(project: ProjectInfo): string {
     if (!project.startDate && !project.endDate) return '—';
-    return `${project.startDate ?? '…'} → ${project.endDate ?? '…'}`;
+    return `${project.startDate ? formatDate(project.startDate) : '…'} → ${project.endDate ? formatDate(project.endDate) : '…'}`;
   }
 
   protected async create(): Promise<void> {

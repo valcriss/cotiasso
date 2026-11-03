@@ -126,7 +126,7 @@ describe('AccountsPage', () => {
     expect(text).toContain('BQ-1');
     expect(text).toContain('969,50');
     expect(text).toContain('Solde comptable (écritures)');
-    expect(text).toContain('Relevé au 2026-03-31');
+    expect(text).toContain('Relevé au 31/03/2026');
     expect(text).toContain('-19,50');
     // Un relevé enregistré n'est pas un rapprochement : tant qu'aucun n'est validé, le compte n'est pas dit rapproché.
     expect(text).toContain('Pas encore rapproché');
@@ -149,7 +149,7 @@ describe('AccountsPage', () => {
   it("indique « rapproché » seulement pour un rapprochement validé, et propose d'en commencer un", async () => {
     const validated = account({ balances: { ...account().balances, reconciled: { periodEnd: '2026-03-31', closingBalance: '950.00' } } });
     await create(['financial-accounts:view', 'imports:post'], [validated]);
-    expect(root.textContent).toContain('Rapproché au 2026-03-31');
+    expect(root.textContent).toContain('Rapproché au 31/03/2026');
     const link = Array.from(root.querySelectorAll<HTMLAnchorElement>('a')).find((a) => a.textContent!.includes('Rapprocher'));
     expect(link?.getAttribute('href')).toBe('/comptes/f1/rapprochement');
   });

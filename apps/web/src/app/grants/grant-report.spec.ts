@@ -109,7 +109,7 @@ describe('GrantReport', () => {
       ['606 — Achats', '2', '350,00'],
       ['607 — Fournitures', '1', '120,00'],
     ]);
-    expect(rows(1)).toEqual([['2026-05-10', '400,00']]);
+    expect(rows(1)).toEqual([['10/05/2026', '400,00']]);
     expect(root.querySelector('tfoot')!.textContent).toContain('Total des dépenses affectées');
   });
 

@@ -8,6 +8,7 @@ import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { formatApiAmount } from './amount';
 import { CommitmentCancelDialog, CommitmentDialog, CommitmentSettleDialog } from './commitment-dialogs';
+import { FrDatePipe } from '../ui/fr-date.pipe';
 
 const STATE_LABELS: Record<CommitmentState, string> = {
   OPEN: 'Promis',
@@ -22,7 +23,7 @@ const STATE_LABELS: Record<CommitmentState, string> = {
  */
 @Component({
   selector: 'app-project-commitments',
-  imports: [MatButtonModule, MatIconModule],
+  imports: [FrDatePipe, MatButtonModule, MatIconModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -80,7 +81,7 @@ const STATE_LABELS: Record<CommitmentState, string> = {
           <tbody>
             @for (commitment of commitments(); track commitment.id) {
               <tr>
-                <td>{{ commitment.committedOn }}</td>
+                <td>{{ commitment.committedOn | frDate }}</td>
                 <td>
                   {{ commitment.label }}
                   @if (commitment.accountNumber) {
@@ -94,7 +95,7 @@ const STATE_LABELS: Record<CommitmentState, string> = {
                 <td>
                   <span class="chip">{{ stateLabel(commitment.state) }}</span>
                   @if (commitment.state === 'SETTLED' && commitment.settledEntry; as entry) {
-                    <span class="note">Écriture {{ entry.journalCode }}{{ entry.number === null ? '' : ' n° ' + entry.number }} du {{ entry.date }}</span>
+                    <span class="note">Écriture {{ entry.journalCode }}{{ entry.number === null ? '' : ' n° ' + entry.number }} du {{ entry.date | frDate }}</span>
                   }
                   @if (commitment.state === 'REOPENED') {
                     <span class="note">L'écriture qui le soldait a été annulée : il compte de nouveau comme promis.</span>

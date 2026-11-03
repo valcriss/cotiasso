@@ -9,6 +9,7 @@ import { describeHttpError } from '../auth/error-messages';
 import { todayLocalIso } from '../ui/dates';
 import { FormDialog } from '../ui/form-dialog';
 import { centsToApi, formatApiAmount, formatCents, parseAmountToCents } from './amount';
+import { formatDate } from '../ui/dates';
 
 export interface CommitmentDialogData {
   project: ProjectInfo;
@@ -211,7 +212,7 @@ export class CommitmentSettleDialog {
 
   protected label(candidate: EntryCandidateInfo): string {
     const number = candidate.number === null ? '' : ` n° ${candidate.number}`;
-    return `${candidate.journalCode}${number} · ${candidate.date} · ${candidate.label} — ${formatApiAmount(candidate.projectAmount)} € sur ce projet`;
+    return `${candidate.journalCode}${number} · ${formatDate(candidate.date)} · ${candidate.label} — ${formatApiAmount(candidate.projectAmount)} € sur ce projet`;
   }
 
   protected async save(): Promise<void> {
