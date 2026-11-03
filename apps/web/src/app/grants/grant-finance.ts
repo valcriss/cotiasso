@@ -207,6 +207,8 @@ export class GrantFinance {
   readonly canManage = input(false);
   /** Émis quand un versement ou une échéance change : la liste des subventions se recharge. */
   readonly changed = output<void>();
+  /** Le suivi vient d'être (re)chargé : la frise d'avancement de la page s'en sert, sans le redemander au serveur. */
+  readonly loaded = output<GrantFinanceInfo>();
 
   protected readonly finance = signal<GrantFinanceInfo | null>(null);
   protected readonly loading = signal(true);
@@ -290,7 +292,9 @@ export class GrantFinance {
   private async load(grantId: string): Promise<void> {
     this.error.set(null);
     try {
-      this.finance.set(await this.api.grantFinance(grantId));
+      const finance = await this.api.grantFinance(grantId);
+      this.finance.set(finance);
+      this.loaded.emit(finance);
     } catch (failure) {
       this.error.set(describeHttpError(failure, "Impossible de charger l'échéancier et les versements.").message);
     } finally {
