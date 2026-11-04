@@ -111,7 +111,7 @@ import { formatDate } from '../ui/dates';
                 }
                 @if (canApprove()) {
                   <button mat-flat-button type="button" [disabled]="budget.lineCount === 0" (click)="approve(budget)">
-                    <mat-icon fontSet="material-icons-outlined" aria-hidden="true">check</mat-icon> Approuver
+                    <mat-icon fontSet="material-icons-outlined" aria-hidden="true">check</mat-icon> Approuver (figer le budget)
                   </button>
                 }
               }
@@ -126,8 +126,16 @@ import { formatDate } from '../ui/dates';
                 Version remplacée, conservée pour l'historique.
               }
             </p>
-          } @else if (budget.lineCount === 0) {
-            <p class="muted">Ce budget est vide. @if (canPrepare()) { Cliquez sur « Modifier les lignes » pour ajouter des dépenses et des recettes. }</p>
+          } @else {
+            @if (!canApprove()) {
+              <p class="muted">
+                Ce budget est un brouillon : il n'est pas encore en vigueur. Il est figé quand une personne qui a le droit « Approuver un
+                budget de projet » (par défaut, un membre du bureau) l'approuve ; vous pouvez continuer à le préparer en attendant.
+              </p>
+            }
+            @if (budget.lineCount === 0) {
+              <p class="muted">Ce budget est vide. @if (canPrepare()) { Cliquez sur « Modifier les lignes » pour ajouter des dépenses et des recettes. }</p>
+            }
           }
           @if (budget.lines.length > 0) {
             <table class="table">

@@ -28,6 +28,71 @@ Chaque page explique à quoi elle sert, chaque terme comptable est expliqué à 
 
 ---
 
+## Aperçu
+
+Les captures montrent l'affichage **Simple** sur une association fictive (« Les Jardins partagés ») : toutes les données sont inventées. **Cliquez sur une vignette pour l'agrandir.**
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Vue d'ensemble</b><br>
+      <a href="docs/images/vue-d-ensemble.png"><img src="docs/images/vue-d-ensemble.png" alt="Vue d'ensemble : argent disponible, reçu et dépensé du mois, dernières opérations"></a><br>
+      <sub>L'argent disponible, ce qui est entré et sorti ce mois-ci, les dernières opérations et ce qu'il reste à faire.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <b>Saisir en mots courants</b><br>
+      <a href="docs/images/saisie-operation.png"><img src="docs/images/saisie-operation.png" alt="Boîte « J'ai reçu de l'argent »"></a><br>
+      <sub>Une seule boîte pour « J'ai reçu » ou « J'ai dépensé de l'argent », avec catégorie, projet et justificatif. L'écriture comptable est générée par le logiciel.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Comptes et mouvements</b><br>
+      <a href="docs/images/comptes.png"><img src="docs/images/comptes.png" alt="Compte courant et liste des mouvements"></a><br>
+      <sub>Le solde, la situation de chaque mouvement (à classer, enregistré, vérifié avec la banque) et l'import du relevé de la banque.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <b>Membres</b><br>
+      <a href="docs/images/membres.png"><img src="docs/images/membres.png" alt="Liste des membres avec situation de cotisation"></a><br>
+      <sub>Le fichier des membres, leur catégorie et leur situation de cotisation : à jour ou en retard.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Saisons et cotisations</b><br>
+      <a href="docs/images/cotisations.png"><img src="docs/images/cotisations.png" alt="Saison d'adhésion : tarifs, adhésions payées et reste dû"></a><br>
+      <sub>Les tarifs d'une saison, ce que chacun a payé, ce qu'il reste dû, les règlements et les rappels.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <b>Projets et budget</b><br>
+      <a href="docs/images/projet-fete.png"><img src="docs/images/projet-fete.png" alt="Projet : synthèse et suivi du budget"></a><br>
+      <sub>La synthèse d'un projet et son suivi du budget : prévu, engagé, dépensé, reste disponible.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Subventions</b><br>
+      <a href="docs/images/subvention.png"><img src="docs/images/subvention.png" alt="Subvention : étapes, échéancier et versements"></a><br>
+      <sub>Les étapes d'une subvention, son échéancier, les versements reçus et les dépenses affectées pour le compte rendu au financeur.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <b>Compte de résultat</b><br>
+      <a href="docs/images/compte-de-resultat.png"><img src="docs/images/compte-de-resultat.png" alt="Compte de résultat de l'exercice"></a><br>
+      <sub>Ce que l'association a reçu et dépensé sur l'exercice, calculé à partir des opérations enregistrées (le bilan et la trésorerie suivent).</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Affichage comptable</b><br>
+      <a href="docs/images/comptabilite-ecritures.png"><img src="docs/images/comptabilite-ecritures.png" alt="Affichage comptable : liste des écritures"></a><br>
+      <sub>Pour l'expert-comptable : écritures numérotées, grand livre, balance et livre-journal.</sub>
+    </td>
+    <td width="50%"></td>
+  </tr>
+</table>
+
+---
+
 ## Ce que l'on peut faire
 
 ### Démarrer sans se perdre
