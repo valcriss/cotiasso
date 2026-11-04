@@ -87,9 +87,9 @@ import { fullLink } from './password-link';
             @if (canAdmin() && expanded() === user.id) {
               <tr class="detail">
                 <td colspan="4">
-                  <div class="detail-actions">
+                  <div class="detail-actions with-fields">
                     @if (projects().length > 0 && user.status === 'ACTIVE') {
-                      <mat-form-field appearance="outline" class="inline">
+                      <mat-form-field appearance="outline" class="inline" subscriptSizing="dynamic">
                         <mat-label>Portée du rôle ajouté</mat-label>
                         <mat-select [value]="scope()" (selectionChange)="scope.set($event.value)">
                           <mat-option value="">Toute l'association</mat-option>
@@ -101,7 +101,7 @@ import { fullLink } from './password-link';
                       </mat-form-field>
                     }
                     @if (availableRoles(user).length > 0 && user.status === 'ACTIVE') {
-                      <mat-form-field appearance="outline" class="inline">
+                      <mat-form-field appearance="outline" class="inline" subscriptSizing="dynamic">
                         <mat-label>Ajouter un rôle</mat-label>
                         <mat-select (selectionChange)="addRole(user, $event.value)">
                           @for (role of availableRoles(user); track role.id) {

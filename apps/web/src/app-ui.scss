@@ -474,6 +474,18 @@ mat-form-field[subscriptsizing='dynamic'],
   --mat-button-text-container-height: var(--mat-form-field-container-height, 40px);
 }
 
+// Rangée de champs et de boutons (ex. gérer un utilisateur) : tout est aligné sur le haut des champs, l'aide d'un champ
+// descend sous lui sans décaler les autres, et les boutons ont la hauteur des champs.
+.detail-actions.with-fields {
+  align-items: flex-start;
+
+  > :where(.mat-mdc-button-base) {
+    --mat-button-filled-container-height: var(--mat-form-field-container-height, 40px);
+    --mat-button-outlined-container-height: var(--mat-form-field-container-height, 40px);
+    --mat-button-text-container-height: var(--mat-form-field-container-height, 40px);
+  }
+}
+
 // Champ de date : l'icône du calendrier ne colle pas au bord droit du champ.
 app-date-field .mat-mdc-form-field-icon-suffix {
   padding-right: 8px;

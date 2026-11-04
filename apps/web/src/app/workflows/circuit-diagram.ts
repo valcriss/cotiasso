@@ -19,21 +19,28 @@ interface Box {
   selector: 'app-circuit-diagram',
   imports: [MatIconModule],
   styles: `
+    :host {
+      display: block;
+      margin-bottom: 16px;
+    }
+    /* Grille à lignes de même hauteur : toutes les étapes ont la même taille, même quand le schéma passe à la ligne. */
     ol {
-      align-items: stretch;
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
       gap: 6px;
+      grid-auto-rows: 1fr;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
       list-style: none;
       margin: 0;
       padding: 0;
     }
     li {
-      align-items: center;
+      align-items: stretch;
       display: flex;
-      flex: 1 1 170px;
       gap: 6px;
       min-width: 0;
+    }
+    .arrow {
+      align-self: center;
     }
     .box {
       background: var(--app-surface-muted);
