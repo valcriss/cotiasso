@@ -6,7 +6,13 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
-## Non publié
+## 1.0.10 — 2026-11-04
+
+### Nouveautés
+
+- Paramètres › Exploitation › Envoi d’emails : le champ d’adresse de l’email d’essai a la même hauteur que le bouton voisin.
+- Attribution des droits d’un rôle : les droits sur les comptes de connexion des membres et sur les remboursements de frais s’affichent en français et dans leur rubrique (ils apparaissaient sous un nom technique, dans « Autres »).
+- Journal d’audit : les actions sur les documents et l’enregistrement des mouvements ont un libellé en français, et les types d’objets (« Compte bancaire ou caisse », « Écriture »…) remplacent les noms techniques dans le filtre et le tableau.
 
 ### Exploitation
 
