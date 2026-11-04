@@ -24,6 +24,8 @@ const ACTION_LABELS: Record<string, string> = {
   'settings.updated': 'Paramètres modifiés',
   'user.mail.sent': 'Email d’accès envoyé',
   'user.mail.failed': 'Envoi de l’email d’accès échoué',
+  'mail.test.sent': 'Email d’essai envoyé',
+  'mail.test.failed': 'Envoi de l’email d’essai échoué',
   'branding.logo.updated': 'Logo de l’association modifié',
   'branding.logo.removed': 'Logo de l’association retiré',
   'branding.logo.display-changed': 'Affichage du logo modifié',

@@ -144,6 +144,18 @@ describe("Exploitation : état des sauvegardes (base vierge)", () => {
     await cp(join(FIXTURES, "offsite.json"), join(dir, "offsite.json"));
   });
 
+  it("indique que l'envoi d'emails n'est pas configuré et refuse l'essai sans rien envoyer", async () => {
+    const session = await userWith("technical-admin");
+    const report = (await get("/operations", session)).json();
+    expect(report.mail).toEqual({ configured: false });
+
+    const login = await app.inject({ method: "POST", url: "/auth/login", payload: { email: "admin@asso.test", password: PASSWORD }, remoteAddress: "198.51.100.9" });
+    const admin = { cookie: String(login.headers["set-cookie"]).split(";")[0]!, csrf: login.json().csrfToken as string };
+    const test = await app.inject({ method: "POST", url: "/operations/test-email", headers: { cookie: admin.cookie, "x-csrf-token": admin.csrf } });
+    expect(test.statusCode).toBe(200);
+    expect(test.json()).toEqual({ status: "NOT_CONFIGURED" });
+  });
+
   it("signale une archive disparue alors que son manifeste existe", async () => {
     await rm(join(dir, "cotiasso-20261101T165255Z.tar.enc"));
     const report = (await get("/operations", await userWith("technical-admin"))).json();

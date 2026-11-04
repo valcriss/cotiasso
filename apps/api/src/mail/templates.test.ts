@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatExpiry, renderInvitationEmail, renderNotificationEmail, renderResetEmail, type EmailContext, type NotificationTemplate } from "./templates.js";
+import { formatExpiry, renderInvitationEmail, renderNotificationEmail, renderResetEmail, renderTestEmail, type EmailContext, type NotificationTemplate } from "./templates.js";
 
 const base: EmailContext = {
   associationName: "Club des amis",
@@ -100,6 +100,18 @@ describe("email de réinitialisation", () => {
       expect(body).toContain("votre mot de passe actuel reste valable");
     }
     expect(mail.html).toContain("Choisir un nouveau mot de passe");
+  });
+});
+
+describe("email d'essai", () => {
+  const mail = renderTestEmail({ associationName: "Club des amis", recipientName: "Sam Martin", link: "https://compta.asso.fr", accentColor: "#7a1f4d", logo: null, showName: true });
+
+  it("dit que c'est un essai, nomme l'association et ne porte aucun lien secret", () => {
+    expect(mail.subject).toBe("Essai d’envoi d’emails de Club des amis sur Cotiasso");
+    expect(mail.text).toContain("Bonjour Sam Martin,");
+    expect(mail.text).toContain("https://compta.asso.fr");
+    expect(mail.text).not.toContain("#token");
+    expect(mail.html).toContain("Club des amis");
   });
 });
 

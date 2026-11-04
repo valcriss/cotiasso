@@ -1,10 +1,15 @@
-import { Controller, Get, Inject } from "@nestjs/common";
+import { Controller, Get, HttpCode, Inject, Post, Req } from "@nestjs/common";
 import { RequirePermission } from "../authz/decorators.js";
+import type { AuthenticatedRequest } from "../auth/auth.guard.js";
+import { AccountMailService, type TestMailOutcome } from "../mail/account-mail.service.js";
 import { BackupsService, type OperationsReport, type ReleaseNotesReport } from "./backups.service.js";
 
 @Controller("operations")
 export class OperationsController {
-  constructor(@Inject(BackupsService) private readonly backups: BackupsService) {}
+  constructor(
+    @Inject(BackupsService) private readonly backups: BackupsService,
+    @Inject(AccountMailService) private readonly mails: AccountMailService,
+  ) {}
 
   /** Version déployée et état des sauvegardes : réservé à l'administration de l'exploitation. */
   @RequirePermission("backups:admin")
@@ -18,5 +23,13 @@ export class OperationsController {
   @Get("release-notes")
   releaseNotes(): Promise<ReleaseNotesReport> {
     return this.backups.releaseNotes();
+  }
+
+  /** Essai d'envoi d'email, adressé à la personne connectée seulement. Le résultat dit si l'envoi a réussi, jamais une erreur HTTP. */
+  @RequirePermission("backups:admin")
+  @Post("test-email")
+  @HttpCode(200)
+  testEmail(@Req() request: AuthenticatedRequest): Promise<TestMailOutcome> {
+    return this.mails.sendTest(request.auth!.user.id);
   }
 }

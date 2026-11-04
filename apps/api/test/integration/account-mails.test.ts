@@ -150,6 +150,27 @@ describe("Emails d'invitation et de réinitialisation (base vierge)", () => {
     expect(events.at(-1)!.details).toEqual({ kind: "invitation" });
   });
 
+  it("envoie un essai à la seule personne connectée, sans lien secret, et en explique l'échec", async () => {
+    const report = await call("GET", "/operations", admin);
+    expect(report.json().mail).toEqual({ configured: true, host: "smtp.asso.test", port: 587, secure: false, from: "no-reply@asso.test", authenticated: false });
+    expect(JSON.stringify(report.json().mail)).not.toMatch(/password|pass"/i);
+
+    const sent = await call("POST", "/operations/test-email", admin, {});
+    expect(sent.statusCode, sent.body).toBe(200);
+    expect(sent.json()).toEqual({ status: "SENT", to: "admin@asso.test" });
+    expect(transport.sent).toHaveLength(1);
+    expect(transport.sent[0]!.to).toBe("admin@asso.test");
+    expect(String(transport.sent[0]!.text)).not.toContain("#token=");
+
+    transport.failWith = Object.assign(new Error("connexion refusée"), { code: "ECONNREFUSED" });
+    const failed = await call("POST", "/operations/test-email", admin, {});
+    expect(failed.statusCode).toBe(200);
+    expect(failed.json()).toEqual({ status: "FAILED", to: "admin@asso.test", detail: "ECONNREFUSED : connexion refusée" });
+
+    const events = await prisma.auditEvent.findMany({ where: { action: { in: ["mail.test.sent", "mail.test.failed"] } }, orderBy: { seq: "asc" } });
+    expect(events.map((e) => e.action)).toEqual(["mail.test.sent", "mail.test.failed"]);
+  });
+
   it("intègre le logo PNG de l'association, mais pas un SVG (le nom est alors montré en texte)", async () => {
     const logos = app.get(BrandLogoService);
     await logos.set(png(64, 64), adminId);

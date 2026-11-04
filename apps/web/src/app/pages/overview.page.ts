@@ -1,4 +1,3 @@
-import { AsyncPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -7,7 +6,6 @@ import { AdminApiService, type OverviewInfo, type RecentOperationInfo, type Todo
 import { formatEuroAmount } from '../accounting/amount';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
-import { HealthService } from '../health.service';
 import { OperationLauncher } from '../treasury/operation-launcher';
 import { SetupStatus } from './setup-status.service';
 import { FrDatePipe } from '../ui/fr-date.pipe';
@@ -31,7 +29,7 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
  */
 @Component({
   selector: 'app-overview-page',
-  imports: [Skeleton, HelpHint, FrDatePipe, AsyncPipe, MatButtonModule, MatIconModule, RouterLink, PageHeader],
+  imports: [Skeleton, HelpHint, FrDatePipe, MatButtonModule, MatIconModule, RouterLink, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .figures {
@@ -156,12 +154,6 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
       padding: 0;
       list-style: none;
     }
-    .health {
-      align-items: center;
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-    }
   `,
   template: `
     <app-page-header
@@ -271,26 +263,6 @@ const LEVEL_ICONS: Record<TodoItemInfo['level'], string> = { TODO: 'radio_button
       <app-skeleton variant="cards" />
     }
 
-    <p class="health muted">
-      @switch (status$ | async) {
-        @case ('up') {
-          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">check_circle</mat-icon>
-          <span>Serveur et base de données opérationnels</span>
-        }
-        @case ('degraded') {
-          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">warning</mat-icon>
-          <span>Serveur joignable, base de données indisponible</span>
-        }
-        @case ('unreachable') {
-          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">error</mat-icon>
-          <span>Serveur injoignable</span>
-        }
-        @default {
-          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">hourglass_empty</mat-icon>
-          <span>Vérification en cours…</span>
-        }
-      }
-    </p>
   `,
 })
 export class OverviewPage {
@@ -299,7 +271,6 @@ export class OverviewPage {
   private readonly launcher = inject(OperationLauncher);
   private readonly setupStatus = inject(SetupStatus);
 
-  protected readonly status$ = inject(HealthService).check();
   protected readonly overview = signal<OverviewInfo | null>(null);
   protected readonly error = signal<string | null>(null);
 

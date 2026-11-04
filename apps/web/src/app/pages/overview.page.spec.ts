@@ -35,7 +35,6 @@ describe('OverviewPage', () => {
     root = fixture.nativeElement as HTMLElement;
     await settle();
     controller.expectOne('/api/overview').flush(body);
-    controller.match('/api/health').forEach((r) => r.flush({ status: 'ok' }));
     await settle();
   };
 
@@ -156,7 +155,6 @@ describe('OverviewPage', () => {
     root = fixture.nativeElement as HTMLElement;
     await settle();
     controller.expectOne('/api/overview').flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
-    controller.match('/api/health').forEach((r) => r.flush({ status: 'ok' }));
     await settle();
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('vue d\'ensemble');
   });

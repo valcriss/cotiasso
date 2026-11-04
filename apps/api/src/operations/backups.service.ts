@@ -65,7 +65,13 @@ export interface OperationsReport {
   };
   /** Copie hors site des archives chiffrées ; « NONE » tant qu'elle n'est pas configurée. */
   offsite: { report: OffsiteHealthReport; status: OffsiteStatusFile | null };
+  /** Envoi d'emails : seulement ce qui se lit sans risque (jamais d'identifiant ni de mot de passe). */
+  mail: MailConfigReport;
 }
+
+export type MailConfigReport =
+  | { configured: false }
+  | { configured: true; host: string; port: number; secure: boolean; from: string; authenticated: boolean };
 
 export interface ReleaseNotesReport {
   version: string;
@@ -85,6 +91,7 @@ export class BackupsService {
         version: this.env.appVersion,
         backups: { configured: false, report: null, status: null, entries: [] },
         offsite: { status: null, report: evaluateOffsiteHealth(null, 24, now) },
+        mail: this.mailConfig(),
       };
     }
 
@@ -100,7 +107,14 @@ export class BackupsService {
         report: evaluateBackupHealth(status, entries.filter((e) => e.archivePresent).length, now),
       },
       offsite: { status: offsiteStatus, report: evaluateOffsiteHealth(offsiteStatus, status?.intervalHours ?? 24, now) },
+      mail: this.mailConfig(),
     };
+  }
+
+  private mailConfig(): MailConfigReport {
+    const smtp = this.env.smtp;
+    if (!smtp) return { configured: false };
+    return { configured: true, host: smtp.host, port: smtp.port, secure: smtp.secure, from: smtp.from, authenticated: smtp.user !== null };
   }
 
   /** Notes de version du fichier CHANGELOG.md livré avec l'image ; vide si le fichier est absent ou illisible. */

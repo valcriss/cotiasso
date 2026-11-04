@@ -7,12 +7,18 @@ import { PrismaService } from "../prisma/prisma.service.js";
 import { BrandLogoService } from "../settings/brand-logo.service.js";
 import { SettingsService } from "../settings/settings.service.js";
 import { MailService } from "./mail.service.js";
-import { renderInvitationEmail, renderResetEmail, type EmailContext, type MailLogo } from "./templates.js";
+import { renderInvitationEmail, renderResetEmail, renderTestEmail, type EmailContext, type MailLogo } from "./templates.js";
 
 /** Ce que l'administrateur doit savoir de l'envoi : réussi, échoué (il transmet alors le lien lui-même) ou non configuré. */
 export type MailOutcome =
   | { status: "SENT"; to: string }
   | { status: "FAILED"; to: string }
+  | { status: "NOT_CONFIGURED" };
+
+/** Résultat d'un essai d'envoi : l'administrateur voit s'il a réussi et, sinon, ce que répond le serveur de messagerie. */
+export type TestMailOutcome =
+  | { status: "SENT"; to: string }
+  | { status: "FAILED"; to: string; detail: string }
   | { status: "NOT_CONFIGURED" };
 
 /**
@@ -68,6 +74,38 @@ export class AccountMailService {
     }
     await this.audit.record({ action: "user.mail.sent", objectType: "User", objectId: userId, actorId, details: { kind } });
     return { status: "SENT", to: recipient.email };
+  }
+
+  /**
+   * Essai d'envoi, toujours adressé à la personne qui le demande (jamais à une adresse saisie : l'écran ne peut pas servir de relais).
+   * Ne lève jamais d'erreur ; `detail` reprend le code et le message du serveur de messagerie, sans aucun secret.
+   */
+  async sendTest(actorId: string): Promise<TestMailOutcome> {
+    const smtp = this.env.smtp;
+    if (!smtp || !this.mail.enabled) return { status: "NOT_CONFIGURED" };
+    const actor = await this.prisma.user.findUnique({ where: { id: actorId }, select: { email: true, displayName: true } });
+    if (!actor) return { status: "NOT_CONFIGURED" };
+
+    try {
+      const [identity, branding, logoState] = await Promise.all([this.settings.current("identity"), this.settings.current("branding"), this.logos.state()]);
+      const associationName = String(identity.name);
+      const email = renderTestEmail({
+        associationName,
+        recipientName: actor.displayName,
+        link: smtp.publicUrl,
+        accentColor: String(branding.accentColor),
+        logo: await this.rasterLogo(),
+        showName: logoState.showName,
+      });
+      await this.mail.send({ from: { address: smtp.from, name: associationName }, to: actor.email, email });
+    } catch (error) {
+      await this.audit.record({ action: "mail.test.failed", objectType: "Mail", actorId, details: {} });
+      const code = error instanceof Error ? ((error as { code?: string }).code ?? error.name) : "erreur inconnue";
+      const message = error instanceof Error ? error.message : "";
+      return { status: "FAILED", to: actor.email, detail: `${code}${message ? ` : ${message}` : ""}`.replace(/\s+/g, " ").slice(0, 300) };
+    }
+    await this.audit.record({ action: "mail.test.sent", objectType: "Mail", actorId, details: {} });
+    return { status: "SENT", to: actor.email };
   }
 
   /** Le logo n'est intégré que s'il s'affiche partout : PNG ou JPEG (un SVG est remplacé par le nom de l'association). */

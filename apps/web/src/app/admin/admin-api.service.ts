@@ -1369,7 +1369,10 @@ export interface OperationsInfo {
     report: { health: 'OK' | 'FAILING' | 'STALE' | 'PENDING' | 'NONE'; message: string; ageHours: number | null };
     status: { lastAttemptAt: string | null; lastSuccessAt: string | null; lastError: string | null; target: string } | null;
   };
+  mail: { configured: false } | { configured: true; host: string; port: number; secure: boolean; from: string; authenticated: boolean };
 }
+
+export type TestMailResult = { status: 'SENT'; to: string } | { status: 'FAILED'; to: string; detail: string } | { status: 'NOT_CONFIGURED' };
 
 export interface ReleaseNotesInfo {
   version: string;
@@ -2222,6 +2225,11 @@ export class AdminApiService {
 
   operations(): Promise<OperationsInfo> {
     return firstValueFrom(this.http.get<OperationsInfo>('/api/operations'));
+  }
+
+  /** Envoie un email d'essai à la personne connectée ; le résultat dit si l'envoi a réussi (jamais une erreur pour un échec SMTP). */
+  testEmail(): Promise<TestMailResult> {
+    return firstValueFrom(this.http.post<TestMailResult>('/api/operations/test-email', {}));
   }
 
   releaseNotes(): Promise<ReleaseNotesInfo> {
