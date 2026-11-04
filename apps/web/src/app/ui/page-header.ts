@@ -91,6 +91,7 @@ import { MatIconModule } from '@angular/material/icon';
     /* Petit écran : les boutons se rangent en deux colonnes (règles des boutons dans app-ui.scss) au lieu de s'empiler un par ligne. */
     @media (max-width: 600px) {
       .actions {
+        align-items: stretch;
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         padding: 12px;

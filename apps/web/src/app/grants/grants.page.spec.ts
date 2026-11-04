@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { mockAuth } from '../testing/auth-mock';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { GrantsPage } from './grants.page';
@@ -53,8 +54,10 @@ const projects = [
 
 describe('GrantsPage', () => {
   let controller: HttpTestingController;
-  let fixture: ReturnType<typeof TestBed.createComponent<GrantsPage>>;
-  let root: HTMLElement;
+  let harness: RouterTestingHarness;
+  const fixture = { detectChanges: () => harness.fixture.detectChanges(), whenStable: () => harness.fixture.whenStable() };
+  /** La page courante : la liste et le détail d'une subvention sont deux adresses, donc deux instances. */
+  const root = () => harness.routeNativeElement as HTMLElement;
   let ui: DialogTester;
 
   const settle = async () => {
@@ -66,11 +69,20 @@ describe('GrantsPage', () => {
   const create = async (permissions: string[], grants: unknown[], funders?: unknown[]) => {
     await TestBed.configureTestingModule({
       imports: [GrantsPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
+      providers: [
+        provideRouter([
+          { path: 'subventions', component: GrantsPage },
+          { path: 'subventions/:id', component: GrantsPage },
+        ]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        mockAuth(permissions),
+        NO_MATERIAL_ANIMATIONS,
+      ],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
-    fixture = TestBed.createComponent(GrantsPage);
-    root = fixture.nativeElement as HTMLElement;
+    harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/subventions', GrantsPage);
     ui = new DialogTester(settle);
     await settle();
     controller.expectOne('/api/grants').flush(grants);
@@ -80,16 +92,17 @@ describe('GrantsPage', () => {
       await settle();
     }
   };
-  /** Recharge après une action : la liste, les financeurs puis, si une subvention est ouverte, son détail. */
+  /** Recharge après une action : la liste et les financeurs, ou, sur la page d'une subvention (`detail`), son seul détail. */
   const reload = async (grants: unknown[], funders: unknown[] | undefined, detail?: unknown) => {
     await settle();
-    controller.expectOne('/api/grants').flush(grants);
-    await settle();
-    if (funders !== undefined) {
-      controller.expectOne('/api/funders').flush(funders);
+    if (!detail) {
+      controller.expectOne('/api/grants').flush(grants);
       await settle();
-    }
-    if (detail) {
+      if (funders !== undefined) {
+        controller.expectOne('/api/funders').flush(funders);
+        await settle();
+      }
+    } else {
       controller.expectOne(`/api/grants/${(detail as { id: string }).id}`).flush(detail);
       await settle();
       if (['GRANTED', 'CLOSED'].includes((detail as { status: string }).status)) await flushFinance((detail as { id: string }).id);
@@ -136,16 +149,16 @@ describe('GrantsPage', () => {
     await settle();
   };
   const click = async (label: string) => {
-    const button = Array.from(root.querySelectorAll('button')).find(
+    const button = Array.from(root().querySelectorAll('button, a')).find(
       (b) => b.textContent!.trim().includes(label) || b.getAttribute('aria-label')?.includes(label),
     );
     expect(button, label).toBeTruthy();
-    button!.click();
+    (button as HTMLElement).click();
     await settle();
   };
-  const buttons = () => Array.from(root.querySelectorAll('button')).map((b) => b.textContent!.replace(/\s+/g, ' ').trim());
+  const buttons = () => Array.from(root().querySelectorAll('button')).map((b) => b.textContent!.replace(/\s+/g, ' ').trim());
   const has = (label: string) => buttons().some((b) => b.includes(label));
-  const text = () => root.textContent!.replace(/\s+/g, ' ');
+  const text = () => root().textContent!.replace(/\s+/g, ' ');
   const MANAGER = ['grants:view', 'grants:manage'];
 
   afterEach(() => {
@@ -176,13 +189,13 @@ describe('GrantsPage', () => {
   it('pour un responsable limité à un projet, ne demande ni n’affiche la liste des financeurs', async () => {
     await create([], [grant()]);
     expect(text()).toContain('Aide au festival');
-    expect(root.querySelector('[aria-label="Financeurs"]')).toBeNull();
+    expect(root().querySelector('[aria-label="Financeurs"]')).toBeNull();
     expect(has('Demander une subvention')).toBe(false);
   });
 
   it('montre objet, financeur, état, montants et projets de chaque subvention', async () => {
     await create(MANAGER, [grant(), grant({ id: 'g2', title: 'Soutien', reference: null, status: 'GRANTED', grantedAmount: '900.00', requestedAmount: '1200.00', received: '300.00', allocations: [] })], [funder()]);
-    const rows = Array.from(root.querySelectorAll('section[aria-label="Subventions"] tbody tr')).map((tr) =>
+    const rows = Array.from(root().querySelectorAll('section[aria-label="Subventions"] tbody tr')).map((tr) =>
       Array.from(tr.querySelectorAll('td')).map((td) => td.textContent!.replace(/\s+/g, ' ').trim()),
     );
     expect(rows[0]).toEqual(['Aide au festival Réf. RF-14', 'Région', 'Demandée', '1 000,00 €', '—', '—', 'ATELIERS, FESTIVAL', 'Ouvrir']);
@@ -191,7 +204,7 @@ describe('GrantsPage', () => {
 
   it('filtre par état en rechargeant la liste', async () => {
     await create(MANAGER, [grant()], [funder()]);
-    root.querySelector<HTMLElement>('.mat-mdc-select-trigger')!.click();
+    root().querySelector<HTMLElement>('.mat-mdc-select-trigger')!.click();
     await settle();
     const options = Array.from(TestBed.inject(OverlayContainer).getContainerElement().querySelectorAll<HTMLElement>('.mat-mdc-option'));
     expect(options.map((o) => o.textContent!.trim())).toEqual(['Tous les états', 'Demandée', 'En instruction', 'Accordée', 'Refusée', 'Clôturée', 'Annulée']);
@@ -204,6 +217,35 @@ describe('GrantsPage', () => {
     expect(text()).toContain('Aucune subvention dans cet état.');
   });
 
+  it('chaque subvention de la liste est un lien vers sa propre page, sans détail sous le tableau', async () => {
+    await create(MANAGER, [grant()], [funder()]);
+    const link = root().querySelector('a[aria-label="Ouvrir Aide au festival"]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/subventions/g1');
+    expect(root().querySelector('section[aria-label^="Détail de"]')).toBeNull();
+  });
+
+  it('ouvrir une subvention affiche sa page seule, avec un retour vers la liste', async () => {
+    await create(MANAGER, [grant()], [funder()]);
+    await click('Ouvrir Aide au festival');
+    controller.expectOne('/api/grants/g1').flush(grant());
+    await settle();
+    expect(root().querySelector('h1')!.textContent).toContain('Aide au festival');
+    expect(root().querySelector('section[aria-label="Subventions"]')).toBeNull();
+    expect(root().querySelector('section[aria-label="Financeurs"]')).toBeNull();
+    const back = root().querySelector('a.back-link') as HTMLAnchorElement;
+    expect(back.textContent).toContain('Retour aux subventions');
+    expect(back.getAttribute('href')).toBe('/subventions');
+  });
+
+  it('dit clairement qu’une subvention est introuvable et propose de revenir à la liste', async () => {
+    await create(MANAGER, [grant()], [funder()]);
+    await harness.navigateByUrl('/subventions/inconnue', GrantsPage);
+    controller.expectOne('/api/grants/inconnue').flush({ message: 'introuvable' }, { status: 404, statusText: 'Not Found' });
+    await settle();
+    expect(root().querySelector('[role="alert"]')!.textContent).toContain('introuvable');
+    expect(root().querySelector('a.back-link')).toBeTruthy();
+  });
+
   it('propose seulement les actions possibles selon l’état', async () => {
     await create(MANAGER, [grant()], [funder()]);
     await click('Ouvrir Aide au festival');
@@ -214,18 +256,18 @@ describe('GrantsPage', () => {
     }
     expect(has('Clôturer')).toBe(false);
 
-    await click('Ouvrir Aide au festival');
-    controller.expectOne('/api/grants/g1').flush(grant({ status: 'GRANTED', grantedAmount: '1000.00', decidedOn: '2026-03-15' }));
+    await harness.navigateByUrl('/subventions/g2', GrantsPage);
+    controller.expectOne('/api/grants/g2').flush(grant({ id: 'g2', status: 'GRANTED', grantedAmount: '1000.00', decidedOn: '2026-03-15' }));
     await settle();
-    await flushFinance();
+    await flushFinance('g2');
     expect(has('Clôturer')).toBe(true);
     for (const label of ['Projets financés', 'Passer en instruction', "Enregistrer l'accord", 'Enregistrer un refus', 'Annuler la demande']) {
       expect(has(label), label).toBe(false);
     }
     expect(text()).toContain('ne changent plus');
 
-    await click('Ouvrir Aide au festival');
-    controller.expectOne('/api/grants/g1').flush(grant({ status: 'REFUSED', decidedOn: '2026-03-15', reason: 'Enveloppe épuisée' }));
+    await harness.navigateByUrl('/subventions/g3', GrantsPage);
+    controller.expectOne('/api/grants/g3').flush(grant({ id: 'g3', status: 'REFUSED', decidedOn: '2026-03-15', reason: 'Enveloppe épuisée' }));
     await settle();
     expect(has('Clôturer')).toBe(false);
     expect(text()).toContain('15/03/2026 — Enveloppe épuisée');
@@ -239,7 +281,7 @@ describe('GrantsPage', () => {
     controller.expectOne((r) => r.url === '/api/documents' && r.params.get('objectType') === 'grant' && r.params.get('objectId') === 'g1').flush({ items: [], total: 0, pageSize: 50 });
     controller.expectOne('/api/documents/options').flush({ categories: [], objectTypes: [], allowedExtensions: [] });
     await settle();
-    expect(root.querySelector('section[aria-label="Documents de Aide au festival"]')).toBeTruthy();
+    expect(root().querySelector('section[aria-label="Documents de Aide au festival"]')).toBeTruthy();
     // Sans documents:create, pas de dépôt.
     expect(has('Déposer un document')).toBe(false);
   });
@@ -249,7 +291,7 @@ describe('GrantsPage', () => {
     await click('Ouvrir Aide au festival');
     controller.expectOne('/api/grants/g1').flush(grant());
     await settle();
-    expect(root.querySelector('section[aria-label="Documents de Aide au festival"]')).toBeNull();
+    expect(root().querySelector('section[aria-label="Documents de Aide au festival"]')).toBeNull();
   });
 
   it('ajoute un financeur', async () => {

@@ -1,8 +1,22 @@
-import { Routes } from '@angular/router';
+import { Route, Routes } from '@angular/router';
 import { authGuard, loginGuard, mfaEnrollGuard, mfaVerifyGuard, permissionGuard, setupGuard } from './auth/guards';
 import { NAVIGATION, SETTINGS_ITEM } from './navigation';
 
 const [overview, ...others] = NAVIGATION;
+
+/** Page de liste et page de détail d'un même écran : `/<path>` et `/<path>/:id`, mêmes droits, même composant. */
+function detailRoutes(options: { path: string; title: string; permission: string; global?: boolean; load: Route['loadComponent'] }): Routes {
+  const common = {
+    title: options.title,
+    canActivate: [permissionGuard],
+    data: options.global ? { permission: options.permission, global: true } : { permission: options.permission },
+    loadComponent: options.load,
+  };
+  return [
+    { path: options.path, ...common },
+    { path: `${options.path}/:id`, ...common },
+  ];
+}
 
 export const routes: Routes = [
   {
@@ -159,13 +173,12 @@ export const routes: Routes = [
         data: { permission: 'imports:post' },
         loadComponent: () => import('./treasury/import.page').then((m) => m.ImportPage),
       },
-      {
+      ...detailRoutes({
         path: 'comptes',
         title: 'Comptes',
-        canActivate: [permissionGuard],
-        data: { permission: 'financial-accounts:view' },
-        loadComponent: () => import('./treasury/accounts.page').then((m) => m.AccountsPage),
-      },
+        permission: 'financial-accounts:view',
+        load: () => import('./treasury/accounts.page').then((m) => m.AccountsPage),
+      }),
       {
         // Pas de permission exigée : une personne désignée pour donner son accord n'a pas forcément le droit de faire des demandes.
         // Le serveur décide de ce que chacun voit.
@@ -173,27 +186,27 @@ export const routes: Routes = [
         title: 'Remboursements de frais',
         loadComponent: () => import('./reimbursements/reimbursements.page').then((m) => m.ReimbursementsPage),
       },
-      {
+      // Liste et détail : même page, deux adresses (`/projets` et `/projets/:id`). Le détail a sa propre adresse pour
+      // s'ouvrir en haut de l'écran, se partager et se quitter avec le bouton Retour du navigateur.
+      ...detailRoutes({
         path: 'projets',
         title: 'Projets',
-        canActivate: [permissionGuard],
-        data: { permission: 'projects:view' },
-        loadComponent: () => import('./accounting/projects.page').then((m) => m.ProjectsPage),
-      },
-      {
+        permission: 'projects:view',
+        load: () => import('./accounting/projects.page').then((m) => m.ProjectsPage),
+      }),
+      ...detailRoutes({
         path: 'subventions',
         title: 'Subventions',
-        canActivate: [permissionGuard],
-        data: { permission: 'grants:view' },
-        loadComponent: () => import('./grants/grants.page').then((m) => m.GrantsPage),
-      },
-      {
+        permission: 'grants:view',
+        load: () => import('./grants/grants.page').then((m) => m.GrantsPage),
+      }),
+      ...detailRoutes({
         path: 'documents',
         title: 'Documents',
-        canActivate: [permissionGuard],
-        data: { permission: 'documents:view', global: true },
-        loadComponent: () => import('./documents/documents.page').then((m) => m.DocumentsPage),
-      },
+        permission: 'documents:view',
+        global: true,
+        load: () => import('./documents/documents.page').then((m) => m.DocumentsPage),
+      }),
       {
         path: 'demarrage',
         title: 'Démarrer',

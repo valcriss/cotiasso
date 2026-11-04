@@ -809,7 +809,8 @@ details pre {
   .detail-actions {
     > .mat-mdc-button-base,
     > a.mat-mdc-button-base,
-    > app-export-link > .mat-mdc-button-base {
+    > app-export-link > .mat-mdc-button-base,
+    > app-back-link > .mat-mdc-button-base {
       --mat-button-filled-container-height: auto;
       --mat-button-outlined-container-height: auto;
       --mat-button-text-container-height: auto;
@@ -817,12 +818,20 @@ details pre {
       line-height: 1.25;
       min-height: 40px;
       min-width: 0;
+      justify-content: center;
       padding-block: 6px;
+      text-align: center;
       width: 100%;
 
       .mdc-button__label {
+        text-align: center;
         white-space: normal;
       }
+    }
+
+    // Un bouton marqué `full-row` occupe toute la ligne, quel que soit le nombre de boutons.
+    > .full-row {
+      grid-column: 1 / -1;
     }
 
     // Avec trois boutons ou plus, seul le premier bouton plein (l'action principale) prend toute la ligne ; les autres se partagent les deux colonnes.
@@ -834,8 +843,15 @@ details pre {
   // Barres de boutons qui ne sont pas des cartes (filtres, détail) : même grille.
   .actions,
   .detail-actions {
+    align-items: stretch;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  // Dans l'en-tête d'un panneau (titre + boutons) ou une barre de filtres, la grille de boutons prend toute la largeur.
+  .head > .actions,
+  .filters > .actions {
+    flex: 1 1 100%;
   }
 }
 

@@ -57,7 +57,11 @@ import { Skeleton } from '../ui/skeleton';
       <p class="alert" role="alert">{{ message }}</p>
     }
 
-    <form class="panel filters" [formGroup]="filters" (ngSubmit)="search()">
+    <button mat-stroked-button type="button" class="filters-toggle" [attr.aria-expanded]="filtersOpen()" aria-controls="member-filters" (click)="filtersOpen.set(!filtersOpen())">
+      <mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_list</mat-icon> Filtres
+      <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ filtersOpen() ? 'expand_less' : 'expand_more' }}</mat-icon>
+    </button>
+    <form id="member-filters" class="panel filters" [class.collapsed]="!filtersOpen()" [formGroup]="filters" (ngSubmit)="search()">
       <mat-form-field appearance="outline">
         <mat-label>Nom, prénom ou email</mat-label>
         <input matInput formControlName="q" />
@@ -92,7 +96,7 @@ import { Skeleton } from '../ui/skeleton';
         </mat-select>
       </mat-form-field>
       <div class="actions">
-        <button mat-flat-button type="submit"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">search</mat-icon> Rechercher</button>
+        <button mat-flat-button type="submit" class="full-row"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">search</mat-icon> Rechercher</button>
       </div>
     </form>
 
@@ -137,10 +141,10 @@ import { Skeleton } from '../ui/skeleton';
                 <mat-icon fontSet="material-icons-outlined" aria-hidden="true">link_off</mat-icon> Détacher du compte
               </button>
             } @else {
-              <button mat-stroked-button type="button" [disabled]="busy()" (click)="linkAccount(detail.member)">
+              <button mat-stroked-button class="full-row" type="button" [disabled]="busy()" (click)="linkAccount(detail.member)">
                 <mat-icon fontSet="material-icons-outlined" aria-hidden="true">link</mat-icon> Associer à un compte utilisateur
               </button>
-              <span class="muted">Le lien se fait tout seul quand un compte a la même adresse email que la fiche.</span>
+              <span class="muted full-row-hint">Le lien se fait tout seul quand un compte a la même adresse email que la fiche.</span>
             }
           </div>
         }
@@ -152,7 +156,9 @@ import { Skeleton } from '../ui/skeleton';
               <mat-icon fontSet="material-icons-outlined" aria-hidden="true">edit</mat-icon> Modifier
             </button>
             @if (detail.member.status === 'ACTIVE') {
-              <button mat-stroked-button type="button" [disabled]="busy()" (click)="markFormer(detail.member)">Marquer comme sorti</button>
+              <button mat-stroked-button type="button" [disabled]="busy()" (click)="markFormer(detail.member)">
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">logout</mat-icon> Marquer comme sorti
+              </button>
             } @else {
               <button mat-stroked-button type="button" [disabled]="busy()" (click)="reactivate(detail.member)">Réactiver</button>
               <button mat-button class="danger" type="button" (click)="anonymize(detail.member)">Anonymiser…</button>
@@ -167,13 +173,15 @@ import { Skeleton } from '../ui/skeleton';
           <ul class="offices">
             @for (office of detail.offices; track office.id) {
               <li>
-                <strong>{{ office.title }}</strong>
-                · depuis le {{ office.startsOn | frDate }}@if (office.endsOn) { jusqu'au {{ office.endsOn | frDate }} } @else { (en cours) }
+                <strong class="office-title">{{ office.title }}</strong>
+                <span class="muted office-dates">depuis le {{ office.startsOn | frDate }}@if (office.endsOn) { jusqu'au {{ office.endsOn | frDate }} } @else { (en cours) }</span>
                 @if (canManage() && !detail.member.anonymized) {
+                  <span class="office-actions">
                   @if (office.current) {
                     <button mat-button type="button" [disabled]="busy()" [attr.aria-label]="'Terminer la fonction ' + office.title" (click)="endOffice(office)">Terminer aujourd'hui</button>
                   }
                   <button mat-button type="button" [disabled]="busy()" [attr.aria-label]="'Retirer la fonction ' + office.title" (click)="removeOffice(office)">Retirer</button>
+                  </span>
                 }
               </li>
             }
@@ -181,7 +189,7 @@ import { Skeleton } from '../ui/skeleton';
         }
         @if (canManage() && !detail.member.anonymized) {
           <div class="actions">
-            <button mat-stroked-button type="button" (click)="addOffice(detail.member)">
+            <button mat-stroked-button class="full-row" type="button" (click)="addOffice(detail.member)">
               <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Ajouter une fonction
             </button>
           </div>
@@ -245,6 +253,22 @@ import { Skeleton } from '../ui/skeleton';
     }
   `,
   styles: `
+    .filters-toggle {
+      display: none;
+    }
+    @media (max-width: 720px) {
+      .filters-toggle {
+        --mat-button-outlined-container-height: 40px;
+        background: var(--app-surface);
+        display: inline-flex;
+        justify-content: center;
+        margin-bottom: 12px;
+        width: 100%;
+      }
+      form.filters.collapsed {
+        display: none;
+      }
+    }
     .details {
       display: grid;
       gap: 4px 16px;
@@ -263,7 +287,27 @@ import { Skeleton } from '../ui/skeleton';
       padding: 0;
     }
     .offices li {
-      padding: 4px 0;
+      background: var(--app-surface-muted);
+      border: 1px solid var(--app-border);
+      border-radius: var(--app-radius);
+      display: grid;
+      gap: 2px 12px;
+      margin-bottom: 8px;
+      padding: 10px 14px;
+    }
+    .office-title {
+      font: var(--mat-sys-title-small);
+    }
+    .office-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 8px;
+      margin-inline-start: -8px;
+    }
+    @media (max-width: 720px) {
+      .full-row-hint {
+        grid-column: 1 / -1;
+      }
     }
   `,
 })
@@ -275,6 +319,8 @@ export class MembersPage {
   private readonly route = inject(ActivatedRoute);
   private readonly notifier = inject(Notifier);
 
+  /** Sur téléphone, les filtres sont repliés par défaut ; sur grand écran ils sont toujours visibles. */
+  protected readonly filtersOpen = signal(false);
   protected readonly members = signal<MemberInfo[]>([]);
   protected readonly categories = signal<MemberCategoryInfo[]>([]);
   protected readonly officeRoles = signal<OfficeRoleInfo[]>([]);

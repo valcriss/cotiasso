@@ -5,7 +5,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import {
   AdminApiService,
   type FinancialAccountInfo,
@@ -19,6 +19,7 @@ import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { ThemeService } from '../theme/theme.service';
+import { BackLink } from '../ui/back-link';
 import { PageHeader } from '../ui/page-header';
 import { StatementDialog, type StatementDialogData } from './statement-dialog';
 import { formatDate } from '../ui/dates';
@@ -31,7 +32,7 @@ import { Skeleton } from '../ui/skeleton';
  */
 @Component({
   selector: 'app-reconciliation-page',
-  imports: [Skeleton, FrDatePipe, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
+  imports: [Skeleton, BackLink, FrDatePipe, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .figures {
@@ -99,9 +100,7 @@ import { Skeleton } from '../ui/skeleton';
         ? 'Comparez vos mouvements au relevé de la banque : cochez ceux qui y figurent jusqu’à ce que l’écart soit zéro. Cela permet de repérer un oubli ou une erreur. Ce qui n’y est pas encore (un chèque non débité…) reste simplement non coché.'
         : 'Comparez vos transactions au relevé de la banque : cochez celles qui y figurent jusqu’à ce que l’écart soit zéro. Ce qui n’y est pas encore (un chèque non débité…) reste simplement non coché.'"
     >
-      <a mat-stroked-button routerLink="/comptes">
-        <mat-icon fontSet="material-icons-outlined" aria-hidden="true">arrow_back</mat-icon> Retour aux comptes
-      </a>
+      <app-back-link [to]="['/comptes', accountId]" label="Retour au compte" />
       @if (canWrite() && account() && !account()!.archivedOn) {
         <button mat-stroked-button type="button" (click)="recordStatement()">
           <mat-icon fontSet="material-icons-outlined" aria-hidden="true">receipt_long</mat-icon> Enregistrer un solde de relevé
@@ -293,6 +292,7 @@ export class ReconciliationPage {
   protected readonly simple = computed(() => this.theme.viewMode() === 'simple');
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
+  protected readonly accountId = this.route.snapshot.paramMap.get('id') ?? '';
   private readonly dialogs = inject(Dialogs);
   private readonly notifier = inject(Notifier);
   private readonly fb = inject(FormBuilder).nonNullable;

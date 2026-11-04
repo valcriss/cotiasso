@@ -1,5 +1,8 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { ThemeService } from '../theme/theme.service';
+import { BackLink } from '../ui/back-link';
+import { routeParam } from '../ui/route-param';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { AdminApiService, type ProjectInfo, type ProjectStatus, type ProjectSummaryInfo } from '../admin/admin-api.service';
@@ -23,7 +26,7 @@ import { Skeleton } from '../ui/skeleton';
 /** Projets : axe analytique des charges et produits, avec leur synthèse globale et annuelle. */
 @Component({
   selector: 'app-projects-page',
-  imports: [Skeleton, MatButtonModule, MatIconModule, PageHeader, LinkedDocuments, ProjectBudget, ProjectCommitments, ProjectGrants, ProjectParticipants, ProjectReport],
+  imports: [Skeleton, BackLink, RouterLink, MatButtonModule, MatIconModule, PageHeader, LinkedDocuments, ProjectBudget, ProjectCommitments, ProjectGrants, ProjectParticipants, ProjectReport],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
@@ -31,22 +34,36 @@ import { Skeleton } from '../ui/skeleton';
       text-align: right;
       white-space: nowrap;
     }
-    tr.selected td {
-      background: var(--app-surface-muted);
-    }
   `,
   template: `
-    <app-page-header
-      title="Projets"
-      icon="folder_open"
-      description="Un projet regroupe les dépenses et les recettes d'une même action (festival, ateliers…) pour savoir ce qu'elle coûte et ce qu'elle rapporte."
-    >
-      @if (canUpdate()) {
-        <button mat-flat-button type="button" (click)="create()">
-          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Nouveau projet
-        </button>
-      }
-    </app-page-header>
+    @if (routeId()) {
+      <app-page-header
+        [title]="selected()?.name ?? 'Projet'"
+        icon="folder_open"
+        description="La synthèse, le budget, les engagements, les financements, les documents et les participants de ce projet."
+      >
+        <app-back-link to="/projets" label="Retour aux projets" />
+        @if (selected(); as project) {
+          @if (canEdit(project.id)) {
+            <button mat-stroked-button type="button" (click)="edit(project)">
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">edit</mat-icon> Modifier
+            </button>
+          }
+        }
+      </app-page-header>
+    } @else {
+      <app-page-header
+        title="Projets"
+        icon="folder_open"
+        description="Un projet regroupe les dépenses et les recettes d'une même action (festival, ateliers…) pour savoir ce qu'elle coûte et ce qu'elle rapporte."
+      >
+        @if (canUpdate()) {
+          <button mat-flat-button type="button" (click)="create()">
+            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Nouveau projet
+          </button>
+        }
+      </app-page-header>
+    }
 
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
@@ -54,6 +71,12 @@ import { Skeleton } from '../ui/skeleton';
 
     @if (loading()) {
       <app-skeleton variant="cards" />
+    } @else if (routeId()) {
+      @if (!selected()) {
+        <p class="alert" role="alert">
+          Ce projet est introuvable. Il a peut-être été retiré de votre accès, ou l'adresse est incomplète. Revenez à la liste des projets pour choisir un autre projet.
+        </p>
+      }
     } @else {
       <table class="table">
         <caption class="sr-only">Projets</caption>
@@ -68,7 +91,7 @@ import { Skeleton } from '../ui/skeleton';
         </thead>
         <tbody>
           @for (project of projects(); track project.id) {
-            <tr [class.selected]="project.id === selected()?.id">
+            <tr>
               <td>
                 {{ project.code }}
                 @if (project.permanent) {
@@ -79,7 +102,7 @@ import { Skeleton } from '../ui/skeleton';
               <td>{{ statusLabel(project.status) }}</td>
               <td>{{ period(project) }}</td>
               <td class="row-actions">
-                <button mat-button type="button" [attr.aria-label]="'Ouvrir ' + project.name" (click)="select(project)">Ouvrir</button>
+                <a mat-button [routerLink]="['/projets', project.id]" [attr.aria-label]="'Ouvrir ' + project.name">Ouvrir</a>
               </td>
             </tr>
           }
@@ -91,14 +114,6 @@ import { Skeleton } from '../ui/skeleton';
       <section class="panel" [attr.aria-label]="'Synthèse de ' + project.name">
         <div class="head">
           <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">analytics</mat-icon><span>Synthèse de {{ project.name }}</span></h3>
-          <div class="actions">
-            @if (canEdit(project.id)) {
-              <button mat-stroked-button type="button" (click)="edit(project)">
-                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">edit</mat-icon> Modifier
-              </button>
-            }
-            <button mat-button type="button" (click)="select(null)">Fermer</button>
-          </div>
         </div>
         @if (project.description) {
           <p class="muted">{{ project.description }}</p>
@@ -160,8 +175,13 @@ export class ProjectsPage {
   private readonly dialogs = inject(Dialogs);
   private readonly notifier = inject(Notifier);
 
+  private readonly router = inject(Router);
+  /** Le projet ouvert vient de l'adresse (`/projets/:id`) : `null` sur la liste. */
+  protected readonly routeId = routeParam('id');
   protected readonly projects = signal<ProjectInfo[]>([]);
-  protected readonly selected = signal<ProjectInfo | null>(null);
+  protected readonly selected = computed(() => this.projects().find((p) => p.id === this.routeId()) ?? null);
+  /** La synthèse se recharge quand on change de projet, pas quand sa fiche est modifiée. */
+  private readonly selectedId = computed(() => this.selected()?.id ?? null);
   protected readonly summary = signal<ProjectSummaryInfo | null>(null);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -188,6 +208,10 @@ export class ProjectsPage {
 
   constructor() {
     void this.load();
+    effect(() => {
+      const id = this.selectedId();
+      untracked(() => void this.loadSummary(id));
+    });
   }
 
   /** Droit global, ou accordé sur ce projet par une attribution à portée projet. */
@@ -217,8 +241,8 @@ export class ProjectsPage {
     const created = await this.dialogs.open<ProjectInfo>(ProjectDialog, { size: 'md', data: { project: null } });
     if (!created) return;
     this.notifier.success(`Projet ${created.code} créé.`);
-    await this.load();
-    await this.select(created);
+    // La page de détail recharge la liste : on y va directement.
+    await this.router.navigate(['/projets', created.id]);
   }
 
   protected async edit(project: ProjectInfo): Promise<void> {
@@ -226,15 +250,14 @@ export class ProjectsPage {
     if (!updated) return;
     this.notifier.success(`Projet ${updated.code} enregistré.`);
     await this.load();
-    await this.select(updated);
   }
 
-  protected async select(project: ProjectInfo | null): Promise<void> {
-    this.selected.set(project);
+  private async loadSummary(id: string | null): Promise<void> {
     this.summary.set(null);
-    if (!project) return;
+    if (!id) return;
     try {
-      this.summary.set(await this.api.projectSummary(project.id));
+      const data = await this.api.projectSummary(id);
+      if (this.selectedId() === id) this.summary.set(data);
     } catch (failure) {
       this.error.set(describeHttpError(failure, 'Impossible de charger la synthèse du projet.').message);
     }

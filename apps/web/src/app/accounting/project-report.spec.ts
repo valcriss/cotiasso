@@ -79,7 +79,7 @@ describe('ProjectReport', () => {
 
   it('explique ce que compare le suivi, et montre prévu, engagé, dépensé et reste en euros', async () => {
     await create(report());
-    expect(text()).toContain('ce que vous aviez prévu');
+    expect(text()).toContain('Ce suivi compare trois choses');
     expect(text()).toContain('promis mais pas encore payé');
     expect(text()).toContain('Budget en vigueur : n° 2 — Budget voté.');
     expect(cells('606')).toEqual(['606 — Achats', '1 000,00 €', '300,00 €', '200,00 €', '500,00 €']);

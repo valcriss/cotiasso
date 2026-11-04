@@ -61,6 +61,20 @@ La comptabilité reste exacte et rigoureuse (c'est le rôle du logiciel), mais *
 - **Le contenu occupe toute la largeur disponible** : aucune largeur maximale sur les pages ; seules les boîtes de dialogue et la page de connexion ont une largeur fixe.
 - **Chaque zone de contenu est une carte** (panneau ou tableau : surface, bordure, ombre douce) posée sur le fond de page, jamais à plat. Un tableau est une carte par défaut ; dans un panneau il reste plat pour ne pas doubler le cadre.
 - **Les boutons sont des rectangles aux angles arrondis** (8 px), pas des pilules : même famille de formes que les champs et les cartes. Les pastilles d'état (étiquettes) peuvent rester arrondies.
+
+### Liste et page de détail
+
+Ouvrir un élément d'un tableau (projet, subvention, document, compte) **ne déplie jamais un détail sous ou à côté de la liste** : l'utilisateur n'a pas à défiler pour chercher son contenu. L'élément a **sa propre adresse** (`/projets/:id`, `/subventions/:id`, `/documents/:id`, `/comptes/:id`), qui s'ouvre **en haut de l'écran**.
+
+- **La ligne est un lien** (« Ouvrir », une vraie balise `<a>` : clic droit, nouvel onglet et partage fonctionnent). Jamais un bouton qui change l'état de la page.
+- **La page de détail remplace la liste** : en-tête avec le **nom de l'élément** comme titre et une phrase qui dit ce qu'on y trouve, puis les panneaux de l'élément. Ni tableau de liste, ni filtres, ni panneau de création de la page de liste.
+- **Barre d'outils** : `BackLink` (« Retour aux projets ») **toujours le premier bouton**, puis les actions de l'élément (Modifier, Enregistrer l'accord, Archiver…). Les actions de création de la liste n'y figurent pas.
+- **Même composant, deux adresses** : la page de liste et la page de détail sont le même composant, déclaré par `detailRoutes()` (`app.routes.ts`, mêmes droits). Il lit l'élément dans l'adresse avec `routeParam('id')` et **ne charge que ce qu'il affiche** (la liste n'est pas chargée sur la page de détail).
+- **Élément introuvable ou hors de portée** (404 du serveur) : un message en trois temps et le bouton de retour, jamais une page vide.
+- **Défilement** : ouvrir une page l'affiche depuis le haut ; revenir à la liste retrouve la position où on l'avait quittée (`scrollPositionRestoration`).
+- **Après une création**, on arrive directement sur la page de l'élément créé. **Après une modification**, on reste sur la page et on recharge l'élément.
+- Les pages dédiées plus longues à usage ponctuel (import OFX, rapprochement) reviennent au **compte** (`/comptes/:id`), pas à la liste.
+
 ## 2 bis. Deux affichages : Simple et Comptable (ADR 0028)
 
 L'application a deux affichages, au choix de chaque personne (menu « Apparence » › Affichage, gardé dans le navigateur). **Simple est le défaut et se conçoit en premier.**
@@ -114,7 +128,7 @@ Phrases à afficher sous chaque titre. Elles sont volontairement pédagogiques ;
 
 - Les **filtres** et les recherches.
 - Les **paramètres de réglage** (identité de l'association, apparence, règles de comptabilisation) : ce sont des formulaires de réglage avec leur bouton Enregistrer, pas la création d'un élément.
-- Les **détails en lecture** (synthèse d'un projet, fiche d'un document, écriture comptabilisée).
+- Les **détails en lecture** (synthèse d'un projet, fiche d'un document, écriture comptabilisée) : ce sont des **pages de détail** (voir « Liste et page de détail », §2), pas des boîtes.
 
 ### Exceptions : pages dédiées
 
@@ -136,7 +150,7 @@ Une exception de plus doit être décidée et notée ici.
 
 ### Composants partagés
 
-`PageHeader`, `ActionBar`, `FormDialog` (+ service d'ouverture qui gère confirmation d'abandon, état d'envoi et erreurs), service de bandeau (`Notifier`) et un utilitaire de test des boîtes de dialogue. Styles dans la feuille globale `app-ui.scss`, couleurs et espacements via les jetons du thème (jamais de valeur en dur).
+`PageHeader`, `ActionBar`, `BackLink` (retour d'une page de détail), `routeParam` (paramètre d'adresse en signal), `FormDialog` (+ service d'ouverture qui gère confirmation d'abandon, état d'envoi et erreurs), service de bandeau (`Notifier`) et un utilitaire de test des boîtes de dialogue. Styles dans la feuille globale `app-ui.scss`, couleurs et espacements via les jetons du thème (jamais de valeur en dur).
 
 ### Tests
 

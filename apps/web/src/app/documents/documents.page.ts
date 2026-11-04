@@ -1,5 +1,6 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -19,7 +20,9 @@ import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { FileDropzone } from '../ui/file-dropzone';
+import { BackLink } from '../ui/back-link';
 import { PageHeader } from '../ui/page-header';
+import { routeParam } from '../ui/route-param';
 import { formatSize, objectTypeLabel } from './format';
 import { UploadDialog, type UploadDialogData } from './upload-dialog';
 import { PdfViewerDialog, isPdf, type PdfViewerDialogData } from './pdf-viewer-dialog';
@@ -28,7 +31,7 @@ import { Skeleton } from '../ui/skeleton';
 
 @Component({
   selector: 'app-documents-page',
-  imports: [FileDropzone, Skeleton, PageHeader, DatePipe, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
+  imports: [FileDropzone, Skeleton, BackLink, RouterLink, PageHeader, DatePipe, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .file-input {
@@ -39,9 +42,6 @@ import { Skeleton } from '../ui/skeleton';
       height: 16px;
       vertical-align: -3px;
       width: 16px;
-    }
-    tr.selected td {
-      background: var(--mat-sys-surface-container-low);
     }
     .versions li {
       align-items: center;
@@ -63,22 +63,47 @@ import { Skeleton } from '../ui/skeleton';
     }
   `,
   template: `
-    <app-page-header
-      title="Documents"
-      icon="description"
-      description="Factures, devis, procès-verbaux… Tous vos justificatifs au même endroit, conservés sans pouvoir être supprimés, avec l’historique de leurs versions."
-    >
-      @if (canCreate()) {
-        <button mat-flat-button type="button" (click)="openUpload()">
-          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload_file</mat-icon>
-          Déposer un document
-        </button>
-      }
-    </app-page-header>
+    @if (routeId()) {
+      <app-page-header [title]="selected()?.title ?? 'Document'" icon="description" description="Les versions de ce document, ses liens avec le reste de l’application et ce que vous pouvez en faire.">
+        <app-back-link to="/documents" label="Retour aux documents" />
+        @if (selected(); as doc) {
+          @if (isPdf(doc.latest.mimeType)) {
+            <button mat-stroked-button type="button" (click)="view(doc, doc.latest)">
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">visibility</mat-icon>Voir le document
+            </button>
+          }
+          <a mat-flat-button [href]="downloadUrl(doc.id)">Télécharger la dernière version</a>
+          @if (canCreate() && !doc.archivedAt && options()) {
+            <button mat-stroked-button type="button" [disabled]="busy()" (click)="changeCategory(doc)">Changer la catégorie</button>
+          }
+          @if (canCreate()) {
+            @if (doc.archivedAt) {
+              <button mat-stroked-button type="button" [disabled]="busy()" (click)="setArchived(doc, false)">Réactiver</button>
+            } @else {
+              <button mat-stroked-button type="button" [disabled]="busy()" (click)="setArchived(doc, true)">Archiver</button>
+            }
+          }
+        }
+      </app-page-header>
+    } @else {
+      <app-page-header
+        title="Documents"
+        icon="description"
+        description="Factures, devis, procès-verbaux… Tous vos justificatifs au même endroit, conservés sans pouvoir être supprimés, avec l’historique de leurs versions."
+      >
+        @if (canCreate()) {
+          <button mat-flat-button type="button" (click)="openUpload()">
+            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload_file</mat-icon>
+            Déposer un document
+          </button>
+        }
+      </app-page-header>
+    }
 
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
     }
+    @if (!routeId()) {
     <form class="panel filters" [formGroup]="filters" (ngSubmit)="search()">
       <mat-form-field appearance="outline">
         <mat-label>Rechercher un titre</mat-label>
@@ -98,43 +123,19 @@ import { Skeleton } from '../ui/skeleton';
         <button mat-flat-button type="submit"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_alt</mat-icon> Filtrer</button>
       </div>
     </form>
+    }
 
     @if (selected(); as doc) {
       <section class="panel" aria-label="Détail du document">
-        <div class="head">
-          <h3>
-            @if (doc.restricted) {
-              <mat-icon class="lock" fontSet="material-icons-outlined" aria-label="Document restreint">lock</mat-icon>
-            }
-            {{ doc.title }}
-          </h3>
-          <button mat-button type="button" (click)="close()">Fermer</button>
-        </div>
+        @if (doc.restricted) {
+          <p class="muted"><mat-icon class="lock" fontSet="material-icons-outlined" aria-hidden="true">lock</mat-icon> Document restreint : seules les personnes autorisées le voient.</p>
+        }
         <p class="muted">
           {{ categoryLabel(doc.category) }} · {{ doc.versionCount }} version(s)
           @if (doc.archivedAt) {
             · <strong>Archivé</strong>
           }
         </p>
-
-        <div class="actions">
-          @if (isPdf(doc.latest.mimeType)) {
-            <button mat-stroked-button type="button" (click)="view(doc, doc.latest)">
-              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">visibility</mat-icon>Voir le document
-            </button>
-          }
-          <a mat-flat-button [href]="downloadUrl(doc.id)">Télécharger la dernière version</a>
-          @if (canCreate() && !doc.archivedAt && options()) {
-            <button mat-stroked-button type="button" [disabled]="busy()" (click)="changeCategory(doc)">Changer la catégorie</button>
-          }
-          @if (canCreate()) {
-            @if (doc.archivedAt) {
-              <button mat-stroked-button type="button" [disabled]="busy()" (click)="setArchived(doc, false)">Réactiver</button>
-            } @else {
-              <button mat-stroked-button type="button" [disabled]="busy()" (click)="setArchived(doc, true)">Archiver</button>
-            }
-          }
-        </div>
 
         <h4>Versions</h4>
         <ul class="versions">
@@ -199,7 +200,15 @@ import { Skeleton } from '../ui/skeleton';
       </section>
     }
 
-    @if (loading()) {
+    @if (routeId()) {
+      @if (detailLoading()) {
+        <app-skeleton variant="cards" />
+      } @else if (!selected() && !error()) {
+        <p class="alert" role="alert">
+          Ce document est introuvable. Il est peut-être réservé à d’autres personnes, ou l’adresse est incomplète. Revenez à la liste des documents pour en choisir un autre.
+        </p>
+      }
+    } @else if (loading()) {
       <app-skeleton variant="table" />
     } @else if (documents().length === 0) {
       <p class="muted">Aucun document ne correspond à ces critères.@if (canCreate()) { Utilisez « Déposer un document » pour ajouter le premier. }</p>
@@ -217,7 +226,7 @@ import { Skeleton } from '../ui/skeleton';
         </thead>
         <tbody>
           @for (doc of documents(); track doc.id) {
-            <tr [class.selected]="selected()?.id === doc.id" [class.disabled]="doc.archivedAt">
+            <tr [class.disabled]="doc.archivedAt">
               <td>
                 @if (doc.restricted) {
                   <mat-icon class="lock" fontSet="material-icons-outlined" aria-label="Document restreint">lock</mat-icon>
@@ -234,7 +243,7 @@ import { Skeleton } from '../ui/skeleton';
               </td>
               <td>{{ doc.updatedAt | date: 'dd/MM/yyyy' }}</td>
               <td class="row-actions">
-                <button mat-button type="button" (click)="open(doc)">Ouvrir</button>
+                <a mat-button [routerLink]="['/documents', doc.id]" [attr.aria-label]="'Ouvrir ' + doc.title">Ouvrir</a>
               </td>
             </tr>
           }
@@ -268,7 +277,11 @@ export class DocumentsPage {
   protected readonly options = signal<DocumentOptions | null>(null);
   protected readonly documents = signal<DocumentSummary[]>([]);
   protected readonly total = signal(0);
+  private readonly router = inject(Router);
+  /** Le document ouvert vient de l'adresse (`/documents/:id`) : `null` sur la liste. */
+  protected readonly routeId = routeParam('id');
   protected readonly selected = signal<DocumentDetail | null>(null);
+  protected readonly detailLoading = signal(false);
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -288,6 +301,10 @@ export class DocumentsPage {
 
   constructor() {
     void this.init();
+    effect(() => {
+      const id = this.routeId();
+      untracked(() => void this.loadSelected(id));
+    });
   }
 
   protected async openUpload(): Promise<void> {
@@ -299,8 +316,7 @@ export class DocumentsPage {
     });
     if (!result) return;
     this.announce(result.duplicates, 'Document déposé.');
-    this.selected.set(result.document);
-    await this.search();
+    await this.router.navigate(['/documents', result.document.id]);
   }
 
   protected pickFile(file: File): void {
@@ -329,7 +345,7 @@ export class DocumentsPage {
     if (!updated) return;
     if (this.selected()?.id === updated.id) this.selected.set(updated);
     this.notifier.success('Catégorie mise à jour.');
-    await this.search();
+    await this.refreshList();
   }
 
   protected async search(): Promise<void> {
@@ -343,13 +359,27 @@ export class DocumentsPage {
     await this.fetch();
   }
 
-  protected async open(doc: DocumentSummary): Promise<void> {
-    await this.run(async () => this.selected.set(await this.api.getDocument(doc.id)));
+  /** Charge le document de l'adresse ; un document inconnu ou réservé reste `null` (le serveur répond 404). */
+  private async loadSelected(id: string | null): Promise<void> {
+    this.versionFile.set(null);
+    if (!id) {
+      this.selected.set(null);
+      return;
+    }
+    this.detailLoading.set(true);
+    try {
+      const doc = await this.api.getDocument(id);
+      if (this.routeId() === id) this.selected.set(doc);
+    } catch {
+      if (this.routeId() === id) this.selected.set(null);
+    } finally {
+      this.detailLoading.set(false);
+    }
   }
 
-  protected close(): void {
-    this.selected.set(null);
-    this.versionFile.set(null);
+  /** La liste n'est affichée que hors page de document : on ne la recharge que là. */
+  private async refreshList(): Promise<void> {
+    if (!this.routeId()) await this.search();
   }
 
   protected async addVersion(doc: DocumentDetail): Promise<void> {
@@ -362,14 +392,14 @@ export class DocumentsPage {
       this.announce(result.duplicates, 'Nouvelle version déposée.');
       this.selected.set(result.document);
       this.versionFile.set(null);
-      await this.search();
+      await this.refreshList();
     });
   }
 
   protected setArchived(doc: DocumentDetail, archived: boolean): Promise<void> {
     return this.run(async () => {
       this.selected.set(await this.api.setDocumentArchived(doc.id, archived));
-      await this.search();
+      await this.refreshList();
     });
   }
 
@@ -401,7 +431,8 @@ export class DocumentsPage {
     } catch (failure) {
       this.error.set(describeHttpError(failure, 'Impossible de charger les options.').message);
     }
-    await this.fetch();
+    // Sur la page d'un document, la liste n'est pas affichée : on ne la charge pas.
+    if (!this.routeId()) await this.fetch();
   }
 
   private async fetch(): Promise<void> {

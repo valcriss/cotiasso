@@ -15,13 +15,26 @@ import { MatIconModule } from '@angular/material/icon';
     </a>
     @if (print()) {
       <button mat-stroked-button type="button" (click)="printPage()">
-        <mat-icon fontSet="material-icons-outlined" aria-hidden="true">print</mat-icon> Imprimer / enregistrer en PDF
+        <mat-icon fontSet="material-icons-outlined" aria-hidden="true">print</mat-icon>
+        <span class="long">Imprimer / enregistrer en PDF</span><span class="short">Imprimer / PDF</span>
       </button>
     }
   `,
   styles: `
     :host {
       display: contents;
+    }
+    .short {
+      display: none;
+    }
+    /* Sur petit écran, le libellé court tient sur une ligne : deux boutons de même hauteur côte à côte. */
+    @media (max-width: 600px) {
+      .long {
+        display: none;
+      }
+      .short {
+        display: inline;
+      }
     }
   `,
 })

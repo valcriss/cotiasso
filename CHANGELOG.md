@@ -6,6 +6,13 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
+## Non publié
+
+### Nouveautés
+
+- Projets, Subventions, Documents et Comptes : ouvrir un élément de la liste affiche désormais **sa propre page, en haut de l'écran**, au lieu de déplier son détail sous le tableau (où il fallait défiler pour le trouver, surtout sur téléphone). Chaque page a son adresse (`/projets/…`, `/subventions/…`, `/documents/…`, `/comptes/…`) : le bouton Retour du navigateur ramène à la liste, à l'endroit où vous l'aviez quittée, et le lien peut être copié ou ouvert dans un nouvel onglet. Un bouton « Retour aux projets » (ou subventions, documents, comptes) est toujours le premier de la barre d'outils.
+- Après un import de relevé ou depuis la page de rapprochement, « Retour au compte » ramène à la page du compte et non à la liste des comptes.
+
 ## 1.0.5 — 2026-11-04
 
 ### À savoir avant de mettre à jour

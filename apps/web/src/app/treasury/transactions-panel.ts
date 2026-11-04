@@ -99,6 +99,10 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
     .filter-bar .active { background: var(--mat-sys-secondary-container); }
     .filter-summary { margin: 8px 0; }
     .advanced-filters { margin-block-start: 12px; }
+    /* Pas de sélection multiple quand le tableau devient une liste de cartes (téléphone) : cases masquées, le classement se fait mouvement par mouvement. */
+    @media (max-width: 720px) {
+      td.select-cell, th.select-cell { display: none; }
+    }
     @media (max-width: 600px) {
       /* Boutons de filtre en deux colonnes, recherche sur toute la largeur. */
       .filter-bar {
@@ -194,7 +198,7 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">swap_horiz</mat-icon><span>{{ simple() ? 'Mouvements' : 'Transactions' }} de {{ account().name }}</span></h3>
         <div class="actions">
           @if (canImport() && !account().archivedOn) {
-            <a mat-stroked-button [routerLink]="['/comptes', account().id, 'import']">
+            <a mat-stroked-button class="full-row" [routerLink]="['/comptes', account().id, 'import']">
               <mat-icon fontSet="material-icons-outlined" aria-hidden="true">upload_file</mat-icon> {{ simple() ? 'Importer le relevé de ma banque' : 'Importer un relevé OFX' }}
             </a>
           }
@@ -322,7 +326,7 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
           <thead>
             <tr>
               @if (canManage()) {
-                <th scope="col"><span class="sr-only">Sélection</span></th>
+                <th scope="col" class="select-cell"><span class="sr-only">Sélection</span></th>
               }
               <th scope="col">Date</th>
               <th scope="col">{{ simple() ? 'Description' : 'Libellé' }}</th>
@@ -337,7 +341,7 @@ export function periodRange(key: Exclude<PeriodKey, 'all'>, now: Date = new Date
             @for (item of transactions(); track item.id) {
               <tr>
                 @if (canManage()) {
-                  <td>
+                  <td class="select-cell">
                     <mat-checkbox
                       [checked]="selection().has(item.id)"
                       [attr.aria-label]="'Sélectionner ' + item.label"

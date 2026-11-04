@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { mockAuth } from '../testing/auth-mock';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { DocumentsPage } from './documents.page';
@@ -43,9 +44,11 @@ const detail = (id: string, overrides: Record<string, unknown> = {}) => ({
 
 describe('DocumentsPage', () => {
   let controller: HttpTestingController;
-  let root: HTMLElement;
   let ui: DialogTester;
-  let fixture: ReturnType<typeof TestBed.createComponent<DocumentsPage>>;
+  let harness: RouterTestingHarness;
+  const fixture = { detectChanges: () => harness.fixture.detectChanges(), whenStable: () => harness.fixture.whenStable() };
+  /** La page courante : la liste et le détail d'un document sont deux adresses, donc deux instances. */
+  const root = () => harness.routeNativeElement as HTMLElement;
 
   const settle = async () => {
     await new Promise<void>((resolve) => setTimeout(resolve));
@@ -55,11 +58,20 @@ describe('DocumentsPage', () => {
   const create = async (permissions: string[], items = [summary('d1'), summary('d2', { restricted: true, archivedAt: '2026-11-03T10:00:00.000Z' })]) => {
     await TestBed.configureTestingModule({
       imports: [DocumentsPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
+      providers: [
+        provideRouter([
+          { path: 'documents', component: DocumentsPage },
+          { path: 'documents/:id', component: DocumentsPage },
+        ]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        mockAuth(permissions),
+        NO_MATERIAL_ANIMATIONS,
+      ],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
-    fixture = TestBed.createComponent(DocumentsPage);
-    root = fixture.nativeElement as HTMLElement;
+    harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/documents', DocumentsPage);
     ui = new DialogTester(settle);
     await settle();
     controller.expectOne('/api/documents/options').flush(options);
@@ -68,7 +80,7 @@ describe('DocumentsPage', () => {
     await settle();
   };
   const buttonWith = (text: string) =>
-    Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.includes(text));
+    Array.from(root().querySelectorAll<HTMLElement>('button, a')).find((b) => b.textContent?.includes(text));
 
   afterEach(() => {
     ui.closeAll();
@@ -83,13 +95,13 @@ describe('DocumentsPage', () => {
 
   it('liste les documents avec leur catégorie, leur dernier fichier, et signale restreints et archivés', async () => {
     await create(['documents:view']);
-    const text = root.textContent!;
+    const text = root().textContent!;
     expect(text).toContain('Document d1');
     expect(text).toContain('Facture');
     expect(text).toContain('facture.pdf');
     expect(text).toContain('2,0 Ko');
     expect(text).toContain('(archivé)');
-    expect(root.querySelectorAll('mat-icon[aria-label="Document restreint"]')).toHaveLength(1);
+    expect(root().querySelectorAll('mat-icon[aria-label="Document restreint"]')).toHaveLength(1);
   });
 
   it("n'offre aucune action de dépôt sans la permission documents:create", async () => {
@@ -99,34 +111,62 @@ describe('DocumentsPage', () => {
 
   it('indique quand aucun document ne correspond', async () => {
     await create(['documents:view'], []);
-    expect(root.textContent).toContain('Aucun document ne correspond');
+    expect(root().textContent).toContain('Aucun document ne correspond');
+  });
+
+  /** Ouvrir un document change d'adresse (`/documents/:id`) : la page de détail charge ses options et le document. */
+  const openDetail = async (id: string, overrides: Record<string, unknown> = {}) => {
+    buttonWith('Ouvrir')!.click();
+    await settle();
+    controller.expectOne('/api/documents/options').flush(options);
+    controller.expectOne(`/api/documents/${id}`).flush(detail(id, overrides));
+    await settle();
+  };
+
+  it('chaque document de la liste est un lien vers sa propre page, sans détail sous le tableau', async () => {
+    await create(['documents:view']);
+    const link = root().querySelector('a[aria-label="Ouvrir Document d1"]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/documents/d1');
+    expect(root().querySelector('section[aria-label="Détail du document"]')).toBeNull();
+  });
+
+  it('la page d’un document montre le document seul, avec un retour vers la liste', async () => {
+    await create(['documents:view']);
+    await openDetail('d1');
+    expect(root().querySelector('h1')!.textContent).toContain('Document d1');
+    expect(root().querySelector('table')).toBeNull();
+    expect(root().querySelector('form.filters')).toBeNull();
+    const back = root().querySelector('a.back-link') as HTMLAnchorElement;
+    expect(back.textContent).toContain('Retour aux documents');
+    expect(back.getAttribute('href')).toBe('/documents');
+  });
+
+  it('dit clairement qu’un document est introuvable et propose de revenir à la liste', async () => {
+    await create(['documents:view']);
+    await harness.navigateByUrl('/documents/inconnu', DocumentsPage);
+    controller.expectOne('/api/documents/options').flush(options);
+    controller.expectOne('/api/documents/inconnu').flush({ message: 'introuvable' }, { status: 404, statusText: 'Not Found' });
+    await settle();
+    expect(root().querySelector('[role="alert"]')!.textContent).toContain('introuvable');
+    expect(root().querySelector('a.back-link')).toBeTruthy();
   });
 
   it('ouvre le détail avec les versions, les liens et un lien de téléchargement par version', async () => {
     await create(['documents:view']);
-    buttonWith('Ouvrir')!.click();
-    await settle();
-    controller.expectOne('/api/documents/d1').flush(detail('d1'));
-    await settle();
+    await openDetail('d1');
 
-    const panel = root.querySelector('section[aria-label="Détail du document"]')!;
+    const panel = root().querySelector('section[aria-label="Détail du document"]')!;
     expect(panel.textContent).toContain('v2');
     expect(panel.textContent).toContain('Corrigée');
     expect(panel.textContent).toContain('Projet');
     expect(panel.textContent).toContain('p-42');
-    const links = Array.from(panel.querySelectorAll('a')).map((a) => a.getAttribute('href'));
+    // Le téléchargement de la dernière version est dans la barre d'outils de la page, celui des versions dans le panneau.
+    const links = Array.from(root().querySelectorAll('a')).map((a) => a.getAttribute('href'));
     expect(links).toContain('/api/documents/d1/download');
     expect(links).toContain('/api/documents/d1/download?version=2');
     expect(links).toContain('/api/documents/d1/download?version=1');
     expect(panel.textContent).not.toContain('Ajouter une version');
   });
-
-  const openDetail = async (id: string, overrides: Record<string, unknown> = {}) => {
-    buttonWith('Ouvrir')!.click();
-    await settle();
-    controller.expectOne(`/api/documents/${id}`).flush(detail(id, overrides));
-    await settle();
-  };
 
   it('propose « Voir le document » à gauche de « Télécharger » pour un PDF et l’ouvre dans la visionneuse sans rien enregistrer', async () => {
     const created = vi.fn(() => 'blob:visionneuse');
@@ -135,8 +175,10 @@ describe('DocumentsPage', () => {
     await create(['documents:view']);
     await openDetail('d1');
 
-    const actions = Array.from(root.querySelectorAll('section[aria-label="Détail du document"] .actions > *'));
-    expect(actions.map((e) => e.textContent!.trim())).toEqual(['visibilityVoir le document', 'Télécharger la dernière version']);
+    // Les actions sont dans la barre d'outils de la page (le retour à la liste en premier).
+    const actions = Array.from(root().querySelectorAll('app-page-header .actions > *')).map((e) => e.textContent!.trim());
+    expect(actions[0]).toContain('Retour aux documents');
+    expect(actions.slice(1)).toEqual(['visibilityVoir le document', 'Télécharger la dernière version']);
 
     buttonWith('Voir le document')!.click();
     await settle();
@@ -159,7 +201,7 @@ describe('DocumentsPage', () => {
     Object.assign(URL, { createObjectURL: () => 'blob:v1', revokeObjectURL: () => undefined });
     await create(['documents:view']);
     await openDetail('d1');
-    root.querySelector<HTMLButtonElement>('button[aria-label="Voir la version 1"]')!.click();
+    root().querySelector<HTMLButtonElement>('button[aria-label="Voir la version 1"]')!.click();
     await settle();
     controller.expectOne('/api/documents/d1/download?version=1').flush(new Blob(['%PDF-1.7']));
     await settle();
@@ -173,7 +215,7 @@ describe('DocumentsPage', () => {
       versions: [{ number: 1, originalName: 'photo.png', mimeType: 'image/png', size: 10, sha256: 'a'.repeat(64), comment: null, uploadedAt: '2026-11-01T10:00:00.000Z', uploadedBy: 'u1' }],
     });
     expect(buttonWith('Voir')).toBeUndefined();
-    expect(root.textContent).toContain('Télécharger la dernière version');
+    expect(root().textContent).toContain('Télécharger la dernière version');
   });
 
   it("explique quand le document ne peut pas s'ouvrir et garde le téléchargement", async () => {
@@ -207,8 +249,11 @@ describe('DocumentsPage', () => {
 
     request.flush({ document: detail('d9'), duplicates: [{ documentId: 'd1', title: 'Document d1' }] });
     await settle();
-    controller.expectOne((req) => req.url === '/api/documents').flush({ items: [summary('d9')], total: 1, pageSize: 50 });
+    // Le document déposé s'ouvre sur sa propre page.
+    controller.expectOne('/api/documents/options').flush(options);
+    controller.expectOne('/api/documents/d9').flush(detail('d9'));
     await settle();
+    expect(root().querySelector('h1')!.textContent).toContain('Document d9');
     expect(ui.snackbar).toContain('identique à un document déjà déposé');
     expect(ui.isOpen).toBe(false);
   });
@@ -242,36 +287,28 @@ describe('DocumentsPage', () => {
     expect(ui.error).toContain('Type de fichier non autorisé');
   });
 
-  it('archive un document ouvert et recharge la liste', async () => {
+  it('archive un document ouvert', async () => {
     await create(['documents:view', 'documents:create']);
-    buttonWith('Ouvrir')!.click();
-    await settle();
-    controller.expectOne('/api/documents/d1').flush(detail('d1'));
-    await settle();
+    await openDetail('d1');
 
     buttonWith('Archiver')!.click();
     await settle();
     controller.expectOne('/api/documents/d1/archive').flush(detail('d1', { archivedAt: '2026-11-04T10:00:00.000Z' }));
     await settle();
-    controller.expectOne((req) => req.url === '/api/documents').flush({ items: [], total: 0, pageSize: 50 });
-    await settle();
-    expect(root.textContent).toContain('Archivé');
+    expect(root().textContent).toContain('Archivé');
     expect(buttonWith('Réactiver')).toBeDefined();
   });
 
   it('lie un document à un objet et refuse un identifiant vide', async () => {
     await create(['documents:view', 'documents:create']);
-    buttonWith('Ouvrir')!.click();
-    await settle();
-    controller.expectOne('/api/documents/d1').flush(detail('d1'));
-    await settle();
+    await openDetail('d1');
 
     buttonWith('Lier')!.click();
     await settle();
     controller.expectNone('/api/documents/d1/links');
-    expect(root.querySelector('[role="alert"]')!.textContent).toContain("identifiant de l'objet");
+    expect(root().querySelector('[role="alert"]')!.textContent).toContain("identifiant de l'objet");
 
-    const id = root.querySelector<HTMLInputElement>('input[formcontrolname="objectId"]')!;
+    const id = root().querySelector<HTMLInputElement>('input[formcontrolname="objectId"]')!;
     id.value = 'm-7';
     id.dispatchEvent(new Event('input'));
     buttonWith('Lier')!.click();

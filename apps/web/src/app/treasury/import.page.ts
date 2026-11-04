@@ -2,9 +2,10 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { ThemeService } from '../theme/theme.service';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AdminApiService, type FinancialAccountInfo } from '../admin/admin-api.service';
 import { describeHttpError } from '../auth/error-messages';
+import { BackLink } from '../ui/back-link';
 import { PageHeader } from '../ui/page-header';
 import { ImportPanel } from './import-panel';
 
@@ -14,7 +15,7 @@ import { ImportPanel } from './import-panel';
  */
 @Component({
   selector: 'app-import-page',
-  imports: [RouterLink, MatButtonModule, MatIconModule, PageHeader, ImportPanel],
+  imports: [BackLink, PageHeader, ImportPanel],
   styleUrl: '../admin/admin-pages.scss',
   template: `
     <app-page-header
@@ -24,9 +25,7 @@ import { ImportPanel } from './import-panel';
         ? 'Déposez le fichier de votre banque (format OFX) : l’application le lit, repère ce qui existe déjà et vous propose de relier vos saisies aux mouvements de la banque. Rien n’est enregistré avant votre confirmation.'
         : 'Déposez le fichier OFX de votre banque : l’application le lit, repère ce qui existe déjà et vous propose de rapprocher vos saisies. Rien n’est enregistré avant votre confirmation.'"
     >
-      <a mat-stroked-button routerLink="/comptes">
-        <mat-icon fontSet="material-icons-outlined" aria-hidden="true">arrow_back</mat-icon> Retour aux comptes
-      </a>
+      <app-back-link [to]="['/comptes', accountId]" label="Retour au compte" />
     </app-page-header>
 
     @if (error(); as message) {
@@ -63,6 +62,7 @@ export class ImportPage {
   private readonly api = inject(AdminApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  protected readonly accountId = this.route.snapshot.paramMap.get('id') ?? '';
 
   protected readonly account = signal<FinancialAccountInfo | null>(null);
   protected readonly error = signal<string | null>(null);
@@ -71,9 +71,9 @@ export class ImportPage {
     void this.load();
   }
 
-  /** Après une confirmation, retour à la liste des comptes (le bandeau de succès a déjà été affiché). */
+  /** Après une confirmation, retour au compte (le bandeau de succès a déjà été affiché). */
   protected done(): void {
-    void this.router.navigateByUrl('/comptes');
+    void this.router.navigate(['/comptes', this.accountId]);
   }
 
   private async load(): Promise<void> {

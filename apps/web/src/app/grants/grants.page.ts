@@ -1,4 +1,5 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -10,7 +11,9 @@ import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
+import { BackLink } from '../ui/back-link';
 import { PageHeader } from '../ui/page-header';
+import { routeParam } from '../ui/route-param';
 import { FunderDialog } from './funder-dialog';
 import { GrantExpenses } from './grant-expenses';
 import { GrantFinance } from './grant-finance';
@@ -27,16 +30,13 @@ import { Skeleton } from '../ui/skeleton';
  */
 @Component({
   selector: 'app-grants-page',
-  imports: [Skeleton, FrDatePipe, GrantProgress, GrantExpenses, GrantFinance, GrantReport, LinkedDocuments, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
+  imports: [Skeleton, BackLink, RouterLink, FrDatePipe, GrantProgress, GrantExpenses, GrantFinance, GrantReport, LinkedDocuments, MatButtonModule, MatFormFieldModule, MatIconModule, MatSelectModule, PageHeader],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .amount {
       font-variant-numeric: tabular-nums;
       text-align: right;
       white-space: nowrap;
-    }
-    tr.selected td {
-      background: var(--app-surface-muted);
     }
     .note {
       display: block;
@@ -58,30 +58,72 @@ import { Skeleton } from '../ui/skeleton';
     }
   `,
   template: `
-    <app-page-header
-      title="Subventions"
-      icon="payments"
-      description="Les dossiers déposés auprès de vos financeurs : demandés, instruits, accordés ou refusés, puis clôturés. C'est un suivi : rien n'est écrit dans la comptabilité."
-    >
-      @if (canManage()) {
-        <button mat-flat-button type="button" (click)="createGrant()">
-          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Demander une subvention
-        </button>
-        <button mat-stroked-button type="button" (click)="createFunder()">
-          <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add_business</mat-icon> Nouveau financeur
-        </button>
-      }
-    </app-page-header>
+    @if (routeId()) {
+      <app-page-header [title]="selected()?.title ?? 'Subvention'" icon="receipt_long" description="Où en est ce dossier, ce qui a été reçu et dépensé, ses documents et ce qu'on peut faire ensuite.">
+        <app-back-link to="/subventions" label="Retour aux subventions" />
+        @if (selected(); as grant) {
+          @if (canManage()) {
+            <button mat-stroked-button type="button" (click)="edit(grant)">
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">edit</mat-icon> Modifier
+            </button>
+            @if (grant.status === 'REQUESTED' || grant.status === 'UNDER_REVIEW') {
+              <button mat-stroked-button type="button" (click)="allocate(grant)">
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">account_tree</mat-icon> Projets financés
+              </button>
+            }
+            @if (grant.status === 'REQUESTED') {
+              <button mat-stroked-button type="button" (click)="review(grant)">Passer en instruction</button>
+            }
+            @if (grant.status === 'REQUESTED' || grant.status === 'UNDER_REVIEW') {
+              <button mat-flat-button type="button" (click)="decide(grant)">
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">check</mat-icon> Enregistrer l'accord
+              </button>
+              <button mat-button type="button" (click)="reason(grant, 'refuse')">Enregistrer un refus</button>
+              <button mat-button type="button" (click)="reason(grant, 'cancel')">Annuler la demande</button>
+            }
+            @if (grant.status === 'GRANTED') {
+              <button mat-flat-button type="button" (click)="close(grant)">
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">lock</mat-icon> Clôturer
+              </button>
+            }
+          }
+        }
+      </app-page-header>
+    } @else {
+      <app-page-header
+        title="Subventions"
+        icon="payments"
+        description="Les dossiers déposés auprès de vos financeurs : demandés, instruits, accordés ou refusés, puis clôturés. C'est un suivi : rien n'est écrit dans la comptabilité."
+      >
+        @if (canManage()) {
+          <button mat-flat-button type="button" (click)="createGrant()">
+            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Demander une subvention
+          </button>
+          <button mat-stroked-button type="button" (click)="createFunder()">
+            <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add_business</mat-icon> Nouveau financeur
+          </button>
+        }
+      </app-page-header>
+    }
 
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
     }
 
+    @if (routeId() && detailLoading()) {
+      <app-skeleton variant="cards" />
+    } @else if (routeId() && !selected() && !error()) {
+      <p class="alert" role="alert">
+        Cette subvention est introuvable. Elle a peut-être été retirée de votre accès, ou l'adresse est incomplète. Revenez à la liste des subventions pour choisir un autre dossier.
+      </p>
+    }
+
+    @if (!routeId()) {
     <section class="panel" aria-label="Subventions">
       <div class="head">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">list_alt</mat-icon><span>Subventions</span></h3>
         <div class="actions">
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-form-field class="full-row" appearance="outline" subscriptSizing="dynamic">
             <mat-label>État</mat-label>
             <mat-select [value]="filter()" (selectionChange)="changeFilter($event.value)" aria-label="Filtrer par état">
               <mat-option value="">Tous les états</mat-option>
@@ -121,7 +163,7 @@ import { Skeleton } from '../ui/skeleton';
           </thead>
           <tbody>
             @for (grant of grants(); track grant.id) {
-              <tr [class.selected]="grant.id === selected()?.id">
+              <tr>
                 <td>
                   {{ grant.title }}
                   @if (grant.reference) {
@@ -135,7 +177,7 @@ import { Skeleton } from '../ui/skeleton';
                 <td class="amount">{{ grant.grantedAmount === null ? '—' : amount(grant.received) }}</td>
                 <td>{{ projectCodes(grant) }}</td>
                 <td class="row-actions">
-                  <button mat-button type="button" [attr.aria-label]="'Ouvrir ' + grant.title" (click)="open(grant)">Ouvrir</button>
+                  <a mat-button [routerLink]="['/subventions', grant.id]" [attr.aria-label]="'Ouvrir ' + grant.title">Ouvrir</a>
                 </td>
               </tr>
             }
@@ -143,40 +185,10 @@ import { Skeleton } from '../ui/skeleton';
         </table>
       }
     </section>
+    }
 
     @if (selected(); as grant) {
       <section class="panel" [attr.aria-label]="'Détail de ' + grant.title">
-        <div class="head">
-          <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">receipt_long</mat-icon><span>{{ grant.title }}</span></h3>
-          <div class="actions">
-            @if (canManage()) {
-              <button mat-stroked-button type="button" (click)="edit(grant)">
-                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">edit</mat-icon> Modifier
-              </button>
-              @if (grant.status === 'REQUESTED' || grant.status === 'UNDER_REVIEW') {
-                <button mat-stroked-button type="button" (click)="allocate(grant)">
-                  <mat-icon fontSet="material-icons-outlined" aria-hidden="true">account_tree</mat-icon> Projets financés
-                </button>
-              }
-              @if (grant.status === 'REQUESTED') {
-                <button mat-stroked-button type="button" (click)="review(grant)">Passer en instruction</button>
-              }
-              @if (grant.status === 'REQUESTED' || grant.status === 'UNDER_REVIEW') {
-                <button mat-flat-button type="button" (click)="decide(grant)">
-                  <mat-icon fontSet="material-icons-outlined" aria-hidden="true">check</mat-icon> Enregistrer l'accord
-                </button>
-                <button mat-button type="button" (click)="reason(grant, 'refuse')">Enregistrer un refus</button>
-                <button mat-button type="button" (click)="reason(grant, 'cancel')">Annuler la demande</button>
-              }
-              @if (grant.status === 'GRANTED') {
-                <button mat-flat-button type="button" (click)="close(grant)">
-                  <mat-icon fontSet="material-icons-outlined" aria-hidden="true">lock</mat-icon> Clôturer
-                </button>
-              }
-            }
-            <button mat-button type="button" (click)="selected.set(null)">Fermer</button>
-          </div>
-        </div>
         <app-grant-progress [grant]="grant" [canManage]="canManage()" [finance]="finance()" (act)="progress(grant, $event)" />
         <p class="muted">{{ explain(grant) }}</p>
         <dl class="facts">
@@ -259,7 +271,7 @@ import { Skeleton } from '../ui/skeleton';
       }
     }
 
-    @if (showFunders()) {
+    @if (showFunders() && !routeId()) {
       <section class="panel" aria-label="Financeurs">
         <div class="head">
           <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">domain</mat-icon><span>Financeurs</span></h3>
@@ -316,7 +328,11 @@ export class GrantsPage {
 
   protected readonly grants = signal<GrantInfo[]>([]);
   protected readonly funders = signal<FunderInfo[]>([]);
+  private readonly router = inject(Router);
+  /** La subvention ouverte vient de l'adresse (`/subventions/:id`) : `null` sur la liste. */
+  protected readonly routeId = routeParam('id');
   protected readonly selected = signal<GrantInfo | null>(null);
+  protected readonly detailLoading = signal(false);
   protected readonly filter = signal<GrantStatus | ''>('');
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -336,7 +352,12 @@ export class GrantsPage {
   });
 
   constructor() {
-    void this.load();
+    // Sur la page d'une subvention, la liste n'est pas affichée : on ne la charge pas.
+    if (!this.routeId()) void this.load();
+    effect(() => {
+      const id = this.routeId();
+      untracked(() => void this.loadSelected(id));
+    });
   }
 
   /**
@@ -404,11 +425,20 @@ export class GrantsPage {
     await this.load();
   }
 
-  protected async open(grant: GrantInfo): Promise<void> {
+  /** Charge la subvention de l'adresse ; une subvention hors de portée ou inconnue reste `null` (le serveur répond 404). */
+  private async loadSelected(id: string | null): Promise<void> {
+    if (!id) {
+      this.selected.set(null);
+      return;
+    }
+    this.detailLoading.set(true);
     try {
-      this.selected.set(await this.api.getGrant(grant.id));
-    } catch (failure) {
-      this.error.set(describeHttpError(failure, 'Impossible de charger cette subvention.').message);
+      const grant = await this.api.getGrant(id);
+      if (this.routeId() === id) this.selected.set(grant);
+    } catch {
+      if (this.routeId() === id) this.selected.set(null);
+    } finally {
+      this.detailLoading.set(false);
     }
   }
 
@@ -479,24 +509,30 @@ export class GrantsPage {
     }
   }
 
-  /** Recharge la liste et le détail après un versement ou une échéance, sans bandeau (le panneau a le sien). */
+  /** Recharge le détail après un versement ou une échéance, sans bandeau (le panneau a le sien). */
   protected async refresh(): Promise<void> {
     this.reportKey.update((n) => n + 1);
-    await this.load();
-    const target = this.selected()?.id;
+    const target = this.routeId();
     if (target) this.selected.set(await this.api.getGrant(target));
   }
 
+  /**
+   * Après une action : bandeau de succès, puis on montre le résultat. Sur la liste on la recharge, ou on ouvre la page de la
+   * subvention créée ; sur une page de subvention on recharge son détail.
+   */
   private async done(message: string, show?: string): Promise<void> {
     this.notifier.success(message);
-    await this.load();
-    const target = show ?? this.selected()?.id;
-    if (target) {
+    const current = this.routeId();
+    if (show && show !== current) {
+      await this.router.navigate(['/subventions', show]);
+    } else if (current) {
       try {
-        this.selected.set(await this.api.getGrant(target));
+        this.selected.set(await this.api.getGrant(current));
       } catch {
         this.selected.set(null);
       }
+    } else {
+      await this.load();
     }
   }
 

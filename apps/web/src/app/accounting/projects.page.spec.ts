@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { mockAuth } from '../testing/auth-mock';
 import { ProjectsPage } from './projects.page';
@@ -37,8 +38,10 @@ const summary = {
 
 describe('ProjectsPage', () => {
   let controller: HttpTestingController;
-  let fixture: ReturnType<typeof TestBed.createComponent<ProjectsPage>>;
-  let root: HTMLElement;
+  let harness: RouterTestingHarness;
+  const fixture = { detectChanges: () => harness.fixture.detectChanges(), whenStable: () => harness.fixture.whenStable() };
+  /** La page courante : la liste et le détail sont deux adresses, donc deux instances. */
+  const root = () => harness.routeNativeElement as HTMLElement;
   let ui: DialogTester;
 
   const settle = async () => {
@@ -64,26 +67,36 @@ describe('ProjectsPage', () => {
     });
     await settle();
   };
-  const create = async (permissions: string[]) => {
+  /** Ouvre la page à l'adresse donnée : `/projets` (liste) ou `/projets/p1` (détail du projet p1). */
+  const create = async (permissions: string[], url = '/projets') => {
     await TestBed.configureTestingModule({
       imports: [ProjectsPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
+      providers: [
+        provideRouter([
+          { path: 'projets', component: ProjectsPage },
+          { path: 'projets/:id', component: ProjectsPage },
+        ]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        mockAuth(permissions),
+        NO_MATERIAL_ANIMATIONS,
+      ],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
     TestBed.inject(ThemeService).setViewMode(view);
-    fixture = TestBed.createComponent(ProjectsPage);
-    root = fixture.nativeElement as HTMLElement;
+    harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl(url, ProjectsPage);
     ui = new DialogTester(settle);
     await settle();
     controller.expectOne('/api/projects').flush([permanent, project()]);
     await settle();
   };
   const click = async (label: string) => {
-    const button = Array.from(root.querySelectorAll('button')).find(
+    const button = Array.from(root().querySelectorAll('button, a')).find(
       (b) => b.textContent!.trim().includes(label) || b.getAttribute('aria-label')?.includes(label),
     );
     expect(button, label).toBeTruthy();
-    button!.click();
+    (button as HTMLElement).click();
     await settle();
   };
 
@@ -94,23 +107,46 @@ describe('ProjectsPage', () => {
 
   it('présente la page : titre, phrase d’explication et projets, le permanent en premier', async () => {
     await create(['projects:view']);
-    expect(root.querySelector('h1')!.textContent).toContain('Projets');
-    expect(root.querySelector('.description')!.textContent).toContain('ce qu\'elle coûte');
-    const rows = Array.from(root.querySelectorAll('tbody tr')).map((r) => r.textContent!);
+    expect(root().querySelector('h1')!.textContent).toContain('Projets');
+    expect(root().querySelector('.description')!.textContent).toContain('ce qu\'elle coûte');
+    const rows = Array.from(root().querySelectorAll('tbody tr')).map((r) => r.textContent!);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toContain('FONCT');
     expect(rows[0]).toContain('Permanent');
     expect(rows[1]).toContain('01/06/2026 → 30/06/2026');
-    expect(root.textContent).not.toContain('Nouveau projet');
+    expect(root().textContent).not.toContain('Nouveau projet');
+  });
+
+  it('chaque projet de la liste est un lien vers sa propre page, sans détail sous le tableau', async () => {
+    await create(['projects:view']);
+    const link = root().querySelector('a[aria-label="Ouvrir Festival"]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/projets/p1');
+    expect(root().querySelector('section[aria-label^="Synthèse"]')).toBeNull();
+  });
+
+  it('ouvrir un projet affiche sa page en haut de l’écran, sans la liste, avec un retour vers les projets', async () => {
+    await create(['projects:view'], '/projets/p1');
+    controller.expectOne('/api/projects/p1/summary').flush(empty);
+    await flushPanels('p1');
+    expect(root().querySelector('h1')!.textContent).toContain('Festival');
+    expect(root().querySelector('table.table caption')!.textContent).not.toContain('Projets');
+    const back = root().querySelector('a.back-link') as HTMLAnchorElement;
+    expect(back.textContent).toContain('Retour aux projets');
+    expect(back.getAttribute('href')).toBe('/projets');
+  });
+
+  it('dit clairement qu’un projet est introuvable et propose de revenir à la liste', async () => {
+    await create(['projects:view'], '/projets/inconnu');
+    expect(root().querySelector('[role="alert"]')!.textContent).toContain('introuvable');
+    expect(root().querySelector('a.back-link')).toBeTruthy();
   });
 
   it('montre la synthèse annuelle et globale d’un projet', async () => {
-    await create(['projects:view']);
-    await click('Ouvrir Festival');
+    await create(['projects:view'], '/projets/p1');
     controller.expectOne('/api/projects/p1/summary').flush(summary);
     await flushPanels('p1');
     await settle();
-    const text = root.textContent!;
+    const text = root().textContent!;
     expect(text).toContain('Synthèse de Festival');
     expect(text).toContain('Été 2026');
     expect(text).toContain('-60,00');
@@ -119,44 +155,40 @@ describe('ProjectsPage', () => {
   });
 
   it('montre les documents du projet à qui a documents:view sur ce projet, et les demande au serveur', async () => {
-    await create(['projects:view', 'documents:view']);
-    await click('Ouvrir Festival');
+    await create(['projects:view', 'documents:view'], '/projets/p1');
     controller.expectOne('/api/projects/p1/summary').flush(empty);
     await flushPanels('p1');
     controller.expectOne((r) => r.url === '/api/documents' && r.params.get('objectType') === 'project' && r.params.get('objectId') === 'p1').flush({ items: [], total: 0, pageSize: 50 });
     controller.expectOne('/api/documents/options').flush({ categories: [], objectTypes: [], allowedExtensions: [] });
     await settle();
-    expect(root.querySelector('section[aria-label="Documents de Festival"]')).toBeTruthy();
-    expect(root.textContent).toContain("Aucun document n'est disponible ici.");
+    expect(root().querySelector('section[aria-label="Documents de Festival"]')).toBeTruthy();
+    expect(root().textContent).toContain("Aucun document n'est disponible ici.");
   });
 
   it('ne montre pas de panneau Documents, et ne fait aucune requête, sans le droit', async () => {
-    await create(['projects:view']);
-    await click('Ouvrir Festival');
+    await create(['projects:view'], '/projets/p1');
     controller.expectOne('/api/projects/p1/summary').flush(empty);
     await flushPanels('p1');
-    expect(root.querySelector('section[aria-label="Documents de Festival"]')).toBeNull();
+    expect(root().querySelector('section[aria-label="Documents de Festival"]')).toBeNull();
   });
 
   it('indique quand rien n’a été ventilé sur le projet', async () => {
-    await create(['projects:view']);
-    await click('Ouvrir Festival');
+    await create(['projects:view'], '/projets/p1');
     controller.expectOne('/api/projects/p1/summary').flush(empty);
     await flushPanels('p1');
     await settle();
-    expect(root.textContent).toContain("Aucune charge ni aucun produit n’a encore été ventilé");
+    expect(root().textContent).toContain("Aucune charge ni aucun produit n’a encore été ventilé");
   });
 
   it('affichage simple : la synthèse parle de dépenses, de recettes et de périodes', async () => {
     view = 'simple';
-    await create(['projects:view']);
-    await click('Ouvrir Festival');
+    await create(['projects:view'], '/projets/p1');
     controller.expectOne('/api/projects/p1/summary').flush(empty);
     await flushPanels('p1');
     await settle();
-    expect(root.textContent).toContain('Aucune dépense ni aucune recette n’a encore été rattachée à ce projet');
-    expect(root.textContent).toContain('les opérations enregistrées dans les comptes');
-    expect(root.textContent).not.toContain('ventilé');
+    expect(root().textContent).toContain('Aucune dépense ni aucune recette n’a encore été rattachée à ce projet');
+    expect(root().textContent).toContain('les opérations enregistrées dans les comptes');
+    expect(root().textContent).not.toContain('ventilé');
   });
 
   it('crée un projet dans une boîte de dialogue, confirme par un bandeau et ouvre sa synthèse', async () => {
@@ -185,7 +217,7 @@ describe('ProjectsPage', () => {
     // La boîte est fermée, un bandeau confirme, rien de vert n'est resté dans la page.
     expect(ui.isOpen).toBe(false);
     expect(ui.snackbar).toContain('Projet ATELIERS créé.');
-    expect(root.querySelector('.success')).toBeNull();
+    expect(root().querySelector('.success')).toBeNull();
   });
 
   it('garde la boîte ouverte et la saisie quand le serveur refuse, avec un message clair', async () => {
@@ -236,8 +268,7 @@ describe('ProjectsPage', () => {
   });
 
   it('modifie un projet existant : le code n’est plus proposé et le projet permanent reste actif', async () => {
-    await create(['projects:view', 'projects:update']);
-    await click('Ouvrir Fonctionnement');
+    await create(['projects:view', 'projects:update'], '/projets/p0');
     controller.expectOne('/api/projects/p0/summary').flush(empty);
     await flushPanels('p0');
     await settle();
@@ -254,11 +285,11 @@ describe('ProjectsPage', () => {
     expect(patch.request.body.name).toBe('Fonctionnement général');
     patch.flush({ ...permanent, name: 'Fonctionnement général' });
     await settle();
+    // La fiche modifiée recharge la liste (et les panneaux voisins), pas la synthèse : on reste sur le même projet.
     controller.expectOne('/api/projects').flush([{ ...permanent, name: 'Fonctionnement général' }]);
-    await settle();
-    controller.expectOne('/api/projects/p0/summary').flush(empty);
     await flushPanels('p0');
     await settle();
+    expect(root().querySelector('h1')!.textContent).toContain('Fonctionnement général');
     expect(ui.snackbar).toContain('Projet FONCT enregistré.');
   });
 });

@@ -3,7 +3,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { mockAuth } from '../testing/auth-mock';
 import { ThemeService } from '../theme/theme.service';
@@ -67,8 +68,12 @@ const transaction = (overrides: Record<string, unknown> = {}) => ({
 
 describe('AccountsPage', () => {
   let controller: HttpTestingController;
-  let fixture: ReturnType<typeof TestBed.createComponent<AccountsPage>>;
-  let root: HTMLElement;
+  let harness: RouterTestingHarness;
+  const fixture = { detectChanges: () => harness.fixture.detectChanges(), whenStable: () => harness.fixture.whenStable() };
+  /** La page courante : la liste et la page d'un compte sont deux adresses, donc deux instances. */
+  const root = () => harness.routeNativeElement as HTMLElement;
+  /** Les comptes servis par le dernier `create` : la page d'un compte les recharge. */
+  let served: object[] = [];
   let ui: DialogTester;
 
   const settle = async () => {
@@ -79,12 +84,23 @@ describe('AccountsPage', () => {
   const create = async (permissions: string[], accounts: object[] = [account()], view: 'simple' | 'accounting' = 'accounting') => {
     await TestBed.configureTestingModule({
       imports: [AccountsPage],
-      providers: [provideRouter([{ path: 'comptabilite/ecritures/:id', component: EntryStub }]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
+      providers: [
+        provideRouter([
+          { path: 'comptabilite/ecritures/:id', component: EntryStub },
+          { path: 'comptes', component: AccountsPage },
+          { path: 'comptes/:id', component: AccountsPage },
+        ]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        mockAuth(permissions),
+        NO_MATERIAL_ANIMATIONS,
+      ],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
     TestBed.inject(ThemeService).setViewMode(view);
-    fixture = TestBed.createComponent(AccountsPage);
-    root = fixture.nativeElement as HTMLElement;
+    served = accounts;
+    harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/comptes', AccountsPage);
     ui = new DialogTester(settle);
     await settle();
     controller.expectOne('/api/financial-accounts').flush(accounts);
@@ -95,7 +111,7 @@ describe('AccountsPage', () => {
     await settle();
   };
   const click = async (label: string) => {
-    const button = Array.from(root.querySelectorAll('button, a')).find(
+    const button = Array.from(root().querySelectorAll('button, a')).find(
       (b) => b.textContent!.trim().includes(label) || b.getAttribute('aria-label')?.includes(label),
     ) as HTMLElement | undefined;
     expect(button, label).toBeTruthy();
@@ -118,8 +134,18 @@ describe('AccountsPage', () => {
     item!.click();
     await settle();
   };
-  const openTransactions = async (list: object[] = [transaction()]) => {
+  /** Ouvrir un compte change d'adresse (`/comptes/f1`) : la page du compte recharge les comptes, le plan et les projets. */
+  const openAccount = async () => {
     await click('Ouvrir Compte courant');
+    controller.expectOne('/api/financial-accounts').flush(served);
+    await settle();
+    controller.expectOne('/api/accounts').flush(chart);
+    await settle();
+    controller.expectOne('/api/projects').flush([]);
+    await settle();
+  };
+  const openTransactions = async (list: object[] = [transaction()]) => {
+    await openAccount();
     controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: list, next: null });
     await settle();
   };
@@ -137,9 +163,9 @@ describe('AccountsPage', () => {
 
   it("présente la page et affiche chaque solde séparément, sans présenter le compte comme rapproché", async () => {
     await create(['financial-accounts:view']);
-    expect(root.querySelector('h1')!.textContent).toContain('Comptes');
-    expect(root.querySelector('.description')!.textContent).toContain('combien il y a dessus');
-    const text = root.textContent!;
+    expect(root().querySelector('h1')!.textContent).toContain('Comptes');
+    expect(root().querySelector('.description')!.textContent).toContain('combien il y a dessus');
+    const text = root().textContent!;
     expect(text).toContain('Compte courant');
     expect(text).toContain('BQ-1');
     expect(text).toContain('969,50');
@@ -154,45 +180,71 @@ describe('AccountsPage', () => {
 
   it("en affichage simple, parle de vérification avec la banque et propose « J'ai reçu » / « J'ai dépensé »", async () => {
     await create(['financial-accounts:view', 'transactions:manage', 'entries:create'], [account()], 'simple');
-    const text = root.textContent!;
+    const text = root().textContent!;
     expect(text).toContain('Vérifié avec la banque');
     expect(text).toContain('Pas encore vérifié');
     expect(text).toContain('Solde d’après vos enregistrements');
     expect(text).not.toContain('Solde comptable (écritures)');
     expect(text).not.toContain('BQ-1');
-    const buttons = Array.from(root.querySelectorAll('app-page-header button')).map((b) => b.textContent!.trim());
+    const buttons = Array.from(root().querySelectorAll('app-page-header button')).map((b) => b.textContent!.trim());
     expect(buttons.join('|')).toContain('J’ai reçu de l’argent');
     expect(buttons.join('|')).toContain('J’ai dépensé de l’argent');
   });
 
-  it('masque les transactions quand on reclique sur la tuile du compte', async () => {
+  it('chaque compte de la liste est un lien vers sa propre page, sans transactions sous les tuiles', async () => {
     await create(['financial-accounts:view']);
+    const link = root().querySelector('a[aria-label="Ouvrir Compte courant"]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/comptes/f1');
+    expect(root().querySelector('app-transactions-panel')).toBeNull();
+    expect(root().textContent).toContain('Voir les transactions');
+  });
+
+  it('la page d’un compte montre ce compte et ses transactions seuls, avec un retour vers la liste', async () => {
+    await create(['financial-accounts:view'], [account(), account({ id: 'f2', name: 'Caisse', journalCode: 'CA-1', accountId: 'a530', accountNumber: '530' })]);
+    served = [account(), account({ id: 'f2', name: 'Caisse', journalCode: 'CA-1', accountId: 'a530', accountNumber: '530' })];
     await openTransactions();
-    expect(root.querySelector('app-transactions-panel')).not.toBeNull();
-    expect(root.textContent).toContain('Masquer les transactions');
-    await click('Ouvrir Compte courant');
-    expect(root.querySelector('app-transactions-panel')).toBeNull();
-    expect(root.textContent).toContain('Voir les transactions');
+    expect(root().querySelector('h1')!.textContent).toContain('Compte courant');
+    expect(root().querySelectorAll('li.account-card')).toHaveLength(1);
+    expect(root().textContent).not.toContain('Voir les transactions');
+    expect(root().querySelector('app-transactions-panel')).not.toBeNull();
+    const back = root().querySelector('a.back-link') as HTMLAnchorElement;
+    expect(back.textContent).toContain('Retour aux comptes');
+    expect(back.getAttribute('href')).toBe('/comptes');
+  });
+
+  it('dit clairement qu’un compte est introuvable et propose de revenir à la liste', async () => {
+    await create(['financial-accounts:view']);
+    await harness.navigateByUrl('/comptes/inconnu', AccountsPage);
+    controller.expectOne('/api/financial-accounts').flush([account()]);
+    await settle();
+    controller.expectOne('/api/accounts').flush(chart);
+    await settle();
+    controller.expectOne('/api/projects').flush([]);
+    await settle();
+    expect(root().querySelector('[role="alert"]')!.textContent).toContain('introuvable');
+    expect(root().querySelector('a.back-link')).toBeTruthy();
   });
 
   it('dit l’écart avec le relevé en phrase, avec son sens (#14)', async () => {
     const lower = (gap: string) => account({ balances: { ...account().balances, lastStatement: { periodEnd: '2026-03-31', closingBalance: '950.00', gap } } });
     await create(['financial-accounts:view'], [lower('-19.50')], 'simple');
-    expect(root.textContent).toContain('Au 31/03/2026, votre banque indique 19,50 € de moins que vos enregistrements');
+    expect(root().textContent).toContain('Au 31/03/2026, votre banque indique 19,50 € de moins que vos enregistrements');
     TestBed.resetTestingModule();
     await create(['financial-accounts:view'], [lower('120.00')], 'simple');
-    expect(root.textContent).toContain('votre banque indique 120,00 € de plus que vos enregistrements : il manque sans doute des mouvements');
+    expect(root().textContent).toContain('votre banque indique 120,00 € de plus que vos enregistrements : il manque sans doute des mouvements');
     TestBed.resetTestingModule();
     await create(['financial-accounts:view'], [lower('0.00')], 'simple');
-    expect(root.textContent).toContain('Vos enregistrements correspondent au relevé du 31/03/2026');
+    expect(root().textContent).toContain('Vos enregistrements correspondent au relevé du 31/03/2026');
   });
 
-  it("ouvre directement le compte demandé par un lien de la vue d'ensemble (?compte=)", async () => {
+  it("ouvre directement la page du compte demandé par un lien de la vue d'ensemble (?compte=)", async () => {
     await TestBed.configureTestingModule({
       imports: [AccountsPage],
       providers: [
-        provideRouter([]),
-        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ compte: 'f2' }) } } },
+        provideRouter([
+          { path: 'comptes', component: AccountsPage },
+          { path: 'comptes/:id', component: AccountsPage },
+        ]),
         provideHttpClient(),
         provideHttpClientTesting(),
         mockAuth(['financial-accounts:view']),
@@ -201,13 +253,15 @@ describe('AccountsPage', () => {
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
     TestBed.inject(ThemeService).setViewMode('simple');
-    fixture = TestBed.createComponent(AccountsPage);
-    root = fixture.nativeElement as HTMLElement;
+    harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/comptes?compte=f2', AccountsPage);
     ui = new DialogTester(settle);
     await settle();
+    // La liste ne se charge pas pour rien : on arrive sur la page du compte demandé.
+    expect(TestBed.inject(Router).url).toBe('/comptes/f2');
     controller.expectOne('/api/financial-accounts').flush([account(), account({ id: 'f2', name: 'Caisse', journalCode: 'CA-1' })]);
     await settle();
-    // Le compte demandé est ouvert : c'est lui dont on charge les mouvements (déjà sur « À classer »).
+    // C'est ce compte dont on charge les mouvements (déjà sur « À classer »).
     const first = controller.expectOne((r) => r.url === '/api/financial-accounts/f2/transactions');
     expect(first.request.params.get('qualified')).toBe('false');
     first.flush({ transactions: [], next: null });
@@ -217,13 +271,13 @@ describe('AccountsPage', () => {
       controller.match(() => true).forEach((r) => r.flush(r.request.url.includes('transactions') ? { transactions: [], next: null } : []));
       await settle();
     }
-    expect(root.querySelector('app-transactions-panel')!.textContent).toContain('Mouvements de Caisse');
+    expect(root().querySelector('app-transactions-panel')!.textContent).toContain('Mouvements de Caisse');
   });
 
   it("indique « rapproché » seulement pour un rapprochement validé, et propose d'en commencer un", async () => {
     const validated = account({ balances: { ...account().balances, reconciled: { periodEnd: '2026-03-31', closingBalance: '950.00' } } });
     await create(['financial-accounts:view', 'imports:post'], [validated]);
-    expect(root.textContent).toContain('Rapproché au 31/03/2026');
+    expect(root().textContent).toContain('Rapproché au 31/03/2026');
     await click('Actions de Compte courant');
     const link = Array.from(TestBed.inject(OverlayContainer).getContainerElement().querySelectorAll<HTMLAnchorElement>('a.mat-mdc-menu-item')).find((a) => a.textContent!.includes('Rapprocher'));
     expect(link?.getAttribute('href')).toBe('/comptes/f1/rapprochement');
@@ -231,8 +285,8 @@ describe('AccountsPage', () => {
 
   it("guide l'utilisateur quand il n'y a aucun compte", async () => {
     await create(['financial-accounts:view', 'settings.accounting:admin'], []);
-    expect(root.textContent).toContain('Commençons par votre compte bancaire');
-    expect(root.textContent).toContain('Nouveau compte');
+    expect(root().textContent).toContain('Commençons par votre compte bancaire');
+    expect(root().textContent).toContain('Nouveau compte');
   });
 
   it('crée un compte dans une boîte de dialogue, avec seulement les comptes de trésorerie libres', async () => {
@@ -322,7 +376,7 @@ describe('AccountsPage', () => {
     controller.expectOne('/api/financial-accounts').flush([account({ archivedOn: '2026-11-01' })]);
     await settle();
     expect(ui.snackbar).toContain('archivé');
-    expect(root.textContent).toContain('Archivé');
+    expect(root().textContent).toContain('Archivé');
   });
 
   it('liste les transactions du compte avec leur sens et leur état de qualification', async () => {
@@ -331,20 +385,20 @@ describe('AccountsPage', () => {
       transaction(),
       transaction({ id: 't2', amount: '100.00', label: 'Cotisations', counterpartAccountNumber: '706', qualified: true, projectCode: 'ATELIERS', origin: 'IMPORT', bankIdentified: true, financialLock: 'BANK', deletable: false, externalId: 'FIT-2' }),
     ]);
-    const rows = Array.from(root.querySelectorAll('section tbody tr')).map((r) => r.textContent!);
+    const rows = Array.from(root().querySelectorAll('section tbody tr')).map((r) => r.textContent!);
     expect(rows[0]).toContain('-30,50');
     expect(rows[0]).toContain('À qualifier');
     expect(rows[1]).toContain('100,00');
     expect(rows[1]).toContain('706');
     expect(rows[1]).toContain('ATELIERS');
     expect(rows[1]).toContain('Importée');
-    expect(root.textContent).not.toContain('Ajouter une transaction');
+    expect(root().textContent).not.toContain('Ajouter une transaction');
   });
 
   it("propose l'import d'un relevé sur sa page dédiée", async () => {
     await create(['financial-accounts:view', 'imports:post']);
     await openTransactions([]);
-    const link = Array.from(root.querySelectorAll('a')).find((a) => a.textContent!.includes('Importer un relevé OFX'))!;
+    const link = Array.from(root().querySelectorAll('a')).find((a) => a.textContent!.includes('Importer un relevé OFX'))!;
     expect(link.getAttribute('href')).toBe('/comptes/f1/import');
   });
 
@@ -433,13 +487,13 @@ describe('AccountsPage', () => {
       transaction({ id: 't2', label: 'En cours', accounting: 'IN_PROGRESS', entry: entryRef(), financialLock: 'ENTRY', deletable: false }),
       transaction({ id: 't3', label: 'Faite', accounting: 'POSTED', entry: entryRef({ id: 'e3', status: 'POSTED', number: 4 }), financialLock: 'ENTRY', deletable: false }),
     ]);
-    const text = root.textContent!;
+    const text = root().textContent!;
     expect(text).toContain('À comptabiliser');
     expect(text).toContain('En cours de comptabilisation');
     expect(text).toContain('Comptabilisée');
     expect(text).toContain('BQ-1 n° 4');
     expect(text).toContain("une écriture validée enregistre ce mouvement");
-    const links = Array.from(root.querySelectorAll<HTMLAnchorElement>('a')).map((a) => a.getAttribute('href'));
+    const links = Array.from(root().querySelectorAll<HTMLAnchorElement>('a')).map((a) => a.getAttribute('href'));
     expect(links).toContain('/comptabilite/ecritures/e1');
     expect(links).toContain('/comptabilite/ecritures/e3');
   });
@@ -463,15 +517,15 @@ describe('AccountsPage', () => {
       .expectOne('/api/transactions/t1/entry')
       .flush({ message: "Choisissez d'abord le compte de contrepartie de la transaction (modifiez-la)." }, { status: 409, statusText: 'Conflict' });
     await settle();
-    expect(root.querySelector('[role="alert"]')!.textContent).toContain('compte de contrepartie');
+    expect(root().querySelector('[role="alert"]')!.textContent).toContain('compte de contrepartie');
   });
 
   it("sans le droit de saisir des écritures, aucune action de liaison n'est proposée", async () => {
     await create(['financial-accounts:view', 'transactions:manage']);
     await openTransactions();
-    expect(root.textContent).not.toContain('Comptabiliser Frais');
-    expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Associer'))).toBe(false);
-    expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Nouveau virement'))).toBe(false);
+    expect(root().textContent).not.toContain('Comptabiliser Frais');
+    expect(Array.from(root().querySelectorAll('button')).some((b) => b.textContent!.includes('Associer'))).toBe(false);
+    expect(Array.from(root().querySelectorAll('button')).some((b) => b.textContent!.includes('Nouveau virement'))).toBe(false);
   });
 
   it("associe une transaction à une écriture existante parmi celles qui correspondent", async () => {
@@ -552,7 +606,7 @@ describe('AccountsPage', () => {
     const posted = transaction({ id: 't9', label: 'Assurance', accounting: 'POSTED', entry: entryRef({ id: 'e9', status: 'POSTED', number: 5 }), financialLock: 'ENTRY', deletable: false });
     await create(FULL);
     await openTransactions([posted]);
-    expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Annuler l’opération'))).toBe(false);
+    expect(Array.from(root().querySelectorAll('button')).some((b) => b.textContent!.includes('Annuler l’opération'))).toBe(false);
   });
 
   describe('justificatifs d’un mouvement (menu de la ligne)', () => {
@@ -591,13 +645,13 @@ describe('AccountsPage', () => {
     it('n’affiche pas le menu sans aucun droit utile, et ne propose que ce qui est permis', async () => {
       await create(['financial-accounts:view']);
       await openTransactions();
-      expect(root.querySelector('button[aria-label^="Autres actions pour"]')).toBeNull();
+      expect(root().querySelector('button[aria-label^="Autres actions pour"]')).toBeNull();
     });
 
     it('range « Modifier » dans le menu ⋮ avec « Justificatifs », selon les droits', async () => {
       await create(['financial-accounts:view', 'transactions:manage', 'documents:view']);
       await openTransactions();
-      expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.trim() === 'Modifier')).toBe(false);
+      expect(Array.from(root().querySelectorAll('button')).some((b) => b.textContent!.trim() === 'Modifier')).toBe(false);
       await click('Autres actions pour Frais');
       const items = Array.from(TestBed.inject(OverlayContainer).getContainerElement().querySelectorAll('.mat-mdc-menu-item')).map((i) => i.textContent!.trim());
       expect(items.join('|')).toContain('Modifier');
@@ -615,7 +669,7 @@ describe('AccountsPage', () => {
     /** Ouvre le panneau en affichage simple : liste des mouvements puis catégories. */
     const openSimple = async (list: object[]) => {
       await create(SIMPLE, [account()], 'simple');
-      await click('Ouvrir Compte courant');
+      await openAccount();
       controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: list, next: null });
       controller.expectOne('/api/operation-categories').flush(cats);
       await settle();
@@ -623,11 +677,11 @@ describe('AccountsPage', () => {
 
     it('parle de mouvements, de description et de vérification avec la banque, sans le vocabulaire bancaire (#8)', async () => {
       await create([...SIMPLE, 'imports:post'], [account()], 'simple');
-      await click('Ouvrir Compte courant');
+      await openAccount();
       controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: [transaction({ id: 't1', label: 'Prélèvement', reference: 'REF42', origin: 'IMPORT', bankIdentified: true })], next: null });
       controller.expectOne('/api/operation-categories').flush(cats);
       await settle();
-      const text = root.textContent!;
+      const text = root().textContent!;
       expect(text).toContain('Mouvements de Compte courant');
       expect(text).toContain('Description');
       expect(text).toContain('N° banque REF42');
@@ -646,7 +700,7 @@ describe('AccountsPage', () => {
 
     it('signale par un trombone (lu à voix haute « Pièce jointe ») le mouvement qui a un justificatif (#30)', async () => {
       await openSimple([transaction({ id: 't1', label: 'Avec facture', hasDocument: true }), transaction({ id: 't2', label: 'Sans facture', hasDocument: false })]);
-      const rows = Array.from(root.querySelectorAll('tbody tr'));
+      const rows = Array.from(root().querySelectorAll('tbody tr'));
       expect(rows[0]!.querySelector('.clip')).not.toBeNull();
       expect(rows[0]!.textContent).toContain('Pièce jointe');
       expect(rows[1]!.querySelector('.clip')).toBeNull();
@@ -658,7 +712,7 @@ describe('AccountsPage', () => {
       const posted = (over: object = {}) =>
         transaction({ id: 't4', amount: '40.00', label: 'Facture mal classée', accounting: 'POSTED', counterpartAccountId: 'a616', counterpartAccountNumber: '616', entry: entryRef({ id: 'e4', status: 'POSTED', number: 4 }), financialLock: 'ENTRY', deletable: false, ...over });
       const openMenu = async (label: string) => {
-        (root.querySelector(`button[aria-label="Autres actions pour ${label}"]`) as HTMLElement).click();
+        (root().querySelector(`button[aria-label="Autres actions pour ${label}"]`) as HTMLElement).click();
         await settle();
       };
       const menuLabels = () => Array.from(document.querySelectorAll('.cdk-overlay-container [role="menuitem"]')).map((b) => b.textContent!.trim());
@@ -740,7 +794,7 @@ describe('AccountsPage', () => {
           transaction({ id: 't8', label: 'À classer' }),
         ]);
         for (const label of ['Vérifiée', 'Virement', 'Brouillon', 'À classer']) {
-          const trigger = root.querySelector(`button[aria-label="Autres actions pour ${label}"]`) as HTMLElement | null;
+          const trigger = root().querySelector(`button[aria-label="Autres actions pour ${label}"]`) as HTMLElement | null;
           if (!trigger) continue;
           trigger.click();
           await settle();
@@ -754,19 +808,19 @@ describe('AccountsPage', () => {
     it('explique ce qu’est un brouillon : à relire pour qui peut enregistrer, en attente de validation pour les autres (#18)', async () => {
       const draft = () => transaction({ id: 't3', label: 'Brouillon', accounting: 'IN_PROGRESS', counterpartAccountId: 'a616', counterpartAccountNumber: '616', entry: entryRef(), financialLock: 'ENTRY', deletable: false });
       await openSimple([draft()]);
-      expect(root.textContent).toContain('À relire puis enregistrer : rien n’est encore compté dans les rapports.');
-      expect(root.querySelector('button[aria-label="Aide : Brouillon"]')).not.toBeNull();
+      expect(root().textContent).toContain('À relire puis enregistrer : rien n’est encore compté dans les rapports.');
+      expect(root().querySelector('button[aria-label="Aide : Brouillon"]')).not.toBeNull();
       TestBed.resetTestingModule();
       await create(['financial-accounts:view', 'transactions:manage', 'entries:create', 'entries:view'], [account()], 'simple');
-      await click('Ouvrir Compte courant');
+      await openAccount();
       controller.expectOne((r) => r.url === '/api/financial-accounts/f1/transactions').flush({ transactions: [draft()], next: null });
       controller.expectOne('/api/operation-categories').flush(cats);
       await settle();
-      expect(root.textContent).toContain('En attente de validation par une personne autorisée : rien n’est encore compté dans les rapports.');
+      expect(root().textContent).toContain('En attente de validation par une personne autorisée : rien n’est encore compté dans les rapports.');
     });
 
     describe('actions de ligne et bandeau (#26)', () => {
-      const rowButtons = (index: number) => Array.from(root.querySelectorAll('tbody tr')[index]!.querySelectorAll('button, a')).map((b) => b.textContent!.trim());
+      const rowButtons = (index: number) => Array.from(root().querySelectorAll('tbody tr')[index]!.querySelectorAll('button, a')).map((b) => b.textContent!.trim());
       const menuItems = () => Array.from(document.querySelectorAll('.cdk-overlay-container [role="menuitem"]')).map((b) => b.textContent!.trim());
 
       it('met un seul bouton principal par ligne et range le reste dans « Autres actions »', async () => {
@@ -777,8 +831,8 @@ describe('AccountsPage', () => {
         expect(rowButtons(0).filter((t) => t)).toEqual(['Classer et enregistrer', 'more_vert']);
         expect(rowButtons(1).filter((t) => t)).toEqual(['more_vert']);
         // Le geste destructeur n'est jamais au premier plan : il faut ouvrir le menu.
-        expect(root.textContent).not.toContain('Annuler l’opération');
-        (root.querySelectorAll('tbody tr')[1]!.querySelector('button[aria-label^="Autres actions"]') as HTMLElement).click();
+        expect(root().textContent).not.toContain('Annuler l’opération');
+        (root().querySelectorAll('tbody tr')[1]!.querySelector('button[aria-label^="Autres actions"]') as HTMLElement).click();
         await settle();
         expect(menuItems()).toEqual(expect.arrayContaining(['Modifier', 'Annuler l’opération']));
         ui.closeAll();
@@ -787,12 +841,12 @@ describe('AccountsPage', () => {
       it('range l’explication des situations après « Compris » et la rend sur demande', async () => {
         localStorage.removeItem('cotiasso.transactions.situations-hint-dismissed');
         await openSimple([transaction({ id: 't1' })]);
-        expect(root.querySelector('.hint-banner')!.textContent).toContain('trois situations');
+        expect(root().querySelector('.hint-banner')!.textContent).toContain('trois situations');
         await click('Compris');
-        expect(root.querySelector('.hint-banner')).toBeNull();
+        expect(root().querySelector('.hint-banner')).toBeNull();
         expect(localStorage.getItem('cotiasso.transactions.situations-hint-dismissed')).toBe('1');
         await click('Rappel : les situations');
-        expect(root.querySelector('.hint-banner')).not.toBeNull();
+        expect(root().querySelector('.hint-banner')).not.toBeNull();
         localStorage.removeItem('cotiasso.transactions.situations-hint-dismissed');
       });
     });
@@ -812,12 +866,12 @@ describe('AccountsPage', () => {
 
       it('montre la proposition avec sa source et la catégorie en mots courants, sans rien appliquer', async () => {
         await openSimple([transaction({ id: 't1', label: 'PRLV SEPA MAIF 1110', suggestion: suggestion() }), transaction({ id: 't2', label: 'Sans précédent' })]);
-        const row = root.querySelectorAll('tbody tr')[0]!;
+        const row = root().querySelectorAll('tbody tr')[0]!;
         const text = row.textContent!.replace(/\s+/g, ' ');
         expect(text).toContain('Proposition : Assurance');
         expect(text).toContain('comme le 12/09/2026 pour « PRLV SEPA MAIF 0910 » (2 fois)');
         expect(text).toContain('À vérifier avant d’accepter');
-        expect(root.querySelectorAll('tbody tr')[1]!.textContent).not.toContain('Proposition');
+        expect(root().querySelectorAll('tbody tr')[1]!.textContent).not.toContain('Proposition');
         controller.expectNone((r) => r.url.endsWith('/accept-suggestions'));
       });
 
@@ -835,7 +889,7 @@ describe('AccountsPage', () => {
         controller.expectOne('/api/financial-accounts').flush([account()]);
         await settle();
         expect(ui.snackbar).toContain('est classé');
-        expect(root.textContent).not.toContain('Proposition :');
+        expect(root().textContent).not.toContain('Proposition :');
       });
 
       it('accepte toutes les propositions après confirmation, ou ignore une proposition sans rien envoyer', async () => {
@@ -846,7 +900,7 @@ describe('AccountsPage', () => {
         ]);
         await click('Ignorer la proposition pour B');
         controller.expectNone((r) => r.url.endsWith('/accept-suggestions'));
-        expect(root.querySelectorAll('tbody tr')[1]!.textContent).not.toContain('Proposition');
+        expect(root().querySelectorAll('tbody tr')[1]!.textContent).not.toContain('Proposition');
         await click('Accepter les propositions (1)');
         expect(ui.title).toContain('Classer 1 mouvement(s) comme les précédents');
         await ui.click('Classer');
@@ -854,17 +908,17 @@ describe('AccountsPage', () => {
         expect(accept.request.body).toEqual({ transactionIds: ['t1'] });
         accept.flush({ message: 'Le mouvement « A » n\'a plus de proposition de classement' }, { status: 409, statusText: 'Conflict' });
         await settle();
-        expect(root.textContent).toContain('plus de proposition');
+        expect(root().textContent).toContain('plus de proposition');
       });
 
       it('ne montre aucune proposition en affichage comptable ni sans le droit de gérer les transactions', async () => {
         await create(['financial-accounts:view'], [account()], 'simple');
-        await click('Ouvrir Compte courant');
+        await openAccount();
         controller.expectOne(txUrl).flush({ transactions: [transaction({ id: 't1', label: 'A', suggestion: suggestion() })], next: null });
         controller.expectOne('/api/operation-categories').flush(cats);
         await settle();
-        expect(root.textContent).toContain('Proposition : Assurance');
-        expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Accepter'))).toBe(false);
+        expect(root().textContent).toContain('Proposition : Assurance');
+        expect(Array.from(root().querySelectorAll('button')).some((b) => b.textContent!.includes('Accepter'))).toBe(false);
       });
     });
 
@@ -873,25 +927,25 @@ describe('AccountsPage', () => {
 
       it('s’ouvre sur « À classer » avec un compteur, et permet de tout voir', async () => {
         await create(SIMPLE, [account()], 'simple');
-        await click('Ouvrir Compte courant');
+        await openAccount();
         const first = controller.expectOne(txUrl);
         expect(first.request.params.get('qualified')).toBe('false');
         first.flush({ transactions: [transaction({ id: 't1', label: 'Inconnu' }), transaction({ id: 't2', label: 'Autre' })], next: null });
         controller.expectOne('/api/operation-categories').flush(cats);
         await settle();
-        expect(root.querySelector('.result-count')!.textContent).toMatch(/2\s+mouvements à classer/);
+        expect(root().querySelector('.result-count')!.textContent).toMatch(/2\s+mouvements à classer/);
 
         await click('Voir tous les mouvements');
         const all = controller.expectOne(txUrl);
         expect(all.request.params.has('qualified')).toBe(false);
         all.flush({ transactions: [transaction({ id: 't1' })], next: null });
         await settle();
-        expect(root.querySelector('.result-count')!.textContent).not.toContain('à classer');
+        expect(root().querySelector('.result-count')!.textContent).not.toContain('à classer');
       });
 
       it('montre tout plutôt qu’une liste vide quand il n’y a rien à classer', async () => {
         await create(SIMPLE, [account()], 'simple');
-        await click('Ouvrir Compte courant');
+        await openAccount();
         controller.expectOne(txUrl).flush({ transactions: [], next: null });
         controller.expectOne('/api/operation-categories').flush(cats);
         await settle();
@@ -899,13 +953,13 @@ describe('AccountsPage', () => {
         expect(fallback.request.params.has('qualified')).toBe(false);
         fallback.flush({ transactions: [transaction({ id: 't9', label: 'Déjà classé', counterpartAccountId: 'a616', counterpartAccountNumber: '616' })], next: null });
         await settle();
-        expect(root.textContent).toContain('Déjà classé');
-        expect(root.querySelector('.result-count')!.textContent).not.toContain('à classer');
+        expect(root().textContent).toContain('Déjà classé');
+        expect(root().querySelector('.result-count')!.textContent).not.toContain('à classer');
       });
 
       it('applique un raccourci de période sans bouton « Filtrer »', async () => {
         await openSimple([transaction({ id: 't1' })]);
-        expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.trim() === 'Filtrer')).toBe(false);
+        expect(Array.from(root().querySelectorAll('button')).some((b) => b.textContent!.trim() === 'Filtrer')).toBe(false);
         await click('Période · Toutes les dates');
         const menu = TestBed.inject(OverlayContainer).getContainerElement();
         const shortcut = Array.from(menu.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Ce mois-ci');
@@ -917,7 +971,7 @@ describe('AccountsPage', () => {
         expect(request.request.params.get('to')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
         request.flush({ transactions: [], next: null });
         await settle();
-        expect(root.querySelector('.result-count')!.textContent).toContain('Ce mois-ci');
+        expect(root().querySelector('.result-count')!.textContent).toContain('Ce mois-ci');
         await click('Effacer les filtres');
         const cleared = controller.expectOne(txUrl);
         expect(cleared.request.params.keys()).toEqual([]);
@@ -933,7 +987,7 @@ describe('AccountsPage', () => {
         transaction({ id: 't3', label: 'Brouillon', accounting: 'IN_PROGRESS', counterpartAccountId: 'a616', counterpartAccountNumber: '616', entry: entryRef(), financialLock: 'ENTRY', deletable: false }),
         transaction({ id: 't4', label: 'Fait', accounting: 'POSTED', counterpartAccountId: 'a616', counterpartAccountNumber: '616', entry: entryRef({ id: 'e4', status: 'POSTED', number: 4 }), financialLock: 'ENTRY', deletable: false }),
       ]);
-      const text = root.textContent!;
+      const text = root().textContent!;
       expect(text).toContain('À classer');
       expect(text).toContain('Classé');
       expect(text).toContain('En brouillon');
@@ -942,7 +996,7 @@ describe('AccountsPage', () => {
       expect(text).not.toContain('Contrepartie');
       expect(text).not.toContain('À comptabiliser');
       expect(text).not.toContain('Ajouter une transaction');
-      const buttons = Array.from(root.querySelectorAll('button, a')).map((b) => b.textContent!.trim());
+      const buttons = Array.from(root().querySelectorAll('button, a')).map((b) => b.textContent!.trim());
       expect(buttons.filter((b) => b === 'Classer et enregistrer').length).toBe(2);
       expect(buttons.some((b) => b.includes('Associer à une écriture'))).toBe(false);
       expect(buttons).toContain('Relire le brouillon');
@@ -1006,7 +1060,7 @@ describe('AccountsPage', () => {
       await openSimple([
         transaction({ id: 't1', label: 'Facture mixte', amount: '-60.00', split: true, qualified: true, accounting: 'POSTED', entry: entryRef({ id: 'e1', status: 'POSTED', number: 3 }), financialLock: 'ENTRY', deletable: false }),
       ]);
-      const row = root.querySelector('tbody tr')!;
+      const row = root().querySelector('tbody tr')!;
       expect(row.textContent).toContain('Plusieurs catégories');
       expect(row.textContent).not.toContain('À classer');
     });
@@ -1045,7 +1099,7 @@ describe('AccountsPage', () => {
 
     it('n’envoie que la sélection quand des mouvements sont cochés, et confirme par un bandeau si tout est passé', async () => {
       await openSimple([classed('t1', 'Assurance avril'), classed('t2', 'Timbres')]);
-      root.querySelector<HTMLInputElement>('mat-checkbox input')!.click();
+      root().querySelector<HTMLInputElement>('mat-checkbox input')!.click();
       await settle();
       await click('Enregistrer la sélection dans les comptes');
       expect(ui.title).toBe('Enregistrer 1 mouvement(s) dans les comptes ?');
@@ -1061,7 +1115,7 @@ describe('AccountsPage', () => {
 
     it('ne propose rien quand aucun mouvement n’est classé, ni en affichage comptable', async () => {
       await openSimple([transaction({ id: 't3', label: 'Inconnu' })]);
-      expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Enregistrer tous'))).toBe(false);
+      expect(Array.from(root().querySelectorAll('button')).some((b) => b.textContent!.includes('Enregistrer tous'))).toBe(false);
     });
 
     it('déplacer de l’argent entre mes comptes : la boîte parle de déplacement et d’enregistrement dans les comptes, pas de virement ni d’écriture', async () => {
@@ -1075,7 +1129,7 @@ describe('AccountsPage', () => {
 
     it('classe la sélection avec des catégories plutôt qu’avec des numéros de compte', async () => {
       await openSimple([transaction({ id: 't1', label: 'Frais' })]);
-      root.querySelector<HTMLInputElement>('mat-checkbox input')!.click();
+      root().querySelector<HTMLInputElement>('mat-checkbox input')!.click();
       await settle();
       await click('Classer la sélection');
       expect(ui.title).toBe('Classer 1 mouvement(s)');
@@ -1112,7 +1166,7 @@ describe('AccountsPage', () => {
     await openTransactions([
       transaction({ transfer: { id: 'v1', direction: 'OUT', otherAccountId: 'f2', otherAccountName: 'Livret' }, financialLock: 'TRANSFER', deletable: false }),
     ]);
-    expect(root.textContent).toContain('Virement vers Livret');
+    expect(root().textContent).toContain('Virement vers Livret');
     await click('Annuler le virement Frais');
     expect(ui.text).toContain('Livret');
     await ui.click('Annuler le virement');
@@ -1127,9 +1181,9 @@ describe('AccountsPage', () => {
   it("qualifie une sélection de transactions d'un coup, sans toucher à ce qu'on laisse sur « Ne pas changer »", async () => {
     await create(FULL);
     await openTransactions([transaction({ id: 't1', label: 'Frais' }), transaction({ id: 't2', label: 'Loyer' }), transaction({ id: 't3', label: 'Autre' })]);
-    expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent!.includes('Qualifier la sélection'))).toBe(false);
+    expect(Array.from(root().querySelectorAll('button')).some((b) => b.textContent!.includes('Qualifier la sélection'))).toBe(false);
 
-    const boxes = Array.from(root.querySelectorAll<HTMLInputElement>('app-transactions-panel td mat-checkbox input'));
+    const boxes = Array.from(root().querySelectorAll<HTMLInputElement>('app-transactions-panel td mat-checkbox input'));
     boxes[0]!.click();
     await settle();
     boxes[1]!.click();
@@ -1154,6 +1208,6 @@ describe('AccountsPage', () => {
   it("n'offre pas la sélection sans le droit de gérer les transactions", async () => {
     await create(['financial-accounts:view']);
     await openTransactions([transaction()]);
-    expect(root.querySelector('app-transactions-panel td mat-checkbox')).toBeNull();
+    expect(root().querySelector('app-transactions-panel td mat-checkbox')).toBeNull();
   });
 });

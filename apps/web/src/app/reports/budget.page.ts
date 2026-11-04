@@ -31,7 +31,7 @@ interface BudgetState {
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .budget-table { overflow-x: auto; margin-bottom: 20px; }
-    .exercise-selector { margin-bottom: 20px; }
+    .exercise-selector { margin: 8px 0 20px; }
     table { width: 100%; min-width: 44rem; table-layout: fixed; border-collapse: collapse; }
     .history-table { table-layout: auto; }
     .history-table :is(th, td):nth-child(-n+3) { text-align: left; }
@@ -50,10 +50,15 @@ interface BudgetState {
     }
     th:first-child { text-align: left; }
     @media (max-width: 720px) {
+      /* Le sélecteur d'exercice prend toute la largeur. */
+      .exercise-selector { display: block; width: 100%; }
       /* En carte (voir app-ui.scss) : plus de largeur minimale ni de défilement horizontal. */
       .budget-table { overflow-x: visible; }
       table { min-width: 0; table-layout: auto; }
-      input { width: 100%; }
+      /* Montants et champ de saisie alignés à droite de la carte, comme dans le tableau. */
+      .budget-table table:not(.history-table) :is(tbody, tfoot) td[data-label] { text-align: right; }
+      /* Champ de saisie à la taille de son contenu (un montant). */
+      input { box-sizing: border-box; height: 40px; justify-self: end; max-width: 100%; text-align: right; width: 9rem; }
     }
     input { width: 8rem; padding: 6px; text-align: right; border: 1px solid var(--mat-sys-outline); border-radius: 4px; }
   `,

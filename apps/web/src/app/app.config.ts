@@ -14,7 +14,9 @@ export const appConfig: ApplicationConfig = {
     { provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: { subscriptSizing: 'dynamic' } },
     provideBrowserGlobalErrorListeners(),
     provideHttpClient(withInterceptors([csrfInterceptor])),
-    provideRouter(routes, withInMemoryScrolling({ anchorScrolling: 'enabled' })),
+    // Ouvrir une page (le détail d'un projet, d'une subvention…) l'affiche depuis le haut ; revenir à la liste retrouve la
+    // position où on l'avait quittée.
+    provideRouter(routes, withInMemoryScrolling({ anchorScrolling: 'enabled', scrollPositionRestoration: 'enabled' })),
     // La marque blanche est connue avant le premier affichage, y compris sur la page de connexion.
     provideAppInitializer(() => inject(BrandingService).load()),
     // Mode et densité choisis par l'utilisateur, appliqués avant le premier affichage pour éviter tout clignotement.

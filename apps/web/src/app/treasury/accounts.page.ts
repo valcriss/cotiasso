@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   AdminApiService,
   type AccountInfo,
@@ -18,7 +18,9 @@ import { Notifier } from '../ui/notifier.service';
 import { ThemeService } from '../theme/theme.service';
 import { StartAccountDialog, type StartAccountDialogData } from '../pages/start-dialogs';
 import { OperationLauncher } from './operation-launcher';
+import { BackLink } from '../ui/back-link';
 import { PageHeader } from '../ui/page-header';
+import { routeParam } from '../ui/route-param';
 import { FinancialAccountDialog, type AccountDialogData } from './account-dialog';
 import { TransferDialog, type TransferDialogData } from './transfer-dialog';
 import { StatementDialog, type StatementDialogData } from './statement-dialog';
@@ -31,7 +33,7 @@ import { Skeleton } from '../ui/skeleton';
 /** Comptes : banques et caisses avec leurs soldes (ouverture, calculé, comptable, relevé) et leurs transactions. */
 @Component({
   selector: 'app-accounts-page',
-  imports: [Skeleton, HelpHint, FrDatePipe, MatButtonModule, MatIconModule, MatMenuModule, RouterLink, PageHeader, TransactionsPanel],
+  imports: [Skeleton, BackLink, HelpHint, FrDatePipe, MatButtonModule, MatIconModule, MatMenuModule, RouterLink, PageHeader, TransactionsPanel],
   styleUrl: '../admin/admin-pages.scss',
   styles: `
     .accounts {
@@ -59,12 +61,16 @@ import { Skeleton } from '../ui/skeleton';
     .account-card:hover {
       box-shadow: var(--app-shadow-md);
     }
-    .account-card.current {
-      border-color: var(--mat-sys-primary);
-      box-shadow: 0 0 0 1px var(--mat-sys-primary), var(--app-shadow-sm);
-    }
+    /* Page d'un compte : la tuile n'ouvre plus rien, elle résume le compte au-dessus de ses mouvements. */
+    .account-card.detail,
     .account-card.archived {
       cursor: default;
+    }
+    .account-card.detail:hover {
+      box-shadow: var(--app-shadow-sm);
+    }
+    .open.static::after {
+      display: none;
     }
     .head {
       align-items: flex-start;
@@ -79,6 +85,7 @@ import { Skeleton } from '../ui/skeleton';
       border: 0;
       color: inherit;
       cursor: inherit;
+      text-decoration: none;
       display: inline-flex;
       font: var(--mat-sys-title-medium);
       gap: 10px;
@@ -166,11 +173,14 @@ import { Skeleton } from '../ui/skeleton';
   `,
   template: `
     <app-page-header
-      title="Comptes"
+      [title]="routeId() ? (selected()?.name ?? 'Compte') : 'Comptes'"
       icon="account_balance"
-      description="Vos comptes bancaires et votre caisse : combien il y a dessus et quels mouvements restent à enregistrer."
+      [description]="routeId() ? 'Le solde de ce compte et ses mouvements : ce qui reste à classer et ce qui est déjà enregistré.' : 'Vos comptes bancaires et votre caisse : combien il y a dessus et quels mouvements restent à enregistrer.'"
     >
-      @if (canAdmin()) {
+      @if (routeId()) {
+        <app-back-link to="/comptes" label="Retour aux comptes" />
+      }
+      @if (canAdmin() && !routeId()) {
         <button mat-flat-button type="button" (click)="create()">
           <mat-icon fontSet="material-icons-outlined" aria-hidden="true">add</mat-icon> Nouveau compte
         </button>
@@ -196,6 +206,10 @@ import { Skeleton } from '../ui/skeleton';
 
     @if (loading()) {
       <app-skeleton variant="cards" />
+    } @else if (routeId() && !selected()) {
+      <p class="alert" role="alert">
+        Ce compte est introuvable. Il a peut-être été archivé ou retiré, ou l'adresse est incomplète. Revenez à la liste des comptes pour en choisir un autre.
+      </p>
     } @else if (accounts().length === 0) {
       <section class="panel">
         <h3><mat-icon fontSet="material-icons-outlined" aria-hidden="true">savings</mat-icon><span>Commençons par votre compte bancaire</span></h3>
@@ -209,13 +223,20 @@ import { Skeleton } from '../ui/skeleton';
       </section>
     } @else {
       <ul class="accounts">
-        @for (account of accounts(); track account.id) {
-          <li class="account-card" [class.current]="account.id === selectedId()" [class.archived]="account.archivedOn">
+        @for (account of shown(); track account.id) {
+          <li class="account-card" [class.detail]="routeId()" [class.archived]="account.archivedOn">
             <div class="head">
-              <button type="button" class="open" [attr.aria-label]="'Ouvrir ' + account.name" [attr.aria-expanded]="account.id === selectedId()" (click)="select(account.id)">
-                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ account.type === 'BANK' ? 'account_balance' : 'payments' }}</mat-icon>
-                {{ account.name }}
-              </button>
+              @if (routeId()) {
+                <span class="open static">
+                  <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ account.type === 'BANK' ? 'account_balance' : 'payments' }}</mat-icon>
+                  {{ account.name }}
+                </span>
+              } @else {
+                <a class="open" [routerLink]="['/comptes', account.id]" [attr.aria-label]="'Ouvrir ' + account.name">
+                  <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ account.type === 'BANK' ? 'account_balance' : 'payments' }}</mat-icon>
+                  {{ account.name }}
+                </a>
+              }
               <div class="head-tools">
                 @if (account.archivedOn) {
                   <span class="chip">Archivé</span>
@@ -293,10 +314,12 @@ import { Skeleton } from '../ui/skeleton';
                 }
               </dl>
             }
-            <span class="more-link" aria-hidden="true">
-              <mat-icon fontSet="material-icons-outlined">{{ account.id === selectedId() ? 'expand_less' : 'arrow_forward' }}</mat-icon>
-              {{ account.id === selectedId() ? (simple() ? 'Masquer les mouvements' : 'Masquer les transactions') : (simple() ? 'Voir les mouvements' : 'Voir les transactions') }}
-            </span>
+            @if (!routeId()) {
+              <span class="more-link" aria-hidden="true">
+                <mat-icon fontSet="material-icons-outlined">arrow_forward</mat-icon>
+                {{ simple() ? 'Voir les mouvements' : 'Voir les transactions' }}
+              </span>
+            }
           </li>
         }
       </ul>
@@ -321,8 +344,12 @@ export class AccountsPage {
   private readonly projects = signal<ProjectInfo[]>([]);
   protected readonly activeProjects = computed(() => this.projects().filter((p) => p.status !== 'ARCHIVED'));
   private readonly route = inject(ActivatedRoute);
-  protected readonly selectedId = signal<string | null>(null);
-  protected readonly selected = computed(() => this.accounts().find((a) => a.id === this.selectedId()) ?? null);
+  private readonly router = inject(Router);
+  /** Le compte ouvert vient de l'adresse (`/comptes/:id`) : `null` sur la liste. */
+  protected readonly routeId = routeParam('id');
+  protected readonly selected = computed(() => this.accounts().find((a) => a.id === this.routeId()) ?? null);
+  /** La liste montre tous les comptes ; la page d'un compte, seulement celui-là. */
+  protected readonly shown = computed(() => (this.routeId() ? this.accounts().filter((a) => a.id === this.routeId()) : this.accounts()));
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -369,6 +396,12 @@ export class AccountsPage {
   });
 
   constructor() {
+    // Un lien de la vue d'ensemble (`/comptes?compte=<id>`) ouvre directement la page du compte concerné.
+    const wanted = this.route.snapshot.queryParamMap.get('compte');
+    if (wanted && !this.routeId()) {
+      void this.router.navigate(['/comptes', wanted], { replaceUrl: true });
+      return;
+    }
     void this.init();
   }
 
@@ -377,13 +410,8 @@ export class AccountsPage {
     return !account.archivedOn;
   }
 
-  /** Un clic sur la tuile ouvre les transactions du compte ; un second clic les masque. */
-  protected select(id: string): void {
-    this.selectedId.update((current) => (current === id ? null : id));
-  }
-
   protected async record(direction: 'IN' | 'OUT'): Promise<void> {
-    if (!(await this.launcher.open(direction, this.selectedId()))) return;
+    if (!(await this.launcher.open(direction, this.routeId()))) return;
     await this.load();
     this.reloadKey.update((key) => key + 1);
   }
@@ -408,7 +436,7 @@ export class AccountsPage {
   protected async transfer(): Promise<void> {
     const created = await this.dialogs.open<TransferInfo, TransferDialogData>(TransferDialog, {
       size: 'md',
-      data: { accounts: this.activeAccounts(), fromAccountId: this.selectedId() },
+      data: { accounts: this.activeAccounts(), fromAccountId: this.routeId() },
     });
     if (!created) return;
     this.notifier.success(
@@ -461,9 +489,6 @@ export class AccountsPage {
 
   private async init(): Promise<void> {
     await this.load();
-    // Un lien de la vue d'ensemble ouvre directement le compte concerné.
-    const wanted = this.route.snapshot.queryParamMap.get('compte');
-    if (wanted && this.accounts().some((a) => a.id === wanted)) this.select(wanted);
     // Plan de comptes et projets : facultatifs pour consulter, ignorés sans droit.
     this.chart.set(await this.api.listAccounts().catch(() => []));
     this.projects.set(await this.api.listProjects().catch(() => []));
