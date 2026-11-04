@@ -6,6 +6,12 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
+## 1.0.9 — 2026-11-04
+
+### Nouveautés
+
+- Emails d'invitation, de réinitialisation, de notification et d'essai : ils contiennent un peu plus de texte (d'où vient le message, ce que l'association ne vous demandera jamais, conseil sur le mot de passe). Un message presque sans texte face à son logo était noté comme suspect par les filtres anti-spam (SpamAssassin, relevé avec mail-tester.com) ; c'est aussi plus rassurant à lire.
+
 ## 1.0.8 — 2026-11-04
 
 ### Nouveautés

@@ -103,6 +103,31 @@ describe("email de réinitialisation", () => {
   });
 });
 
+describe("part de texte des messages", () => {
+  // Un message presque sans texte face à ses images est classé indésirable (SpamAssassin : HTML_IMAGE_ONLY) : on garde un minimum.
+  const visible = (html: string) => html.replace(/<title>[\s\S]*?<\/title>|<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  const logo = { mimeType: "image/png" as const, data: Buffer.from("x") };
+  const ctx = { associationName: "Club des amis", link: "https://compta.asso.fr", accentColor: "#7a1f4d", logo, showName: true };
+
+  it("explique d'où vient le message et ce qu'on ne demandera jamais, dans la version texte comme dans la version HTML", () => {
+    const mails = [
+      renderTestEmail({ ...ctx, recipientName: "Sam Martin" }),
+      renderNotificationEmail({ ...ctx, template: "TO_PAY", recipientName: "Sam", requesterName: "Léa", requestNumber: 3 }),
+    ];
+    for (const mail of mails) {
+      for (const body of [mail.text, mail.html]) {
+        expect(body).toContain("envoyé automatiquement par Cotiasso");
+        expect(body).toContain("personne ne vous demandera jamais votre mot de passe");
+      }
+    }
+  });
+
+  it("garde au moins 700 caractères de texte lisible, même pour le plus court des messages", () => {
+    const mail = renderNotificationEmail({ ...ctx, template: "PAID", recipientName: "Sam", requesterName: "Léa", requestNumber: 3 });
+    expect(visible(mail.html).length).toBeGreaterThan(700);
+  });
+});
+
 describe("email d'essai", () => {
   const mail = renderTestEmail({ associationName: "Club des amis", recipientName: "Sam Martin", link: "https://compta.asso.fr", accentColor: "#7a1f4d", logo: null, showName: true });
 

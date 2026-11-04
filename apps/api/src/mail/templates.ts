@@ -76,6 +76,19 @@ export function formatExpiry(date: Date): string {
   return `${part("weekday")} ${part("day")} ${part("month")} à ${Number(part("hour"))} h${minutes === "00" ? "" : ` ${minutes}`}`;
 }
 
+/**
+ * Explication commune à tous les messages : qui écrit, pourquoi, et ce qu'on ne demandera jamais. Un message qui ne contient qu'un
+ * bouton et un logo ressemble à un courrier indésirable pour les filtres anti-spam (peu de texte face aux images) ; ces phrases
+ * servent d'abord la personne qui lit (savoir si le message est fiable), elles ne sont pas là pour remplir.
+ */
+function aboutLines(context: RenderContext): string[] {
+  const association = oneLine(context.associationName);
+  return [
+    `Ce message a été envoyé automatiquement par Cotiasso, le logiciel que ${association} utilise pour tenir ses comptes, suivre ses membres et gérer ses projets. Il n’est adressé qu’à vous.`,
+    "Pour votre sécurité, personne ne vous demandera jamais votre mot de passe par email, ni par téléphone. En cas de doute sur ce message, contactez directement l’association par un autre moyen avant de cliquer.",
+  ];
+}
+
 function textBody(content: EmailContent, context: RenderContext): string {
   return [
     content.greeting,
@@ -87,6 +100,7 @@ function textBody(content: EmailContent, context: RenderContext): string {
     ...content.afterButton.flatMap((line) => [line, ""]),
     content.ignoreNote,
     "",
+    ...aboutLines(context).flatMap((line) => [line, ""]),
     "--",
     `${oneLine(context.associationName)} utilise Cotiasso, un logiciel libre de gestion associative.`,
   ].join("\n");
@@ -114,6 +128,7 @@ ${paragraph(content.intro)}
 <p style="margin:24px 0;"><a href="${link}" style="display:inline-block;background:${accent};color:#ffffff;text-decoration:none;font-size:16px;font-weight:600;padding:12px 24px;border-radius:6px;">${escapeHtml(content.buttonLabel)}</a></p>
 ${content.afterButton.map((line) => paragraph(line)).join("\n")}
 ${paragraph(content.ignoreNote, "#4a5163", 14)}
+${aboutLines(context).map((line) => paragraph(line, "#4a5163", 14)).join("\n")}
 <p style="margin:0 0 8px 0;font-size:13px;line-height:1.5;color:#4a5163;">Si le bouton ne fonctionne pas, copiez ce lien dans la barre d’adresse de votre navigateur :<br><span style="word-break:break-all;">${link}</span></p>
 </td></tr>
 <tr><td style="padding:16px 28px 24px 28px;border-top:1px solid #e3e7ef;font-size:13px;color:#4a5163;">
@@ -155,6 +170,7 @@ export function renderInvitationEmail(context: EmailContext): RenderedEmail {
       afterButton: [
         `Ce lien est valable ${context.validityHours} heures (jusqu’au ${formatExpiry(context.expiresAt)}) et ne sert qu’une fois. S’il a expiré, demandez simplement un nouveau lien à ${actor ?? "l’administrateur de l’association"}.`,
         `Votre identifiant de connexion sera : ${oneLine(context.recipientEmail)}`,
+        "Une fois votre mot de passe choisi, vous pourrez vous connecter à tout moment depuis le bouton ci-dessus ou en saisissant l’adresse de l’application dans votre navigateur. Choisissez un mot de passe long (une phrase fonctionne très bien), que vous n’utilisez nulle part ailleurs.",
       ],
       ignoreNote: "Vous ne connaissez pas cette association ? Ignorez ce message : aucun accès n’est ouvert tant que vous n’avez pas choisi de mot de passe.",
     },
@@ -173,6 +189,7 @@ export function renderResetEmail(context: EmailContext): RenderedEmail {
       buttonLabel: "Choisir un nouveau mot de passe",
       afterButton: [
         `Ce lien est valable ${context.validityHours} heures (jusqu’au ${formatExpiry(context.expiresAt)}) et ne sert qu’une fois. Une fois votre mot de passe changé, vous serez déconnecté·e de vos autres appareils.`,
+        "Choisissez un mot de passe long (une phrase fonctionne très bien), que vous n’utilisez nulle part ailleurs. Il ne vous sera redemandé que pour vous connecter : l’association ne le connaît pas et ne peut pas le lire.",
       ],
       ignoreNote: "Vous n’êtes pas à l’origine de cette demande ? Ignorez ce message : votre mot de passe actuel reste valable. Prévenez un administrateur de l’association.",
     },
@@ -189,7 +206,10 @@ export function renderTestEmail(context: RenderContext & { recipientName: string
       greeting: context.recipientName ? `Bonjour ${oneLine(context.recipientName)},` : "Bonjour,",
       intro: `Si vous lisez ce message, l’envoi d’emails de Cotiasso fonctionne pour ${association} : les invitations et les liens de réinitialisation arriveront bien dans les boîtes de vos membres.`,
       buttonLabel: "Ouvrir Cotiasso",
-      afterButton: ["Ce message n’est qu’un essai demandé depuis l’écran Exploitation. Il ne contient aucune information à conserver."],
+      afterButton: [
+        "Ce message n’est qu’un essai demandé depuis l’écran Exploitation. Il ne contient aucune information à conserver : vous pouvez le supprimer.",
+        "Les messages que Cotiasso envoie sont de trois sortes : l’invitation d’une nouvelle personne, le lien de réinitialisation d’un mot de passe, et les notifications des demandes de remboursement. Tous sont rédigés de la même façon, avec un bouton et un lien de secours.",
+      ],
       ignoreNote: "Vous n’avez rien demandé ? Ignorez ce message, aucune action n’est nécessaire.",
     },
     context,
