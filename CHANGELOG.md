@@ -6,6 +6,12 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
+## Non publié
+
+### Exploitation
+
+- L'image de l'API est deux fois plus légère (environ 420 Mo au lieu de 870). Les migrations de la base sont désormais appliquées par un service `migrate` qui démarre avant l'API puis s'arrête ; rien à changer dans votre fichier `.env.prod`. Si vous avez votre propre fichier Compose, reprenez le service `migrate` de `docker-compose.yml`.
+
 ## 1.0.9 — 2026-11-04
 
 ### Nouveautés
