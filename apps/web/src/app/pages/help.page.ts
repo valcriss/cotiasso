@@ -13,8 +13,19 @@ interface HowTo {
   linkLabel: string;
 }
 
-/** Les cinq gestes qui reviennent le plus souvent, expliqués pas à pas. */
+/** Les gestes qui reviennent le plus souvent, expliqués pas à pas. */
 const HOW_TO: HowTo[] = [
+  {
+    title: 'Installer l’application sur l’écran d’accueil du téléphone',
+    steps: [
+      'Sur iPhone, ouvrez l’adresse de l’application dans Safari (pas dans le navigateur d’une autre application), puis touchez le bouton Partager (le carré avec une flèche).',
+      'Choisissez « Sur l’écran d’accueil », vérifiez le nom proposé, puis touchez « Ajouter ». Sur Android, ouvrez le menu de Chrome et choisissez « Installer l’application ».',
+      'Ouvrez ensuite l’application depuis son icône : elle s’affiche en plein écran. La première fois, il faut vous reconnecter, car l’icône ne partage pas la connexion de Safari.',
+      'Un lien d’invitation ou de réinitialisation reçu par message s’ouvre toujours dans le navigateur : créez votre mot de passe là, puis connectez-vous dans l’application.',
+    ],
+    link: '/compte',
+    linkLabel: 'Ouvrir mon compte',
+  },
   {
     title: 'Enregistrer une dépense',
     steps: ['Cliquez sur « J’ai dépensé de l’argent » (vue d’ensemble ou page Comptes).', 'Choisissez le compte, le montant, la date et ce à quoi l’argent a servi.', 'Joignez la facture en photo si vous l’avez, puis enregistrez.'],

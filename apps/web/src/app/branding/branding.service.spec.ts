@@ -28,6 +28,18 @@ describe('BrandingService', () => {
     expect(document.title).toBe('Mon Asso');
   });
 
+  it("donne le nom d'association à l'icône d'écran d'accueil et sa couleur à la barre du navigateur", () => {
+    for (const name of ['apple-mobile-web-app-title', 'theme-color']) {
+      const meta = document.createElement('meta');
+      meta.setAttribute('name', name);
+      document.head.appendChild(meta);
+    }
+    service.apply({ ...DEFAULT_BRANDING, appName: 'Mon Asso', sidebarBackground: '#0b2a55' });
+    expect(document.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute('content')).toBe('Mon Asso');
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe('#0b2a55');
+    document.querySelectorAll('meta[name="apple-mobile-web-app-title"], meta[name="theme-color"]').forEach((meta) => meta.remove());
+  });
+
   it("applique un accent personnalisé et revient au thème d'origine avec l'accent par défaut", async () => {
     const html = document.documentElement;
     service.apply({ ...DEFAULT_BRANDING, accentColor: '#7a1f4d' });

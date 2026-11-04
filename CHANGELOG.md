@@ -6,6 +6,12 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
+## Non publié
+
+### Nouveautés
+
+- Installation sur l’écran d’accueil du téléphone : sur iPhone (Safari › Partager › « Sur l’écran d’accueil ») comme sur Android, l’application s’ouvre en plein écran, avec le nom de l’association sous l’icône, et laisse la place à l’encoche et à la barre d’accueil. Une icône adaptée aux formes d’icônes d’Android est ajoutée, et la rubrique Aide explique les gestes (dont la reconnexion nécessaire la première fois).
+
 ## 1.0.10 — 2026-11-04
 
 ### Nouveautés

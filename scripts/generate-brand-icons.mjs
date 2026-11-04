@@ -45,14 +45,20 @@ function inArc(x, y) {
 }
 
 /** Couleur [r,g,b,a] du point (x, y) de la grille 64 × 64, ou null hors du symbole. */
-function sample(x, y, radius) {
+function sample(x, y, radius, scale = 1) {
   if (!inRoundedRect(x, y, radius)) return null;
+  if (scale !== 1) {
+    // Icône « maskable » : fond plein, symbole réduit pour rester dans la zone sûre (cercle central de 80 %).
+    x = 32 + (x - 32) / scale;
+    y = 32 + (y - 32) / scale;
+    if (x < 0 || x > 64 || y < 0 || y > 64) return BLUE;
+  }
   if (Math.hypot(x - DOT.x, y - DOT.y) <= DOT.r) return AMBER;
   if (inArc(x, y)) return WHITE;
   return BLUE;
 }
 
-function render(size, radius) {
+function render(size, radius, scale = 1) {
   const ss = 4;
   const pixels = Buffer.alloc(size * size * 4);
   for (let py = 0; py < size; py++) {
@@ -60,7 +66,7 @@ function render(size, radius) {
       let r = 0, g = 0, b = 0, a = 0;
       for (let sy = 0; sy < ss; sy++) {
         for (let sx = 0; sx < ss; sx++) {
-          const c = sample(((px + (sx + 0.5) / ss) * 64) / size, ((py + (sy + 0.5) / ss) * 64) / size, radius);
+          const c = sample(((px + (sx + 0.5) / ss) * 64) / size, ((py + (sy + 0.5) / ss) * 64) / size, radius, scale);
           if (c) { r += c[0]; g += c[1]; b += c[2]; a += 1; }
         }
       }
@@ -94,8 +100,8 @@ function chunk(type, data) {
   out.writeUInt32BE(crc32(body), body.length + 4);
   return out;
 }
-function png(size, radius) {
-  const pixels = render(size, radius);
+function png(size, radius, scale = 1) {
+  const pixels = render(size, radius, scale);
   const raw = Buffer.alloc((size * 4 + 1) * size);
   for (let y = 0; y < size; y++) {
     pixels.copy(raw, y * (size * 4 + 1) + 1, y * size * 4, (y + 1) * size * 4);
@@ -139,6 +145,7 @@ writeFileSync(join(outDir, "favicon.ico"), ico([16, 32, 48]));
 writeFileSync(join(outDir, "apple-touch-icon.png"), png(180, 0));
 writeFileSync(join(outDir, "icon-192.png"), png(192, 14));
 writeFileSync(join(outDir, "icon-512.png"), png(512, 14));
+writeFileSync(join(outDir, "icon-maskable-512.png"), png(512, 0, 0.7));
 // Symbole intégré aux emails (pied de page « Propulsé par Cotiasso ») : le serveur l'embarque en code, sans fichier à déployer.
 writeFileSync(
   join(root, "apps", "api", "src", "mail", "cotiasso-mark.ts"),

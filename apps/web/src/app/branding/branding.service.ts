@@ -77,5 +77,8 @@ export class BrandingService {
     if (custom) style.setProperty('--app-accent', branding.accentColor);
     else style.removeProperty('--app-accent');
     this.document.title = branding.appName;
+    // Nom sous l'icône d'écran d'accueil de l'iPhone, et couleur de la barre du navigateur (celle de la barre du haut sur mobile).
+    this.document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', branding.appName.slice(0, 30));
+    this.document.querySelector('meta[name="theme-color"]')?.setAttribute('content', branding.sidebarBackground);
   }
 }
