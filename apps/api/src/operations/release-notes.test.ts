@@ -49,7 +49,14 @@ describe("parseReleaseNotes", () => {
     const text = await readFile(fileURLToPath(new URL("../../../../CHANGELOG.md", import.meta.url)), "utf8");
     const releases = parseReleaseNotes(text, "développement");
     expect(releases.length).toBeGreaterThan(0);
-    expect(releases[0]!.heading).toBe("Non publié");
+    // La première section est « Non publié » tant qu'une version n'est pas publiée, puis le numéro de la dernière version.
+    expect(releases[0]!.heading).toMatch(/^(Non publié|\d+\.\d+\.\d+ — \d{4}-\d{2}-\d{2})$/);
     expect(releases[0]!.groups.flatMap((g) => g.items).length).toBeGreaterThan(3);
+    // La version déployée est repérée dans le titre de sa section.
+    const latest = releases.find((r) => /^\d+\.\d+\.\d+ — /.test(r.heading));
+    if (latest) {
+      const version = latest.heading.split(" — ")[0]!;
+      expect(parseReleaseNotes(text, version).filter((r) => r.current)).toHaveLength(1);
+    }
   });
 });
