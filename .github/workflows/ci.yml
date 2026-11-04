@@ -99,7 +99,7 @@ jobs:
           KEY="$(openssl rand -base64 32)"
           echo "MFA_ENCRYPTION_KEY=$KEY" >> "$GITHUB_ENV"
           export MFA_ENCRYPTION_KEY="$KEY"
-          for target in api web backup; do
+          for target in api web migrate backup; do
             docker build --target "$target" --tag "ghcr.io/valcriss/cotiasso-$target:$COTIASSO_VERSION" .
           done
           docker compose up -d --wait --wait-timeout 240
