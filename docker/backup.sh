@@ -149,7 +149,9 @@ apply_retention() {
 # Les archives sont DÉJÀ chiffrées (AES-256) : seules des archives chiffrées quittent le serveur. La configuration est
 # déclarative, par variables d'environnement : OFFSITE_TYPE (s3, sftp, webdav, local…), OFFSITE_PATH (dossier ou bucket
 # distant) et les paramètres du type choisi (OFFSITE_PROVIDER, OFFSITE_ENDPOINT, OFFSITE_REGION, OFFSITE_ACCESS_KEY_ID,
-# OFFSITE_SECRET_ACCESS_KEY, OFFSITE_HOST, OFFSITE_PORT, OFFSITE_USER, OFFSITE_PASS, OFFSITE_URL, OFFSITE_VENDOR).
+# OFFSITE_SECRET_ACCESS_KEY, OFFSITE_HOST, OFFSITE_PORT, OFFSITE_USER, OFFSITE_PASS, OFFSITE_URL, OFFSITE_VENDOR, et pour
+# les services à connexion OAuth comme Dropbox : OFFSITE_TOKEN (le jeton JSON de « rclone config show »), OFFSITE_CLIENT_ID,
+# OFFSITE_CLIENT_SECRET).
 # On COPIE sans jamais supprimer côté distant : une erreur locale ne peut pas effacer la copie de secours. La durée de
 # conservation distante se règle chez l'hébergeur du stockage (règle de cycle de vie).
 offsite_enabled() { [ -n "${OFFSITE_TYPE:-}" ] || [ -n "${OFFSITE_PATH:-}" ]; }
@@ -158,7 +160,7 @@ offsite_configure() {
   [ -n "${OFFSITE_TYPE:-}" ] && [ -n "${OFFSITE_PATH:-}" ] || return 1
   export RCLONE_CONFIG_OFFSITE_TYPE="$OFFSITE_TYPE"
   local key value
-  for key in PROVIDER ENDPOINT REGION ACCESS_KEY_ID SECRET_ACCESS_KEY HOST PORT USER PASS URL VENDOR; do
+  for key in PROVIDER ENDPOINT REGION ACCESS_KEY_ID SECRET_ACCESS_KEY HOST PORT USER PASS URL VENDOR TOKEN CLIENT_ID CLIENT_SECRET; do
     value="$(eval "printf '%s' \"\${OFFSITE_$key:-}\"")"
     [ -z "$value" ] || export "RCLONE_CONFIG_OFFSITE_$key=$value"
   done

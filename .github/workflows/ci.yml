@@ -64,6 +64,9 @@ jobs:
       - name: Script du jeton d'installation (faux docker, jeton le plus récent seul)
         run: bash scripts/install-token.test.sh
 
+      - name: Configuration de la copie hors site (variables OFFSITE_* traduites pour rclone, jeton OAuth intact)
+        run: bash scripts/offsite-config.test.sh
+
       - name: Build
         run: npm run build
 

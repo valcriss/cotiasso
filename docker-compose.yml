@@ -94,6 +94,9 @@ services:
       OFFSITE_PASS: ${OFFSITE_PASS:-}
       OFFSITE_URL: ${OFFSITE_URL:-}
       OFFSITE_VENDOR: ${OFFSITE_VENDOR:-}
+      OFFSITE_TOKEN: ${OFFSITE_TOKEN:-}
+      OFFSITE_CLIENT_ID: ${OFFSITE_CLIENT_ID:-}
+      OFFSITE_CLIENT_SECRET: ${OFFSITE_CLIENT_SECRET:-}
     volumes:
       - documents-data:/data/documents:ro
       - backups-data:/backups

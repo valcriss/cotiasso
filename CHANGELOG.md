@@ -6,6 +6,16 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
+## Non publié
+
+### À savoir avant de mettre à jour
+
+- Nouveau dans l'image `backup` : trois variables facultatives pour la copie hors site vers un service à connexion OAuth comme Dropbox (`OFFSITE_TOKEN`, `OFFSITE_CLIENT_ID`, `OFFSITE_CLIENT_SECRET` dans `.env.prod`). Sans elles, rien ne change.
+
+### Nouveautés
+
+- Copie hors site vers Dropbox : renseignez `OFFSITE_TYPE=dropbox`, `OFFSITE_PATH` et `OFFSITE_TOKEN` (le jeton affiché par `rclone config show` sur un poste déjà configuré, ou par `rclone authorize "dropbox"`) dans `.env.prod`. La marche à suivre est dans `docs/exploitation.md`. Le même mécanisme convient aux autres services rclone à connexion OAuth.
+
 ## 1.0.3 — 2026-11-04
 
 ### À savoir avant de mettre à jour

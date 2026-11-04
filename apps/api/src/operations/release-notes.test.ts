@@ -51,7 +51,9 @@ describe("parseReleaseNotes", () => {
     expect(releases.length).toBeGreaterThan(0);
     // La première section est « Non publié » tant qu'une version n'est pas publiée, puis le numéro de la dernière version.
     expect(releases[0]!.heading).toMatch(/^(Non publié|\d+\.\d+\.\d+ — \d{4}-\d{2}-\d{2})$/);
-    expect(releases[0]!.groups.flatMap((g) => g.items).length).toBeGreaterThan(3);
+    // Chaque section a au moins une puce, et le fichier en compte bien plus.
+    for (const release of releases) expect(release.groups.flatMap((g) => g.items).length, release.heading).toBeGreaterThan(0);
+    expect(releases.flatMap((r) => r.groups.flatMap((g) => g.items)).length).toBeGreaterThan(3);
     // La version déployée est repérée dans le titre de sa section.
     const latest = releases.find((r) => /^\d+\.\d+\.\d+ — /.test(r.heading));
     if (latest) {
