@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting, type TestRequest } fro
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { afterEach, describe, expect, it } from 'vitest';
+import { ReimbursementAvailability } from '../reimbursements/reimbursement-availability.service';
 import { mockAuth } from '../testing/auth-mock';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { CircuitsPage } from './circuits.page';
@@ -65,6 +66,7 @@ describe('CircuitsPage', () => {
         if (url === '/api/users') request.flush([{ id: TESS, displayName: 'Tess Test', email: 't@t.fr', status: 'ACTIVE', roleAssignments: [] }]);
         else if (url === '/api/roles') request.flush([{ id: TREASURER_ROLE, key: 'treasurer', name: 'Trésorier', description: '', permissions: [], requiresMfa: false, version: 1 }]);
         else if (url === '/api/office-roles') request.flush([{ id: PRESIDENT, name: 'Président', active: true, mandateCount: 1 }]);
+        else if (url === '/api/reimbursements/status') request.flush({ enabled: true, ready: true, canRequest: true, reason: null });
         else if (url === '/api/workflows') request.flush(summary(state.active, state.draft));
         else if (url === '/api/workflows/reimbursement') request.flush({ subjectType: 'reimbursement', label: 'Demande de remboursement', versions });
         else if (state.active && url === `/api/workflow-versions/${state.active.id}`) request.flush(state.active);
@@ -170,6 +172,8 @@ describe('CircuitsPage', () => {
     const request = controller.expectOne('/api/workflow-versions/v2/activate');
     request.flush({ ...draft, status: 'ACTIVE' });
     await answer({ active: view({ id: 'v2', number: 2 }), draft: null });
+    // Le menu des remboursements est mis à jour tout de suite (la requête d'état est répondue par `answer`).
+    expect(TestBed.inject(ReimbursementAvailability).ready()).toBe(true);
     expect(ui.snackbar).toContain('Circuit mis en vigueur');
     expect(root.textContent).toContain('version 2');
   });

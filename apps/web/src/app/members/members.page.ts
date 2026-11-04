@@ -16,11 +16,13 @@ import { ActionBar } from '../ui/action-bar';
 import {
   AnonymizeDialog,
   CategoriesDialog,
+  LinkAccountDialog,
   MemberDialog,
   OfficeDialog,
   OfficeRolesDialog,
   type AnonymizeDialogData,
   type CategoriesDialogData,
+  type LinkAccountDialogData,
   type MemberDialogData,
   type OfficeDialogData,
   type OfficeRolesDialogData,
@@ -121,11 +123,27 @@ import { Skeleton } from '../ui/skeleton';
             <dt>Sortie</dt>
             <dd>{{ detail.member.leftOn | frDate }}</dd>
           }
+          <dt>Compte de connexion</dt>
+          <dd>{{ detail.member.hasAccount ? 'Relié : peut se connecter et faire des demandes de remboursement' : 'Aucun (pas nécessaire pour être membre)' }}</dd>
           @if (detail.member.note) {
             <dt>Note</dt>
             <dd>{{ detail.member.note }}</dd>
           }
         </dl>
+        @if (canLink() && !detail.member.anonymized && detail.member.status === 'ACTIVE') {
+          <div class="actions">
+            @if (detail.member.hasAccount) {
+              <button mat-button type="button" [disabled]="busy()" (click)="unlinkAccount(detail.member)">
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">link_off</mat-icon> Détacher du compte
+              </button>
+            } @else {
+              <button mat-stroked-button type="button" [disabled]="busy()" (click)="linkAccount(detail.member)">
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">link</mat-icon> Associer à un compte utilisateur
+              </button>
+              <span class="muted">Le lien se fait tout seul quand un compte a la même adresse email que la fiche.</span>
+            }
+          </div>
+        }
         @if (detail.member.anonymized) {
           <p class="muted">Ce membre est anonymisé : ses données personnelles ont été effacées, son historique est conservé.</p>
         } @else if (canManage()) {
@@ -273,6 +291,10 @@ export class MembersPage {
     this.auth.permissions();
     return this.auth.can('members:manage');
   });
+  protected readonly canLink = computed(() => {
+    this.auth.permissions();
+    return this.auth.can('members.account:link');
+  });
 
   constructor() {
     void this.init();
@@ -372,6 +394,30 @@ export class MembersPage {
 
   protected reactivate(member: MemberInfo): Promise<void> {
     return this.change(member, { status: 'ACTIVE' }, `${member.firstName} est de nouveau membre.`);
+  }
+
+  protected async linkAccount(member: MemberInfo): Promise<void> {
+    const done = await this.dialogs.open<{ hasAccount: true }, LinkAccountDialogData>(LinkAccountDialog, {
+      size: 'md',
+      data: { memberId: member.id, memberName: `${member.firstName} ${member.lastName}` },
+    });
+    if (!done) return;
+    this.notifier.success(`${member.firstName} ${member.lastName} est associé(e) à un compte de connexion.`);
+    await this.open(member.id);
+  }
+
+  protected async unlinkAccount(member: MemberInfo): Promise<void> {
+    const confirmed = await this.dialogs.confirm({
+      title: `Détacher ${member.firstName} ${member.lastName} de son compte ?`,
+      message: 'La fiche, ses adhésions et son historique sont conservés. Cette personne pourra toujours se connecter, mais ne pourra plus faire de demande de remboursement tant que la fiche n’est pas reliée à un compte. Vous pourrez la relier de nouveau.',
+      confirmLabel: 'Détacher',
+    });
+    if (!confirmed) return;
+    await this.run(async () => {
+      await this.api.unlinkMemberAccount(member.id);
+      this.notifier.success('La fiche est détachée du compte.');
+      this.selected.set(await this.api.getMember(member.id));
+    }, 'Impossible de détacher le compte.');
   }
 
   protected async anonymize(member: MemberInfo): Promise<void> {

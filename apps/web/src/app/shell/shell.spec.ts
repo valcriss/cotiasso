@@ -7,6 +7,7 @@ import { BrandingService } from '../branding/branding.service';
 import { NAVIGATION } from '../navigation';
 import { ThemeService } from '../theme/theme.service';
 import { SetupStatus } from '../pages/setup-status.service';
+import { ReimbursementsApi } from '../reimbursements/reimbursements-api';
 import { Shell } from './shell';
 
 const logoUrl = signal<string | null>(null);
@@ -25,15 +26,19 @@ describe('Shell', () => {
   /** Droits seulement sur un projet : `canAny` les compte, `can` les ignore. */
   const scoped = signal<ReadonlySet<string>>(new Set());
   const permissions = signal<ReadonlySet<string>>(new Set(NAVIGATION.map((item) => item.permission ?? '').concat('settings.association:view')));
+  /** Le circuit de validation des remboursements est-il utilisable ? (réponse de `GET /reimbursements/status`) */
+  let circuitReady = true;
 
   beforeEach(async () => {
     logout.mockClear();
+    circuitReady = true;
     scoped.set(new Set());
     permissions.set(new Set(NAVIGATION.map((item) => item.permission ?? '').concat('settings.association:view')));
     await TestBed.configureTestingModule({
       imports: [Shell],
       providers: [
         provideRouter([]),
+        { provide: ReimbursementsApi, useValue: { status: () => Promise.resolve({ enabled: true, ready: circuitReady, canRequest: true, reason: null }) } },
         { provide: BrandingService, useValue: { branding: brandingValue, logoUrl } },
         {
           provide: AuthService,
@@ -64,6 +69,28 @@ describe('Shell', () => {
     await fixture.whenStable();
     const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent?.trim());
     expect(labels).toEqual(["Vue d'ensemble", 'Projets', 'Subventions', 'Aide et lexique'].map((l) => expect.stringContaining(l)));
+  });
+
+  it('montre les remboursements seulement quand le circuit de validation est utilisable', async () => {
+    permissions.set(new Set(['reimbursements:create', 'projects:view']));
+    const labelsOf = (fixture: ReturnType<typeof TestBed.createComponent<Shell>>) =>
+      Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent ?? '');
+
+    const ready = TestBed.createComponent(Shell);
+    await ready.whenStable();
+    ready.detectChanges();
+    expect(labelsOf(ready).some((l) => l.includes('Remboursements'))).toBe(true);
+  });
+
+  it('masque les remboursements tant que le circuit de validation est en panne ou absent', async () => {
+    circuitReady = false;
+    permissions.set(new Set(['reimbursements:create', 'projects:view']));
+    const fixture = TestBed.createComponent(Shell);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent ?? '');
+    expect(labels.some((l) => l.includes('Remboursements'))).toBe(false);
+    expect(labels.some((l) => l.includes('Projets'))).toBe(true);
   });
 
   it("affiche le nom de l'association défini par la marque blanche", async () => {

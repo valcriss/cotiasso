@@ -11,6 +11,7 @@ import { Skeleton } from '../ui/skeleton';
 import { CircuitDiagram } from './circuit-diagram';
 import { CircuitEditorDialog, type CircuitEditorData } from './circuit-editor-dialog';
 import type { Lookups } from './circuit-model';
+import { ReimbursementAvailability } from '../reimbursements/reimbursement-availability.service';
 import { WorkflowsApi, type VersionSummary, type VersionView, type WorkflowSummary } from './workflows-api';
 
 interface Section {
@@ -139,6 +140,7 @@ export class CircuitsPage {
   private readonly auth = inject(AuthService);
   private readonly dialogs = inject(Dialogs);
   private readonly notifier = inject(Notifier);
+  private readonly availability = inject(ReimbursementAvailability);
 
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
@@ -183,6 +185,8 @@ export class CircuitsPage {
     await this.run(async () => {
       await this.api.activate(draft.id);
       await this.reload();
+      // Le menu des remboursements suit l'état du circuit : on le met à jour tout de suite, sans attendre la prochaine page.
+      void this.availability.refresh(true);
       this.notifier.success('Circuit mis en vigueur.');
     });
   }

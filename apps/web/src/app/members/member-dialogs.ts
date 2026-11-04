@@ -153,6 +153,89 @@ export class MemberDialog {
   }
 }
 
+export interface LinkAccountDialogData {
+  memberId: string;
+  memberName: string;
+}
+
+/** Associe une fiche de membre à un compte de connexion existant. Renvoie `{ hasAccount: true }` une fois le lien posé. */
+@Component({
+  selector: 'app-link-account-dialog',
+  imports: [ReactiveFormsModule, FormDialog, MatFormFieldModule, MatSelectModule],
+  template: `
+    <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+      <app-form-dialog
+        [title]="'Associer ' + data.memberName + ' à un compte'"
+        description="Relier la fiche à un compte de connexion permet à cette personne de se connecter et de faire ses demandes de remboursement. Elle garde sa fiche et son historique. Un compte ne correspond qu'à un seul membre."
+        submitLabel="Associer"
+        [dirty]="form.dirty"
+        [busy]="busy()"
+        [error]="error()"
+      >
+        @if (accounts() === null) {
+          <p class="muted">Chargement des comptes…</p>
+        } @else if (accounts()!.length === 0) {
+          <p class="alert" role="status">
+            Aucun compte n’est disponible : tous les comptes actifs sont déjà reliés à une fiche. Invitez d’abord la personne dans Paramètres › Utilisateurs ; si son adresse email est identique à celle de la fiche, le lien se fera tout seul.
+          </p>
+        }
+        <mat-form-field appearance="outline">
+          <mat-label>Compte de connexion</mat-label>
+          <mat-select formControlName="userId" required>
+            @for (account of accounts() ?? []; track account.id) {
+              <mat-option [value]="account.id">{{ account.displayName }} — {{ account.email }}</mat-option>
+            }
+          </mat-select>
+          <mat-hint>Seuls les comptes actifs pas encore reliés à un membre sont proposés.</mat-hint>
+          @if (form.controls.userId.hasError('required')) {
+            <mat-error>Choisissez le compte à associer à cette fiche.</mat-error>
+          }
+        </mat-form-field>
+      </app-form-dialog>
+    </form>
+  `,
+})
+export class LinkAccountDialog {
+  private readonly api = inject(AdminApiService);
+  private readonly reference = inject<MatDialogRef<LinkAccountDialog, { hasAccount: true }>>(MatDialogRef);
+  private readonly fb = inject(FormBuilder).nonNullable;
+  protected readonly data = inject<LinkAccountDialogData>(MAT_DIALOG_DATA);
+  protected readonly accounts = signal<{ id: string; email: string; displayName: string }[] | null>(null);
+  protected readonly busy = signal(false);
+  protected readonly error = signal<string | null>(null);
+  protected readonly form = this.fb.group({ userId: ['', [Validators.required]] });
+
+  constructor() {
+    void this.loadAccounts();
+  }
+
+  private async loadAccounts(): Promise<void> {
+    try {
+      this.accounts.set(await this.api.availableMemberAccounts());
+    } catch (failure) {
+      this.accounts.set([]);
+      this.error.set(describeHttpError(failure, 'La liste des comptes n’a pas pu être chargée. Fermez cette boîte et réessayez.').message);
+    }
+  }
+
+  protected async save(): Promise<void> {
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      this.error.set(INVALID);
+      return;
+    }
+    this.error.set(null);
+    this.busy.set(true);
+    try {
+      this.reference.close(await this.api.linkMemberAccount(this.data.memberId, this.form.getRawValue().userId));
+    } catch (failure) {
+      this.error.set(describeHttpError(failure, 'Le compte n’a pas pu être associé. Réessayez dans un instant.').message);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+}
+
 export interface OfficeDialogData {
   memberId: string;
   memberName: string;

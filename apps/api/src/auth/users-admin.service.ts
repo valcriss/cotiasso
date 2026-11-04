@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "../audit/audit.service.js";
 import { RoleNotFoundError } from "../authz/errors.js";
 import { RolesService } from "../authz/roles.service.js";
+import { linkAccountToMatchingMember } from "../members/account-link.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { SelfDisableError, UserNotFoundError } from "./errors.js";
 import { PasswordTokenService, type IssuedPasswordToken } from "./password-token.service.js";
@@ -34,7 +35,7 @@ export class UsersAdminService {
     input: CreateManagedUserInput,
     actorId: string,
   ): Promise<{ user: PublicUser; invitation: IssuedPasswordToken }> {
-    const { user, invitation, roleKeys } = await this.prisma.$transaction(async (tx) => {
+    const { user, invitation, roleKeys, linkedMemberId } = await this.prisma.$transaction(async (tx) => {
       const found = await tx.role.findMany({ where: { id: { in: input.roleIds } }, select: { id: true, key: true } });
       if (found.length !== new Set(input.roleIds).size) throw new RoleNotFoundError();
 
@@ -43,7 +44,9 @@ export class UsersAdminService {
         await tx.roleAssignment.create({ data: { userId: created.id, roleId: role.id, createdBy: actorId } });
       }
       const issued = await this.tokens.issue(created.id, "INVITATION", actorId, new Date(), tx);
-      return { user: created, invitation: issued, roleKeys: found.map((r) => r.key) };
+      // Une fiche de membre actuel qui porte déjà cette adresse email est reliée au nouveau compte, dans la même transaction.
+      const linked = await linkAccountToMatchingMember(tx, created.id);
+      return { user: created, invitation: issued, roleKeys: found.map((r) => r.key), linkedMemberId: linked };
     });
 
     await this.audit.record({
@@ -53,6 +56,9 @@ export class UsersAdminService {
       actorId,
       details: { roles: roleKeys },
     });
+    if (linkedMemberId) {
+      await this.audit.record({ action: "member.account.linked", objectType: "Member", objectId: linkedMemberId, actorId, details: { via: "email", userId: user.id } });
+    }
     return { user, invitation };
   }
 

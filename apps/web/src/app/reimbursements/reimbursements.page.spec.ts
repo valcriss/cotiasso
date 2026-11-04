@@ -45,7 +45,7 @@ const detail = (overrides: object = {}) => ({
   ...overrides,
 });
 
-const open = { enabled: true, canRequest: true, reason: null };
+const open = { enabled: true, ready: true, canRequest: true, reason: null };
 
 describe('ReimbursementsPage', () => {
   let controller: HttpTestingController;
@@ -110,7 +110,7 @@ describe('ReimbursementsPage', () => {
   });
 
   it('masque le bouton et explique pourquoi quand les demandes ne sont pas ouvertes', async () => {
-    await create(['reimbursements:create'], { status: { enabled: false, canRequest: false, reason: 'Les demandes de remboursement ne sont pas encore ouvertes : un administrateur doit d’abord mettre un circuit de validation en vigueur.' } });
+    await create(['reimbursements:create'], { status: { enabled: false, ready: false, canRequest: false, reason: 'Les demandes de remboursement ne sont pas encore ouvertes : un administrateur doit d’abord mettre un circuit de validation en vigueur.' } });
     expect(root.textContent).not.toContain('Nouvelle demande');
     expect(root.querySelector('.alert')!.textContent).toContain('circuit de validation');
   });

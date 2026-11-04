@@ -273,6 +273,79 @@ describe('MembersPage', () => {
     expect(root.textContent).toContain('est anonymisé');
   });
 
+  it("dit si la fiche a un compte de connexion, sans proposer de lier à qui n'a pas le droit", async () => {
+    await create(['members:view', 'members:manage']);
+    await openFirst();
+    expect(root.textContent).toContain('Compte de connexion');
+    expect(root.textContent).toContain('Aucun (pas nécessaire pour être membre)');
+    expect(root.textContent).not.toContain('Associer à un compte utilisateur');
+  });
+
+  it("associe une fiche à un compte disponible, avec le droit de relier un membre à un compte", async () => {
+    await create(['members:view', 'members.account:link']);
+    await openFirst();
+    expect(root.textContent).toContain('Le lien se fait tout seul quand un compte a la même adresse email');
+    await click('Associer à un compte utilisateur');
+    expect(ui.title).toContain('Associer Marie Dupont à un compte');
+    controller.expectOne('/api/member-accounts/available').flush([
+      { id: 'u1', email: 'marie.d@asso.fr', displayName: 'Marie D.' },
+      { id: 'u2', email: 'autre@asso.fr', displayName: 'Autre' },
+    ]);
+    await settle();
+    await ui.submit();
+    expect(ui.error).toContain('Vérifiez les champs');
+    await ui.choose('mat-select[formcontrolname="userId"]', 'Marie D. — marie.d@asso.fr');
+    await ui.submit();
+    const request = controller.expectOne('/api/members/m1/account');
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.body).toEqual({ userId: 'u1' });
+    request.flush({ hasAccount: true });
+    await settle();
+    controller.expectOne('/api/members/m1').flush({ member: member({ hasAccount: true }), offices: [] });
+    await settle();
+    expect(ui.snackbar).toContain('est associé(e) à un compte de connexion');
+    expect(root.textContent).toContain('Relié : peut se connecter');
+    expect(root.textContent).toContain('Détacher du compte');
+  });
+
+  it("explique quoi faire quand aucun compte n'est disponible, et garde la boîte ouverte si le serveur refuse", async () => {
+    await create(['members:view', 'members.account:link']);
+    await openFirst();
+    await click('Associer à un compte utilisateur');
+    controller.expectOne('/api/member-accounts/available').flush([{ id: 'u1', email: 'marie.d@asso.fr', displayName: 'Marie D.' }]);
+    await settle();
+    await ui.choose('mat-select[formcontrolname="userId"]', 'Marie D. — marie.d@asso.fr');
+    await ui.submit();
+    controller.expectOne('/api/members/m1/account').flush({ message: 'Ce compte est déjà relié à la fiche de Paul Martin.' }, { status: 409, statusText: 'Conflict' });
+    await settle();
+    expect(ui.isOpen).toBe(true);
+    expect(ui.error).toContain('déjà relié à la fiche de Paul Martin');
+  });
+
+  it("détache le compte après confirmation, en rassurant sur la fiche et l'historique", async () => {
+    await create(['members:view', 'members.account:link'], [member({ hasAccount: true })]);
+    await openFirst([], member({ hasAccount: true }));
+    expect(root.textContent).toContain('Relié : peut se connecter');
+    expect(root.textContent).not.toContain('Associer à un compte utilisateur');
+    await click('Détacher du compte');
+    expect(ui.text).toContain('La fiche, ses adhésions et son historique sont conservés');
+    await ui.click('Détacher');
+    const request = controller.expectOne('/api/members/m1/account');
+    expect(request.request.method).toBe('DELETE');
+    request.flush({ hasAccount: false });
+    await settle();
+    controller.expectOne('/api/members/m1').flush({ member: member({ hasAccount: false }), offices: [] });
+    await settle();
+    expect(ui.snackbar).toContain('détachée du compte');
+    expect(root.textContent).toContain('Associer à un compte utilisateur');
+  });
+
+  it("ne propose pas de lier une fiche d'ancien membre", async () => {
+    await create(['members:view', 'members.account:link']);
+    await openFirst([], member({ status: 'FORMER', leftOn: '2026-01-01' }));
+    expect(root.textContent).not.toContain('Associer à un compte utilisateur');
+  });
+
   it("gère les fonctions du bureau : liste, ajout et archivage, sans suppression", async () => {
     await create(['members:view', 'members:manage']);
     await click('Fonctions');

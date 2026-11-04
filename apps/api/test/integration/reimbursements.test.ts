@@ -176,7 +176,7 @@ describe("Demandes de remboursement (ADR 0035, base vierge)", () => {
   describe("ouverture et droits", () => {
     it("reste fermé tant qu'aucun circuit n'est en vigueur, et dit pourquoi", async () => {
       const status = (await call("GET", "/reimbursements/status", lea)).json();
-      expect(status).toMatchObject({ enabled: false, canRequest: false });
+      expect(status).toMatchObject({ enabled: false, ready: false, canRequest: false });
       expect(status.reason).toContain("circuit de validation");
       const refused = await call("POST", "/reimbursements", lea, { amount: "10.00", expenseDate: "2026-03-10", reason: "Test" });
       expect(refused.statusCode).toBe(409);
@@ -184,7 +184,18 @@ describe("Demandes de remboursement (ADR 0035, base vierge)", () => {
       const draft = await workflows.createDraft("reimbursement", { source: "STARTER" }, adminId);
       await workflows.updateDraft(draft.id, { revision: draft.revision, document: circuit() }, adminId);
       await workflows.activate(draft.id, adminId);
-      expect((await call("GET", "/reimbursements/status", lea)).json()).toMatchObject({ enabled: true, canRequest: true, reason: null });
+      expect((await call("GET", "/reimbursements/status", lea)).json()).toMatchObject({ enabled: true, ready: true, canRequest: true, reason: null });
+    });
+
+    it("n'est plus prêt (donc masqué du menu) quand plus personne ne peut décider d'une étape, et le redevient ensuite", async () => {
+      await prisma.memberOffice.updateMany({ where: { officeRoleId: presidentOfficeId }, data: { endsOn: new Date("2021-01-01T00:00:00Z") } });
+      const blocked = (await call("GET", "/reimbursements/status", lea)).json();
+      expect(blocked).toMatchObject({ enabled: true, ready: false, canRequest: false });
+      expect(blocked.reason).toContain("Accord du président");
+      expect(blocked.reason).toContain("Paramètres › Circuits de validation");
+
+      await prisma.memberOffice.updateMany({ where: { officeRoleId: presidentOfficeId }, data: { endsOn: null } });
+      expect((await call("GET", "/reimbursements/status", lea)).json()).toMatchObject({ enabled: true, ready: true, canRequest: true });
     });
 
     it("déclare ses accès : anonyme refusé, lecteur sans droit refusé, compte sans fiche membre informé", async () => {

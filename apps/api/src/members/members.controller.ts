@@ -13,6 +13,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   Req,
 } from "@nestjs/common";
@@ -59,6 +60,26 @@ export class MembersController {
   @Patch("members/:id")
   update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<MemberView> {
     return translate(() => this.members.update(id, body, request.auth!.user.id));
+  }
+
+  /** Comptes actifs pas encore reliés à une fiche : la liste proposée au bouton « Associer à un compte utilisateur ». */
+  @RequirePermission("members.account:link")
+  @Get("member-accounts/available")
+  availableAccounts(): Promise<{ id: string; email: string; displayName: string }[]> {
+    return translate(() => this.members.availableAccounts());
+  }
+
+  @RequirePermission("members.account:link")
+  @Put("members/:id/account")
+  linkAccount(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<{ hasAccount: true }> {
+    return translate(() => this.members.linkAccount(id, body, request.auth!.user.id));
+  }
+
+  @RequirePermission("members.account:link")
+  @Delete("members/:id/account")
+  @HttpCode(HttpStatus.OK)
+  unlinkAccount(@Param("id", ParseUUIDPipe) id: string, @Req() request: AuthenticatedRequest): Promise<{ hasAccount: false }> {
+    return translate(() => this.members.unlinkAccount(id, request.auth!.user.id));
   }
 
   @RequirePermission("members:manage")

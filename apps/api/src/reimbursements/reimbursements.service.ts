@@ -115,18 +115,26 @@ export class ReimbursementsService {
     @Inject(OperationsService) private readonly operations: OperationsService,
   ) {}
 
-  /** Les demandes de remboursement sont ouvertes quand un circuit est en vigueur (sinon : traitement direct, CA-08). */
-  async status(userId: string): Promise<{ enabled: boolean; canRequest: boolean; reason: string | null }> {
+  /**
+   * Les demandes de remboursement sont ouvertes quand un circuit est en vigueur (sinon : traitement direct, CA-08) **et utilisable** :
+   * chaque étape a au moins une personne qui peut décider (`ready`). Sinon une demande resterait bloquée, et le menu masque la rubrique.
+   */
+  async status(userId: string): Promise<{ enabled: boolean; ready: boolean; canRequest: boolean; reason: string | null }> {
     const enabled = await this.engine.isEnabled(REIMBURSEMENT_SUBJECT);
+    const blocked = enabled ? await this.workflows.activeWarnings(REIMBURSEMENT_SUBJECT) : [];
+    const ready = enabled && blocked.length === 0;
     const member = await this.memberOf(userId);
     return {
       enabled,
-      canRequest: enabled && !!member,
+      ready,
+      canRequest: ready && !!member,
       reason: !enabled
         ? "Les demandes de remboursement ne sont pas encore ouvertes : un administrateur doit d’abord mettre un circuit de validation en vigueur."
-        : !member
-          ? "Votre compte n’est pas relié à une fiche de membre actif : demandez à un administrateur de le relier pour pouvoir faire une demande."
-          : null,
+        : !ready
+          ? `Le circuit de validation en vigueur ne peut pas fonctionner pour l’instant : ${blocked[0]!.message} Un administrateur doit le corriger (Paramètres › Circuits de validation) avant que les demandes soient ouvertes.`
+          : !member
+            ? "Votre compte n’est pas relié à une fiche de membre actif. Le lien se fait tout seul quand la fiche et le compte ont la même adresse email ; sinon, demandez à un administrateur de l’associer (Membres › votre fiche › Associer à un compte utilisateur)."
+            : null,
     };
   }
 

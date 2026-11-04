@@ -25,6 +25,7 @@ export const DEFAULT_ROLES: readonly DefaultRole[] = [
       "settings.association:admin",
       "users:view",
       "users:admin",
+      "members.account:link",
       "backups:admin",
       "audit:view",
     ],

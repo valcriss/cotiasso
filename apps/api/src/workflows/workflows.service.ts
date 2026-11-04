@@ -233,6 +233,12 @@ export class WorkflowsService {
     }
   }
 
+  /** Étapes du circuit en vigueur qu'aucune personne ne peut décider aujourd'hui (vide : sans circuit en vigueur, ou circuit utilisable). */
+  async activeWarnings(subjectType: string): Promise<CircuitIssue[]> {
+    const active = await this.activeVersion(subjectType);
+    return active ? this.warnings(active.circuit) : [];
+  }
+
   /** Étapes qu'aucune personne ne peut décider aujourd'hui. N'empêche pas d'activer, mais une demande y resterait bloquée. */
   private async warnings(circuit: Circuit): Promise<CircuitIssue[]> {
     const warnings: CircuitIssue[] = [];

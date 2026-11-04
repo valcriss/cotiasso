@@ -10,6 +10,7 @@ export const PERMISSIONS = {
   "users:admin": "Créer des comptes, donner ou retirer des droits",
   "members:view": "Voir la liste des membres",
   "members:manage": "Ajouter et modifier les membres, enregistrer les cotisations",
+  "members.account:link": "Relier un membre à un compte de connexion (ou l'en détacher)",
   "financial-accounts:view": "Voir les comptes bancaires et leurs mouvements",
   "transactions:manage": "Saisir et classer les mouvements d'argent",
   "imports:post": "Importer le relevé de la banque et le comparer à vos enregistrements",

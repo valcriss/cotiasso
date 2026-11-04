@@ -12,6 +12,8 @@ export interface NavigationItem {
   global?: boolean;
   /** Rubrique réservée à l'affichage « Comptable » (ADR 0028) : masquée du menu en affichage simple, l'adresse reste ouverte. */
   expert?: boolean;
+  /** Rubrique masquée tant que sa fonction n'est pas utilisable : les remboursements exigent un circuit de validation qui fonctionne. */
+  needs?: 'reimbursements-ready';
 }
 
 /**
@@ -24,7 +26,7 @@ export const NAVIGATION: readonly NavigationItem[] = [
   { path: 'budget', label: 'Budget', icon: 'pie_chart', permission: 'reports:view', additionalPermission: 'entries:view' },
   { path: 'comptabilite', label: 'Comptabilité', icon: 'menu_book', permission: 'entries:view', expert: true },
   { path: 'membres', label: 'Membres et cotisations', icon: 'groups', permission: 'members:view' },
-  { path: 'remboursements', label: 'Remboursements', icon: 'receipt_long', permission: 'reimbursements:create' },
+  { path: 'remboursements', label: 'Remboursements', icon: 'receipt_long', permission: 'reimbursements:create', needs: 'reimbursements-ready' },
   { path: 'projets', label: 'Projets', icon: 'folder_open', permission: 'projects:view' },
   { path: 'subventions', label: 'Subventions', icon: 'payments', permission: 'grants:view' },
   { path: 'rapports', label: 'Rapports', icon: 'bar_chart', permission: 'reports:view' },

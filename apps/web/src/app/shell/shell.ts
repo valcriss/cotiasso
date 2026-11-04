@@ -8,6 +8,7 @@ import { AuthService } from '../auth/auth.service';
 import { BrandingService } from '../branding/branding.service';
 import { HELP_ITEM, NAVIGATION, SETTINGS_ITEM, START_ITEM } from '../navigation';
 import { SetupStatus } from '../pages/setup-status.service';
+import { ReimbursementAvailability } from '../reimbursements/reimbursement-availability.service';
 import { DENSITIES, THEME_MODES, ThemeService, VIEW_MODES } from '../theme/theme.service';
 
 @Component({
@@ -20,6 +21,7 @@ export class Shell {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly setupStatus = inject(SetupStatus);
+  private readonly reimbursements = inject(ReimbursementAvailability);
 
   protected readonly theme = inject(ThemeService);
   private readonly brandingService = inject(BrandingService);
@@ -30,7 +32,9 @@ export class Shell {
   protected readonly navigation = computed(() => {
     this.auth.permissions();
     const simple = this.theme.viewMode() === 'simple';
-    const items = NAVIGATION.filter((item) => !(simple && item.expert)).filter((item) => this.auth.can(item.additionalPermission)).filter((item) => (item.global ? this.auth.can(item.permission) : this.auth.canAny(item.permission)));
+    const items = NAVIGATION.filter((item) => !(simple && item.expert))
+      .filter((item) => item.needs !== 'reimbursements-ready' || this.reimbursements.ready() === true)
+      .filter((item) => this.auth.can(item.additionalPermission)).filter((item) => (item.global ? this.auth.can(item.permission) : this.auth.canAny(item.permission)));
     // « Démarrer » reste dans le menu tant qu'une étape de préparation manque, pour la retrouver une fois la carte d'accueil disparue.
     if (this.setupStatus.incomplete() && this.auth.can(START_ITEM.permission)) items.splice(1, 0, START_ITEM);
     return items;
@@ -61,7 +65,11 @@ export class Shell {
       });
     }
     // Choisir une page referme le tiroir.
-    this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe(() => this.menuOpen.set(false));
+    this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe(() => {
+      this.menuOpen.set(false);
+      // Le menu des remboursements suit l'état du circuit : une personne qu'on désigne ou un circuit corrigé le fait apparaître.
+      if (this.auth.can('reimbursements:create')) void this.reimbursements.refresh();
+    });
     // Un expert-comptable (lecture et export des états, sans saisie) ouvre l'affichage comptable d'office ; son choix prime ensuite.
     effect(() => {
       this.auth.permissions();
@@ -70,6 +78,10 @@ export class Shell {
     effect(() => {
       this.auth.permissions();
       if (this.auth.can(START_ITEM.permission)) void this.setupStatus.ensureLoaded();
+    });
+    effect(() => {
+      this.auth.permissions();
+      if (this.auth.can('reimbursements:create')) void this.reimbursements.refresh();
     });
   }
 

@@ -59,6 +59,8 @@ export interface ReimbursementInfo {
 
 export interface ReimbursementStatusInfo {
   enabled: boolean;
+  /** Circuit en vigueur **et** utilisable : chaque étape a quelqu'un pour décider. Sinon la rubrique est masquée du menu. */
+  ready: boolean;
   canRequest: boolean;
   reason: string | null;
 }

@@ -6,6 +6,7 @@ import { AuditService } from "../audit/audit.service.js";
 import type { MemberStatus, Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { triggerMessage } from "../treasury/db-refusal.js";
+import { linkMemberToMatchingAccount } from "./account-link.js";
 import { officeRoleKey } from "./office-role-key.js";
 import { MembershipsService, type MembershipState } from "./memberships.service.js";
 
@@ -251,7 +252,55 @@ export class MembersService {
       .create({ data: this.data(input), include })
       .catch(rethrow);
     await this.audit.record({ action: "member.created", objectType: "Member", objectId: created.id, actorId });
-    return view(created);
+    return (await this.autoLink(created.id, actorId)) ? view(await this.load(created.id)) : view(created);
+  }
+
+  /** Relie la fiche au compte de même adresse email, s'il y en a un, et le trace. Vrai si un lien a été posé. */
+  private async autoLink(memberId: string, actorId: string): Promise<boolean> {
+    const userId = await linkMemberToMatchingAccount(this.prisma, memberId);
+    if (!userId) return false;
+    await this.audit.record({ action: "member.account.linked", objectType: "Member", objectId: memberId, actorId, details: { via: "email", userId } });
+    return true;
+  }
+
+  /** Comptes actifs qui ne sont encore reliés à aucune fiche : ceux que l'on peut proposer à la liaison manuelle. */
+  async availableAccounts(): Promise<{ id: string; email: string; displayName: string }[]> {
+    return this.prisma.user.findMany({
+      where: { status: "ACTIVE", member: { is: null } },
+      select: { id: true, email: true, displayName: true },
+      orderBy: [{ displayName: "asc" }, { email: "asc" }],
+    });
+  }
+
+  /** Relie une fiche de membre actuel à un compte actif encore libre. Un compte ne correspond qu'à une fiche. */
+  async linkAccount(memberId: string, body: unknown, actorId: string): Promise<{ hasAccount: true }> {
+    const { userId } = parse(z.object({ userId: z.uuid("Choisissez un compte de connexion.") }).strict(), body);
+    const member = await this.load(memberId);
+    if (member.anonymizedAt || member.status !== "ACTIVE") {
+      throw new AccountingConflictError("Cette fiche est celle d'un ancien membre : un compte ne se relie qu'à un membre actuel. Réactivez d'abord le membre si c'est une erreur.");
+    }
+    if (member.userId) throw new AccountingConflictError("Cette fiche est déjà reliée à un compte. Détachez-la d'abord si vous voulez en choisir un autre.");
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { status: true, member: { select: { firstName: true, lastName: true } } } });
+    if (!user) throw new AccountingNotFoundError("Compte");
+    if (user.status !== "ACTIVE") throw new AccountingConflictError("Ce compte est désactivé : réactivez-le dans Paramètres › Utilisateurs avant de le relier à une fiche.");
+    if (user.member) {
+      throw new AccountingConflictError(`Ce compte est déjà relié à la fiche de ${user.member.firstName} ${user.member.lastName}. Un compte ne correspond qu'à un membre : détachez-le d'abord de cette fiche.`);
+    }
+    const done = await this.prisma.member
+      .updateMany({ where: { id: memberId, userId: null }, data: { userId, version: { increment: 1 } } })
+      .catch(rethrow);
+    if (done.count !== 1) throw new AccountingConflictError("Cette fiche vient d'être modifiée. Rechargez-la avant de choisir un compte.");
+    await this.audit.record({ action: "member.account.linked", objectType: "Member", objectId: memberId, actorId, details: { via: "manual", userId } });
+    return { hasAccount: true };
+  }
+
+  /** Détache le compte d'une fiche : le membre garde sa fiche et son historique, mais ne peut plus faire de demande de remboursement. */
+  async unlinkAccount(memberId: string, actorId: string): Promise<{ hasAccount: false }> {
+    const member = await this.load(memberId);
+    if (!member.userId) throw new AccountingConflictError("Cette fiche n'est reliée à aucun compte.");
+    await this.prisma.member.update({ where: { id: memberId }, data: { userId: null, version: { increment: 1 } } }).catch(rethrow);
+    await this.audit.record({ action: "member.account.unlinked", objectType: "Member", objectId: memberId, actorId, details: { userId: member.userId } });
+    return { hasAccount: false };
   }
 
   async update(id: string, body: unknown, actorId: string): Promise<MemberView> {
@@ -282,6 +331,8 @@ export class MembersService {
       actorId,
       details: { fields: [...Object.keys(fields), ...(status ? ["status"] : []), ...(leftOn !== undefined ? ["leftOn"] : [])] },
     });
+    // Une adresse saisie ou corrigée, ou un membre de retour, peut maintenant correspondre à un compte.
+    await this.autoLink(id, actorId);
     return view(await this.load(id));
   }
 

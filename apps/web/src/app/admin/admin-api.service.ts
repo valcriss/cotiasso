@@ -1698,6 +1698,19 @@ export class AdminApiService {
     return firstValueFrom(this.http.patch<OfficeRoleInfo>(`/api/office-roles/${id}`, body));
   }
 
+  /** Comptes actifs pas encore reliés à une fiche de membre (droit « relier un membre à un compte »). */
+  availableMemberAccounts(): Promise<{ id: string; email: string; displayName: string }[]> {
+    return firstValueFrom(this.http.get<{ id: string; email: string; displayName: string }[]>('/api/member-accounts/available'));
+  }
+
+  linkMemberAccount(memberId: string, userId: string): Promise<{ hasAccount: true }> {
+    return firstValueFrom(this.http.put<{ hasAccount: true }>(`/api/members/${memberId}/account`, { userId }));
+  }
+
+  unlinkMemberAccount(memberId: string): Promise<{ hasAccount: false }> {
+    return firstValueFrom(this.http.delete<{ hasAccount: false }>(`/api/members/${memberId}/account`));
+  }
+
   addMemberOffice(memberId: string, body: { officeRoleId: string; startsOn: string; endsOn?: string | null; note?: string | null }): Promise<MemberOfficeInfo> {
     return firstValueFrom(this.http.post<MemberOfficeInfo>(`/api/members/${memberId}/offices`, body));
   }
