@@ -50,7 +50,7 @@ export const routes: Routes = [
         title: 'Aide et lexique',
         loadComponent: () => import('./pages/help.page').then((m) => m.HelpPage),
       },
-      ...others.filter((item) => item.path !== 'documents' && item.path !== 'comptabilite' && item.path !== 'projets' && item.path !== 'comptes' && item.path !== 'rapports' && item.path !== 'membres' && item.path !== 'subventions').map((item) => ({
+      ...others.filter((item) => item.path !== 'documents' && item.path !== 'comptabilite' && item.path !== 'projets' && item.path !== 'comptes' && item.path !== 'rapports' && item.path !== 'membres' && item.path !== 'subventions' && item.path !== 'remboursements').map((item) => ({
         path: item.path,
         title: item.label,
         canActivate: [permissionGuard],
@@ -167,6 +167,13 @@ export const routes: Routes = [
         loadComponent: () => import('./treasury/accounts.page').then((m) => m.AccountsPage),
       },
       {
+        // Pas de permission exigée : une personne désignée pour donner son accord n'a pas forcément le droit de faire des demandes.
+        // Le serveur décide de ce que chacun voit.
+        path: 'remboursements',
+        title: 'Remboursements de frais',
+        loadComponent: () => import('./reimbursements/reimbursements.page').then((m) => m.ReimbursementsPage),
+      },
+      {
         path: 'projets',
         title: 'Projets',
         canActivate: [permissionGuard],
@@ -227,6 +234,13 @@ export const routes: Routes = [
             canActivate: [permissionGuard],
             data: { permission: 'users:view' },
             loadComponent: () => import('./admin/users.page').then((m) => m.UsersPage),
+          },
+          {
+            path: 'circuits',
+            title: 'Circuits de validation',
+            canActivate: [permissionGuard],
+            data: { permission: 'workflows:view' },
+            loadComponent: () => import('./workflows/circuits.page').then((m) => m.CircuitsPage),
           },
           {
             path: 'journal',

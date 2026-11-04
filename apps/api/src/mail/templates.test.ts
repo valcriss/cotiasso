@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatExpiry, renderInvitationEmail, renderResetEmail, type EmailContext } from "./templates.js";
+import { formatExpiry, renderInvitationEmail, renderNotificationEmail, renderResetEmail, type EmailContext, type NotificationTemplate } from "./templates.js";
 
 const base: EmailContext = {
   associationName: "Club des amis",
@@ -123,5 +123,57 @@ describe("valeurs saisies par une personne", () => {
   it("échappe aussi le lien dans le HTML", () => {
     const mail = renderResetEmail({ ...base, link: 'https://x.fr/#token="><script>1</script>' });
     expect(mail.html).not.toContain("<script>1</script>");
+  });
+});
+
+describe("email de notification d'une demande de remboursement", () => {
+  const notification = (template: NotificationTemplate, overrides: Partial<Parameters<typeof renderNotificationEmail>[0]> = {}) =>
+    renderNotificationEmail({
+      template,
+      associationName: "Club des amis",
+      recipientName: "Camille Durand",
+      requesterName: "Léa Martin",
+      requestNumber: 12,
+      link: "https://compta.asso.fr/remboursements?onglet=a-traiter",
+      accentColor: "#7a1f4d",
+      logo: null,
+      showName: true,
+      ...overrides,
+    });
+
+  it("dit qui a demandé quoi et ce qu'on attend de la personne, avec un lien", () => {
+    const mail = notification("TO_DECIDE");
+    expect(mail.subject).toBe("Une demande de remboursement attend votre accord (n° 12)");
+    for (const body of [mail.text, mail.html]) {
+      expect(body).toContain("Bonjour Camille Durand,");
+      expect(body).toContain("Léa Martin a demandé le remboursement de frais avancés pour Club des amis");
+      expect(body).toContain("https://compta.asso.fr/remboursements?onglet=a-traiter");
+      expect(body).toContain("c’est l’état affiché dans l’application qui fait foi");
+    }
+    expect(mail.text).toContain("Examiner la demande");
+  });
+
+  it("propose le bon geste pour chaque situation, au demandeur comme aux validateurs", () => {
+    expect(notification("TO_PAY").text).toContain("prête à être remboursée");
+    expect(notification("APPROVED").subject).toContain("a reçu un accord");
+    expect(notification("RETURNED").subject).toContain("est à corriger");
+    expect(notification("REFUSED").subject).toContain("a été refusée");
+    expect(notification("PAID").subject).toContain("est réglée");
+  });
+
+  it("ne contient jamais de montant, de motif ni de justificatif", () => {
+    for (const template of ["TO_DECIDE", "TO_PAY", "APPROVED", "RETURNED", "REFUSED", "PAID"] as const) {
+      const mail = notification(template);
+      expect(mail.text + mail.html).not.toMatch(/€|euro|justificatif joint/i);
+    }
+  });
+
+  it("neutralise ce qui est saisi par une personne (nom, association) dans le texte et le HTML", () => {
+    const hostile = "Léa <script>alert(1)</script>" + String.fromCharCode(13, 10) + "Bcc: x@y.z";
+    const mail = notification("TO_DECIDE", { requesterName: hostile, associationName: "Club <b>des</b> amis" });
+    expect(mail.html).not.toContain("<script>");
+    expect(mail.html).not.toContain("<b>des</b>");
+    expect(mail.subject).not.toMatch(/[\r\n]/);
+    expect(mail.text.split(String.fromCharCode(10)).some((line) => line.startsWith("Bcc:"))).toBe(false);
   });
 });

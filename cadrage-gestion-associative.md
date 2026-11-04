@@ -384,6 +384,8 @@ Il faut identifier avant le développement les besoins en charges/produits const
 
 Identifiant interne, coordonnées utiles, catégorie, statut, dates d'entrée/sortie, fonctions et mandats, documents, adhésions, cotisations, règlements et remboursements.
 
+Les fonctions (Président, Trésorier…) viennent d'un **catalogue de fonctions** propre à l'association, jamais d'un texte libre : une fonction n'accorde aucun droit par elle-même, mais elle peut désigner qui valide une étape d'un circuit (§17). Retenu, [ADR 0035](docs/decisions/0035-demandes-de-remboursement-et-circuits-de-validation.md).
+
 Collecter seulement les données nécessaires. Un membre sorti peut conserver un historique comptable sans conserver indéfiniment toutes ses coordonnées dans la base active.
 
 ### 13.2 Périodes configurables
@@ -460,6 +462,8 @@ Avec workflow : soumission et approbations selon les règles. Sans workflow : tr
 
 Prévoir les paiements partiels, refus, annulations, remboursements groupés et association avec une transaction bancaire existante. L'approbation ne prouve pas le paiement.
 
+**Première version (Retenu, [ADR 0035](docs/decisions/0035-demandes-de-remboursement-et-circuits-de-validation.md))** : seule la **demande de remboursement d'une avance personnelle** est couverte. Toute personne dont le compte est lié à une fiche membre active peut la déposer ; le bénéficiaire est toujours le demandeur ; un **justificatif est obligatoire** ; le remboursement est **intégral** (pas de paiement partiel). Les achats à réaliser, factures à payer, paiements partiels et remboursements groupés restent à faire. Le trésorier choisit la catégorie comptable au traitement, et l'enregistrement réutilise le parcours existant (projet obligatoire respecté).
+
 ## 17. Workflows optionnels et configurables
 
 ### 17.1 Périmètre
@@ -488,6 +492,17 @@ L'absence de workflow ne désactive jamais l'équilibre comptable, les permissio
 - Une seule approbation effective par étape malgré des clics concurrents.
 
 Le niveau de complexité du moteur doit rester borné : règles déclaratives prédéfinies, sans langage de script arbitraire en V1.
+
+### 17.4 Conception retenue pour la première version
+
+Retenu, [ADR 0035](docs/decisions/0035-demandes-de-remboursement-et-circuits-de-validation.md) :
+
+- **Circuit stocké comme un graphe** (nœuds et liens), pour accueillir plus tard conditions (seuil de montant), branches et étapes parallèles sans migrer l'existant. En V1 : de 0 à 3 étapes de validation puis une étape de traitement obligatoire. Les nœuds de condition et de parallélisme sont explicitement indisponibles.
+- **Validateurs désignés par personnes, rôles ou fonctions** du catalogue ; une seule personne désignée suffit à valider une étape, ce qui tient lieu de suppléance. Le circuit conserve la désignation, pas les personnes : un changement de présidence est suivi sans modifier le circuit.
+- **Dispense du demandeur** : les étapes que le demandeur est lui-même habilité à valider sont validées d'office par une décision enregistrée et visible, jamais en silence (option par étape, active par défaut). Seules ses étapes sautent.
+- **Traitement jamais dispensé** : par défaut, personne ne traite sa propre demande ; une association à un seul trésorier peut lever cette règle par un réglage explicite, versionné et audité.
+- **Décisions** : accepter, refuser (motif obligatoire), renvoyer pour correction (message obligatoire). Après un renvoi, un changement de montant, de date ou de projet relance le circuit depuis la première étape.
+- **Moteur indépendant du type de demande**, avec cœur pur et testé ; notifications par email via une file d'envoi qui ne défait jamais une décision.
 
 ## 18. Documents et suivi documentaire
 

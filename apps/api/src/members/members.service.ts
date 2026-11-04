@@ -6,6 +6,7 @@ import { AuditService } from "../audit/audit.service.js";
 import type { MemberStatus, Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { triggerMessage } from "../treasury/db-refusal.js";
+import { officeRoleKey } from "./office-role-key.js";
 import { MembershipsService, type MembershipState } from "./memberships.service.js";
 
 const isoDate = z
@@ -59,9 +60,14 @@ const categoryPatch = z
   .object({ name: z.string().trim().min(1).max(60).optional(), active: z.boolean().optional() })
   .strict();
 
+const officeRoleInput = z.object({ name: z.string().trim().min(1, "Nom obligatoire.").max(80, "Nom trop long (80 caractères).") }).strict();
+const officeRolePatch = z
+  .object({ name: z.string().trim().min(1, "Nom obligatoire.").max(80, "Nom trop long (80 caractères).").optional(), active: z.boolean().optional() })
+  .strict();
+
 const officeInput = z
   .object({
-    title: z.string().trim().min(1, "Intitulé obligatoire.").max(80, "Intitulé trop long (80 caractères)."),
+    officeRoleId: z.uuid("Choisissez une fonction."),
     startsOn: isoDate,
     endsOn: isoDate.nullish(),
     note: optionalText(200),
@@ -69,7 +75,7 @@ const officeInput = z
   .strict()
   .refine((office) => !office.endsOn || office.endsOn >= office.startsOn, { message: "La fin précède le début.", path: ["endsOn"] });
 const officePatch = z
-  .object({ title: z.string().trim().min(1).max(80).optional(), startsOn: isoDate.optional(), endsOn: isoDate.nullable().optional(), note: optionalText(200) })
+  .object({ officeRoleId: z.uuid().optional(), startsOn: isoDate.optional(), endsOn: isoDate.nullable().optional(), note: optionalText(200) })
   .strict();
 
 export interface CategoryView {
@@ -79,9 +85,19 @@ export interface CategoryView {
   memberCount: number;
 }
 
+/** Fonction du catalogue (Président, Trésorier…). `mandateCount` : mandats rattachés, en cours ou passés. */
+export interface OfficeRoleView {
+  id: string;
+  name: string;
+  active: boolean;
+  mandateCount: number;
+}
+
 export interface OfficeView {
   id: string;
+  /** Nom de la fonction du catalogue. */
   title: string;
+  officeRoleId: string;
   startsOn: string;
   endsOn: string | null;
   note: string | null;
@@ -118,7 +134,7 @@ const asDate = (value: string | null | undefined) => (value ? new Date(`${value}
 
 const include = {
   category: { select: { name: true } },
-  offices: { select: { title: true, startsOn: true, endsOn: true } },
+  offices: { select: { officeRole: { select: { name: true } }, startsOn: true, endsOn: true } },
 } satisfies Prisma.MemberInclude;
 type Loaded = Prisma.MemberGetPayload<{ include: typeof include }>;
 
@@ -142,7 +158,7 @@ function view(member: Loaded, today = day(new Date())): MemberView {
     hasAccount: member.userId !== null,
     note: member.note,
     anonymized: member.anonymizedAt !== null,
-    currentOffices: member.offices.filter((o) => isCurrent(o, today)).map((o) => o.title),
+    currentOffices: member.offices.filter((o) => isCurrent(o, today)).map((o) => o.officeRole.name),
     version: member.version,
   };
 }
@@ -153,10 +169,15 @@ function rethrow(error: unknown): never {
   if (/Member_email_unique|email/i.test(text) && /P2002|Unique constraint|23505|duplicate key/i.test(text)) {
     throw new AccountingConflictError("Un membre a déjà cette adresse email : vérifiez qu'il ne s'agit pas d'un doublon.");
   }
+  if (/OfficeRole_nameKey_key|nameKey/i.test(text) && /P2002|Unique constraint|23505|duplicate key/i.test(text)) {
+    throw new AccountingConflictError("Une fonction porte déjà ce nom (les majuscules et les accents ne comptent pas).");
+  }
   if (/MemberCategory_name_key|name/i.test(text) && /P2002|Unique constraint|23505|duplicate key/i.test(text)) {
     throw new AccountingConflictError("Une catégorie porte déjà ce nom.");
   }
-  if (/P2003|Foreign key/i.test(text)) throw new AccountingConflictError("Catégorie inexistante.");
+  if (/P2003|Foreign key/i.test(text)) {
+    throw new AccountingConflictError(/officeRole/i.test(text) ? "Fonction inexistante." : "Catégorie inexistante.");
+  }
   const message = triggerMessage(error);
   if (message) throw new AccountingConflictError(message);
   throw error;
@@ -215,12 +236,13 @@ export class MembersService {
 
   async get(id: string): Promise<{ member: MemberView; offices: OfficeView[] }> {
     const member = await this.load(id);
-    const offices = await this.prisma.memberOffice.findMany({ where: { memberId: id }, orderBy: [{ startsOn: "desc" }, { id: "asc" }] });
+    const offices = await this.prisma.memberOffice.findMany({
+      where: { memberId: id },
+      include: { officeRole: { select: { name: true } } },
+      orderBy: [{ startsOn: "desc" }, { id: "asc" }],
+    });
     const today = day(new Date());
-    return {
-      member: view(member, today),
-      offices: offices.map((o) => ({ id: o.id, title: o.title, startsOn: day(o.startsOn), endsOn: o.endsOn ? day(o.endsOn) : null, note: o.note, current: isCurrent(o, today) })),
-    };
+    return { member: view(member, today), offices: offices.map((o) => this.officeView(o, today)) };
   }
 
   async create(body: unknown, actorId: string): Promise<MemberView> {
@@ -305,16 +327,56 @@ export class MembersService {
     return (await this.listCategories()).find((c) => c.id === id)!;
   }
 
-  // --- Fonctions et mandats ---
+  // --- Catalogue de fonctions (ADR 0035) ---
+
+  async listOfficeRoles(): Promise<OfficeRoleView[]> {
+    const rows = await this.prisma.officeRole.findMany({ orderBy: [{ active: "desc" }, { name: "asc" }], include: { _count: { select: { offices: true } } } });
+    return rows.map((r) => ({ id: r.id, name: r.name, active: r.active, mandateCount: r._count.offices }));
+  }
+
+  async createOfficeRole(body: unknown, actorId: string): Promise<OfficeRoleView> {
+    const input = parse(officeRoleInput, body);
+    const name = input.name.replace(/\s+/g, " ");
+    const created = await this.prisma.officeRole.create({ data: { name, nameKey: officeRoleKey(name), createdBy: actorId } }).catch(rethrow);
+    await this.audit.record({ action: "office-role.created", objectType: "OfficeRole", objectId: created.id, actorId });
+    return { id: created.id, name: created.name, active: created.active, mandateCount: 0 };
+  }
+
+  async updateOfficeRole(id: string, body: unknown, actorId: string): Promise<OfficeRoleView> {
+    const patch = parse(officeRolePatch, body);
+    if (!(await this.prisma.officeRole.findUnique({ where: { id }, select: { id: true } }))) throw new AccountingNotFoundError("Fonction");
+    const name = patch.name?.replace(/\s+/g, " ");
+    await this.prisma.officeRole
+      .update({
+        where: { id },
+        data: { ...(name !== undefined && { name, nameKey: officeRoleKey(name) }), ...(patch.active !== undefined && { active: patch.active }) },
+      })
+      .catch(rethrow);
+    await this.audit.record({ action: "office-role.updated", objectType: "OfficeRole", objectId: id, actorId, details: { fields: Object.keys(patch) } });
+    return (await this.listOfficeRoles()).find((r) => r.id === id)!;
+  }
+
+  /** Une fonction archivée reste lisible sur les mandats passés mais ne se donne plus. */
+  private async assertOfficeRoleUsable(officeRoleId: string): Promise<void> {
+    const role = await this.prisma.officeRole.findUnique({ where: { id: officeRoleId }, select: { active: true } });
+    if (!role) throw new AccountingNotFoundError("Fonction");
+    if (!role.active) throw new AccountingConflictError("Cette fonction est archivée : réactivez-la dans le catalogue des fonctions pour l’attribuer de nouveau.");
+  }
+
+  // --- Mandats ---
 
   async addOffice(memberId: string, body: unknown, actorId: string): Promise<OfficeView> {
     const input = parse(officeInput, body);
     const member = await this.load(memberId);
     if (member.anonymizedAt) throw new AccountingConflictError("Ce membre est anonymisé : on n'y ajoute plus de fonction.");
+    await this.assertOfficeRoleUsable(input.officeRoleId);
     const created = await this.prisma.memberOffice
-      .create({ data: { memberId, title: input.title, startsOn: asDate(input.startsOn)!, endsOn: asDate(input.endsOn), note: input.note ?? null, createdBy: actorId } })
+      .create({
+        data: { memberId, officeRoleId: input.officeRoleId, startsOn: asDate(input.startsOn)!, endsOn: asDate(input.endsOn), note: input.note ?? null, createdBy: actorId },
+        include: { officeRole: { select: { name: true } } },
+      })
       .catch(rethrow);
-    await this.audit.record({ action: "member.office.added", objectType: "Member", objectId: memberId, actorId, details: { title: input.title } });
+    await this.audit.record({ action: "member.office.added", objectType: "Member", objectId: memberId, actorId, details: { title: created.officeRole.name } });
     return this.officeView(created);
   }
 
@@ -322,15 +384,17 @@ export class MembersService {
     const patch = parse(officePatch, body);
     const current = await this.prisma.memberOffice.findUnique({ where: { id } });
     if (!current) throw new AccountingNotFoundError("Fonction");
+    if (patch.officeRoleId !== undefined && patch.officeRoleId !== current.officeRoleId) await this.assertOfficeRoleUsable(patch.officeRoleId);
     const updated = await this.prisma.memberOffice
       .update({
         where: { id },
         data: {
-          ...(patch.title !== undefined && { title: patch.title }),
+          ...(patch.officeRoleId !== undefined && { officeRoleId: patch.officeRoleId }),
           ...(patch.startsOn !== undefined && { startsOn: asDate(patch.startsOn)! }),
           ...(patch.endsOn !== undefined && { endsOn: asDate(patch.endsOn) }),
           ...(patch.note !== undefined && { note: patch.note ?? null }),
         },
+        include: { officeRole: { select: { name: true } } },
       })
       .catch(rethrow);
     await this.audit.record({ action: "member.office.updated", objectType: "Member", objectId: current.memberId, actorId, details: { fields: Object.keys(patch) } });
@@ -338,14 +402,17 @@ export class MembersService {
   }
 
   async removeOffice(id: string, actorId: string): Promise<void> {
-    const current = await this.prisma.memberOffice.findUnique({ where: { id } });
+    const current = await this.prisma.memberOffice.findUnique({ where: { id }, include: { officeRole: { select: { name: true } } } });
     if (!current) throw new AccountingNotFoundError("Fonction");
     await this.prisma.memberOffice.delete({ where: { id } });
-    await this.audit.record({ action: "member.office.removed", objectType: "Member", objectId: current.memberId, actorId, details: { title: current.title } });
+    await this.audit.record({ action: "member.office.removed", objectType: "Member", objectId: current.memberId, actorId, details: { title: current.officeRole.name } });
   }
 
-  private officeView(o: { id: string; title: string; startsOn: Date; endsOn: Date | null; note: string | null }): OfficeView {
-    return { id: o.id, title: o.title, startsOn: day(o.startsOn), endsOn: o.endsOn ? day(o.endsOn) : null, note: o.note, current: isCurrent(o, day(new Date())) };
+  private officeView(
+    o: { id: string; officeRoleId: string; officeRole: { name: string }; startsOn: Date; endsOn: Date | null; note: string | null },
+    today = day(new Date()),
+  ): OfficeView {
+    return { id: o.id, officeRoleId: o.officeRoleId, title: o.officeRole.name, startsOn: day(o.startsOn), endsOn: o.endsOn ? day(o.endsOn) : null, note: o.note, current: isCurrent(o, today) };
   }
 
   private data(input: Partial<z.infer<typeof memberInput>>): Prisma.MemberUncheckedCreateInput {

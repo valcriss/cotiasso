@@ -19,7 +19,7 @@ import {
 import { AccountingConflictError, AccountingNotFoundError, AccountingValidationError } from "../accounting/errors.js";
 import type { AuthenticatedRequest } from "../auth/auth.guard.js";
 import { RequirePermission } from "../authz/decorators.js";
-import { MembersService, type CategoryView, type MemberView, type OfficeView } from "./members.service.js";
+import { MembersService, type CategoryView, type MemberView, type OfficeRoleView, type OfficeView } from "./members.service.js";
 
 async function translate<T>(operation: () => Promise<T>): Promise<T> {
   try {
@@ -84,6 +84,24 @@ export class MembersController {
   @Patch("member-categories/:id")
   updateCategory(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<CategoryView> {
     return translate(() => this.members.updateCategory(id, body, request.auth!.user.id));
+  }
+
+  @RequirePermission("members:view")
+  @Get("office-roles")
+  officeRoles(): Promise<OfficeRoleView[]> {
+    return this.members.listOfficeRoles();
+  }
+
+  @RequirePermission("members:manage")
+  @Post("office-roles")
+  createOfficeRole(@Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<OfficeRoleView> {
+    return translate(() => this.members.createOfficeRole(body, request.auth!.user.id));
+  }
+
+  @RequirePermission("members:manage")
+  @Patch("office-roles/:id")
+  updateOfficeRole(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest): Promise<OfficeRoleView> {
+    return translate(() => this.members.updateOfficeRole(id, body, request.auth!.user.id));
   }
 
   @RequirePermission("members:manage")

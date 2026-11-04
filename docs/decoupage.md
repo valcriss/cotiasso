@@ -91,9 +91,9 @@ Conception **proposée** dans l'[ADR 0024](decisions/0024-projets-budgets-et-fin
 
 ### Lot 5 — Circuits et finition
 
-5.1 Demandes de dépenses et remboursements (avec/sans workflow, CA-08)
-5.2 Moteur de workflows déclaratifs, versionnés, suppléance (CA-09)
-5.3 Notifications email
+5.1 Demandes de dépenses et remboursements (avec/sans workflow, CA-08) — **conception retenue** ([ADR 0035](decisions/0035-demandes-de-remboursement-et-circuits-de-validation.md)) : remboursement d'avance personnelle seulement, justificatif obligatoire, pas de paiement partiel
+5.2 Moteur de workflows déclaratifs, versionnés, suppléance (CA-09) — **conception proposée** (ADR 0035) : circuit stocké en graphe (branches futures), validateurs désignés par personnes, rôles ou fonctions (**catalogue de fonctions** à créer d'abord, évolution du lot 3.1)
+5.3 Notifications email — première tranche faite ([ADR 0034](decisions/0034-emails-d-invitation-et-de-reinitialisation.md)) ; notifications de circuit proposées dans l'ADR 0035
 5.4 Reprise complète de l'association pilote et tableau de progression — **tableau fait** ([ADR 0027](decisions/0027-tableau-de-progression-de-la-reprise.md)) ; reste la reprise complète sur données réelles (inventaire du pilote)
 5.5 Clôture et ouverture suivante (CA-12), rapports figés — **rapports figés faits** ([ADR 0031](decisions/0031-rapports-figes-et-approbation-des-comptes.md))
 5.6 Durcissement sécurité, documentation de distribution, politique de versions

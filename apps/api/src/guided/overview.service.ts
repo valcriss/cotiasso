@@ -5,6 +5,7 @@ import type { Permission } from "../authz/permissions.js";
 import { MembershipsService } from "../members/memberships.service.js";
 import { PaymentsService } from "../members/payments.service.js";
 import { PrismaService } from "../prisma/prisma.service.js";
+import { WorkflowEngineService } from "../workflows/workflow-engine.service.js";
 import { OpeningSituationService } from "./opening-situation.service.js";
 
 export type TodoLevel = "TODO" | "WARNING" | "INFO";
@@ -70,6 +71,7 @@ export class OverviewService {
     @Inject(OpeningSituationService) private readonly situation: OpeningSituationService,
     @Inject(MembershipsService) private readonly memberships: MembershipsService,
     @Inject(PaymentsService) private readonly payments: PaymentsService,
+    @Inject(WorkflowEngineService) private readonly workflows: WorkflowEngineService,
   ) {}
 
   async overview(userId: string, now: Date = new Date()): Promise<OverviewView> {
@@ -300,7 +302,51 @@ export class OverviewService {
         });
     }
 
+    // Demandes de remboursement : visibles par qui doit les décider, ou les corriger, même sans autre droit (ADR 0035).
+    todo.unshift(...(await this.reimbursementTasks(userId)));
+
     return { setup, cash, month, recent, todo };
+  }
+
+  private async reimbursementTasks(userId: string): Promise<TodoItem[]> {
+    const tasks: TodoItem[] = [];
+    const pending = await this.workflows.awaiting(userId, "reimbursement");
+    const toApprove = pending.filter((p) => p.stepType === "APPROVAL").length;
+    const toPay = pending.filter((p) => p.stepType === "PROCESSING").length;
+    if (toApprove > 0)
+      tasks.push({
+        code: "REIMBURSEMENTS_TO_APPROVE",
+        level: "TODO",
+        title: toApprove === 1 ? "1 demande de remboursement attend votre accord" : `${toApprove} demandes de remboursement attendent votre accord`,
+        detail: "Un membre a avancé de l’argent pour l’association. Regardez le justificatif, puis acceptez, refusez ou renvoyez la demande pour correction.",
+        count: toApprove,
+        link: "/remboursements",
+        query: { onglet: "a-traiter" },
+        actionLabel: "Examiner",
+      });
+    if (toPay > 0)
+      tasks.push({
+        code: "REIMBURSEMENTS_TO_PAY",
+        level: "TODO",
+        title: toPay === 1 ? "1 remboursement à effectuer" : `${toPay} remboursements à effectuer`,
+        detail: "Ces demandes ont reçu tous les accords nécessaires. Remboursez la personne, puis enregistrez le paiement ici.",
+        count: toPay,
+        link: "/remboursements",
+        query: { onglet: "a-traiter" },
+        actionLabel: "Rembourser",
+      });
+    const toFix = await this.prisma.reimbursementRequest.count({ where: { requesterUserId: userId, status: "RETURNED" } });
+    if (toFix > 0)
+      tasks.push({
+        code: "REIMBURSEMENTS_TO_FIX",
+        level: "WARNING",
+        title: toFix === 1 ? "1 de vos demandes de remboursement est à corriger" : `${toFix} de vos demandes de remboursement sont à corriger`,
+        detail: "On vous a renvoyé la demande avec un message. Corrigez ce qui est demandé, puis déposez-la de nouveau.",
+        count: toFix,
+        link: "/remboursements",
+        actionLabel: "Corriger",
+      });
+    return tasks;
   }
 
   /** Comptes avec des mouvements dont aucun rapprochement validé ne date de moins de deux mois. */

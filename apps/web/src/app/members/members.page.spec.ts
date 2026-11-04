@@ -32,6 +32,12 @@ const categories = [
   { id: 'c2', name: 'Ancienne catégorie', active: false, memberCount: 0 },
 ];
 
+const officeRoles = [
+  { id: 'r1', name: 'Secrétaire', active: true, mandateCount: 0 },
+  { id: 'r2', name: 'Trésorière', active: true, mandateCount: 1 },
+  { id: 'r3', name: 'Ancienne fonction', active: false, mandateCount: 2 },
+];
+
 describe('MembersPage', () => {
   let controller: HttpTestingController;
   let fixture: ReturnType<typeof TestBed.createComponent<MembersPage>>;
@@ -43,7 +49,7 @@ describe('MembersPage', () => {
     fixture.detectChanges();
     await fixture.whenStable();
   };
-  const create = async (permissions: string[], list: object[] = [member()]) => {
+  const create = async (permissions: string[], list: object[] = [member()], roles: object[] = officeRoles) => {
     await TestBed.configureTestingModule({
       imports: [MembersPage],
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
@@ -54,6 +60,8 @@ describe('MembersPage', () => {
     ui = new DialogTester(settle);
     await settle();
     controller.expectOne('/api/member-categories').flush(categories);
+    await settle();
+    controller.expectOne('/api/office-roles').flush(roles);
     await settle();
     controller.expectOne((r) => r.url === '/api/members').flush({ members: list, next: null });
     await settle();
@@ -106,6 +114,8 @@ describe('MembersPage', () => {
     await settle();
     controller.expectOne('/api/member-categories').flush(categories);
     await settle();
+    controller.expectOne('/api/office-roles').flush(officeRoles);
+    await settle();
     const states = ['UP_TO_DATE', 'EXEMPT', 'PARTIAL', 'DUE', 'NONE'];
     controller
       .expectOne((r) => r.url === '/api/members')
@@ -152,6 +162,8 @@ describe('MembersPage', () => {
     await settle();
     controller.expectOne('/api/member-categories').flush(categories);
     await settle();
+    controller.expectOne('/api/office-roles').flush(officeRoles);
+    await settle();
     const request = controller.expectOne((r) => r.url === '/api/members');
     expect(request.request.params.get('membershipStatus')).toBe('LATE');
     request.flush({ members: [member({ membershipStatus: 'DUE' })], next: null, campaign: { id: 'c1', name: 'Saison' } });
@@ -197,7 +209,7 @@ describe('MembersPage', () => {
 
   it("affiche la fiche avec ses fonctions et propose d'en terminer une", async () => {
     await create(['members:view', 'members:manage']);
-    await openFirst([{ id: 'o1', title: 'Trésorière', startsOn: '2020-10-01', endsOn: null, note: null, current: true }]);
+    await openFirst([{ id: 'o1', officeRoleId: 'r2', title: 'Trésorière', startsOn: '2020-10-01', endsOn: null, note: null, current: true }]);
     const text = root.querySelector('section[aria-label="Fiche de Marie Dupont"]')!.textContent!;
     expect(text).toContain('1 rue des Fleurs, 69001 Lyon');
     expect(text).toContain('Trésorière');
@@ -216,12 +228,12 @@ describe('MembersPage', () => {
     await openFirst();
     await click('Ajouter une fonction');
     expect(ui.title).toContain('Nouvelle fonction de Marie Dupont');
-    await ui.type('input[formcontrolname="title"]', 'Secrétaire');
+    await ui.choose('mat-select[formcontrolname="officeRoleId"]', 'Secrétaire');
     await ui.type('input[formcontrolname="startsOn"]', '2024-01-01');
     await ui.submit();
     const request = controller.expectOne('/api/members/m1/offices');
-    expect(request.request.body).toEqual({ title: 'Secrétaire', startsOn: '2024-01-01', endsOn: null });
-    request.flush({ id: 'o2', title: 'Secrétaire', startsOn: '2024-01-01', endsOn: null, note: null, current: true }, { status: 201, statusText: 'Created' });
+    expect(request.request.body).toEqual({ officeRoleId: 'r1', startsOn: '2024-01-01', endsOn: null });
+    request.flush({ id: 'o2', officeRoleId: 'r1', title: 'Secrétaire', startsOn: '2024-01-01', endsOn: null, note: null, current: true }, { status: 201, statusText: 'Created' });
     await settle();
     await reload([member()], { member: member(), offices: [] });
     expect(ui.snackbar).toContain('Fonction « Secrétaire » ajoutée');
@@ -259,6 +271,57 @@ describe('MembersPage', () => {
     await reload([anonymous], { member: anonymous, offices: [] });
     expect(ui.snackbar).toContain('Membre anonymisé');
     expect(root.textContent).toContain('est anonymisé');
+  });
+
+  it("gère les fonctions du bureau : liste, ajout et archivage, sans suppression", async () => {
+    await create(['members:view', 'members:manage']);
+    await click('Fonctions');
+    expect(ui.title).toBe('Fonctions du bureau');
+    expect(ui.text).toContain('Trésorière · 1 mandat(s)');
+    expect(ui.text).toContain('(archivée)');
+    expect(ui.text).not.toContain('Supprimer');
+    await ui.type('input[formcontrolname="name"]', 'Vice-présidente');
+    ui.dialog!.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
+    await settle();
+    const created = controller.expectOne('/api/office-roles');
+    expect(created.request.body).toEqual({ name: 'Vice-présidente' });
+    created.flush({ id: 'r4', name: 'Vice-présidente', active: true, mandateCount: 0 }, { status: 201, statusText: 'Created' });
+    await settle();
+    controller.expectOne('/api/office-roles').flush([...officeRoles, { id: 'r4', name: 'Vice-présidente', active: true, mandateCount: 0 }]);
+    await settle();
+    expect(ui.text).toContain('Vice-présidente');
+    (ui.dialog!.querySelector('button[aria-label="Archiver Secrétaire"]') as HTMLElement).click();
+    await settle();
+    const archived = controller.expectOne('/api/office-roles/r1');
+    expect(archived.request.body).toEqual({ active: false });
+    archived.flush({});
+    await settle();
+    controller.expectOne('/api/office-roles').flush(officeRoles.map((r) => (r.id === 'r1' ? { ...r, active: false } : r)));
+    await settle();
+    expect(ui.text).toContain('Secrétaire · 0 mandat(s) (archivée)');
+  });
+
+  it("propose les fonctions usuelles quand le catalogue est vide", async () => {
+    await create(['members:view', 'members:manage'], [member()], []);
+    await click('Fonctions');
+    expect(ui.text).toContain('Aucune fonction pour l’instant');
+    const starter = Array.from(ui.dialog!.querySelectorAll<HTMLElement>('.starters button')).find((b) => b.textContent!.trim() === 'Président')!;
+    starter.click();
+    await settle();
+    const created = controller.expectOne('/api/office-roles');
+    expect(created.request.body).toEqual({ name: 'Président' });
+    created.flush({ id: 'r9', name: 'Président', active: true, mandateCount: 0 }, { status: 201, statusText: 'Created' });
+    await settle();
+    controller.expectOne('/api/office-roles').flush([{ id: 'r9', name: 'Président', active: true, mandateCount: 0 }]);
+    await settle();
+    expect(ui.text).toContain('Président · 0 mandat(s)');
+  });
+
+  it("n'ajoute pas de fonction à un membre tant que le catalogue est vide, et dit quoi faire", async () => {
+    await create(['members:view', 'members:manage'], [member()], []);
+    await openFirst();
+    await click('Ajouter une fonction');
+    expect(ui.text).toContain('Aucune fonction n’est disponible');
   });
 
   it("gère les catégories : liste, ajout et désactivation", async () => {
