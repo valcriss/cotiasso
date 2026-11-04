@@ -10,7 +10,7 @@ import { describeHttpError } from '../auth/error-messages';
 import { ActionBar } from '../ui/action-bar';
 import { AdminApiService, type AuditEntry, type AuditFilters, type IntegrityReport } from './admin-api.service';
 import { ExportLink } from '../reports/export-link';
-import { actionLabel } from './audit-labels';
+import { actionLabel, auditObjectLabel } from './audit-labels';
 import { DateField } from '../ui/date-field';
 
 /** Début de journée locale (from) ou fin de journée locale (to) au format ISO, pour des bornes inclusives. */
@@ -66,7 +66,7 @@ export function dayBound(value: string, end: boolean): string | undefined {
         <mat-select formControlName="objectType">
           <mat-option value="">Tous</mat-option>
           @for (type of objectTypes(); track type) {
-            <mat-option [value]="type">{{ type }}</mat-option>
+            <mat-option [value]="type">{{ objectLabel(type) }}</mat-option>
           }
         </mat-select>
       </mat-form-field>
@@ -120,7 +120,7 @@ export function dayBound(value: string, end: boolean): string | undefined {
                 }
               </td>
               <td>
-                {{ entry.objectType }}
+                {{ objectLabel(entry.objectType) }}
                 @if (entry.objectId) {
                   <div class="muted">{{ entry.objectId }}</div>
                 }
@@ -152,6 +152,7 @@ export class AuditPage {
   protected readonly error = signal<string | null>(null);
   protected readonly report = signal<IntegrityReport | null>(null);
   protected readonly label = actionLabel;
+  protected readonly objectLabel = auditObjectLabel;
   protected readonly hasCriteria = computed(() => Object.values(this.filters.getRawValue()).some(Boolean));
 
   constructor() {

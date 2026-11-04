@@ -142,7 +142,15 @@ const ACTION_LABELS: Record<string, string> = {
   'entry.deleted': 'Brouillon supprimé',
   'entry.posted': 'Écriture comptabilisée',
   'entry.reversed': 'Écriture contrepassée',
-  'operation.recorded': "Opération enregistrée (argent reçu ou dépensé)",
+  'document.created': 'Document déposé',
+  'document.version-added': 'Nouvelle version d’un document déposée',
+  'document.downloaded': 'Document téléchargé',
+  'document.updated': 'Document modifié (titre ou catégorie)',
+  'document.linked': 'Document relié à un objet',
+  'document.unlinked': 'Lien d’un document retiré',
+  'operation.booked': 'Mouvement classé et enregistré',
+  'operations.booked-many': 'Plusieurs mouvements enregistrés d’un coup',
+  'operation.recorded':"Opération enregistrée (argent reçu ou dépensé)",
   'operation.corrected': 'Opération corrigée (catégorie, projet ou description)',
   'operation.amount-adjusted': 'Montant d’une opération corrigé par une régularisation',
   'operation-category.created': "Catégorie d'opération créée",
@@ -159,6 +167,47 @@ const ACTION_LABELS: Record<string, string> = {
   'module.activated': 'Module activé',
   'module.deactivated': 'Module désactivé',
 };
+
+/** Noms courants des types d'objets du journal (la clé technique reste le repli). */
+const OBJECT_TYPE_LABELS: Record<string, string> = {
+  Account: 'Compte comptable',
+  BudgetVersion: 'Budget',
+  Campaign: 'Campagne d’adhésion',
+  Commitment: 'Engagement',
+  Document: 'Document',
+  FinancialAccount: 'Compte bancaire ou caisse',
+  FiscalYear: 'Exercice',
+  FrozenReportSet: 'Rapports figés',
+  Funder: 'Financeur',
+  Grant: 'Subvention',
+  ImportBatch: 'Import de relevé',
+  Journal: 'Journal',
+  JournalEntry: 'Écriture',
+  Mail: 'Email',
+  Member: 'Membre',
+  MemberCategory: 'Catégorie de membre',
+  Membership: 'Adhésion',
+  Module: 'Module',
+  OfficeRole: 'Fonction du bureau',
+  OperationCategory: 'Catégorie d’opération',
+  Project: 'Projet',
+  Reconciliation: 'Rapprochement bancaire',
+  RecoveryBatch: 'Lot de reprise',
+  ReimbursementRequest: 'Demande de remboursement',
+  Report: 'Rapport',
+  Role: 'Rôle',
+  Settings: 'Paramètres',
+  ThirdParty: 'Tiers',
+  Transaction: 'Mouvement d’argent',
+  Transfer: 'Virement interne',
+  User: 'Compte utilisateur',
+  WorkflowDefinitionVersion: 'Circuit de validation',
+  WorkflowInstance: 'Suivi d’un circuit de validation',
+};
+
+export function auditObjectLabel(type: string): string {
+  return OBJECT_TYPE_LABELS[type] ?? type;
+}
 
 export function actionLabel(action: string): string {
   return ACTION_LABELS[action] ?? action;
