@@ -2,40 +2,72 @@
 
 Ce fichier s'adresse à la personne qui héberge l'instance et aux administrateurs : il dit **ce qui change** d'une version à l'autre et **ce qu'il faut savoir avant de mettre à jour**. Il s'affiche dans **Paramètres › Exploitation**.
 
-Une section par version, la plus récente en premier : `## <version> — <date>`. Tant que rien n'est publié, tout figure sous `## Non publié`. Les listes sont des phrases courantes, pas des messages de commit. Format lu par l'application : titres `##` (version), `###` (rubrique), puces `-`.
+Une section par version, la plus récente en premier : `## <version> — <date>`. Ce qui n'est pas encore publié figure sous `## Non publié` : on ouvre cette section au premier changement après une publication, et on la renomme avec le numéro et la date au moment de publier. Les listes sont des phrases courantes, pas des messages de commit. Format lu par l'application : titres `##` (version), `###` (rubrique), puces `-`.
 
-## Non publié
+Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
+
+## 1.0.3 — 2026-11-04
 
 ### À savoir avant de mettre à jour
 
+- Les migrations de base de données ne sont pas réversibles : lancez `scripts/update.sh <version>`, qui sauvegarde et vérifie avant de changer de version. Pour revenir en arrière, on restaure la sauvegarde faite juste avant.
+- Nouvelle migration (lien membre ↔ compte). Elle relie d'elle-même les fiches de membres actuels et les comptes qui portent déjà la même adresse email (ce rattrapage ne figure pas dans le journal d'audit) et donne le nouveau droit « Relier un membre à un compte de connexion » au rôle Administrateur technique. Aucune action n'est nécessaire ; vérifiez la page Membres si vous aviez des adresses identiques que vous ne vouliez pas relier (le bouton « Détacher du compte » les sépare).
 - Nouvelle migration (file des notifications). Aucune action nécessaire. Les emails de suivi des demandes de remboursement partent seulement si `SMTP_HOST` est configuré.
 - Nouvelle migration (demandes de remboursement). Elle ajoute aux rôles modèles Président et Trésorier les droits « Faire des demandes de remboursement » et « Voir toutes les demandes », aux autres rôles modèles qui travaillent pour l'association (Membre du bureau, Responsable de projet, Contributeur) celui de faire des demandes, et le droit de voir les circuits aux rôles qui peuvent déjà les régler. Le rôle « Membre » est créé au démarrage. Un rôle que vous avez adapté est complété, jamais réécrit.
 - Nouvelle migration (catalogue de fonctions). Les fonctions des membres (Président, Trésorier…) ne sont plus un texte libre : elles viennent d'une liste de l'association. La migration reprend automatiquement les intitulés déjà saisis (« Présidente » et « présidente » deviennent une seule fonction) et rattache les mandats existants, sans rien perdre. Aucune action n'est nécessaire.
-- Nouvelle migration (rôle des catégories). Si les catégories de départ sont déjà installées, « Cotisations des adhérents » et « Subvention » reçoivent leur rôle au prochain « Installer les catégories de départ » ; sinon, désignez-les dans Paramètres › Comptabilité › Catégories.
-- Nouvelle migration (catégories d'opération). **Changement visible** : l'affichage par défaut est maintenant « Simple » ; chaque personne retrouve le menu complet via Apparence › Affichage › Comptable. Les droits ne changent pas.
-- Les migrations de base de données ne sont pas réversibles : lancez `scripts/update.sh <version>`, qui sauvegarde et vérifie avant de changer de version. Pour revenir en arrière, on restaure la sauvegarde faite juste avant.
-- Nouveau dans l'image `api` : l'envoi d'emails (variables `SMTP_*` et `PUBLIC_URL` de `.env.prod`, facultatives). Sans elles, rien ne change ; si `SMTP_HOST` est renseigné, `SMTP_FROM` et `PUBLIC_URL` deviennent obligatoires et l'API refuse de démarrer sans elles.
-- Nouveau dans l'image `backup` : la copie hors site automatique (variables `OFFSITE_*` de `.env.prod`, facultatives). Sans elle, rien ne change.
 
 ### Nouveautés
 
+- Le lien « Remboursements » du menu n'apparaît que lorsque le circuit de validation fonctionne : un circuit est en vigueur **et** chaque étape a au moins une personne qui peut décider (par exemple, une fonction « Président » occupée). Sinon une demande resterait bloquée. Le menu se met à jour à la mise en vigueur d'un circuit et au fil de la navigation ; la page reste joignable par son adresse et explique ce qu'il faut régler.
+- Lien entre une fiche de membre et un compte de connexion (nécessaire pour faire une demande de remboursement). Il se fait **tout seul** quand la fiche et le compte ont la même adresse email (majuscules ignorées), dans les deux sens : fiche créée ou modifiée après le compte, ou compte invité après la fiche ; seules les fiches de membres actuels, pas déjà reliées, sont concernées. Quand l'adresse manque ou diffère, un bouton « Associer à un compte utilisateur » (et « Détacher du compte ») apparaît sur la fiche, avec le nouveau droit « Relier un membre à un compte de connexion », donné par défaut à l'administrateur technique et attribuable à n'importe quel rôle. Chaque lien est tracé dans le journal d'audit. Le message de la page Remboursements explique maintenant comment faire quand le compte n'est pas relié.
 - Exploitation en checklist : l'onglet Paramètres › Exploitation présente chaque point (serveur et base de données, sauvegardes, copie hors site, envoi d'emails, version et mise à jour) sur une ligne repliée avec son état ; une ligne à régler s'ouvre d'elle-même et donne la commande à lancer, avec un bouton pour la copier. L'état « Serveur et base de données opérationnels », qui s'affichait en bas de la vue d'ensemble pour tout le monde, y est déplacé. Nouveau point « Envoi d'emails (SMTP) » : il dit si la messagerie est configurée (expéditeur et serveur, jamais d'identifiant) et propose « M'envoyer un email d'essai », adressé à la seule personne connectée, avec la réponse du serveur de messagerie en cas d'échec. L'essai est tracé dans le journal d'audit.
 - Emails de suivi des demandes de remboursement (nécessite la messagerie, voir `SMTP_*`) : les personnes désignées pour une étape sont prévenues quand une demande attend leur accord ou leur remboursement, et le demandeur est prévenu à chaque avancée (accord, renvoi pour correction, refus, remboursement). Le message est volontairement minimal : le nom du demandeur, le numéro de la demande et un lien, jamais de montant, de motif ni de justificatif. Un email qui échoue est réessayé plusieurs fois à intervalles croissants et ne change jamais l'état de la demande. Sans messagerie configurée, rien ne change : « À faire » reste le rappel.
 - Réglage des circuits de validation : Paramètres › Circuits de validation montre le circuit en vigueur sous forme de schéma (qui décide à chaque étape) et permet de préparer une nouvelle version, de la modifier (étapes d'accord dans l'ordre, personnes, rôles ou fonctions du bureau désignés, dispense du demandeur, qui rembourse), puis de la mettre en vigueur après avoir lu ses conséquences. Un brouillon incomplet dit ce qu'il reste à régler et ne peut pas être mis en vigueur ; une étape que personne ne peut décider aujourd'hui est signalée. Tant qu'aucun circuit n'est en vigueur, les membres ne peuvent pas faire de demande de remboursement.
 - Remboursements de frais (ADR 0035) : un membre dont le compte est relié à sa fiche peut demander à être remboursé d'une dépense avancée (montant, date, motif, projet facultatif, justificatif obligatoire en photo ou PDF). La demande suit le circuit de validation en vigueur : les personnes désignées donnent leur accord, refusent ou renvoient la demande pour correction avec un message, puis le trésorier rembourse et enregistre la sortie d'argent dans les comptes d'un seul geste (nouvelle opération, ou mouvement déjà importé du relevé). Chacun voit où en est la demande sur un schéma d'étapes, et la vue d'ensemble signale ce qui attend votre accord, votre remboursement ou votre correction. Le justificatif est un document confidentiel, visible seulement du demandeur, des personnes qui examinent la demande et de qui a le droit de tout voir. Nouveau rôle « Membre » (ne permet que de demander un remboursement). Les demandes ne s'ouvrent que quand un circuit est en vigueur ; l'écran de réglage du circuit arrive ensuite.
 - Circuits de validation (fondations, ADR 0035) : le moteur qui fera passer une demande par des étapes d'accord puis de traitement est en place, sans écran de demande pour l'instant. Un circuit se prépare en brouillon, se met en vigueur, et reste figé ; une demande garde le circuit en vigueur au moment de son dépôt. Les personnes qui valident se désignent par nom, par rôle ou par fonction du bureau. Nouveau droit « Voir les circuits de validation » (`workflows:view`), ajouté aux rôles qui ont déjà le droit de les régler. Migration automatique au démarrage.
 - Fonctions du bureau : la page Membres a un bouton « Fonctions » qui gère la liste des fonctions de l'association (Président, Trésorier, Secrétaire…, avec trois fonctions usuelles proposées quand la liste est vide). On attribue ensuite une fonction à un membre en la choisissant dans cette liste, avec ses dates. Une fonction ne se supprime pas : on l'archive, et les mandats passés restent lisibles. Elle ne donne toujours aucun droit d'accès ; elle servira à désigner qui valide une demande de remboursement (ADR 0035).
+
+## 1.0.2 — 2026-11-03
+
+### À savoir avant de mettre à jour
+
+- Nouveau dans l'image `api` : l'envoi d'emails (variables `SMTP_*` et `PUBLIC_URL` de `.env.prod`, facultatives). Sans elles, rien ne change ; si `SMTP_HOST` est renseigné, `SMTP_FROM` et `PUBLIC_URL` deviennent obligatoires et l'API refuse de démarrer sans elles.
+
+### Nouveautés
+
 - Emails d'invitation et de réinitialisation de mot de passe : quand un serveur SMTP est configuré (`SMTP_HOST`, `SMTP_FROM`, `PUBLIC_URL` dans `.env.prod`, facultatifs), le lien part par email au nom de l'association (logo et nom, « pour vous connecter à Cotiasso »), en plus d'être affiché à l'administrateur. Un email qui échoue ne défait jamais la création du compte. Sans configuration, rien ne change. Voir `docs/exploitation.md`.
 - Affichage mobile revu après un audit sur écran de 390 px : les tableaux deviennent des cartes « colonne : valeur » (plus de défilement horizontal), le menu s’ouvre en tiroir depuis une barre du haut au lieu de garder une colonne d’icônes, les boutons se rangent en deux colonnes au lieu de s’empiler, les onglets d’une page se replient en un bouton « Rubrique : … », les en-têtes de page sont plus compacts, les zones de toucher (aide « ? », retrait d’un rôle, montants du budget) sont plus grandes, la page de connexion occupe tout l’écran, et les lignes des dernières opérations se lisent sur deux lignes.
 - Identité visuelle de Cotiasso : nouveau symbole (un « C » ouvert sur une pièce) en icône d'onglet, icône d'écran d'accueil mobile et manifeste web. 
 - Logo de l'association : dans Paramètres › Association › Logo, on peut ajouter un logo (PNG, JPEG ou SVG, 1 Mo au plus). Il apparaît en haut du menu, sur la page de connexion et sur les reçus de cotisation ; on peut le remplacer ou le retirer à tout moment, et choisir d'afficher « logo et nom de l'association » ou « logo seul » dans le menu (utile quand le logo contient déjà le nom). Un SVG n'est accepté que s'il ne contient que du dessin (pas de script ni de lien). Migration automatique au démarrage (nouvelle table `BrandLogo`).
+
+### Corrections
+
+- Documents : « Changer la catégorie » ne faisait rien au clic sur « Enregistrer » ; la catégorie est maintenant bien enregistrée. Même correction pour « Projets financés » d'une subvention.
+
+## 1.0.1 — 2026-11-03
+
+### Nouveautés
+
+- Budget annuel : les recettes et les dépenses sont listées par catégorie d'opération (celles que vous utilisez au quotidien), avec leur estimation et le montant réel. Quand plusieurs catégories partagent le même compte, leur montant réel est affiché sur une ligne « Montant commun » ; un compte sans catégorie apparaît à part.
+- Documents : un document peut changer de catégorie (« Changer la catégorie »), et un relevé n'accepte plus de nouvelle version déposée à la main.
+
+## 1.0.0 — 2026-11-03
+
+### À savoir avant de mettre à jour
+
+- Nouvelle migration (rôle des catégories). Si les catégories de départ sont déjà installées, « Cotisations des adhérents » et « Subvention » reçoivent leur rôle au prochain « Installer les catégories de départ » ; sinon, désignez-les dans Paramètres › Comptabilité › Catégories.
+- Nouvelle migration (catégories d'opération). **Changement visible** : l'affichage par défaut est maintenant « Simple » ; chaque personne retrouve le menu complet via Apparence › Affichage › Comptable. Les droits ne changent pas.
+- Les migrations de base de données ne sont pas réversibles : lancez `scripts/update.sh <version>`, qui sauvegarde et vérifie avant de changer de version. Pour revenir en arrière, on restaure la sauvegarde faite juste avant.
+- Nouveau dans l'image `backup` : la copie hors site automatique (variables `OFFSITE_*` de `.env.prod`, facultatives). Sans elle, rien ne change.
+
+### Nouveautés
+
 - Justificatifs d'un mouvement : dans la liste des transactions, un menu ⋮ en fin de ligne regroupe « Modifier » et « Justificatifs » ; on y voit les pièces reliées au mouvement et on peut en déposer une (glisser-déposer), reliée automatiquement.
 - Fractionner un montant : dans « Classer et enregistrer » et dans « J'ai reçu / dépensé de l'argent », le bouton « Fractionner entre plusieurs catégories » permet de répartir un montant (par exemple 10 € de cotisations et 10 € de dons). On ne peut valider que lorsque tout le montant est réparti ; l'écriture comptable comporte alors une ligne par catégorie.
 - Dépôt de fichiers : l'import d'un relevé OFX et le dépôt de documents proposent une zone où glisser le fichier (ou cliquer pour le choisir) ; un format non accepté est refusé tout de suite avec une phrase claire.
 - Comptes : les tuiles sont plus grandes et s'ouvrent d'un clic sur les transactions ; Rapprocher, Solde de relevé et Archiver sont regroupés dans un menu avec icônes.
 - Dates : tous les champs de date proposent un calendrier (icône à droite) et se saisissent en jj/mm/aaaa.
 - Situation de départ : une association qui démarre sans argent ni dette peut indiquer « Je pars de zéro, rien à enregistrer » au lieu de recevoir un message d'erreur ; l'étape est alors validée sans écriture comptable.
-
 - « Corriger le montant… » dans le menu d’une opération enregistrée : le montant ne se réécrit pas, mais le logiciel ajoute une petite opération de correction pour la différence (dans la même catégorie et le même projet) et annonce son effet avant d’agir. Rien n’est effacé et le solde redevient juste (ADR 0032).
 - Lisibilité pour les trésoriers débutants (lot rapide de l'audit du 2 novembre) : les dates s'affichent partout en `jj/mm/aaaa` ; la date proposée par défaut dans les formulaires est celle du jour **à l'heure locale** (elle pouvait être celle de la veille entre minuit et 2 h) ; en affichage simple, les listes parlent de « mouvements » et de « description », les cartes de compte disent que le solde vient de vos enregistrements et expliquent l'écart avec le relevé en une phrase ; la saisie « J'ai reçu / dépensé de l'argent » résume l'opération en une phrase, replie le détail comptable et prévient dès le choix de la date si elle est hors des périodes ; la liste des mouvements s'ouvre sur ce qui reste à classer, propose des raccourcis de période, filtre sans bouton et range les actions secondaires dans un menu ; « Démarrer » figure au menu tant qu'une étape manque.
 - Vocabulaire : le mot « projet » est employé partout (la saisie demandait « Pour quelle activité ? » ; le message « projet obligatoire » parle aussi de projet).
@@ -81,6 +113,3 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 - Comptabilité : exercices, journaux, plan de comptes, écritures, contrepassation, clôture avec à-nouveaux, projets et ventilation.
 - Socle : comptes, rôles et droits, double authentification, journal d'audit, documents, paramètres et marque blanche, sauvegardes chiffrées.
 
-### Corrections
-
-- Documents : « Changer la catégorie » ne faisait rien au clic sur « Enregistrer » ; la catégorie est maintenant bien enregistrée. Même correction pour « Projets financés » d'une subvention.
