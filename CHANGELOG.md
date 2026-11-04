@@ -2,7 +2,7 @@
 
 Ce fichier s'adresse à la personne qui héberge l'instance et aux administrateurs : il dit **ce qui change** d'une version à l'autre et **ce qu'il faut savoir avant de mettre à jour**. Il s'affiche dans **Paramètres › Exploitation**.
 
-Une section par version, la plus récente en premier : `## <version> — <date>`. Ce qui n'est pas encore publié figure sous `## Non publié` : on ouvre cette section au premier changement après une publication, et on la renomme avec le numéro et la date au moment de publier. Les listes sont des phrases courantes, pas des messages de commit. Format lu par l'application : titres `##` (version), `###` (rubrique), puces `-`.
+Une section par version, la plus récente en premier : `## <version> — <date>`. Ce qui n'est pas encore publié figure sous `## 1.0.6 — 2026-11-04` : on ouvre cette section au premier changement après une publication, et on la renomme avec le numéro et la date au moment de publier. Les listes sont des phrases courantes, pas des messages de commit. Format lu par l'application : titres `##` (version), `###` (rubrique), puces `-`.
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
@@ -12,6 +12,7 @@ Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique g
 
 - Projets, Subventions, Documents et Comptes : ouvrir un élément de la liste affiche désormais **sa propre page, en haut de l'écran**, au lieu de déplier son détail sous le tableau (où il fallait défiler pour le trouver, surtout sur téléphone). Chaque page a son adresse (`/projets/…`, `/subventions/…`, `/documents/…`, `/comptes/…`) : le bouton Retour du navigateur ramène à la liste, à l'endroit où vous l'aviez quittée, et le lien peut être copié ou ouvert dans un nouvel onglet. Un bouton « Retour aux projets » (ou subventions, documents, comptes) est toujours le premier de la barre d'outils.
 - Après un import de relevé ou depuis la page de rapprochement, « Retour au compte » ramène à la page du compte et non à la liste des comptes.
+- Affichage sur téléphone retravaillé : boutons de même hauteur, filtres de la page Membres dans une zone « Filtres » repliable, fiche d'un membre et mandats plus lisibles, Budget et Suivi du budget d'un projet en cartes aux montants alignés à droite, sélecteurs en pleine largeur, cases de sélection multiple masquées.
 
 ## 1.0.5 — 2026-11-04
 
