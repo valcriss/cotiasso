@@ -6,7 +6,7 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
-## Non publié
+## 1.0.5 — 2026-11-04
 
 ### À savoir avant de mettre à jour
 
