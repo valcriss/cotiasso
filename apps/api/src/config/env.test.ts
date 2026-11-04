@@ -19,6 +19,7 @@ describe("readEnv", () => {
       backupsDir: null,
       changelogFile: null,
       appVersion: "développement",
+      updateCheckRepository: "valcriss/cotiasso",
       smtp: null,
     });
   });

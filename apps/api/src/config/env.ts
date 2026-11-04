@@ -40,6 +40,11 @@ export interface AppEnv {
   changelogFile: string | null;
   /** Version de l'application, fixée au déploiement (COTIASSO_VERSION). */
   appVersion: string;
+  /**
+   * Dépôt GitHub (« propriétaire/nom ») dont on lit les étiquettes de version pour dire si une mise à jour existe ;
+   * null si la vérification est désactivée (UPDATE_CHECK=false), seule requête sortante de l'application vers un tiers.
+   */
+  updateCheckRepository: string | null;
   /** Envoi d'emails ; null si non configuré (les liens restent alors transmis à la main par l'administrateur). */
   smtp: SmtpSettings | null;
 }
@@ -92,6 +97,16 @@ function readSmtp(source: NodeJS.ProcessEnv): SmtpSettings | null {
   return { host, port: readPositiveInteger(source, "SMTP_PORT", secure ? 465 : 587), secure, user, password, from, publicUrl };
 }
 
+/** Vérification des versions : active par défaut sur le dépôt du projet, désactivable, ou pointée vers un fork. */
+function readUpdateCheckRepository(source: NodeJS.ProcessEnv): string | null {
+  if (!readBoolean(source, "UPDATE_CHECK", true)) return null;
+  const repository = source.UPDATE_CHECK_REPOSITORY?.trim() || "valcriss/cotiasso";
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
+    throw new Error(`UPDATE_CHECK_REPOSITORY invalide : ${repository} (attendu : propriétaire/dépôt).`);
+  }
+  return repository;
+}
+
 export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   const databaseUrl = source.DATABASE_URL;
   if (!databaseUrl) {
@@ -117,6 +132,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     backupsDir: source.BACKUPS_DIR || null,
     changelogFile: source.CHANGELOG_FILE || null,
     appVersion: source.COTIASSO_VERSION || "développement",
+    updateCheckRepository: readUpdateCheckRepository(source),
     smtp: readSmtp(source),
   };
 }

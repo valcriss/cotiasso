@@ -6,6 +6,17 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
+## Non publié
+
+### À savoir avant de mettre à jour
+
+- Nouveau : l'application interroge désormais GitHub (lecture seule, au plus une fois par heure, aucune donnée de l'association) pour savoir si une version plus récente existe. Pour l'éviter, mettez `UPDATE_CHECK=false` dans `.env.prod` ; `UPDATE_CHECK_REPOSITORY` permet de viser un fork.
+
+### Nouveautés
+
+- Paramètres › Exploitation : la ligne « Version et mise à jour » passe au vert quand vous utilisez la dernière version publiée, et en avertissement quand une version plus récente est disponible, avec la commande de mise à jour déjà complétée du bon numéro.
+- Documents : pour un fichier PDF, un bouton « Voir le document » (à gauche de « Télécharger ») l'ouvre dans une visionneuse, sans l'enregistrer sur votre poste ; chaque version d'un PDF a aussi son bouton « Voir ». Mêmes droits que le téléchargement : un document restreint reste invisible sans l'autorisation, et son ouverture est tracée dans le journal d'audit comme un téléchargement.
+
 ## 1.0.4 — 2026-11-04
 
 ### À savoir avant de mettre à jour

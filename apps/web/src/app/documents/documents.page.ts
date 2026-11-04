@@ -22,6 +22,7 @@ import { FileDropzone } from '../ui/file-dropzone';
 import { PageHeader } from '../ui/page-header';
 import { formatSize, objectTypeLabel } from './format';
 import { UploadDialog, type UploadDialogData } from './upload-dialog';
+import { PdfViewerDialog, isPdf, type PdfViewerDialogData } from './pdf-viewer-dialog';
 import { DocumentCategoryDialog, type DocumentCategoryDialogData } from './document-category-dialog';
 import { Skeleton } from '../ui/skeleton';
 
@@ -48,6 +49,11 @@ import { Skeleton } from '../ui/skeleton';
       gap: 12px;
       justify-content: space-between;
       padding: 4px 0;
+    }
+    .version-actions {
+      display: flex;
+      flex-shrink: 0;
+      gap: 4px;
     }
     .versions,
     .links {
@@ -112,6 +118,11 @@ import { Skeleton } from '../ui/skeleton';
         </p>
 
         <div class="actions">
+          @if (isPdf(doc.latest.mimeType)) {
+            <button mat-stroked-button type="button" (click)="view(doc, doc.latest)">
+              <mat-icon fontSet="material-icons-outlined" aria-hidden="true">visibility</mat-icon>Voir le document
+            </button>
+          }
           <a mat-flat-button [href]="downloadUrl(doc.id)">Télécharger la dernière version</a>
           @if (canCreate() && !doc.archivedAt && options()) {
             <button mat-stroked-button type="button" [disabled]="busy()" (click)="changeCategory(doc)">Changer la catégorie</button>
@@ -136,7 +147,12 @@ import { Skeleton } from '../ui/skeleton';
                   <span class="muted"> · {{ version.comment }}</span>
                 }
               </span>
-              <a mat-button [href]="downloadUrl(doc.id, version.number)">Télécharger</a>
+              <span class="version-actions">
+                @if (isPdf(version.mimeType)) {
+                  <button mat-button type="button" (click)="view(doc, version)" [attr.aria-label]="'Voir la version ' + version.number">Voir</button>
+                }
+                <a mat-button [href]="downloadUrl(doc.id, version.number)">Télécharger</a>
+              </span>
             </li>
           }
         </ul>
@@ -289,6 +305,18 @@ export class DocumentsPage {
 
   protected pickFile(file: File): void {
     this.versionFile.set(file);
+  }
+
+  protected readonly isPdf = isPdf;
+
+  /** Ouvre un PDF dans la visionneuse ; `latest` suffit pour la dernière version, sinon on passe le numéro choisi. */
+  protected view(doc: DocumentDetail, file: { number?: number; originalName: string }): void {
+    const isLatest = file === doc.latest;
+    void this.dialogs.open<void, PdfViewerDialogData>(PdfViewerDialog, {
+      size: 'lg',
+      dismissible: true,
+      data: { documentId: doc.id, ...(!isLatest && file.number ? { version: file.number } : {}), title: doc.title, fileName: file.originalName },
+    });
   }
 
   protected async changeCategory(doc: DocumentDetail): Promise<void> {

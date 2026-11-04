@@ -48,6 +48,9 @@ services:
       # Écran d'exploitation : l'API lit l'état des sauvegardes, en lecture seule.
       BACKUPS_DIR: /backups
       COTIASSO_VERSION: ${COTIASSO_VERSION}
+      # Vérification des mises à jour : lit les étiquettes du dépôt GitHub (facultatif, UPDATE_CHECK=false pour la désactiver).
+      UPDATE_CHECK: ${UPDATE_CHECK:-}
+      UPDATE_CHECK_REPOSITORY: ${UPDATE_CHECK_REPOSITORY:-}
     volumes:
       # Documents déposés : à sauvegarder avec la base (cohérence base et fichiers, cadrage §24.2).
       - documents-data:/data/documents

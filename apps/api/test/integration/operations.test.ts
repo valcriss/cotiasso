@@ -62,7 +62,8 @@ describe("Exploitation : état des sauvegardes (base vierge)", () => {
       changelog,
       "# Notes\n\n## 1.2.3 — 2026-11-10\n\n### À savoir\n\n- Sauvegardez avant de mettre à jour.\n\n## 1.1.0 — 2026-10-01\n\n- Ancienne nouveauté.\n",
     );
-    app = await boot({ backupsDir: dir, appVersion: "1.2.3", changelogFile: changelog });
+    // Jamais de requête vers GitHub depuis les tests : la vérification des versions y est désactivée.
+    app = await boot({ backupsDir: dir, appVersion: "1.2.3", changelogFile: changelog, updateCheckRepository: null });
     prisma = app.get(PrismaService);
     users = app.get(UsersService);
 
@@ -88,6 +89,14 @@ describe("Exploitation : état des sauvegardes (base vierge)", () => {
       ["1.1.0 — 2026-10-01", false],
     ]);
     expect(notes.releases[0].groups[0]).toEqual({ title: "À savoir", items: ["Sauvegardez avant de mettre à jour."] });
+  });
+
+  it("réserve la vérification des versions à backups:admin et dit quand elle est désactivée", async () => {
+    expect((await get("/operations/update-check")).statusCode).toBe(401);
+    expect((await get("/operations/update-check", await userWith("treasurer"))).statusCode).toBe(403);
+    const response = await get("/operations/update-check", await userWith("technical-admin"));
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ status: "DISABLED", current: "1.2.3", latest: null });
   });
 
   it("réserve l'état de l'exploitation à backups:admin", async () => {

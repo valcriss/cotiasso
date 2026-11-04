@@ -1374,6 +1374,16 @@ export interface OperationsInfo {
 
 export type TestMailResult = { status: 'SENT'; to: string } | { status: 'FAILED'; to: string; detail: string } | { status: 'NOT_CONFIGURED' };
 
+/** Résultat de la comparaison avec la dernière version publiée (l'API ne renvoie jamais d'erreur pour un échec réseau). */
+export interface UpdateCheckInfo {
+  status: 'UP_TO_DATE' | 'UPDATE_AVAILABLE' | 'UNKNOWN' | 'DISABLED' | 'DEVELOPMENT';
+  current: string;
+  latest: string | null;
+  checkedAt: string | null;
+  url: string | null;
+  message: string;
+}
+
 export interface ReleaseNotesInfo {
   version: string;
   available: boolean;
@@ -1538,6 +1548,11 @@ export class AdminApiService {
   /** Lien de téléchargement : le navigateur envoie son cookie de session, le serveur contrôle l'accès. */
   documentDownloadUrl(id: string, version?: number): string {
     return `/api/documents/${id}/download${version ? `?version=${version}` : ''}`;
+  }
+
+  /** Contenu d'un fichier (même route, mêmes droits et même audit que le téléchargement), pour l'afficher dans la visionneuse. */
+  documentFile(id: string, version?: number): Promise<Blob> {
+    return firstValueFrom(this.http.get(this.documentDownloadUrl(id, version), { responseType: 'blob' }));
   }
 
   listFiscalYears(): Promise<FiscalYearInfo[]> {
@@ -2243,6 +2258,10 @@ export class AdminApiService {
   /** Envoie un email d'essai à la personne connectée ; le résultat dit si l'envoi a réussi (jamais une erreur pour un échec SMTP). */
   testEmail(): Promise<TestMailResult> {
     return firstValueFrom(this.http.post<TestMailResult>('/api/operations/test-email', {}));
+  }
+
+  updateCheck(): Promise<UpdateCheckInfo> {
+    return firstValueFrom(this.http.get<UpdateCheckInfo>('/api/operations/update-check'));
   }
 
   releaseNotes(): Promise<ReleaseNotesInfo> {

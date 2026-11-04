@@ -121,6 +121,73 @@ describe('DocumentsPage', () => {
     expect(panel.textContent).not.toContain('Ajouter une version');
   });
 
+  const openDetail = async (id: string, overrides: Record<string, unknown> = {}) => {
+    buttonWith('Ouvrir')!.click();
+    await settle();
+    controller.expectOne(`/api/documents/${id}`).flush(detail(id, overrides));
+    await settle();
+  };
+
+  it('propose « Voir le document » à gauche de « Télécharger » pour un PDF et l’ouvre dans la visionneuse sans rien enregistrer', async () => {
+    const created = vi.fn(() => 'blob:visionneuse');
+    const revoked = vi.fn();
+    Object.assign(URL, { createObjectURL: created, revokeObjectURL: revoked });
+    await create(['documents:view']);
+    await openDetail('d1');
+
+    const actions = Array.from(root.querySelectorAll('section[aria-label="Détail du document"] .actions > *'));
+    expect(actions.map((e) => e.textContent!.trim())).toEqual(['visibilityVoir le document', 'Télécharger la dernière version']);
+
+    buttonWith('Voir le document')!.click();
+    await settle();
+    const request = controller.expectOne('/api/documents/d1/download');
+    expect(request.request.responseType).toBe('blob');
+    request.flush(new Blob(['%PDF-1.7'], { type: 'application/pdf' }));
+    await settle();
+
+    expect(ui.title).toBe('Document d1');
+    const frame = ui.field<HTMLIFrameElement>('iframe');
+    expect(frame.getAttribute('src')).toBe('blob:visionneuse');
+    expect(created).toHaveBeenCalledTimes(1);
+    expect((created.mock.calls[0] as unknown as [Blob])[0].type).toBe('application/pdf');
+    await ui.click('Fermer');
+    await settle();
+    expect(revoked).toHaveBeenCalledWith('blob:visionneuse');
+  });
+
+  it('ouvre la version choisie dans la visionneuse', async () => {
+    Object.assign(URL, { createObjectURL: () => 'blob:v1', revokeObjectURL: () => undefined });
+    await create(['documents:view']);
+    await openDetail('d1');
+    root.querySelector<HTMLButtonElement>('button[aria-label="Voir la version 1"]')!.click();
+    await settle();
+    controller.expectOne('/api/documents/d1/download?version=1').flush(new Blob(['%PDF-1.7']));
+    await settle();
+    expect(ui.dialog!.querySelector('iframe')).not.toBeNull();
+  });
+
+  it("n'affiche pas « Voir le document » pour un fichier qui n'est pas un PDF", async () => {
+    await create(['documents:view'], [summary('d1', { latest: { number: 1, originalName: 'photo.png', mimeType: 'image/png', size: 10, uploadedAt: '2026-11-01T10:00:00.000Z' } })]);
+    await openDetail('d1', {
+      latest: { number: 1, originalName: 'photo.png', mimeType: 'image/png', size: 10, uploadedAt: '2026-11-01T10:00:00.000Z' },
+      versions: [{ number: 1, originalName: 'photo.png', mimeType: 'image/png', size: 10, sha256: 'a'.repeat(64), comment: null, uploadedAt: '2026-11-01T10:00:00.000Z', uploadedBy: 'u1' }],
+    });
+    expect(buttonWith('Voir')).toBeUndefined();
+    expect(root.textContent).toContain('Télécharger la dernière version');
+  });
+
+  it("explique quand le document ne peut pas s'ouvrir et garde le téléchargement", async () => {
+    await create(['documents:view']);
+    await openDetail('d1');
+    buttonWith('Voir le document')!.click();
+    await settle();
+    controller.expectOne('/api/documents/d1/download').flush(new Blob(), { status: 404, statusText: 'Not Found' });
+    await settle();
+    expect(ui.error).toContain('n’a pas pu être ouvert');
+    expect(ui.dialog!.querySelector('iframe')).toBeNull();
+    expect(Array.from(ui.dialog!.querySelectorAll('a')).map((a) => a.getAttribute('href'))).toContain('/api/documents/d1/download');
+  });
+
   it("dépose un document avec fichier, titre et catégorie, puis signale un doublon éventuel", async () => {
     await create(['documents:view', 'documents:create']);
     buttonWith('Déposer un document')!.click();
