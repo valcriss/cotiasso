@@ -2256,8 +2256,8 @@ export class AdminApiService {
   }
 
   /** Envoie un email d'essai à la personne connectée ; le résultat dit si l'envoi a réussi (jamais une erreur pour un échec SMTP). */
-  testEmail(): Promise<TestMailResult> {
-    return firstValueFrom(this.http.post<TestMailResult>('/api/operations/test-email', {}));
+  testEmail(to?: string): Promise<TestMailResult> {
+    return firstValueFrom(this.http.post<TestMailResult>('/api/operations/test-email', to ? { to } : {}));
   }
 
   updateCheck(): Promise<UpdateCheckInfo> {

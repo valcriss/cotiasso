@@ -171,6 +171,29 @@ describe("Emails d'invitation et de réinitialisation (base vierge)", () => {
     expect(events.map((e) => e.action)).toEqual(["mail.test.sent", "mail.test.failed"]);
   });
 
+  it("envoie l'essai à une autre adresse saisie, la trace dans l'audit et refuse une adresse invalide sans rien envoyer", async () => {
+    const before = transport.sent.length;
+    const sent = await call("POST", "/operations/test-email", admin, { to: "  Test-AbC@Srv1.Mail-Tester.com " });
+    expect(sent.statusCode, sent.body).toBe(200);
+    expect(sent.json()).toEqual({ status: "SENT", to: "test-abc@srv1.mail-tester.com" });
+    expect(transport.sent).toHaveLength(before + 1);
+    const mail = transport.sent.at(-1)!;
+    expect(mail.to).toBe("test-abc@srv1.mail-tester.com");
+    expect(String(mail.text)).toMatch(/^Bonjour,/);
+    expect(String(mail.text)).not.toContain("#token=");
+    const event = await prisma.auditEvent.findFirst({ where: { action: "mail.test.sent" }, orderBy: { seq: "desc" } });
+    expect(event!.details).toEqual({ to: "test-abc@srv1.mail-tester.com" });
+
+    const invalid = await call("POST", "/operations/test-email", admin, { to: "pas-une-adresse" });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json().message).toContain("n’est pas valide");
+    expect(transport.sent).toHaveLength(before + 1);
+
+    const own = await call("POST", "/operations/test-email", admin, { to: "admin@asso.test" });
+    expect(own.json()).toEqual({ status: "SENT", to: "admin@asso.test" });
+    expect(String(transport.sent.at(-1)!.text)).toMatch(/^Bonjour [^,]+,/);
+  });
+
   it("intègre le logo PNG de l'association, mais pas un SVG (le nom est alors montré en texte)", async () => {
     const logos = app.get(BrandLogoService);
     await logos.set(png(64, 64), adminId);

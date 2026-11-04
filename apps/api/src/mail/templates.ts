@@ -181,12 +181,12 @@ export function renderResetEmail(context: EmailContext): RenderedEmail {
 }
 
 /** Message d'essai : prouve à l'administrateur que l'envoi d'emails fonctionne, sans aucun secret ni lien de connexion. */
-export function renderTestEmail(context: RenderContext & { recipientName: string }): RenderedEmail {
+export function renderTestEmail(context: RenderContext & { recipientName: string | null }): RenderedEmail {
   const association = oneLine(context.associationName);
   return render(
     {
       subject: `Essai d’envoi d’emails de ${association} sur Cotiasso`,
-      greeting: `Bonjour ${oneLine(context.recipientName)},`,
+      greeting: context.recipientName ? `Bonjour ${oneLine(context.recipientName)},` : "Bonjour,",
       intro: `Si vous lisez ce message, l’envoi d’emails de Cotiasso fonctionne pour ${association} : les invitations et les liens de réinitialisation arriveront bien dans les boîtes de vos membres.`,
       buttonLabel: "Ouvrir Cotiasso",
       afterButton: ["Ce message n’est qu’un essai demandé depuis l’écran Exploitation. Il ne contient aucune information à conserver."],

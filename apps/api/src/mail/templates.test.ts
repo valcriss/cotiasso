@@ -106,6 +106,12 @@ describe("email de réinitialisation", () => {
 describe("email d'essai", () => {
   const mail = renderTestEmail({ associationName: "Club des amis", recipientName: "Sam Martin", link: "https://compta.asso.fr", accentColor: "#7a1f4d", logo: null, showName: true });
 
+  it("salue sans nom quand le message part vers une autre adresse que celle de la personne connectée", () => {
+    const other = renderTestEmail({ associationName: "Club des amis", recipientName: null, link: "https://compta.asso.fr", accentColor: "#7a1f4d", logo: null, showName: true });
+    expect(other.text).toContain("Bonjour,");
+    expect(other.text).not.toContain("Bonjour null");
+  });
+
   it("dit que c'est un essai, nomme l'association et ne porte aucun lien secret", () => {
     expect(mail.subject).toBe("Essai d’envoi d’emails de Club des amis sur Cotiasso");
     expect(mail.text).toContain("Bonjour Sam Martin,");

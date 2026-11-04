@@ -6,6 +6,12 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
+## 1.0.8 — 2026-11-04
+
+### Nouveautés
+
+- Paramètres › Exploitation › Envoi d'emails : l'email d'essai peut être envoyé à une autre adresse que la vôtre. L'adresse proposée reste la vôtre ; saisissez par exemple celle donnée par mail-tester.com pour savoir si vos messages risquent d'arriver dans les courriers indésirables. Une seule adresse à la fois, réservée à l'administration de l'exploitation, et tracée dans le journal d'audit avec l'adresse utilisée. Le message ne contient toujours aucune information de l'association.
+
 ## 1.0.7 — 2026-11-04
 
 ### Nouveautés

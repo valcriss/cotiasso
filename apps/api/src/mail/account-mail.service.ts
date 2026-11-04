@@ -6,6 +6,7 @@ import { ENV } from "../config/tokens.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { BrandLogoService } from "../settings/brand-logo.service.js";
 import { SettingsService } from "../settings/settings.service.js";
+import { normalizeEmail } from "../auth/email.js";
 import { MailService } from "./mail.service.js";
 import { renderInvitationEmail, renderResetEmail, renderTestEmail, type EmailContext, type MailLogo } from "./templates.js";
 
@@ -20,6 +21,13 @@ export type TestMailOutcome =
   | { status: "SENT"; to: string }
   | { status: "FAILED"; to: string; detail: string }
   | { status: "NOT_CONFIGURED" };
+
+/** Adresse d'essai saisie mais invalide : l'appelant la traduit en réponse 400 lisible. */
+export class InvalidTestRecipientError extends Error {
+  constructor() {
+    super("Cette adresse email n’est pas valide.");
+  }
+}
 
 /**
  * Envoie par email le lien d'invitation ou de réinitialisation d'un compte. Ne lève jamais d'erreur : un email qui échoue ne doit
@@ -77,35 +85,43 @@ export class AccountMailService {
   }
 
   /**
-   * Essai d'envoi, toujours adressé à la personne qui le demande (jamais à une adresse saisie : l'écran ne peut pas servir de relais).
-   * Ne lève jamais d'erreur ; `detail` reprend le code et le message du serveur de messagerie, sans aucun secret.
+   * Essai d'envoi, adressé par défaut à la personne qui le demande. Elle peut indiquer une autre adresse (par exemple celle d'un
+   * outil de test de délivrabilité) : une seule adresse, valide, réservée à `backups:admin`, et tracée dans l'audit. Le message ne
+   * contient jamais de texte libre, l'écran ne peut donc pas servir à écrire à n'importe qui.
+   * Une adresse invalide lève `InvalidTestRecipientError` ; sinon ne lève jamais d'erreur : `detail` reprend le code et le message
+   * du serveur de messagerie, sans aucun secret.
    */
-  async sendTest(actorId: string): Promise<TestMailOutcome> {
+  async sendTest(actorId: string, requestedTo?: string): Promise<TestMailOutcome> {
     const smtp = this.env.smtp;
     if (!smtp || !this.mail.enabled) return { status: "NOT_CONFIGURED" };
     const actor = await this.prisma.user.findUnique({ where: { id: actorId }, select: { email: true, displayName: true } });
     if (!actor) return { status: "NOT_CONFIGURED" };
+    const custom = requestedTo !== undefined && requestedTo.trim() !== "";
+    const to = custom ? normalizeEmail(requestedTo) : actor.email;
+    if (to === null) throw new InvalidTestRecipientError();
+    // Le prénom n'est utilisé que si le message revient bien à la personne connectée.
+    const greetingName = to === actor.email.toLowerCase() ? actor.displayName : null;
 
     try {
       const [identity, branding, logoState] = await Promise.all([this.settings.current("identity"), this.settings.current("branding"), this.logos.state()]);
       const associationName = String(identity.name);
       const email = renderTestEmail({
         associationName,
-        recipientName: actor.displayName,
+        recipientName: greetingName,
         link: smtp.publicUrl,
         accentColor: String(branding.accentColor),
         logo: await this.rasterLogo(),
         showName: logoState.showName,
       });
-      await this.mail.send({ from: { address: smtp.from, name: associationName }, to: actor.email, email });
+      await this.mail.send({ from: { address: smtp.from, name: associationName }, to, email });
     } catch (error) {
-      await this.audit.record({ action: "mail.test.failed", objectType: "Mail", actorId, details: {} });
+      await this.audit.record({ action: "mail.test.failed", objectType: "Mail", actorId, details: { to } });
       const code = error instanceof Error ? ((error as { code?: string }).code ?? error.name) : "erreur inconnue";
       const message = error instanceof Error ? error.message : "";
-      return { status: "FAILED", to: actor.email, detail: `${code}${message ? ` : ${message}` : ""}`.replace(/\s+/g, " ").slice(0, 300) };
+      return { status: "FAILED", to, detail: `${code}${message ? ` : ${message}` : ""}`.replace(/\s+/g, " ").slice(0, 300) };
     }
-    await this.audit.record({ action: "mail.test.sent", objectType: "Mail", actorId, details: {} });
-    return { status: "SENT", to: actor.email };
+    await this.audit.record({ action: "mail.test.sent", objectType: "Mail", actorId, details: { to } });
+    return { status: "SENT", to };
   }
 
   /** Le logo n'est intégré que s'il s'affiche partout : PNG ou JPEG (un SVG est remplacé par le nom de l'association). */
