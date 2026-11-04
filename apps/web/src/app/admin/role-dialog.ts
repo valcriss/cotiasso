@@ -25,6 +25,8 @@ const RESOURCE_LABELS: Record<string, string> = {
   'settings.accounting': 'Réglages de la comptabilité',
   users: 'Comptes et droits',
   members: 'Membres et cotisations',
+  'members.account': 'Comptes de connexion des membres',
+  reimbursements: 'Remboursements de frais',
   'financial-accounts': 'Comptes bancaires',
   transactions: 'Mouvements d’argent',
   imports: 'Relevé de la banque',
@@ -46,7 +48,7 @@ const RESOURCE_LABELS: Record<string, string> = {
 /** Grandes familles affichées dans l'écran : l'argent, les personnes, les projets, les documents… (les ressources inconnues vont dans « Autres »). */
 const THEMES: { title: string; resources: string[] }[] = [
   { title: 'L’argent et la comptabilité', resources: ['financial-accounts', 'transactions', 'imports', 'entries', 'fiscal-years'] },
-  { title: 'Les membres', resources: ['members'] },
+  { title: 'Les membres', resources: ['members', 'members.account', 'reimbursements'] },
   { title: 'Les projets et les subventions', resources: ['projects', 'budgets', 'grants', 'expenses'] },
   { title: 'Les documents', resources: ['documents', 'documents.restricted'] },
   { title: 'Les rapports et les données', resources: ['reports', 'data', 'audit'] },
