@@ -2,7 +2,13 @@
 
 Ce fichier s'adresse à la personne qui héberge l'instance et aux administrateurs : il dit **ce qui change** d'une version à l'autre et **ce qu'il faut savoir avant de mettre à jour**. Il s'affiche dans **Paramètres › Exploitation**.
 
-Une section par version, la plus récente en premier : `## <version> — <date>`. Ce qui n'est pas encore publié figure sous `## 1.0.6 — 2026-11-04` : on ouvre cette section au premier changement après une publication, et on la renomme avec le numéro et la date au moment de publier. Les listes sont des phrases courantes, pas des messages de commit. Format lu par l'application : titres `##` (version), `###` (rubrique), puces `-`.
+Une section par version, la plus récente en premier : `## <version> — <date>`. Ce qui n'est pas encore publié figure sous `## 1.0.7 — 2026-11-04
+
+### Nouveautés
+
+- Paramètres › Exploitation : les notes de version sont présentées dans une carte, comme le reste de la page.
+
+## 1.0.6 — 2026-11-04` : on ouvre cette section au premier changement après une publication, et on la renomme avec le numéro et la date au moment de publier. Les listes sont des phrases courantes, pas des messages de commit. Format lu par l'application : titres `##` (version), `###` (rubrique), puces `-`.
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
