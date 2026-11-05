@@ -30,9 +30,31 @@ import type { ComparedGroupInfo } from '../admin/admin-api.service';
     .negative {
       color: var(--mat-sys-error);
     }
+    /* Petits écrans : on garde un vrai tableau (rubrique à gauche, montants à droite) au lieu d'une carte par ligne qui
+       répéterait « Rubrique » et l'exercice sur chaque ligne ; l'exercice n'est affiché qu'une fois, dans l'en-tête. */
+    @media (max-width: 720px) {
+      .table.keep-table {
+        display: table;
+        width: 100%;
+      }
+      .table.keep-table th,
+      .table.keep-table td {
+        overflow-wrap: anywhere;
+        padding-inline: 8px;
+      }
+      .table.keep-table td:first-child {
+        width: 100%;
+      }
+      .table.keep-table .amount {
+        width: 1%;
+      }
+      .group-help {
+        font-size: 0.85em;
+      }
+    }
   `,
   template: `
-    <table class="table">
+    <table class="table keep-table">
       <caption class="sr-only">{{ caption() }}</caption>
       <thead>
         <tr>
