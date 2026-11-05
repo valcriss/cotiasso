@@ -1,11 +1,11 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AdminApiService, type MemberCategoryInfo, type MemberInfo, type MemberOfficeInfo, type OfficeRoleInfo } from '../admin/admin-api.service';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError } from '../auth/error-messages';
@@ -13,6 +13,8 @@ import { todayLocalIso } from '../ui/dates';
 import { Dialogs } from '../ui/dialogs.service';
 import { Notifier } from '../ui/notifier.service';
 import { ActionBar } from '../ui/action-bar';
+import { BackLink } from '../ui/back-link';
+import { routeParam } from '../ui/route-param';
 import {
   AnonymizeDialog,
   CategoriesDialog,
@@ -33,9 +35,14 @@ import { Skeleton } from '../ui/skeleton';
 /** Membres : fiches, catégories, fonctions et mandats (ADR 0023). */
 @Component({
   selector: 'app-members-page',
-  imports: [Skeleton, FrDatePipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ActionBar],
+  imports: [Skeleton, BackLink, RouterLink, FrDatePipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, ActionBar],
   styleUrl: '../admin/admin-pages.scss',
   template: `
+    @if (routeId()) {
+      <app-action-bar label="Actions de la fiche">
+        <app-back-link to="/membres/liste" label="Retour aux membres" />
+      </app-action-bar>
+    } @else {
     <app-action-bar
       label="Actions des membres"
       description="Les personnes qui font vivre l'association : leurs coordonnées, leur catégorie et leurs fonctions (président, trésorier…). Un membre n'a pas besoin d'un compte de connexion."
@@ -52,11 +59,13 @@ import { Skeleton } from '../ui/skeleton';
         </button>
       }
     </app-action-bar>
+    }
 
     @if (error(); as message) {
       <p class="alert" role="alert">{{ message }}</p>
     }
 
+    @if (!routeId()) {
     <button mat-stroked-button type="button" class="filters-toggle" [attr.aria-expanded]="filtersOpen()" aria-controls="member-filters" (click)="filtersOpen.set(!filtersOpen())">
       <mat-icon fontSet="material-icons-outlined" aria-hidden="true">filter_list</mat-icon> Filtres
       <mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ filtersOpen() ? 'expand_less' : 'expand_more' }}</mat-icon>
@@ -99,8 +108,9 @@ import { Skeleton } from '../ui/skeleton';
         <button mat-flat-button type="submit" class="full-row"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">search</mat-icon> Rechercher</button>
       </div>
     </form>
+    }
 
-    @if (selected(); as detail) {
+    @if (routeId() && selected(); as detail) {
       <section class="panel" [attr.aria-label]="'Fiche de ' + detail.member.firstName + ' ' + detail.member.lastName">
         <div class="head">
           <h3>
@@ -110,7 +120,6 @@ import { Skeleton } from '../ui/skeleton';
               <span class="chip">Ancien membre</span>
             }
           </h3>
-          <button mat-button type="button" (click)="close()">Fermer</button>
         </div>
         <dl class="details">
           <dt>Email</dt>
@@ -197,7 +206,15 @@ import { Skeleton } from '../ui/skeleton';
       </section>
     }
 
-    @if (loading()) {
+    @if (routeId()) {
+      @if (loadingDetail() && !selected()) {
+        <app-skeleton variant="table" />
+      } @else if (!selected() && !error() && !loadingDetail()) {
+        <p class="alert" role="alert">
+          Cette fiche est introuvable. Elle a peut-être été retirée de votre accès, ou l'adresse est incomplète. Revenez à la liste des membres pour en choisir une autre.
+        </p>
+      }
+    } @else if (loading()) {
       <app-skeleton variant="table" />
     } @else if (members().length === 0) {
       <section class="panel">
@@ -209,30 +226,35 @@ import { Skeleton } from '../ui/skeleton';
         </p>
       </section>
     } @else {
-      <table class="table">
+      <table class="table keep-table members-table">
         <caption class="sr-only">Membres</caption>
         <thead>
           <tr>
             <th scope="col">Nom</th>
-            <th scope="col">Catégorie</th>
-            <th scope="col">Fonctions</th>
-            <th scope="col">État</th>
+            <th scope="col" class="wide-only">Catégorie</th>
+            <th scope="col" class="wide-only">Fonctions</th>
+            <th scope="col" class="wide-only">État</th>
             <th scope="col">Cotisation</th>
-            <th scope="col"><span class="sr-only">Ouvrir</span></th>
+            <th scope="col" class="wide-only"><span class="sr-only">Ouvrir</span></th>
           </tr>
         </thead>
         <tbody>
           @for (member of members(); track member.id) {
             <tr [class.disabled]="member.status === 'FORMER'">
               <td>
-                <strong>{{ member.lastName }} {{ member.firstName }}</strong>
+                <a class="member-link" [routerLink]="['/membres/liste', member.id]">
+                  <strong>{{ member.lastName }} {{ member.firstName }}</strong>
+                </a>
+                @if (member.status === 'FORMER') {
+                  <span class="chip narrow-only">Ancien membre</span>
+                }
                 @if (member.email) {
-                  <div class="muted">{{ member.email }}</div>
+                  <div class="muted wide-only">{{ member.email }}</div>
                 }
               </td>
-              <td>{{ member.categoryName ?? '—' }}</td>
-              <td>{{ member.currentOffices.join(', ') || '—' }}</td>
-              <td>{{ member.status === 'ACTIVE' ? 'Membre' : 'Ancien membre' }}</td>
+              <td class="wide-only">{{ member.categoryName ?? '—' }}</td>
+              <td class="wide-only">{{ member.currentOffices.join(', ') || '—' }}</td>
+              <td class="wide-only">{{ member.status === 'ACTIVE' ? 'Membre' : 'Ancien membre' }}</td>
               <td>
                 @if (cotisation(member); as c) {
                   <span class="status" [class.ok]="c.ok"><mat-icon fontSet="material-icons-outlined" aria-hidden="true">{{ c.icon }}</mat-icon> {{ c.label }}</span>
@@ -240,8 +262,8 @@ import { Skeleton } from '../ui/skeleton';
                   <span class="muted">—</span>
                 }
               </td>
-              <td class="row-actions">
-                <button mat-button type="button" [attr.aria-label]="'Ouvrir la fiche de ' + member.firstName + ' ' + member.lastName" (click)="open(member.id)">Ouvrir</button>
+              <td class="row-actions wide-only">
+                <a mat-button [routerLink]="['/membres/liste', member.id]" [attr.aria-label]="'Ouvrir la fiche de ' + member.firstName + ' ' + member.lastName">Ouvrir</a>
               </td>
             </tr>
           }
@@ -267,6 +289,31 @@ import { Skeleton } from '../ui/skeleton';
       }
       form.filters.collapsed {
         display: none;
+      }
+    }
+    .narrow-only {
+      display: none;
+    }
+    .member-link {
+      color: inherit;
+      text-decoration: none;
+    }
+    /* Petit écran : la liste ne garde que le nom et la cotisation pour montrer plus de membres ; le reste est dans la fiche. */
+    @media (max-width: 720px) {
+      .table.members-table {
+        display: table;
+        width: 100%;
+      }
+      .members-table th,
+      .members-table td {
+        padding: 10px 8px;
+        vertical-align: middle;
+      }
+      .wide-only {
+        display: none;
+      }
+      .narrow-only {
+        display: inline-block;
       }
     }
     .details {
@@ -317,6 +364,10 @@ export class MembersPage {
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly dialogs = inject(Dialogs);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  /** La fiche ouverte vient de l'adresse (`/membres/liste/:id`) : `null` sur la liste. */
+  protected readonly routeId = routeParam('id');
+  protected readonly loadingDetail = signal(!!this.routeId());
   private readonly notifier = inject(Notifier);
 
   /** Sur téléphone, les filtres sont repliés par défaut ; sur grand écran ils sont toujours visibles. */
@@ -344,6 +395,13 @@ export class MembersPage {
 
   constructor() {
     void this.init();
+    effect(() => {
+      const id = this.routeId();
+      untracked(() => {
+        if (id) void this.open(id);
+        else this.selected.set(null);
+      });
+    });
   }
 
   protected hasFilter(): boolean {
@@ -404,27 +462,31 @@ export class MembersPage {
     }
   }
 
+  /** Charge la fiche de l'adresse ; une fiche inconnue ou hors de portée reste `null` (le serveur répond 404). */
   protected async open(id: string): Promise<void> {
-    await this.run(async () => this.selected.set(await this.api.getMember(id)), 'Impossible de charger la fiche.');
-  }
-
-  protected close(): void {
-    this.selected.set(null);
+    this.loadingDetail.set(true);
+    this.error.set(null);
+    try {
+      this.selected.set(await this.api.getMember(id));
+    } catch (failure) {
+      this.selected.set(null);
+      if ((failure as { status?: number }).status !== 404) this.error.set(describeHttpError(failure, 'Impossible de charger la fiche.').message);
+    } finally {
+      this.loadingDetail.set(false);
+    }
   }
 
   protected async create(): Promise<void> {
     const created = await this.dialogs.open<MemberInfo, MemberDialogData>(MemberDialog, { size: 'md', data: { member: null, categories: this.categories() } });
     if (!created) return;
     this.notifier.success(`Fiche de ${created.firstName} ${created.lastName} créée.`);
-    await this.search();
-    await this.open(created.id);
+    await this.router.navigate(['/membres/liste', created.id]);
   }
 
   protected async edit(member: MemberInfo): Promise<void> {
     const saved = await this.dialogs.open<MemberInfo, MemberDialogData>(MemberDialog, { size: 'md', data: { member, categories: this.categories() } });
     if (!saved) return;
     this.notifier.success('Fiche enregistrée.');
-    await this.search();
     await this.open(saved.id);
   }
 
@@ -470,7 +532,6 @@ export class MembersPage {
     const done = await this.dialogs.open<MemberInfo, AnonymizeDialogData>(AnonymizeDialog, { size: 'md', data: { member } });
     if (!done) return;
     this.notifier.success('Membre anonymisé.');
-    await this.search();
     await this.open(done.id);
   }
 
@@ -499,7 +560,6 @@ export class MembersPage {
     });
     if (!added) return;
     this.notifier.success(`Fonction « ${added.title} » ajoutée.`);
-    await this.search();
     await this.open(member.id);
   }
 
@@ -509,7 +569,6 @@ export class MembersPage {
     await this.run(async () => {
       await this.api.updateMemberOffice(office.id, { endsOn: todayLocalIso() });
       this.notifier.success(`Fonction « ${office.title} » terminée.`);
-      await this.search();
       await this.open(member.id);
     }, "La fonction n'a pas pu être terminée.");
   }
@@ -527,7 +586,6 @@ export class MembersPage {
     await this.run(async () => {
       await this.api.removeMemberOffice(office.id);
       this.notifier.success('Fonction retirée.');
-      await this.search();
       await this.open(member.id);
     }, "La fonction n'a pas pu être retirée.");
   }
@@ -536,7 +594,6 @@ export class MembersPage {
     await this.run(async () => {
       await this.api.updateMember(member.id, { ...patch, version: member.version });
       this.notifier.success(success);
-      await this.search();
       await this.open(member.id);
     }, "La fiche n'a pas pu être modifiée.");
   }
@@ -568,6 +625,7 @@ export class MembersPage {
     this.officeRoles.set(await this.api.listOfficeRoles().catch(() => []));
     // Un lien de la vue d'ensemble ouvre la liste déjà filtrée sur les cotisations en retard.
     if (this.route.snapshot.queryParamMap.get('cotisation') === 'late') this.filters.patchValue({ membershipStatus: 'LATE' });
-    await this.search();
+    if (!this.routeId()) await this.search();
+    else this.loading.set(false);
   }
 }
