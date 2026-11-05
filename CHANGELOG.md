@@ -6,12 +6,13 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
-## Non publié
+## 1.0.12 — 2026-11-05
 
 ### Nouveautés
 
 - Membres : cliquer sur un membre ouvre sa fiche dans sa propre page (`/membres/liste/…`), comme pour les projets, subventions, comptes et documents : elle s'ouvre en haut de l'écran, peut être partagée par son adresse et se quitte avec « Retour aux membres ».
 - Sur téléphone, la liste des membres ne montre plus que le nom et la cotisation, pour en afficher davantage à l'écran ; catégorie, fonctions et coordonnées sont dans la fiche.
+- Sur téléphone, les états de synthèse (compte de résultat, bilan, trésorerie) restent un tableau lisible : « Rubrique » et l'exercice ne sont plus répétés à chaque ligne, les montants s'alignent à droite.
 
 ## 1.0.11 — 2026-11-04
 
