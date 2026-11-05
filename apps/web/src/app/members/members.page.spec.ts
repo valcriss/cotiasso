@@ -1,7 +1,9 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { of } from 'rxjs';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { mockAuth } from '../testing/auth-mock';
 import { DialogTester, NO_MATERIAL_ANIMATIONS } from '../testing/dialog-harness';
 import { MembersPage } from './members.page';
@@ -40,8 +42,14 @@ const officeRoles = [
 
 describe('MembersPage', () => {
   let controller: HttpTestingController;
-  let fixture: ReturnType<typeof TestBed.createComponent<MembersPage>>;
-  let root: HTMLElement;
+  let harness: RouterTestingHarness;
+  const fixture = { detectChanges: () => harness.fixture.detectChanges(), whenStable: () => harness.fixture.whenStable() };
+  /** La page courante : la liste et la fiche sont deux adresses, donc deux instances. */
+  const root = () => harness.routeNativeElement as HTMLElement;
+  const routes = [
+    { path: 'membres/liste', component: MembersPage },
+    { path: 'membres/liste/:id', component: MembersPage },
+  ];
   let ui: DialogTester;
 
   const settle = async () => {
@@ -49,14 +57,16 @@ describe('MembersPage', () => {
     fixture.detectChanges();
     await fixture.whenStable();
   };
+  let currentRoles: object[] = officeRoles;
   const create = async (permissions: string[], list: object[] = [member()], roles: object[] = officeRoles) => {
+    currentRoles = roles;
     await TestBed.configureTestingModule({
       imports: [MembersPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
+      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting(), mockAuth(permissions), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
-    fixture = TestBed.createComponent(MembersPage);
-    root = fixture.nativeElement as HTMLElement;
+    harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/membres/liste', MembersPage);
     ui = new DialogTester(settle);
     await settle();
     controller.expectOne('/api/member-categories').flush(categories);
@@ -67,7 +77,7 @@ describe('MembersPage', () => {
     await settle();
   };
   const button = (label: string) => {
-    const found = Array.from(root.querySelectorAll<HTMLElement>('button, a')).find((b) => b.textContent!.trim().includes(label) || b.getAttribute('aria-label')?.includes(label));
+    const found = Array.from(root().querySelectorAll<HTMLElement>('button, a')).find((b) => b.textContent!.trim().includes(label) || b.getAttribute('aria-label')?.includes(label));
     expect(found, label).toBeTruthy();
     return found!;
   };
@@ -75,14 +85,17 @@ describe('MembersPage', () => {
     button(label).click();
     await settle();
   };
-  const reload = async (list: object[], detail: { member: object; offices: object[] }) => {
-    controller.expectOne((r) => r.url === '/api/members').flush({ members: list, next: null });
-    await settle();
+  const reload = async (_list: object[], detail: { member: object; offices: object[] }) => {
     controller.expectOne(`/api/members/${(detail.member as { id: string }).id}`).flush(detail);
     await settle();
   };
   const openFirst = async (offices: object[] = [], m: object = member()) => {
     await click('Ouvrir la fiche de Marie Dupont');
+    // La fiche est une autre page (`/membres/liste/m1`) : nouvelle instance, donc catalogues rechargés.
+    controller.expectOne('/api/member-categories').flush(categories);
+    await settle();
+    controller.expectOne('/api/office-roles').flush(currentRoles);
+    await settle();
     controller.expectOne('/api/members/m1').flush({ member: m, offices });
     await settle();
   };
@@ -94,22 +107,22 @@ describe('MembersPage', () => {
 
   it("liste les membres avec leur catégorie, leurs fonctions en cours et leur état, sans action en lecture seule", async () => {
     await create(['members:view']);
-    const text = root.textContent!;
+    const text = root().textContent!;
     expect(text).toContain('Dupont Marie');
     expect(text).toContain('Adulte');
     expect(text).toContain('Trésorière');
-    expect(root.querySelector('.help')!.textContent).toContain("pas besoin d'un compte de connexion");
+    expect(root().querySelector('.help')!.textContent).toContain("pas besoin d'un compte de connexion");
     expect(text).not.toContain('Nouveau membre');
   });
 
   it("montre la cotisation de la saison en cours de chaque membre, et le filtre qui la sélectionne (#20)", async () => {
     await TestBed.configureTestingModule({
       imports: [MembersPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth(['members:view']), NO_MATERIAL_ANIMATIONS],
+      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting(), mockAuth(['members:view']), NO_MATERIAL_ANIMATIONS],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
-    fixture = TestBed.createComponent(MembersPage);
-    root = fixture.nativeElement as HTMLElement;
+    harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/membres/liste', MembersPage);
     ui = new DialogTester(settle);
     await settle();
     controller.expectOne('/api/member-categories').flush(categories);
@@ -121,12 +134,12 @@ describe('MembersPage', () => {
       .expectOne((r) => r.url === '/api/members')
       .flush({ members: states.map((s, i) => member({ id: `m${i}`, firstName: `P${i}`, membershipStatus: s })), next: null, campaign: { id: 'c1', name: 'Saison 2026-2027' } });
     await settle();
-    const rows = Array.from(root.querySelectorAll('tbody tr')).map((tr) => tr.querySelectorAll('td')[4]!.textContent!.replace(/\s+/g, ' ').trim());
+    const rows = Array.from(root().querySelectorAll('tbody tr')).map((tr) => tr.querySelectorAll('td')[4]!.textContent!.replace(/\s+/g, ' ').trim());
     expect(rows).toEqual(['check_circle À jour', 'check_circle À jour (exonéré)', 'warning Payée en partie', 'warning En retard', 'radio_button_unchecked Pas inscrit']);
-    expect(root.textContent).toContain('Cotisation — Saison 2026-2027');
+    expect(root().textContent).toContain('Cotisation — Saison 2026-2027');
 
     // Choisir « En retard » demande la liste filtrée au serveur.
-    root.querySelector<HTMLElement>('mat-select[formcontrolname="membershipStatus"] .mat-mdc-select-trigger')!.click();
+    root().querySelector<HTMLElement>('mat-select[formcontrolname="membershipStatus"] .mat-mdc-select-trigger')!.click();
     await settle();
     Array.from(document.querySelectorAll<HTMLElement>('.cdk-overlay-container .mat-mdc-option')).find((o) => o.textContent!.includes('En retard'))!.click();
     await settle();
@@ -139,8 +152,8 @@ describe('MembersPage', () => {
 
   it("sans saison en cours, ne montre aucune situation de cotisation et le dit", async () => {
     await create(['members:view'], [member({ membershipStatus: null })]);
-    expect(root.querySelector('tbody tr')!.querySelectorAll('td')[4]!.textContent!.trim()).toBe('—');
-    expect(root.textContent).toContain('Aucune saison de cotisation n’est en cours.');
+    expect(root().querySelector('tbody tr')!.querySelectorAll('td')[4]!.textContent!.trim()).toBe('—');
+    expect(root().textContent).toContain('Aucune saison de cotisation n’est en cours.');
   });
 
   it("ouvre la liste déjà filtrée sur les cotisations en retard quand le lien de la vue d'ensemble le demande (?cotisation=late)", async () => {
@@ -148,7 +161,7 @@ describe('MembersPage', () => {
       imports: [MembersPage],
       providers: [
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ cotisation: 'late' }) } } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ cotisation: 'late' }), paramMap: convertToParamMap({}) }, paramMap: of(convertToParamMap({})) } },
         provideHttpClient(),
         provideHttpClientTesting(),
         mockAuth(['members:view']),
@@ -156,8 +169,8 @@ describe('MembersPage', () => {
       ],
     }).compileComponents();
     controller = TestBed.inject(HttpTestingController);
-    fixture = TestBed.createComponent(MembersPage);
-    root = fixture.nativeElement as HTMLElement;
+    const direct = TestBed.createComponent(MembersPage);
+    harness = { fixture: direct, routeNativeElement: direct.nativeElement } as unknown as RouterTestingHarness;
     ui = new DialogTester(settle);
     await settle();
     controller.expectOne('/api/member-categories').flush(categories);
@@ -168,12 +181,63 @@ describe('MembersPage', () => {
     expect(request.request.params.get('membershipStatus')).toBe('LATE');
     request.flush({ members: [member({ membershipStatus: 'DUE' })], next: null, campaign: { id: 'c1', name: 'Saison' } });
     await settle();
-    expect(root.textContent).toContain('En retard');
+    expect(root().textContent).toContain('En retard');
+  });
+
+  it("ouvre la fiche par un vrai lien vers sa propre page, et la liste garde ses colonnes secondaires pour le grand écran", async () => {
+    await create(['members:view']);
+    const link = root().querySelector<HTMLAnchorElement>('a.member-link')!;
+    expect(link.getAttribute('href')).toBe('/membres/liste/m1');
+    // Sur téléphone, seules les colonnes Nom et Cotisation restent visibles (classe `wide-only` masquée par la feuille de style).
+    const hidden = Array.from(root().querySelectorAll('thead th.wide-only')).map((th) => th.textContent!.trim());
+    expect(hidden).toEqual(['Catégorie', 'Fonctions', 'État', 'Ouvrir']);
+  });
+
+  it("charge directement la fiche de l'adresse (/membres/liste/m1), avec un retour vers la liste et sans charger la liste", async () => {
+    await TestBed.configureTestingModule({
+      imports: [MembersPage],
+      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting(), mockAuth(['members:view']), NO_MATERIAL_ANIMATIONS],
+    }).compileComponents();
+    controller = TestBed.inject(HttpTestingController);
+    harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/membres/liste/m1', MembersPage);
+    ui = new DialogTester(settle);
+    await settle();
+    controller.expectOne('/api/member-categories').flush(categories);
+    await settle();
+    controller.expectOne('/api/office-roles').flush(officeRoles);
+    await settle();
+    controller.expectOne('/api/members/m1').flush({ member: member(), offices: [] });
+    await settle();
+    expect(root().querySelector('section[aria-label="Fiche de Marie Dupont"]')).toBeTruthy();
+    expect(root().querySelector('a[href="/membres/liste"]')!.textContent).toContain('Retour aux membres');
+    expect(root().querySelector('table')).toBeNull();
+    expect(root().querySelector('form.filters')).toBeNull();
+  });
+
+  it("dit en trois temps qu'une fiche est introuvable (404) et propose de revenir à la liste", async () => {
+    await TestBed.configureTestingModule({
+      imports: [MembersPage],
+      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting(), mockAuth(['members:view']), NO_MATERIAL_ANIMATIONS],
+    }).compileComponents();
+    controller = TestBed.inject(HttpTestingController);
+    harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/membres/liste/inconnu', MembersPage);
+    ui = new DialogTester(settle);
+    await settle();
+    controller.expectOne('/api/member-categories').flush(categories);
+    await settle();
+    controller.expectOne('/api/office-roles').flush(officeRoles);
+    await settle();
+    controller.expectOne('/api/members/inconnu').flush({ message: 'Introuvable' }, { status: 404, statusText: 'Not Found' });
+    await settle();
+    expect(root().textContent).toContain('Cette fiche est introuvable');
+    expect(root().querySelector('a[href="/membres/liste"]')).toBeTruthy();
   });
 
   it("guide l'utilisateur quand il n'y a aucun membre", async () => {
     await create(['members:view', 'members:manage'], []);
-    expect(root.textContent).toContain('Commencez par « Nouveau membre »');
+    expect(root().textContent).toContain('Commencez par « Nouveau membre »');
   });
 
   it("crée un membre avec seulement le prénom et le nom, puis ouvre sa fiche", async () => {
@@ -190,9 +254,14 @@ describe('MembersPage', () => {
     expect(request.request.body).toMatchObject({ firstName: 'Léa', lastName: 'Bernard', email: null, categoryId: null });
     request.flush(member({ id: 'm9', firstName: 'Léa', lastName: 'Bernard' }), { status: 201, statusText: 'Created' });
     await settle();
-    await reload([member({ id: 'm9', firstName: 'Léa', lastName: 'Bernard' })], { member: member({ id: 'm9', firstName: 'Léa', lastName: 'Bernard' }), offices: [] });
+    // On arrive sur la page de la nouvelle fiche (`/membres/liste/m9`).
+    controller.expectOne('/api/member-categories').flush(categories);
+    await settle();
+    controller.expectOne('/api/office-roles').flush(officeRoles);
+    await settle();
+    await reload([], { member: member({ id: 'm9', firstName: 'Léa', lastName: 'Bernard' }), offices: [] });
     expect(ui.snackbar).toContain('Fiche de Léa Bernard créée');
-    expect(root.querySelector('section[aria-label="Fiche de Léa Bernard"]')).toBeTruthy();
+    expect(root().querySelector('section[aria-label="Fiche de Léa Bernard"]')).toBeTruthy();
   });
 
   it("explique un doublon d'email refusé par le serveur", async () => {
@@ -210,7 +279,7 @@ describe('MembersPage', () => {
   it("affiche la fiche avec ses fonctions et propose d'en terminer une", async () => {
     await create(['members:view', 'members:manage']);
     await openFirst([{ id: 'o1', officeRoleId: 'r2', title: 'Trésorière', startsOn: '2020-10-01', endsOn: null, note: null, current: true }]);
-    const text = root.querySelector('section[aria-label="Fiche de Marie Dupont"]')!.textContent!;
+    const text = root().querySelector('section[aria-label="Fiche de Marie Dupont"]')!.textContent!;
     expect(text).toContain('1 rue des Fleurs, 69001 Lyon');
     expect(text).toContain('Trésorière');
     expect(text).toContain('en cours');
@@ -270,21 +339,21 @@ describe('MembersPage', () => {
     await settle();
     await reload([anonymous], { member: anonymous, offices: [] });
     expect(ui.snackbar).toContain('Membre anonymisé');
-    expect(root.textContent).toContain('est anonymisé');
+    expect(root().textContent).toContain('est anonymisé');
   });
 
   it("dit si la fiche a un compte de connexion, sans proposer de lier à qui n'a pas le droit", async () => {
     await create(['members:view', 'members:manage']);
     await openFirst();
-    expect(root.textContent).toContain('Compte de connexion');
-    expect(root.textContent).toContain('Aucun (pas nécessaire pour être membre)');
-    expect(root.textContent).not.toContain('Associer à un compte utilisateur');
+    expect(root().textContent).toContain('Compte de connexion');
+    expect(root().textContent).toContain('Aucun (pas nécessaire pour être membre)');
+    expect(root().textContent).not.toContain('Associer à un compte utilisateur');
   });
 
   it("associe une fiche à un compte disponible, avec le droit de relier un membre à un compte", async () => {
     await create(['members:view', 'members.account:link']);
     await openFirst();
-    expect(root.textContent).toContain('Le lien se fait tout seul quand un compte a la même adresse email');
+    expect(root().textContent).toContain('Le lien se fait tout seul quand un compte a la même adresse email');
     await click('Associer à un compte utilisateur');
     expect(ui.title).toContain('Associer Marie Dupont à un compte');
     controller.expectOne('/api/member-accounts/available').flush([
@@ -304,8 +373,8 @@ describe('MembersPage', () => {
     controller.expectOne('/api/members/m1').flush({ member: member({ hasAccount: true }), offices: [] });
     await settle();
     expect(ui.snackbar).toContain('est associé(e) à un compte de connexion');
-    expect(root.textContent).toContain('Relié : peut se connecter');
-    expect(root.textContent).toContain('Détacher du compte');
+    expect(root().textContent).toContain('Relié : peut se connecter');
+    expect(root().textContent).toContain('Détacher du compte');
   });
 
   it("explique quoi faire quand aucun compte n'est disponible, et garde la boîte ouverte si le serveur refuse", async () => {
@@ -325,8 +394,8 @@ describe('MembersPage', () => {
   it("détache le compte après confirmation, en rassurant sur la fiche et l'historique", async () => {
     await create(['members:view', 'members.account:link'], [member({ hasAccount: true })]);
     await openFirst([], member({ hasAccount: true }));
-    expect(root.textContent).toContain('Relié : peut se connecter');
-    expect(root.textContent).not.toContain('Associer à un compte utilisateur');
+    expect(root().textContent).toContain('Relié : peut se connecter');
+    expect(root().textContent).not.toContain('Associer à un compte utilisateur');
     await click('Détacher du compte');
     expect(ui.text).toContain('La fiche, ses adhésions et son historique sont conservés');
     await ui.click('Détacher');
@@ -337,13 +406,13 @@ describe('MembersPage', () => {
     controller.expectOne('/api/members/m1').flush({ member: member({ hasAccount: false }), offices: [] });
     await settle();
     expect(ui.snackbar).toContain('détachée du compte');
-    expect(root.textContent).toContain('Associer à un compte utilisateur');
+    expect(root().textContent).toContain('Associer à un compte utilisateur');
   });
 
   it("ne propose pas de lier une fiche d'ancien membre", async () => {
     await create(['members:view', 'members.account:link']);
     await openFirst([], member({ status: 'FORMER', leftOn: '2026-01-01' }));
-    expect(root.textContent).not.toContain('Associer à un compte utilisateur');
+    expect(root().textContent).not.toContain('Associer à un compte utilisateur');
   });
 
   it("gère les fonctions du bureau : liste, ajout et archivage, sans suppression", async () => {
