@@ -6,6 +6,17 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
+## 1.0.16 — 2026-11-06
+
+### Nouveautés
+
+- Dans les tableaux (Remboursements, Membres, Projets, Subventions…), le bouton « Ouvrir » ou « Modifier » est maintenant sur la même ligne que le texte de la ligne, au lieu de tomber un peu plus bas.
+- La pastille du menu latéral est un vrai rond quand elle affiche un seul chiffre, avec un texte en graisse normale.
+
+### À savoir avant de mettre à jour
+
+- Rien à faire : aucune migration ni nouvelle variable de configuration.
+
 ## 1.0.15 — 2026-11-06
 
 ### Nouveautés
