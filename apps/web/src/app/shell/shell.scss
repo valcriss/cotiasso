@@ -127,13 +127,21 @@ nav {
   border-radius: 999px;
   color: var(--mat-sys-on-primary);
   display: inline-flex;
+  flex: none;
   font: var(--mat-sys-label-small);
-  font-weight: 600;
-  height: 20px;
+  font-weight: 400;
+  height: 22px;
   justify-content: center;
   margin-left: auto;
-  min-width: 20px;
-  padding: 0 6px;
+  // Un chiffre : un vrai rond. À partir de deux caractères (10, 99+), la pastille s'allonge.
+  min-width: 22px;
+  padding: 0;
+  width: 22px;
+
+  &.wide {
+    padding: 0 7px;
+    width: auto;
+  }
 }
 
 // Menu réduit : la pastille se pose sur l'angle de l'icône.
@@ -141,10 +149,15 @@ nav {
   height: 16px;
   margin: 0;
   min-width: 16px;
-  padding: 0 4px;
   position: absolute;
   right: 4px;
   top: 2px;
+  width: 16px;
+
+  &.wide {
+    padding: 0 4px;
+    width: auto;
+  }
 }
 
 .content {

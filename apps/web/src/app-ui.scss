@@ -254,6 +254,12 @@ h4 {
     text-align: right;
     white-space: nowrap;
   }
+
+  // Le bouton d'action (« Ouvrir ») est plus haut que le texte : sur une ligne qui en porte un, les cellules se centrent
+  // pour que le bouton reste sur la ligne du texte. Les autres tableaux gardent l'alignement en haut.
+  tbody tr:has(> .row-actions) > td {
+    vertical-align: middle;
+  }
 }
 
 .panel .table,

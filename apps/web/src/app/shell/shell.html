@@ -47,7 +47,7 @@
             <span>{{ item.label }}</span>
           }
           @if (badgeCount(item); as count) {
-            <span class="badge" role="status" [attr.aria-label]="badgeLabel(item, count)" [title]="badgeLabel(item, count)">{{ badgeText(count) }}</span>
+            <span class="badge" [class.wide]="badgeText(count).length > 1" role="status" [attr.aria-label]="badgeLabel(item, count)" [title]="badgeLabel(item, count)">{{ badgeText(count) }}</span>
           }
         </a>
       }
