@@ -23,7 +23,7 @@ import { AuthorizationService } from "../authz/authorization.service.js";
 import { CategoriesService, type CategoryView, type TemplateResult } from "./categories.service.js";
 import { OpeningSituationService, type OpeningSituationResult, type OpeningSituationView, type StartMode } from "./opening-situation.service.js";
 import { OperationsService, type BulkBookResult, type OperationResult } from "./operations.service.js";
-import { OverviewService, type OverviewView } from "./overview.service.js";
+import { OverviewService, type MenuBadges, type OverviewView } from "./overview.service.js";
 
 async function translate<T>(operation: () => Promise<T>): Promise<T> {
   try {
@@ -54,6 +54,12 @@ export class GuidedController {
   @Get("overview")
   overview(@Req() request: AuthenticatedRequest): Promise<OverviewView> {
     return this.overviewService.overview(request.auth!.user.id);
+  }
+
+  @Authenticated()
+  @Get("overview/badges")
+  badges(@Req() request: AuthenticatedRequest): Promise<MenuBadges> {
+    return this.overviewService.badges(request.auth!.user.id);
   }
 
   @RequirePermission("financial-accounts:view")

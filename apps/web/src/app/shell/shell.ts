@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -6,7 +6,8 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { BrandingService } from '../branding/branding.service';
-import { HELP_ITEM, NAVIGATION, SETTINGS_ITEM, START_ITEM } from '../navigation';
+import { HELP_ITEM, NAVIGATION, NavigationItem, SETTINGS_ITEM, START_ITEM } from '../navigation';
+import { MenuBadges } from './menu-badges.service';
 import { SetupStatus } from '../pages/setup-status.service';
 import { ReimbursementAvailability } from '../reimbursements/reimbursement-availability.service';
 import { DENSITIES, THEME_MODES, ThemeService, VIEW_MODES } from '../theme/theme.service';
@@ -22,6 +23,7 @@ export class Shell {
   private readonly router = inject(Router);
   private readonly setupStatus = inject(SetupStatus);
   private readonly reimbursements = inject(ReimbursementAvailability);
+  private readonly badges = inject(MenuBadges);
 
   protected readonly theme = inject(ThemeService);
   private readonly brandingService = inject(BrandingService);
@@ -39,6 +41,20 @@ export class Shell {
     if (this.setupStatus.incomplete() && this.auth.can(START_ITEM.permission)) items.splice(1, 0, START_ITEM);
     return items;
   });
+  /** Pastille d'une rubrique : 0 ou inconnu = aucune. Le serveur ne compte que ce que la personne a le droit de voir. */
+  protected badgeCount(item: NavigationItem): number {
+    return item.badge ? (this.badges.counts()?.[item.badge] ?? 0) : 0;
+  }
+
+  protected badgeText(count: number): string {
+    return count > 99 ? '99+' : String(count);
+  }
+
+  protected badgeLabel(item: NavigationItem, count: number): string {
+    const what = item.badge === 'members' ? (count === 1 ? 'cotisation en retard' : 'cotisations en retard') : item.badge === 'accounts' ? (count === 1 ? 'mouvement à traiter' : 'mouvements à traiter') : count === 1 ? 'demande à traiter' : 'demandes à traiter';
+    return `${count} ${what}`;
+  }
+
   protected readonly settings = computed(() => {
     this.auth.permissions();
     return this.auth.can(SETTINGS_ITEM.permission) ? SETTINGS_ITEM : null;
@@ -69,7 +85,11 @@ export class Shell {
       this.menuOpen.set(false);
       // Le menu des remboursements suit l'état du circuit : une personne qu'on désigne ou un circuit corrigé le fait apparaître.
       if (this.auth.can('reimbursements:create')) void this.reimbursements.refresh();
+      void this.badges.refresh();
     });
+    // Les pastilles se rafraîchissent aussi d'elles-mêmes : une demande peut arriver pendant que la page reste ouverte.
+    const timer = setInterval(() => void this.badges.refresh(), 60_000);
+    inject(DestroyRef).onDestroy(() => clearInterval(timer));
     // Un expert-comptable (lecture et export des états, sans saisie) ouvre l'affichage comptable d'office ; son choix prime ensuite.
     effect(() => {
       this.auth.permissions();
@@ -82,6 +102,7 @@ export class Shell {
     effect(() => {
       this.auth.permissions();
       if (this.auth.can('reimbursements:create')) void this.reimbursements.refresh();
+      void this.badges.refresh(true);
     });
   }
 
@@ -105,6 +126,7 @@ export class Shell {
     try {
       await this.auth.logout();
     } finally {
+      this.badges.clear();
       await this.router.navigateByUrl('/connexion');
     }
   }

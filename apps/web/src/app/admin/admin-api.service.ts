@@ -2289,6 +2289,11 @@ export class AdminApiService {
     return firstValueFrom(this.http.get<OverviewInfo>('/api/overview'));
   }
 
+  /** Nombre d'éléments qui attendent une action de la personne, par rubrique du menu. */
+  menuBadges(): Promise<{ reimbursements: number; accounts: number; members: number }> {
+    return firstValueFrom(this.http.get<{ reimbursements: number; accounts: number; members: number }>('/api/overview/badges'));
+  }
+
   listOperationCategories(all = false): Promise<OperationCategoryInfo[]> {
     return firstValueFrom(this.http.get<OperationCategoryInfo[]>(all ? '/api/operation-categories/all' : '/api/operation-categories'));
   }

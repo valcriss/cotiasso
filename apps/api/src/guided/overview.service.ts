@@ -56,6 +56,17 @@ export interface OverviewView {
   todo: TodoItem[];
 }
 
+/** Mouvements pas encore classés / classés mais pas enregistrés : mêmes critères pour « À faire » et pour la pastille du menu. */
+const UNCLASSIFIED_WHERE = { counterpartAccountId: null, transferOut: null, transferIn: null, matches: { none: { status: "ACTIVE" } } } as const;
+const TO_ACCOUNT_WHERE = { counterpartAccountId: { not: null }, transferOut: null, transferIn: null, matches: { none: { status: "ACTIVE" } } } as const;
+
+/** Nombre d'éléments qui attendent une action de la personne, par rubrique du menu (0 = rien à signaler ou pas de droit). */
+export interface MenuBadges {
+  reimbursements: number;
+  accounts: number;
+  members: number;
+}
+
 const day = (date: Date) => date.toISOString().slice(0, 10);
 const frenchDate = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
@@ -214,7 +225,7 @@ export class OverviewService {
       // Par compte : le lien de la tâche ouvre directement le compte qui en a le plus, déjà sur « À classer ».
       const perAccount = await this.prisma.transaction.groupBy({
         by: ["financialAccountId"],
-        where: { counterpartAccountId: null, transferOut: null, transferIn: null, matches: { none: { status: "ACTIVE" } } },
+        where: UNCLASSIFIED_WHERE,
         _count: { _all: true },
       });
       const unqualified = perAccount.reduce((total, row) => total + row._count._all, 0);
@@ -230,9 +241,7 @@ export class OverviewService {
           ...(busiest && { query: { compte: busiest.financialAccountId } }),
           actionLabel: "Classer",
         });
-      const toAccount = await this.prisma.transaction.count({
-        where: { counterpartAccountId: { not: null }, transferOut: null, transferIn: null, matches: { none: { status: "ACTIVE" } } },
-      });
+      const toAccount = await this.prisma.transaction.count({ where: TO_ACCOUNT_WHERE });
       if (toAccount > 0 && can("entries:create"))
         todo.push({
           code: "TO_ACCOUNT",
@@ -308,11 +317,40 @@ export class OverviewService {
     return { setup, cash, month, recent, todo };
   }
 
+  /** Demandes à accorder, à rembourser et à corriger pour cette personne : une seule source pour « À faire » et le menu. */
+  private async reimbursementCounts(userId: string): Promise<{ toApprove: number; toPay: number; toFix: number }> {
+    const pending = await this.workflows.awaiting(userId, "reimbursement");
+    return {
+      toApprove: pending.filter((p) => p.stepType === "APPROVAL").length,
+      toPay: pending.filter((p) => p.stepType === "PROCESSING").length,
+      toFix: await this.prisma.reimbursementRequest.count({ where: { requesterUserId: userId, status: "RETURNED" } }),
+    };
+  }
+
+  /**
+   * Pastilles du menu : ce qui attend une action de la personne. Mêmes critères que « À faire » (une pastille ne contredit jamais la vue
+   * d'ensemble), sans la charge du reste. Sans droit de lecture, le décompte vaut 0.
+   */
+  async badges(userId: string, now: Date = new Date()): Promise<MenuBadges> {
+    const permissions = await this.authz.permissionsFor(userId);
+    const can = (permission: Permission) => permissions.has(permission);
+    const r = await this.reimbursementCounts(userId);
+    let accounts = 0;
+    if (can("financial-accounts:view")) {
+      accounts = await this.prisma.transaction.count({ where: UNCLASSIFIED_WHERE });
+      if (can("entries:create")) accounts += await this.prisma.transaction.count({ where: TO_ACCOUNT_WHERE });
+    }
+    let members = 0;
+    if (can("members:view")) {
+      const campaign = await this.memberships.currentCampaign(day(now));
+      members = campaign ? (await this.payments.reminders(campaign.id)).items.length : 0;
+    }
+    return { reimbursements: r.toApprove + r.toPay + r.toFix, accounts, members };
+  }
+
   private async reimbursementTasks(userId: string): Promise<TodoItem[]> {
     const tasks: TodoItem[] = [];
-    const pending = await this.workflows.awaiting(userId, "reimbursement");
-    const toApprove = pending.filter((p) => p.stepType === "APPROVAL").length;
-    const toPay = pending.filter((p) => p.stepType === "PROCESSING").length;
+    const { toApprove, toPay, toFix } = await this.reimbursementCounts(userId);
     if (toApprove > 0)
       tasks.push({
         code: "REIMBURSEMENTS_TO_APPROVE",
@@ -335,7 +373,6 @@ export class OverviewService {
         query: { onglet: "a-traiter" },
         actionLabel: "Rembourser",
       });
-    const toFix = await this.prisma.reimbursementRequest.count({ where: { requesterUserId: userId, status: "RETURNED" } });
     if (toFix > 0)
       tasks.push({
         code: "REIMBURSEMENTS_TO_FIX",

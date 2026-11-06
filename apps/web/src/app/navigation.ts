@@ -14,6 +14,8 @@ export interface NavigationItem {
   expert?: boolean;
   /** Rubrique masquée tant que sa fonction n'est pas utilisable : les remboursements exigent un circuit de validation qui fonctionne. */
   needs?: 'reimbursements-ready';
+  /** Pastille : nombre d'éléments de cette rubrique qui attendent une action de la personne (calculé par le serveur, `MenuBadges`). */
+  badge?: 'reimbursements' | 'accounts' | 'members';
 }
 
 /**
@@ -22,11 +24,11 @@ export interface NavigationItem {
  */
 export const NAVIGATION: readonly NavigationItem[] = [
   { path: 'vue-d-ensemble', label: "Vue d'ensemble", icon: 'dashboard' },
-  { path: 'comptes', label: 'Comptes', icon: 'account_balance', permission: 'financial-accounts:view' },
+  { path: 'comptes', label: 'Comptes', icon: 'account_balance', permission: 'financial-accounts:view', badge: 'accounts' },
   { path: 'budget', label: 'Budget', icon: 'pie_chart', permission: 'reports:view', additionalPermission: 'entries:view' },
   { path: 'comptabilite', label: 'Comptabilité', icon: 'menu_book', permission: 'entries:view', expert: true },
-  { path: 'membres', label: 'Membres et cotisations', icon: 'groups', permission: 'members:view' },
-  { path: 'remboursements', label: 'Remboursements', icon: 'receipt_long', permission: 'reimbursements:create', needs: 'reimbursements-ready' },
+  { path: 'membres', label: 'Membres et cotisations', icon: 'groups', permission: 'members:view', badge: 'members' },
+  { path: 'remboursements', label: 'Remboursements', icon: 'receipt_long', permission: 'reimbursements:create', needs: 'reimbursements-ready', badge: 'reimbursements' },
   { path: 'projets', label: 'Projets', icon: 'folder_open', permission: 'projects:view' },
   { path: 'subventions', label: 'Subventions', icon: 'payments', permission: 'grants:view' },
   { path: 'rapports', label: 'Rapports', icon: 'bar_chart', permission: 'reports:view' },

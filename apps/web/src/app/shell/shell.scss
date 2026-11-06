@@ -116,6 +116,37 @@ nav {
   padding: 0;
 }
 
+// Pastille : nombre d'éléments qui attendent une action de la personne. Couleurs en jetons (le mode sombre suit).
+.item {
+  position: relative;
+}
+
+.badge {
+  align-items: center;
+  background: var(--mat-sys-primary);
+  border-radius: 999px;
+  color: var(--mat-sys-on-primary);
+  display: inline-flex;
+  font: var(--mat-sys-label-small);
+  font-weight: 600;
+  height: 20px;
+  justify-content: center;
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+}
+
+// Menu réduit : la pastille se pose sur l'angle de l'icône.
+.collapsed .badge {
+  height: 16px;
+  margin: 0;
+  min-width: 16px;
+  padding: 0 4px;
+  position: absolute;
+  right: 4px;
+  top: 2px;
+}
+
 .content {
   overflow: auto;
   padding: 28px 32px;

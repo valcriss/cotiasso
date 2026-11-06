@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { vi } from 'vitest';
+import { AdminApiService } from '../admin/admin-api.service';
 import { AuthService, type AuthUser } from '../auth/auth.service';
 import { BrandingService } from '../branding/branding.service';
 import { NAVIGATION } from '../navigation';
@@ -91,6 +92,46 @@ describe('Shell', () => {
     const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item')).map((a) => a.textContent ?? '');
     expect(labels.some((l) => l.includes('Remboursements'))).toBe(false);
     expect(labels.some((l) => l.includes('Projets'))).toBe(true);
+  });
+
+  describe('pastilles', () => {
+    const badgeOf = (fixture: { nativeElement: unknown }, label: string) =>
+      Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a.item'))
+        .find((a) => a.textContent?.includes(label))
+        ?.querySelector('.badge');
+
+    const withCounts = (counts: { reimbursements: number; accounts: number; members: number }) => {
+      TestBed.overrideProvider(AdminApiService, { useValue: { menuBadges: () => Promise.resolve(counts) } });
+    };
+
+    it("affiche le nombre d'éléments à traiter à côté de la rubrique, avec un libellé accessible", async () => {
+      withCounts({ reimbursements: 1, accounts: 3, members: 0 });
+      const fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(badgeOf(fixture, 'Remboursements')?.textContent?.trim()).toBe('1');
+      expect(badgeOf(fixture, 'Remboursements')?.getAttribute('aria-label')).toBe('1 demande à traiter');
+      expect(badgeOf(fixture, 'Comptes')?.textContent?.trim()).toBe('3');
+      expect(badgeOf(fixture, 'Comptes')?.getAttribute('aria-label')).toBe('3 mouvements à traiter');
+    });
+
+    it("n'affiche aucune pastille à zéro, et « 99+ » au-delà de 99", async () => {
+      withCounts({ reimbursements: 0, accounts: 150, members: 0 });
+      const fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(badgeOf(fixture, 'Membres')).toBeNull();
+      expect(badgeOf(fixture, 'Remboursements')).toBeNull();
+      expect(badgeOf(fixture, 'Comptes')?.textContent?.trim()).toBe('99+');
+    });
+
+    it("n'affiche rien, sans erreur, quand le serveur ne répond pas", async () => {
+      TestBed.overrideProvider(AdminApiService, { useValue: { menuBadges: () => Promise.reject(new Error('hors ligne')) } });
+      const fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect((fixture.nativeElement as HTMLElement).querySelector('.badge')).toBeNull();
+    });
   });
 
   it("affiche le nom de l'association défini par la marque blanche", async () => {

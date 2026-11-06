@@ -444,6 +444,20 @@ describe("Demandes de remboursement (ADR 0035, base vierge)", () => {
       expect(await codes(tess)).toContain("REIMBURSEMENTS_TO_PAY");
     });
 
+    it("compte dans les pastilles du menu les demandes à décider, à rembourser ou à corriger, comme « À faire »", async () => {
+      const badge = async (who: Session) => (await call("GET", "/overview/badges", who)).json() as { reimbursements: number; accounts: number; members: number };
+      const before = { claire: (await badge(claire)).reimbursements, lea: (await badge(lea)).reimbursements, tess: (await badge(tess)).reimbursements };
+      const waiting = await submitted(lea);
+      expect((await badge(claire)).reimbursements).toBe(before.claire + 1);
+      expect((await badge(lea)).reimbursements).toBe(before.lea);
+      await call("POST", `/reimbursements/${waiting.id}/decision`, claire, { type: "RETURN", message: "Merci d'ajouter la date" });
+      expect((await badge(claire)).reimbursements).toBe(before.claire);
+      expect((await badge(lea)).reimbursements).toBe(before.lea + 1);
+      const other = await submitted(lea);
+      await call("POST", `/reimbursements/${other.id}/decision`, claire, { type: "APPROVE" });
+      expect((await badge(tess)).reimbursements).toBe(before.tess + 1);
+    });
+
     it("protège la demande en SQL : figée une fois déposée, jamais supprimée, remboursée seulement avec son paiement", async () => {
       const { id } = await submitted(lea, { amount: "7.00" });
       expect(await sqlError(`UPDATE "ReimbursementRequest" SET "amount" = 700 WHERE "id" = '${id}'`)).toContain("ne se modifie pas");

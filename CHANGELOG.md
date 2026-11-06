@@ -6,6 +6,12 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
+## Non publié
+
+### Nouveautés
+
+- Le menu latéral affiche une pastille avec le nombre d'éléments qui attendent une action de votre part : demandes de remboursement à accorder, à rembourser ou à corriger, mouvements à classer ou à enregistrer dans les comptes, cotisations en retard. Elle se met à jour toute seule et disparaît quand il n'y a plus rien à faire.
+
 ## 1.0.14 — 2026-11-06
 
 ### Nouveautés
