@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PASSKEY_MODES } from "../passkeys/policy.js";
 import { MIN_TEXT_CONTRAST, contrastRatio } from "./contrast.js";
 
 const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Couleur attendue au format #RRGGBB.").transform((value) => value.toLowerCase());
@@ -58,6 +59,22 @@ const startSchema = z
  */
 const logoSchema = z.strictObject({ sha256: z.string().regex(/^[0-9a-f]{64}$/).nullable(), showName: z.boolean() });
 
+/**
+ * Sécurité des connexions (ADR 0036) : usage des clés d'accès et connexion sans saisir l'adresse email (mode complet seulement).
+ * Écrit par le service des clés d'accès, qui contrôle d'abord que le domaine de l'application le permet.
+ */
+export const securitySchema = z
+  .strictObject({
+    passkeyMode: z.enum(PASSKEY_MODES),
+    passkeyUsernameless: z.boolean(),
+  })
+  .refine((value) => !value.passkeyUsernameless || value.passkeyMode === "FULL", {
+    message: "La connexion sans saisir l'adresse email n'existe qu'avec le mode « Connexion complète ».",
+    path: ["passkeyUsernameless"],
+  });
+
+export type SecuritySettings = z.infer<typeof securitySchema>;
+
 export type Identity = z.infer<typeof identitySchema>;
 /** Adhésion effective (ADR 0004, 0023) : mode proposé aux nouvelles campagnes, figé sur chaque campagne à sa création. */
 const membershipSchema = z.object({ effectiveMode: z.enum(["PAYMENT", "VALIDATION", "START_DATE"]) }).strict();
@@ -88,6 +105,10 @@ export const SETTINGS_SECTIONS = {
     schema: logoSchema,
     defaults: { sha256: null, showName: true } as { sha256: string | null; showName: boolean },
   },
+  security: {
+    schema: securitySchema,
+    defaults: { passkeyMode: "DISABLED", passkeyUsernameless: false } satisfies SecuritySettings,
+  },
   branding: {
     schema: brandingSchema,
     defaults: { appName: "cotiasso", sidebarBackground: "#eaf2fd", sidebarText: "#0b2a55", accentColor: DEFAULT_ACCENT } satisfies Branding,
@@ -97,7 +118,7 @@ export const SETTINGS_SECTIONS = {
 export type SettingsSection = keyof typeof SETTINGS_SECTIONS;
 
 /** Rubriques qui ne passent pas par l'API générique des paramètres : leurs droits propres sont portés par leur module. */
-export const MODULE_OWNED_SECTIONS: readonly SettingsSection[] = ["accounting", "start", "logo"];
+export const MODULE_OWNED_SECTIONS: readonly SettingsSection[] = ["accounting", "start", "logo", "security"];
 
 export function isSettingsSection(value: string): value is SettingsSection {
   return Object.hasOwn(SETTINGS_SECTIONS, value) && !MODULE_OWNED_SECTIONS.includes(value as SettingsSection);

@@ -3,6 +3,7 @@ import { AuditModule } from "../audit/audit.module.js";
 import { AuthzModule } from "../authz/authz.module.js";
 import { MailModule } from "../mail/mail.module.js";
 import { PrismaModule } from "../prisma/prisma.module.js";
+import { SettingsModule } from "../settings/settings.module.js";
 import { AccountService } from "./account.service.js";
 import { AccountsController } from "./accounts.controller.js";
 import { AuthController } from "./auth.controller.js";
@@ -10,6 +11,7 @@ import { AuthGuard } from "./auth.guard.js";
 import { LoginThrottleService } from "./login-throttle.service.js";
 import { MfaController } from "./mfa.controller.js";
 import { MfaService } from "./mfa.service.js";
+import { PasskeyPolicyService } from "./passkey-policy.service.js";
 import { PasswordTokenService } from "./password-token.service.js";
 import { SessionPresenter } from "./session-presenter.js";
 import { SessionService } from "./session.service.js";
@@ -17,7 +19,7 @@ import { UsersAdminService } from "./users-admin.service.js";
 import { UsersService } from "./users.service.js";
 
 @Module({
-  imports: [PrismaModule, AuditModule, AuthzModule, MailModule],
+  imports: [PrismaModule, AuditModule, AuthzModule, MailModule, SettingsModule],
   controllers: [AuthController, AccountsController, MfaController],
   providers: [
     UsersService,
@@ -28,6 +30,7 @@ import { UsersService } from "./users.service.js";
     UsersAdminService,
     AccountService,
     MfaService,
+    PasskeyPolicyService,
     SessionPresenter,
   ],
   exports: [
@@ -38,6 +41,7 @@ import { UsersService } from "./users.service.js";
     PasswordTokenService,
     UsersAdminService,
     MfaService,
+    PasskeyPolicyService,
     SessionPresenter,
   ],
 })

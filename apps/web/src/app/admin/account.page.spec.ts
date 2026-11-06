@@ -6,6 +6,9 @@ import { provideRouter } from '@angular/router';
 import { mockAuth } from '../testing/auth-mock';
 import { AccountPage } from './account.page';
 
+/** Le panneau des clés d'accès lit son état à l'ouverture : on répond « désactivées », sans clé. */
+const NO_PASSKEYS = { mode: 'DISABLED', usernameless: false, canRegister: false, items: [] };
+
 const CURRENT = 'une phrase de passe correcte';
 const NEXT = 'un nouveau mot de passe valide';
 
@@ -39,6 +42,8 @@ describe('AccountPage', () => {
     controller = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(AccountPage);
     root = fixture.nativeElement as HTMLElement;
+    fixture.detectChanges();
+    controller.expectOne('/api/auth/passkeys').flush(NO_PASSKEYS);
     await settle();
   });
 
@@ -96,6 +101,8 @@ describe('AccountPage : vérification en deux étapes', () => {
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), mockAuth([], mfa, extra)],
     }).compileComponents();
     const fixture = TestBed.createComponent(AccountPage);
+    fixture.detectChanges();
+    TestBed.inject(HttpTestingController).expectOne('/api/auth/passkeys').flush(NO_PASSKEYS);
     await settle(fixture);
     return { fixture, root: fixture.nativeElement as HTMLElement };
   };

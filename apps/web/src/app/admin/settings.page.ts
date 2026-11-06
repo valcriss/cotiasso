@@ -17,6 +17,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { path: 'association', icon: 'business', label: 'Association', permission: 'settings.association:view' },
   { path: 'comptabilite', icon: 'menu_book', label: 'Comptabilité', permission: 'entries:view' },
   { path: 'modules', icon: 'extension', label: 'Modules', permission: 'settings.association:view' },
+  { path: 'securite', icon: 'shield', label: 'Sécurité', permission: 'settings.association:view' },
   { path: 'utilisateurs', icon: 'group', label: 'Utilisateurs', permission: 'users:view' },
   { path: 'roles', icon: 'admin_panel_settings', label: 'Rôles', permission: 'users:view' },
   { path: 'circuits', icon: 'account_tree', label: 'Circuits de validation', permission: 'workflows:view' },

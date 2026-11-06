@@ -243,6 +243,13 @@ export const routes: Routes = [
             loadComponent: () => import('./admin/modules.page').then((m) => m.ModulesPage),
           },
           {
+            path: 'securite',
+            title: 'Sécurité',
+            canActivate: [permissionGuard],
+            data: { permission: 'settings.association:view' },
+            loadComponent: () => import('./admin/security.page').then((m) => m.SecurityPage),
+          },
+          {
             path: 'utilisateurs',
             title: 'Utilisateurs',
             canActivate: [permissionGuard],

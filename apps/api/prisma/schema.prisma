@@ -46,6 +46,7 @@ model User {
   passwordTokens        PasswordToken[]
   mfaCredential         MfaCredential?
   mfaRecoveryCodes      MfaRecoveryCode[]
+  passkeys              PasskeyCredential[]
   managedProjects       Project[]            @relation("ProjectManager")
   projectParticipations ProjectParticipant[]
 }
@@ -1492,4 +1493,49 @@ model NotificationOutbox {
   lastError       String?
 
   @@index([status, nextAttemptAt])
+}
+
+// --- Clés d'accès WebAuthn (ADR 0036) ---
+
+enum WebauthnPurpose {
+  REGISTRATION
+  AUTHENTICATION
+}
+
+// Clé d'accès d'un utilisateur : seulement la clé publique, aucun secret. Jamais supprimée (déclencheur SQL) : on la révoque.
+// `rpId` est le domaine de l'enregistrement : une clé d'un autre domaine que celui d'aujourd'hui n'est plus utilisable.
+model PasskeyCredential {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  user         User      @relation(fields: [userId], references: [id])
+  // Identifiant de la clé, en base64url (fourni par l'appareil).
+  credentialId String    @unique
+  publicKey    Bytes
+  // Compteur de signatures annoncé par l'appareil (souvent 0 pour les clés synchronisées).
+  counter      BigInt    @default(0)
+  transports   String[]
+  deviceType   String
+  backedUp     Boolean   @default(false)
+  label        String
+  rpId         String
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  lastUsedAt   DateTime? @db.Timestamptz(3)
+  revokedAt    DateTime? @db.Timestamptz(3)
+
+  @@index([userId])
+}
+
+// Défi WebAuthn à usage unique et à courte durée de vie (consommé par une mise à jour conditionnelle : pas de rejeu).
+model WebauthnChallenge {
+  id        String          @id @default(uuid()) @db.Uuid
+  challenge String
+  purpose   WebauthnPurpose
+  // Utilisateur concerné quand il est connu (inscription, second facteur, connexion avec email) ; session pour le second facteur.
+  userId    String?         @db.Uuid
+  sessionId String?         @db.Uuid
+  createdAt DateTime        @default(now()) @db.Timestamptz(3)
+  expiresAt DateTime        @db.Timestamptz(3)
+  usedAt    DateTime?       @db.Timestamptz(3)
+
+  @@index([expiresAt])
 }

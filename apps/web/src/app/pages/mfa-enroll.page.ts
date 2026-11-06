@@ -1,13 +1,16 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { Router, RouterLink } from '@angular/router';
 import QRCode from 'qrcode';
 import { AuthService, type EnrollmentStart } from '../auth/auth.service';
 import { describeHttpError, type FormError } from '../auth/error-messages';
+import { describePasskeyError } from '../auth/passkey-errors';
+import { PasskeyService, type PasskeyMode } from '../auth/passkey.service';
 
 /** Regroupe un secret en blocs de 4 caractères pour la saisie manuelle. */
 export function groupSecret(secret: string): string {
@@ -25,7 +28,7 @@ export function recoveryCodesText(codes: string[]): string {
  */
 @Component({
   selector: 'app-mfa-enroll-page',
-  imports: [ReactiveFormsModule, RouterLink, MatCardModule, MatFormFieldModule, MatInputModule, MatButtonModule],
+  imports: [ReactiveFormsModule, RouterLink, MatCardModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatIconModule],
   template: `
     <main class="page">
       <mat-card appearance="outlined" class="card wide">
@@ -55,6 +58,22 @@ export function recoveryCodesText(codes: string[]): string {
           } @else if (enrollment(); as start) {
             @if (required()) {
               <p class="intro">Votre rôle exige la vérification en deux étapes avant de continuer.</p>
+            }
+            @if (passkeyOffered()) {
+              <div class="passkey-choice">
+                <p>
+                  <strong>Plus simple :</strong> utilisez une clé d’accès. Vous déverrouillez votre appareil (empreinte, visage ou code), sans application
+                  ni code à recopier.
+                </p>
+                <button mat-flat-button type="button" [disabled]="submitting()" (click)="useKey()">
+                  <mat-icon fontSet="material-icons-outlined" aria-hidden="true">vpn_key</mat-icon>
+                  Utiliser une clé d’accès
+                </button>
+                @if (keyError(); as failure) {
+                  <p class="error" role="alert">{{ failure.message }}</p>
+                }
+                <p class="hint">Vous préférez une application d’authentification ? Suivez les étapes ci-dessous.</p>
+              </div>
             }
             <p class="intro">
               Les comptes d'une association contiennent de l'argent : en plus de votre mot de passe, on vous demandera un petit code à 6 chiffres
@@ -114,12 +133,39 @@ export class MfaEnrollPage {
   protected readonly loadError = signal<FormError | null>(null);
   protected readonly error = signal<FormError | null>(null);
   protected readonly submitting = signal(false);
+  protected readonly keyError = signal<FormError | null>(null);
+  private readonly passkeys = inject(PasskeyService);
+  private readonly passkeyMode = signal<PasskeyMode>('DISABLED');
+  /**
+   * Proposé pendant l'inscription forcée (la session vient d'être ouverte avec le mot de passe, il n'est pas redemandé).
+   * Un ajout volontaire se fait depuis « Mon compte », où le mot de passe est redemandé.
+   */
+  protected readonly passkeyOffered = computed(
+    () => this.passkeyMode() !== 'DISABLED' && this.passkeys.supported() && this.auth.mfa().state === 'ENROLLMENT_REQUIRED',
+  );
   protected readonly form = inject(FormBuilder).nonNullable.group({
     code: ['', [Validators.required, Validators.pattern(/^\s*\d{3}\s?\d{3}\s*$/)]],
   });
 
   constructor() {
     void this.start();
+    void this.passkeys.methods().then((methods) => this.passkeyMode.set(methods.mode));
+  }
+
+  protected async useKey(): Promise<void> {
+    this.keyError.set(null);
+    this.submitting.set(true);
+    try {
+      const result = await this.passkeys.register('Ma clé d’accès');
+      this.enrollment.set(null);
+      // Pas de nouveaux codes de secours si la personne en avait déjà : on peut continuer directement.
+      if (result.recoveryCodes) this.recoveryCodes.set(result.recoveryCodes);
+      else await this.router.navigateByUrl('/');
+    } catch (error) {
+      this.keyError.set(describePasskeyError(error, 'Activation impossible. Réessayez, ou utilisez une application d’authentification.'));
+    } finally {
+      this.submitting.set(false);
+    }
   }
 
   protected async confirm(): Promise<void> {

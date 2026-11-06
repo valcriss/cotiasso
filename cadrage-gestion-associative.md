@@ -652,7 +652,7 @@ Une installation ne contient qu'une association : aucune infrastructure de clois
 ## 23. Sécurité et données personnelles
 
 - Comptes nominatifs, désactivation et récupération de compte sécurisée.
-- Authentification solide ; proposition de MFA pour comptes sensibles.
+- Authentification solide ; proposition de MFA pour comptes sensibles. Clés d'accès (WebAuthn) facultatives comme second facteur ou pour la connexion complète, au choix de l'association, désactivées par défaut ([ADR 0036](docs/decisions/0036-cles-d-acces-webauthn.md)) : *Retenu*.
 - Sessions protégées, protection CSRF selon le mécanisme retenu, limitation des tentatives et validation des entrées.
 - HTTPS au niveau du reverse proxy.
 - Secrets hors dépôt, logs et exports ordinaires.

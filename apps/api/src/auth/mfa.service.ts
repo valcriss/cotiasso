@@ -10,6 +10,7 @@ import {
   normalizeRecoveryCode,
 } from "../mfa/recovery-codes.js";
 import { SecretCipher } from "../mfa/secret-cipher.js";
+import type { Prisma } from "../generated/prisma/client.js";
 import { generateTotpSecret, otpauthUri, verifyTotp } from "../mfa/totp.js";
 import {
   InvalidMfaCodeError,
@@ -19,6 +20,7 @@ import {
   UserNotFoundError,
   WrongCurrentPasswordError,
 } from "./errors.js";
+import { PasskeyPolicyService } from "./passkey-policy.service.js";
 import { UsersService } from "./users.service.js";
 
 /** État du second facteur pour une session : détermine ce qu'elle a le droit de faire. */
@@ -30,6 +32,10 @@ export interface MfaStatus {
   enabled: boolean;
   /** Au moins un de ses rôles actifs l'exige. */
   required: boolean;
+  /** Un code TOTP est actif. `enabled` vaut `totp || passkey`. */
+  totp: boolean;
+  /** Au moins une clé d'accès est utilisable (réglage de l'association, domaine actuel). */
+  passkey: boolean;
 }
 
 export interface EnrollmentStart {
@@ -54,13 +60,14 @@ export class MfaService {
     @Inject(ENV) private readonly env: AppEnv,
     @Inject(UsersService) private readonly users: UsersService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(PasskeyPolicyService) private readonly passkeys: PasskeyPolicyService,
   ) {
     this.cipher = new SecretCipher(env.mfaKey);
   }
 
   /** Calculé à chaque requête : un rôle devenu exigeant s'applique immédiatement aux sessions en cours. */
   async statusFor(userId: string, sessionMfaVerifiedAt: Date | null, now: Date = new Date()): Promise<MfaStatus> {
-    const [credential, requiring] = await Promise.all([
+    const [credential, requiring, passkeyCount] = await Promise.all([
       this.prisma.mfaCredential.findUnique({ where: { userId }, select: { enabledAt: true } }),
       this.prisma.roleAssignment.count({
         where: {
@@ -71,12 +78,16 @@ export class MfaService {
           role: { requiresMfa: true },
         },
       }),
+      this.passkeys.usableCount(userId),
     ]);
-    const enabled = credential?.enabledAt != null;
+    const totp = credential?.enabledAt != null;
+    const passkey = passkeyCount > 0;
+    // Un second facteur existe dès qu'un code TOTP ou une clé d'accès utilisable est enregistré (ADR 0036).
+    const enabled = totp || passkey;
     const required = requiring > 0;
     const state: MfaState =
       enabled && !sessionMfaVerifiedAt ? "VERIFICATION_REQUIRED" : !enabled && required ? "ENROLLMENT_REQUIRED" : "OK";
-    return { state, enabled, required };
+    return { state, enabled, required, totp, passkey };
   }
 
   /** Génère un secret non encore actif. Reprendre l'inscription remplace le secret précédent. */
@@ -122,9 +133,16 @@ export class MfaService {
   /** Vérifie le second facteur (code TOTP ou code de secours) et marque la session comme vérifiée. */
   async verify(userId: string, sessionId: string, code: string, now: Date = new Date()): Promise<VerificationResult> {
     const credential = await this.prisma.mfaCredential.findUnique({ where: { userId } });
-    if (!credential?.enabledAt) throw new InvalidMfaCodeError();
+    const totpEnabled = credential?.enabledAt != null;
+    // Une personne qui n'a qu'une clé d'accès peut tout de même utiliser un code de secours (ADR 0036).
+    if (!totpEnabled && (await this.passkeys.usableCount(userId)) === 0) throw new InvalidMfaCodeError();
 
-    const method = (await this.acceptTotp(userId, credential, code, now)) ? "totp" : (await this.acceptRecovery(userId, code, now)) ? "recovery" : null;
+    const method =
+      totpEnabled && credential && (await this.acceptTotp(userId, credential, code, now))
+        ? "totp"
+        : (await this.acceptRecovery(userId, code, now))
+          ? "recovery"
+          : null;
     if (!method) throw new InvalidMfaCodeError();
 
     await this.prisma.session.update({ where: { id: sessionId }, data: { mfaVerifiedAt: now } });
@@ -142,8 +160,9 @@ export class MfaService {
   async disable(userId: string, password: string): Promise<void> {
     await this.assertPassword(userId, password);
     const status = await this.statusFor(userId, new Date());
-    if (status.required) throw new MfaRequiredByRoleError();
-    await this.removeCredential(userId);
+    // Un rôle qui l'exige n'empêche pas de retirer le code si une clé d'accès utilisable reste comme second facteur.
+    if (status.required && !status.passkey) throw new MfaRequiredByRoleError();
+    await this.removeTotp(userId);
     await this.audit.record({ action: "auth.mfa.disabled", objectType: "User", objectId: userId, actorId: userId });
   }
 
@@ -151,7 +170,7 @@ export class MfaService {
   async regenerateRecoveryCodes(userId: string, password: string): Promise<string[]> {
     await this.assertPassword(userId, password);
     const credential = await this.prisma.mfaCredential.findUnique({ where: { userId } });
-    if (!credential?.enabledAt) throw new MfaNotPendingError();
+    if (!credential?.enabledAt && (await this.passkeys.usableCount(userId)) === 0) throw new MfaNotPendingError();
 
     const codes = generateRecoveryCodes();
     await this.prisma.$transaction([
@@ -163,14 +182,20 @@ export class MfaService {
   }
 
   /**
-   * Réinitialisation par un administrateur (appareil perdu) : supprime le second facteur et déconnecte l'utilisateur.
+   * Réinitialisation par un administrateur (appareil perdu) : supprime le second facteur (code TOTP, codes de secours, clés d'accès
+   * révoquées) et déconnecte l'utilisateur.
    * Si un rôle l'exige, il devra se réinscrire à la prochaine connexion.
    */
   async adminReset(userId: string, actorId?: string, details: { via?: string } = {}): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
     if (!user) throw new UserNotFoundError();
-    await this.removeCredential(userId);
-    await this.prisma.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.passkeyCredential.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now } }),
+      this.prisma.mfaRecoveryCode.deleteMany({ where: { userId } }),
+      this.prisma.mfaCredential.deleteMany({ where: { userId } }),
+    ]);
+    await this.prisma.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now } });
     await this.audit.record({ action: "user.mfa.reset", objectType: "User", objectId: userId, ...(actorId !== undefined && { actorId }), details });
   }
 
@@ -184,11 +209,24 @@ export class MfaService {
     if (!(await this.users.verifyCredentials(user.email, password))) throw new WrongCurrentPasswordError();
   }
 
-  private async removeCredential(userId: string): Promise<void> {
+  /** Retire son code TOTP ; les codes de secours restent tant qu'une clé d'accès les rend encore utiles. */
+  private async removeTotp(userId: string): Promise<void> {
+    const remaining = await this.prisma.passkeyCredential.count({ where: { userId, revokedAt: null } });
     await this.prisma.$transaction([
-      this.prisma.mfaRecoveryCode.deleteMany({ where: { userId } }),
+      ...(remaining === 0 ? [this.prisma.mfaRecoveryCode.deleteMany({ where: { userId } })] : []),
       this.prisma.mfaCredential.deleteMany({ where: { userId } }),
     ]);
+  }
+
+  /**
+   * Première clé d'accès d'un compte sans aucun code de secours : en génère (renvoyés une seule fois) pour qu'une personne qui perd
+   * son appareil ne soit pas bloquée. Dans la transaction de l'appelant ; renvoie null si des codes existent déjà.
+   */
+  async ensureRecoveryCodes(tx: Prisma.TransactionClient, userId: string): Promise<string[] | null> {
+    if ((await tx.mfaRecoveryCode.count({ where: { userId } })) > 0) return null;
+    const codes = generateRecoveryCodes();
+    await tx.mfaRecoveryCode.createMany({ data: codes.map((value) => ({ userId, codeHash: this.hash(value) })) });
+    return codes;
   }
 
   /** Accepte un code TOTP jamais utilisé ; la mise à jour conditionnelle empêche deux requêtes de le rejouer. */

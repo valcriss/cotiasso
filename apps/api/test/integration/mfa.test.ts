@@ -105,7 +105,7 @@ describe("Authentification à deux facteurs (base vierge)", () => {
     expect(admin.mfaState).toBe("ENROLLMENT_REQUIRED");
     const me = (await call("GET", "/auth/me", admin)).json();
     expect(me.permissions).toEqual([]);
-    expect(me.mfa).toEqual({ state: "ENROLLMENT_REQUIRED", enabled: false, required: true });
+    expect(me.mfa).toEqual({ state: "ENROLLMENT_REQUIRED", enabled: false, required: true, totp: false, passkey: false });
 
     const denied = await call("GET", "/roles", admin);
     expect(denied.statusCode).toBe(403);
@@ -136,7 +136,7 @@ describe("Authentification à deux facteurs (base vierge)", () => {
     for (const code of codes) expect(hashes).not.toContain(code.replace("-", ""));
 
     const me = (await call("GET", "/auth/me", admin)).json();
-    expect(me.mfa).toEqual({ state: "OK", enabled: true, required: true });
+    expect(me.mfa).toEqual({ state: "OK", enabled: true, required: true, totp: true, passkey: false });
     expect(me.permissions).toContain("users:admin");
     expect((await call("GET", "/roles", admin)).statusCode).toBe(200);
 

@@ -47,6 +47,11 @@ export interface AppEnv {
   updateCheckRepository: string | null;
   /** Envoi d'emails ; null si non configuré (les liens restent alors transmis à la main par l'administrateur). */
   smtp: SmtpSettings | null;
+  /**
+   * Adresse publique de l'application (PUBLIC_URL), sans « / » final, lue même sans SMTP : les clés d'accès (ADR 0036) en tirent
+   * leur domaine. Non validée ici (une valeur erronée ne doit pas empêcher de démarrer) : `passkeyAvailability` la contrôle.
+   */
+  publicUrl: string | null;
 }
 
 function readPositiveInteger(source: NodeJS.ProcessEnv, key: string, fallback: number): number {
@@ -134,5 +139,6 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     appVersion: source.COTIASSO_VERSION || "développement",
     updateCheckRepository: readUpdateCheckRepository(source),
     smtp: readSmtp(source),
+    publicUrl: source.PUBLIC_URL?.trim().replace(/\/+$/, "") || null,
   };
 }

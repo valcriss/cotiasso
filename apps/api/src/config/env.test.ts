@@ -21,7 +21,13 @@ describe("readEnv", () => {
       appVersion: "développement",
       updateCheckRepository: "valcriss/cotiasso",
       smtp: null,
+      publicUrl: null,
     });
+  });
+
+  it("lit PUBLIC_URL même sans SMTP (les clés d'accès en tirent leur domaine), sans « / » final", () => {
+    expect(readEnv({ ...base, PUBLIC_URL: " https://compta.asso.fr// " }).publicUrl).toBe("https://compta.asso.fr");
+    expect(readEnv({ ...base, PUBLIC_URL: "" }).publicUrl).toBeNull();
   });
 
   describe("SMTP", () => {

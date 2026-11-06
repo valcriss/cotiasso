@@ -6,6 +6,17 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
+## Non publié
+
+### Nouveautés
+
+- Clés d'accès : on peut se connecter, ou confirmer son identité après le mot de passe, en déverrouillant son téléphone ou son ordinateur (empreinte, visage ou code) ou avec une clé de sécurité, sur iPhone, Android et ordinateur. C'est **désactivé par défaut** et facultatif pour chacun : un administrateur choisit dans Paramètres › Sécurité entre « Désactivées », « À la place du code » et « Connexion complète » (avec ou sans saisie de l'adresse email). Chacun gère ses clés dans Mon compte (ajouter, renommer, retirer ; le mot de passe est redemandé). Le mot de passe, le code et les codes de secours restent disponibles.
+
+### À savoir avant de mettre à jour
+
+- Rien ne change tant que les clés d'accès ne sont pas activées. Pour les activer, `PUBLIC_URL` doit contenir l'adresse publique **en https** (par exemple `https://compta.asso.fr`) : une clé d'accès est liée à ce nom de domaine, et **changer de domaine plus tard rend toutes les clés inutilisables** (le mot de passe reste possible). Voir `docs/exploitation.md`.
+- Cette version ajoute une migration (`add_passkeys`) et une dépendance (`@simplewebauthn`). Les clés d'accès sont des clés publiques : aucun secret en plus à sauvegarder.
+
 ## 1.0.12 — 2026-11-05
 
 ### Nouveautés

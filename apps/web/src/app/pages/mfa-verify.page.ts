@@ -1,17 +1,20 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError, type FormError } from '../auth/error-messages';
+import { describePasskeyError } from '../auth/passkey-errors';
+import { PasskeyService } from '../auth/passkey.service';
 
 /** Second facteur d'une session ouverte avec le mot de passe : code de l'application, ou code de secours. */
 @Component({
   selector: 'app-mfa-verify-page',
-  imports: [ReactiveFormsModule, MatCardModule, MatFormFieldModule, MatInputModule, MatButtonModule],
+  imports: [ReactiveFormsModule, MatCardModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatIconModule],
   template: `
     <main class="page">
       <mat-card appearance="outlined" class="card">
@@ -19,6 +22,15 @@ import { describeHttpError, type FormError } from '../auth/error-messages';
           <h1>Vérification en deux étapes</h1>
         </mat-card-header>
         <mat-card-content>
+          @if (passkeyOffered() && !recovery()) {
+            <div class="passkey-choice">
+              <p>Confirmez que c’est bien vous avec votre clé d’accès : déverrouillez votre appareil (empreinte, visage ou code), ou utilisez votre clé de sécurité.</p>
+              <button mat-flat-button type="button" [disabled]="submitting()" (click)="verifyWithKey()">
+                <mat-icon fontSet="material-icons-outlined" aria-hidden="true">vpn_key</mat-icon>
+                Utiliser ma clé d’accès
+              </button>
+            </div>
+          }
           <p class="intro">
             @if (recovery()) {
               Saisissez l'un de vos codes de secours. Chaque code ne sert qu'une fois.
@@ -62,6 +74,9 @@ export class MfaVerifyPage {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
+  private readonly passkeys = inject(PasskeyService);
+  /** Une clé d'accès utilisable est enregistrée (le serveur le dit dans l'état de la session) et le navigateur sait l'utiliser. */
+  protected readonly passkeyOffered = computed(() => this.auth.mfa().passkey === true && this.passkeys.supported());
   protected readonly form = inject(FormBuilder).nonNullable.group({ code: ['', [Validators.required]] });
   protected readonly recovery = signal(false);
   protected readonly submitting = signal(false);
@@ -71,6 +86,19 @@ export class MfaVerifyPage {
     this.recovery.update((value) => !value);
     this.error.set(null);
     this.form.reset({ code: '' });
+  }
+
+  protected async verifyWithKey(): Promise<void> {
+    this.error.set(null);
+    this.submitting.set(true);
+    try {
+      await this.passkeys.verify();
+      await this.router.navigateByUrl('/');
+    } catch (error) {
+      this.error.set(describePasskeyError(error, 'Vérification impossible. Réessayez, ou saisissez un code.'));
+    } finally {
+      this.submitting.set(false);
+    }
   }
 
   protected async submit(): Promise<void> {

@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { vi } from 'vitest';
+import { PasskeyService } from '../auth/passkey.service';
 import { LoginPage } from './login.page';
 
 const session = {
@@ -39,6 +40,7 @@ describe('LoginPage', () => {
     controller = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(LoginPage);
     root = fixture.nativeElement as HTMLElement;
+    controller.expectOne('/api/auth/methods').flush({ passkeys: { mode: 'DISABLED', usernameless: false } });
     await fixture.whenStable();
   });
 
@@ -89,5 +91,88 @@ describe('LoginPage', () => {
     await done;
     await fixture.whenStable();
     expect(alert()).toContain('injoignable');
+  });
+});
+
+describe('LoginPage : clé d’accès', () => {
+  const fake = (methods: { mode: string; usernameless: boolean }, supported = true) => ({
+    supported: () => supported,
+    methods: vi.fn(async () => methods),
+    login: vi.fn(async () => {}),
+  });
+
+  const render = async (service: ReturnType<typeof fake>) => {
+    await TestBed.configureTestingModule({
+      imports: [LoginPage],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), { provide: PasskeyService, useValue: service }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(LoginPage);
+    const root = fixture.nativeElement as HTMLElement;
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const button = () => Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.includes('clé d’accès'));
+    const typeEmail = (value: string) => {
+      const input = root.querySelector<HTMLInputElement>('input')!;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    };
+    return { fixture, root, button, typeEmail };
+  };
+
+  it('ne propose rien tant que l’association ne permet pas la connexion complète', async () => {
+    for (const mode of ['DISABLED', 'SECOND_FACTOR']) {
+      TestBed.resetTestingModule();
+      const { button } = await render(fake({ mode, usernameless: false }));
+      expect(button()).toBeUndefined();
+    }
+  });
+
+  it('ne propose rien si le navigateur ne gère pas les clés d’accès', async () => {
+    const { button } = await render(fake({ mode: 'FULL', usernameless: false }, false));
+    expect(button()).toBeUndefined();
+  });
+
+  it('demande d’abord l’adresse email quand l’association l’exige, sans rien envoyer', async () => {
+    const service = fake({ mode: 'FULL', usernameless: false });
+    const { fixture, root, button } = await render(service);
+    expect(root.textContent).toContain('Se connecter avec une clé d’accès');
+    expect(root.textContent).toContain('Saisissez d’abord votre adresse email');
+    button()!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(service.login).not.toHaveBeenCalled();
+    expect(root.querySelector('[role="alert"]')!.textContent).toContain('adresse email');
+  });
+
+  it('se connecte avec l’adresse saisie, puis ouvre la zone authentifiée', async () => {
+    const service = fake({ mode: 'FULL', usernameless: false });
+    const { fixture, button, typeEmail } = await render(service);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    typeEmail(' m@asso.fr ');
+    button()!.click();
+    await fixture.whenStable();
+    expect(service.login).toHaveBeenCalledWith('m@asso.fr');
+    expect(navigate).toHaveBeenCalledWith('/');
+  });
+
+  it('se connecte sans adresse quand l’association l’autorise', async () => {
+    const service = fake({ mode: 'FULL', usernameless: true });
+    const { fixture, root, button } = await render(service);
+    expect(root.textContent).not.toContain('Saisissez d’abord votre adresse email.');
+    vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    button()!.click();
+    await fixture.whenStable();
+    expect(service.login).toHaveBeenCalledWith(null);
+  });
+
+  it('explique en clair l’échec de la clé d’accès, sans jargon', async () => {
+    const service = fake({ mode: 'FULL', usernameless: true });
+    service.login.mockRejectedValue({ name: 'NotAllowedError' });
+    const { fixture, root, button } = await render(service);
+    button()!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(root.querySelector('[role="alert"]')!.textContent).toContain('annulée');
+    expect(root.querySelector('[role="alert"]')!.textContent).not.toContain('NotAllowedError');
   });
 });
