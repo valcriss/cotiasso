@@ -116,6 +116,12 @@ export const GLOSSARY = {
     definition: 'On n’efface jamais une opération enregistrée : on ajoute une opération inverse qui l’annule. L’historique reste lisible pour tout le monde.',
     example: 'Une dépense saisie par erreur : « Annuler l’opération » ajoute son contraire.',
   },
+  cleAcces: {
+    simple: 'Clé d’accès',
+    definition:
+      'Un moyen de se connecter en déverrouillant son téléphone ou son ordinateur (empreinte, visage ou code), sans mot de passe à retaper. Elle ne peut pas être volée par un faux site, et fonctionne aussi avec une clé de sécurité physique.',
+    example: 'Sur votre téléphone, un coup d’œil ou un doigt sur le capteur suffit pour ouvrir l’application.',
+  },
   resultat: {
     simple: 'Excédent ou déficit',
     accounting: 'Résultat de l’exercice',

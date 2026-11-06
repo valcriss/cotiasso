@@ -21,7 +21,7 @@ Le public cible est celui des trésorier·ères bénévoles sans formation compt
 | Domaine | Livré | Référence |
 | --- | --- | --- |
 | Dépôt et exploitation | Monorepo npm (domaine comptable, API NestJS, web Angular), CI GitHub Actions, images Docker `api` / `web` / `backup`, Compose de production | ADR 0001 |
-| Comptes et sécurité | Comptes locaux (argon2id), sessions avec protection CSRF, anti-force-brute, assistant d'installation à jeton unique, invitation et réinitialisation par lien, double authentification TOTP (obligation par rôle, codes de secours) | ADR 0005, 0007 |
+| Comptes et sécurité | Comptes locaux (argon2id), sessions avec protection CSRF, anti-force-brute, assistant d'installation à jeton unique, invitation et réinitialisation par lien, double authentification TOTP (obligation par rôle, codes de secours), clés d'accès WebAuthn facultatives (désactivées par défaut ; second facteur ou connexion complète, au choix de l'association) | ADR 0005, 0007, 0036 |
 | Droits | Rôles modifiables, refus par défaut vérifié à chaque route, protection du dernier administrateur, menu filtré | ADR 0008 |
 | Association | Paramètres versionnés, identité, marque blanche (contraste imposé), registre de modules activables (aucun module livré) | ADR 0002, 0003 |
 | Audit | Journal en ajout seul, chaîné par empreintes, vérification d'intégrité, écran de consultation | cadrage §11.2 |

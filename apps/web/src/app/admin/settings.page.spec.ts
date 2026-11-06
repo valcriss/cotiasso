@@ -23,7 +23,7 @@ describe('SettingsPage', () => {
   it('ajoute Association et Modules à qui peut consulter les paramètres', async () => {
     const root = await render(['settings.association:view', 'users:view', 'audit:view']);
     const tabs = Array.from(root.querySelectorAll('nav.tabs a span')).map((a) => a.textContent?.trim());
-    expect(tabs).toEqual(['Association', 'Modules', 'Utilisateurs', 'Rôles', "Journal d'audit"]);
+    expect(tabs).toEqual(['Association', 'Modules', 'Sécurité', 'Utilisateurs', 'Rôles', "Journal d'audit"]);
   });
 
   it("indique qu'aucune rubrique n'est disponible sans permission adéquate", async () => {

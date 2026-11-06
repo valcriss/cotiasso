@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MIN_TEXT_CONTRAST, contrastRatio } from "./contrast.js";
 import { DEFAULT_MODULES } from "./modules-catalog.js";
-import { SETTINGS_SECTIONS, brandingSchema, identitySchema, isSettingsSection } from "./schemas.js";
+import { SETTINGS_SECTIONS, brandingSchema, identitySchema, isSettingsSection, securitySchema } from "./schemas.js";
 
 describe("contrastRatio (WCAG)", () => {
   it("reproduit les valeurs de référence", () => {
@@ -75,6 +75,31 @@ describe("brandingSchema", () => {
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.path).toEqual(["sidebarText"]);
     expect(result.error?.issues[0]?.message).toContain("contraste");
+  });
+});
+
+describe("securitySchema (clés d'accès)", () => {
+  it("désactive les clés d'accès par défaut", () => {
+    expect(SETTINGS_SECTIONS.security.defaults).toEqual({ passkeyMode: "DISABLED", passkeyUsernameless: false });
+  });
+
+  it("accepte chaque mode, et la connexion sans email seulement en mode complet", () => {
+    for (const passkeyMode of ["DISABLED", "SECOND_FACTOR", "FULL"]) {
+      expect(securitySchema.safeParse({ passkeyMode, passkeyUsernameless: false }).success).toBe(true);
+    }
+    expect(securitySchema.safeParse({ passkeyMode: "FULL", passkeyUsernameless: true }).success).toBe(true);
+    const refused = securitySchema.safeParse({ passkeyMode: "SECOND_FACTOR", passkeyUsernameless: true });
+    expect(refused.success).toBe(false);
+    expect(refused.error?.issues[0]?.path).toEqual(["passkeyUsernameless"]);
+  });
+
+  it("refuse un mode inconnu et des champs en trop", () => {
+    expect(securitySchema.safeParse({ passkeyMode: "ALWAYS", passkeyUsernameless: false }).success).toBe(false);
+    expect(securitySchema.safeParse({ passkeyMode: "FULL", passkeyUsernameless: false, extra: 1 }).success).toBe(false);
+  });
+
+  it("n'est pas modifiable par l'API générique des paramètres", () => {
+    expect(isSettingsSection("security")).toBe(false);
   });
 });
 

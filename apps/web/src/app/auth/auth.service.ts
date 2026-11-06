@@ -14,8 +14,13 @@ export type MfaState = 'OK' | 'VERIFICATION_REQUIRED' | 'ENROLLMENT_REQUIRED';
 
 export interface MfaStatus {
   state: MfaState;
+  /** Un second facteur existe : code TOTP ou clé d'accès utilisable. */
   enabled: boolean;
   required: boolean;
+  /** Un code TOTP est actif (absent des anciens serveurs). */
+  totp?: boolean;
+  /** Au moins une clé d'accès est utilisable (absent des anciens serveurs). */
+  passkey?: boolean;
 }
 
 export interface EnrollmentStart {
@@ -23,7 +28,7 @@ export interface EnrollmentStart {
   otpauthUri: string;
 }
 
-interface SessionResponse {
+export interface SessionResponse {
   user: AuthUser;
   permissions: string[];
   /** Droits exercés sur des projets précis (portée projet) : permission → identifiants de projets. */
@@ -79,6 +84,11 @@ export class AuthService {
 
   async login(email: string, password: string): Promise<void> {
     const response = await firstValueFrom(this.http.post<SessionResponse>('/api/auth/login', { email, password }));
+    this.applySession(response);
+  }
+
+  /** Applique la session ouverte par une clé d'accès (la réponse du serveur est celle de la connexion). */
+  completeLogin(response: SessionResponse): void {
     this.applySession(response);
   }
 

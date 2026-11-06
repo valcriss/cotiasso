@@ -54,6 +54,7 @@ describe('MfaEnrollPage', () => {
     fixture = TestBed.createComponent(MfaEnrollPage);
     root = fixture.nativeElement as HTMLElement;
     await settle();
+    controller.expectOne('/api/auth/methods').flush({ passkeys: { mode: 'DISABLED', usernameless: false } });
   });
 
   afterEach(() => controller.verify());

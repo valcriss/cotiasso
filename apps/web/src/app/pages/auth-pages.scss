@@ -160,3 +160,45 @@ p.error {
   overflow-wrap: anywhere;
   user-select: all;
 }
+
+.alternative {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+
+  .or {
+    align-items: center;
+    color: var(--mat-sys-on-surface-variant);
+    display: flex;
+    font: var(--mat-sys-body-small);
+    gap: 12px;
+    margin: 0;
+
+    &::before,
+    &::after {
+      border-top: 1px solid var(--app-border);
+      content: '';
+      flex: 1;
+    }
+  }
+
+  .hint {
+    margin: 0;
+  }
+}
+
+.passkey-choice {
+  background: var(--app-surface-variant, var(--mat-sys-surface-container));
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 16px;
+
+  p {
+    margin: 0;
+  }
+}

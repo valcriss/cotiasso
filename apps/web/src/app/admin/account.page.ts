@@ -16,6 +16,7 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { describeHttpError, type FormError } from '../auth/error-messages';
 import { PageHeader } from '../ui/page-header';
+import { PasskeysPanel } from './passkeys-panel';
 import { AdminApiService } from './admin-api.service';
 import { recoveryCodesText } from '../pages/mfa-enroll.page';
 
@@ -28,7 +29,7 @@ function matchesNewPassword(control: AbstractControl): ValidationErrors | null {
 
 @Component({
   selector: 'app-account-page',
-  imports: [PageHeader, MatIconModule, ReactiveFormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule],
+  imports: [PageHeader, PasskeysPanel, MatIconModule, ReactiveFormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule],
   styleUrl: './admin-pages.scss',
   template: `
     <app-page-header
@@ -134,6 +135,8 @@ function matchesNewPassword(control: AbstractControl): ValidationErrors | null {
         }
       }
     </section>
+
+    <app-passkeys-panel />
   `,
 })
 export class AccountPage {
