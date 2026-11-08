@@ -36,6 +36,12 @@ ENV NODE_ENV=production \
     API_PORT=3000
 WORKDIR /app/apps/api
 
+# Correctifs de sécurité du système, puis retrait de npm, npx et corepack : inutiles à l’exécution et porteurs de dépendances
+# (undici, brace-expansion…) que les scanners signalent sans que l’API ne les utilise.
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /opt/yarn* /usr/local/bin/yarn*
+
 COPY --from=api-deps --chown=node:node /app/node_modules /app/node_modules
 # Dépendances que npm ne hisse pas à la racine (versions en conflit avec un autre workspace) : sans elles, le démarrage échoue.
 COPY --from=api-deps --chown=node:node /app/apps/api/node_modules /app/apps/api/node_modules
@@ -60,13 +66,17 @@ CMD ["node", "dist/main.js"]
 
 # ---------- Migrations : CLI Prisma et schéma, exécutés une fois avant l'API ----------
 # Image séparée pour que l'API n'embarque pas le CLI Prisma (plusieurs centaines de Mo) : même version que celle de l'API.
-FROM ${NODE_IMAGE} AS migrate
+FROM ${NODE_RUNTIME_IMAGE} AS migrate
 ENV NODE_ENV=production
 WORKDIR /app
 COPY apps/api/package.json /tmp/api-package.json
-RUN PRISMA_VERSION="$(node -p "require('/tmp/api-package.json').devDependencies.prisma")" \
+# Alpine (comme l’API) : bien moins de CVE que Debian ; openssl est requis par le moteur de schéma de Prisma.
+# npm sert à installer le CLI puis est retiré (ses dépendances internes sont signalées par les scanners).
+RUN apk upgrade --no-cache && apk add --no-cache openssl \
+    && PRISMA_VERSION="$(node -p "require('/tmp/api-package.json').devDependencies.prisma")" \
     && npm install --no-save --no-audit --no-fund --omit=dev "prisma@${PRISMA_VERSION}" dotenv@18.0.9 \
     && npm cache clean --force && rm /tmp/api-package.json \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
     && chown -R node:node /app
 COPY --from=build --chown=node:node /app/apps/api/prisma ./prisma
 COPY --from=build --chown=node:node /app/apps/api/prisma.config.ts ./prisma.config.ts
@@ -76,7 +86,11 @@ ENTRYPOINT ["node_modules/.bin/prisma", "migrate", "deploy"]
 # ---------- Sauvegarde : pg_dump à la version du serveur, chiffrement, restauration et vérification ----------
 # Image séparée de l'API pour ne pas l'alourdir : l'API ne contient aucun outil de sauvegarde.
 FROM postgres:17-alpine AS backup
-RUN apk add --no-cache bash openssl tar coreutils rclone
+# `apk upgrade` applique les correctifs de sécurité postérieurs à l’image de base ; gosu (entrypoint de l’image officielle,
+# remplacé ici) est retiré car il embarque une version de Go vulnérable et n’est pas utilisé.
+RUN apk upgrade --no-cache \
+    && apk add --no-cache bash openssl tar coreutils rclone \
+    && rm -f /usr/local/bin/gosu
 COPY docker/backup.sh /usr/local/bin/backup.sh
 RUN chmod +x /usr/local/bin/backup.sh
 ENTRYPOINT ["/usr/local/bin/backup.sh"]
@@ -84,6 +98,10 @@ CMD ["run"]
 
 # ---------- Web : fichiers statiques servis par nginx, /api proxifié vers l'API ----------
 FROM ${NGINX_IMAGE} AS web
+# Correctifs de sécurité du système (l’image de base peut accuser du retard sur Alpine).
+USER root
+RUN apk upgrade --no-cache
+USER 101
 ENV TRUSTED_PROXY_CIDR=127.0.0.1/32
 COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/apps/web/dist/web/browser /usr/share/nginx/html

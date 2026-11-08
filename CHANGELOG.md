@@ -6,6 +6,12 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
+## Non publié
+
+### Sécurité
+
+- Les images Docker ne contiennent plus de vulnérabilité connue de gravité haute ou critique (scan Trivy du 8 novembre 2026) : correctifs système appliqués à la construction, npm retiré des images d'exécution (API et migrations), outil `gosu` inutile retiré de l'image de sauvegarde. L'image de migrations passe de Debian à Alpine, comme l'API ; son fonctionnement est inchangé.
+
 ## 1.0.16 — 2026-11-06
 
 ### Nouveautés
