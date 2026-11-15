@@ -6,6 +6,12 @@ Une section par version, la plus récente en premier : `## <version> — <date>`
 
 Les sections 1.0.0 à 1.0.2 ont été reconstituées à partir de l'historique git et des étiquettes de version.
 
+## 1.0.18 — 2026-11-15
+
+### Sécurité
+
+- Pour construire les images Docker vous-même, ajoutez `--no-cache` (`docker build --no-cache --pull …`) : sans cela, Docker peut réutiliser une ancienne étape de mise à jour du système et laisser passer des correctifs de sécurité récents (trois failles de `libxslt` dans l'image web, par exemple). Les images publiées sont construites sur des machines vierges, sans cache, et ne sont pas concernées.
+
 ## 1.0.17 — 2026-11-08
 
 ### Sécurité
